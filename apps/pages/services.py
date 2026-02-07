@@ -156,6 +156,7 @@ class SubscriberService:
     def subscribe(email, name=None, source='website'):
         """Subscribe an email to the newsletter."""
         existing = Subscriber.objects.filter(email=email).first()
+        safe_name = (name or "").strip()
         
         if existing:
             if existing.is_active:
@@ -163,12 +164,14 @@ class SubscriberService:
             else:
                 existing.is_active = True
                 existing.unsubscribed_at = None
+                if safe_name:
+                    existing.name = safe_name
                 existing.save()
                 return {'success': True, 'message': 'Re-subscribed successfully'}
         
         Subscriber.objects.create(
             email=email,
-            name=name,
+            name=safe_name,
             source=source
         )
         

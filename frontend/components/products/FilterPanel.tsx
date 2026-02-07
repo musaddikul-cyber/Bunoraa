@@ -76,49 +76,57 @@ export function FilterPanel({
       cancelled = true;
     };
   }, [paramsKey, preferredCurrency]);
-  const current = parseFilters(searchParams);
-  const minRange = Math.max(0, Number(activeFilters?.price_range?.min ?? 0));
-  const maxRange = Math.max(minRange, Number(activeFilters?.price_range?.max ?? minRange));
-  const sliderMax = maxRange <= minRange ? minRange + 1 : maxRange;
-  const currencyCode = activeFilters?.price_range?.currency || "USD";
-
-  const parseNumber = (value: string | null | undefined, fallback: number) => {
+  const parseNumber = (value: string | number | null | undefined, fallback: number) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
+  const current = parseFilters(searchParams);
+  const minRange = Math.max(0, parseNumber(activeFilters?.price_range?.min, 0));
+  const maxRange = Math.max(
+    minRange,
+    parseNumber(activeFilters?.price_range?.max, minRange)
+  );
+  const sliderMax = maxRange <= minRange ? minRange + 1 : maxRange;
+  const currencyCode = activeFilters?.price_range?.currency || "USD";
+  const rangeSpan = Math.max(0, maxRange - minRange);
   const clampValue = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), max);
-
-  const [priceMin, setPriceMin] = React.useState(() =>
-    clampValue(parseNumber(current.priceMin, minRange), minRange, maxRange)
-  );
-  const [priceMax, setPriceMax] = React.useState(() =>
-    clampValue(parseNumber(current.priceMax, maxRange), minRange, maxRange)
-  );
+  const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
+  const percentFromValue = (value: number) => {
+    if (rangeSpan <= 0) return 0;
+    return ((value - minRange) / rangeSpan) * 100;
+  };
+  const valueFromPercent = (percent: number) => {
+    if (rangeSpan <= 0) return minRange;
+    return minRange + (rangeSpan * percent) / 100;
+  };
+  const [minPercentValue, setMinPercentValue] = React.useState(0);
+  const [maxPercentValue, setMaxPercentValue] = React.useState(100);
 
   React.useEffect(() => {
     const nextMin = clampValue(parseNumber(current.priceMin, minRange), minRange, maxRange);
     const nextMax = clampValue(parseNumber(current.priceMax, maxRange), minRange, maxRange);
-    setPriceMin(Math.min(nextMin, nextMax));
-    setPriceMax(Math.max(nextMin, nextMax));
-  }, [current.priceMin, current.priceMax, minRange, maxRange]);
+    const safeMin = Math.min(nextMin, nextMax);
+    const safeMax = Math.max(nextMin, nextMax);
+    setMinPercentValue(clampPercent(Math.round(percentFromValue(safeMin))));
+    setMaxPercentValue(clampPercent(Math.round(percentFromValue(safeMax))));
+  }, [current.priceMin, current.priceMax, minRange, maxRange, rangeSpan]);
 
   const applyPrice = () => {
-    const safeMin = clampValue(Math.min(priceMin, priceMax), minRange, sliderMax);
-    const safeMax = clampValue(Math.max(priceMin, priceMax), minRange, sliderMax);
+    if (rangeSpan <= 0) return;
+    const rawMin = valueFromPercent(Math.min(minPercentValue, maxPercentValue));
+    const rawMax = valueFromPercent(Math.max(minPercentValue, maxPercentValue));
+    const safeMin = clampValue(Number(rawMin.toFixed(2)), minRange, sliderMax);
+    const safeMax = clampValue(Number(rawMax.toFixed(2)), minRange, sliderMax);
     let params = updateParamValue(searchParams, "price_min", String(safeMin));
     params = updateParamValue(params, "price_max", String(safeMax));
     router.push(`?${params.toString()}`);
   };
-  const rangeSpan = Math.max(1, sliderMax - minRange);
-  const minValue = Math.min(priceMin, priceMax);
-  const maxValue = Math.max(priceMin, priceMax);
-  const minPercent = ((minValue - minRange) / rangeSpan) * 100;
-  const maxPercent = ((maxValue - minRange) / rangeSpan) * 100;
-  const step = rangeSpan < 1 ? 0.01 : 1;
-  const rangeDisabled = !Number.isFinite(minRange) || !Number.isFinite(sliderMax);
+  const minPercent = minPercentValue;
+  const maxPercent = maxPercentValue;
+  const rangeDisabled = !Number.isFinite(minRange) || !Number.isFinite(maxRange) || rangeSpan <= 0;
   const minOnTop =
-    minValue > maxValue - Math.max(step, rangeSpan * 0.1);
+    minPercentValue > maxPercentValue - 5;
   const minZ = activeHandle === "min" || minOnTop ? "z-30" : "z-10";
   const maxZ = activeHandle === "max" ? "z-30" : "z-20";
 
@@ -160,51 +168,51 @@ export function FilterPanel({
     <div className={cn("space-y-6", className)}>
       <Section title="Price range">
         <div className="space-y-3">
-          <div className="relative h-2">
-            <div className="pointer-events-none absolute inset-0 rounded-full bg-muted" />
+          <div className="relative h-4">
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-muted" />
             <div
-              className="pointer-events-none absolute h-2 rounded-full bg-primary/30"
+              className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-primary/30"
               style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}
             />
             <input
               type="range"
-              min={minRange}
-              max={sliderMax}
-              step={step}
-              value={Math.min(priceMin, priceMax)}
+              min={0}
+              max={100}
+              step={1}
+              value={minPercentValue}
               disabled={rangeDisabled}
               onPointerDown={() => setActiveHandle("min")}
               onPointerUp={() => setActiveHandle(null)}
               onChange={(event) => {
-                const next = clampValue(Number(event.target.value), minRange, sliderMax);
-                setPriceMin(Math.min(next, priceMax));
+                const nextPercent = clampPercent(Number(event.target.value));
+                setMinPercentValue(Math.min(nextPercent, maxPercentValue));
               }}
               onMouseUp={applyPrice}
               onTouchEnd={applyPrice}
               aria-label="Minimum price"
               className={cn(
-                "range-slider range-slider-min absolute inset-0 h-2 w-full cursor-pointer bg-transparent",
+                "range-slider range-slider-min absolute inset-0 h-4 w-full cursor-pointer bg-transparent",
                 minZ
               )}
             />
             <input
               type="range"
-              min={minRange}
-              max={sliderMax}
-              step={step}
-              value={Math.max(priceMax, priceMin)}
+              min={0}
+              max={100}
+              step={1}
+              value={maxPercentValue}
               disabled={rangeDisabled}
               onPointerDown={() => setActiveHandle("max")}
               onPointerUp={() => setActiveHandle(null)}
               onChange={(event) => {
-                const next = clampValue(Number(event.target.value), minRange, sliderMax);
-                setPriceMax(Math.max(next, priceMin));
+                const nextPercent = clampPercent(Number(event.target.value));
+                setMaxPercentValue(Math.max(nextPercent, minPercentValue));
               }}
               onMouseUp={applyPrice}
               onTouchEnd={applyPrice}
               aria-label="Maximum price"
               className={cn(
-                "range-slider range-slider-max absolute inset-0 h-2 w-full cursor-pointer bg-transparent",
+                "range-slider range-slider-max absolute inset-0 h-4 w-full cursor-pointer bg-transparent",
                 maxZ
               )}
             />

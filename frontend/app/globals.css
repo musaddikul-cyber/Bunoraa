@@ -147,6 +147,7 @@
     appearance: none;
     background: transparent;
     pointer-events: auto;
+    touch-action: none;
   }
 
 

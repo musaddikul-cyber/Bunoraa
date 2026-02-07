@@ -10,10 +10,12 @@ export function FilterDrawer({
   filters,
   facets,
   className,
+  filterParams,
 }: {
   filters: ProductFilterResponse | null;
   facets?: CategoryFacet[];
   className?: string;
+  filterParams?: Record<string, string>;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -34,7 +36,7 @@ export function FilterDrawer({
               </Button>
             </div>
             <div className="mt-6">
-              <FilterPanel filters={filters} facets={facets} />
+              <FilterPanel filters={filters} facets={facets} filterParams={filterParams} />
             </div>
           </div>
         </div>

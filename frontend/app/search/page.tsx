@@ -10,6 +10,7 @@ import { ViewToggle } from "@/components/products/ViewToggle";
 import { Button } from "@/components/ui/Button";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import type { CategoryFacet } from "@/components/products/FilterPanel";
+import { getServerLocaleHeaders } from "@/lib/serverLocale";
 
 export const revalidate = 60;
 
@@ -24,6 +25,7 @@ type SearchResponse = {
 async function getSearchMeta(query: string) {
   const response = await apiFetch<SearchResponse>("/catalog/search/", {
     params: { q: query },
+    headers: await getServerLocaleHeaders(),
     next: { revalidate },
   });
   return response.data;
@@ -49,6 +51,7 @@ async function getProducts(searchParams: SearchParams) {
 
   return apiFetch<ProductListItem[]>("/catalog/products/", {
     params,
+    headers: await getServerLocaleHeaders(),
     next: { revalidate },
   });
 }
@@ -56,7 +59,8 @@ async function getProducts(searchParams: SearchParams) {
 async function getFilters(query: string) {
   const response = await apiFetch<ProductFilterResponse>("/catalog/products/filters/", {
     params: query ? { q: query } : undefined,
-    next: { revalidate },
+    headers: await getServerLocaleHeaders(),
+    cache: "no-store",
   });
   return response.data;
 }
@@ -64,7 +68,7 @@ async function getFilters(query: string) {
 async function getCategoryFacets(slug: string) {
   const response = await apiFetch<CategoryFacet[]>(
     `/catalog/categories/${slug}/facets/`,
-    { next: { revalidate } }
+    { headers: await getServerLocaleHeaders(), next: { revalidate } }
   );
   return response.data;
 }
@@ -76,6 +80,7 @@ export default async function SearchPage({
 }) {
   const resolved = await searchParams;
   const query = typeof resolved.q === "string" ? resolved.q : "";
+  const filterParams = query ? { q: query } : {};
   const view = resolved.view === "list" ? "list" : "grid";
   const currentPage = Number(resolved.page || 1) || 1;
 
@@ -166,7 +171,12 @@ export default async function SearchPage({
             <h1 className="text-3xl font-semibold">Results for "{query}"</h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <FilterDrawer filters={filterData} facets={facets} className="lg:hidden" />
+            <FilterDrawer
+              filters={filterData}
+              facets={facets}
+              className="lg:hidden"
+              filterParams={filterParams}
+            />
             <SortMenu />
             <ViewToggle />
           </div>
@@ -188,7 +198,7 @@ export default async function SearchPage({
 
         <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
           <aside className="hidden lg:block">
-            <FilterPanel filters={filterData} facets={facets} />
+            <FilterPanel filters={filterData} facets={facets} filterParams={filterParams} />
           </aside>
           <div className="space-y-6">
             <AppliedFilters />

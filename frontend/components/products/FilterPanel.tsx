@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ProductFilterResponse } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import {
   parseFilters,
@@ -10,6 +11,8 @@ import {
   updateParamValue,
 } from "@/lib/productFilters";
 import { cn } from "@/lib/utils";
+import { formatMoney } from "@/lib/money";
+import { getStoredLocale } from "@/lib/locale";
 
 export type CategoryFacet = {
   id: string;
@@ -33,32 +36,96 @@ export function FilterPanel({
   filters,
   facets,
   className,
+  filterParams,
 }: {
   filters: ProductFilterResponse | null;
   facets?: CategoryFacet[];
   className?: string;
+  filterParams?: Record<string, string>;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const current = parseFilters(searchParams);
-  const [priceMin, setPriceMin] = React.useState(current.priceMin || "");
-  const [priceMax, setPriceMax] = React.useState(current.priceMax || "");
+  const [activeFilters, setActiveFilters] = React.useState<ProductFilterResponse | null>(filters);
+  const [preferredCurrency, setPreferredCurrency] = React.useState<string | undefined>();
+  const [activeHandle, setActiveHandle] = React.useState<"min" | "max" | null>(null);
 
   React.useEffect(() => {
-    setPriceMin(current.priceMin || "");
-    setPriceMax(current.priceMax || "");
-  }, [current.priceMin, current.priceMax]);
+    setActiveFilters(filters);
+  }, [filters]);
+
+  React.useEffect(() => {
+    setPreferredCurrency(getStoredLocale().currency);
+  }, []);
+
+  const paramsKey = React.useMemo(() => JSON.stringify(filterParams || {}), [filterParams]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const params = filterParams || {};
+    apiFetch<ProductFilterResponse>("/catalog/products/filters/", {
+      params,
+      suppressError: true,
+    })
+      .then((response) => {
+        if (!cancelled) {
+          setActiveFilters(response.data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [paramsKey, preferredCurrency]);
+  const current = parseFilters(searchParams);
+  const minRange = Math.max(0, Number(activeFilters?.price_range?.min ?? 0));
+  const maxRange = Math.max(minRange, Number(activeFilters?.price_range?.max ?? minRange));
+  const sliderMax = maxRange <= minRange ? minRange + 1 : maxRange;
+  const currencyCode = activeFilters?.price_range?.currency || "USD";
+
+  const parseNumber = (value: string | null | undefined, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  const clampValue = (value: number, min: number, max: number) =>
+    Math.min(Math.max(value, min), max);
+
+  const [priceMin, setPriceMin] = React.useState(() =>
+    clampValue(parseNumber(current.priceMin, minRange), minRange, maxRange)
+  );
+  const [priceMax, setPriceMax] = React.useState(() =>
+    clampValue(parseNumber(current.priceMax, maxRange), minRange, maxRange)
+  );
+
+  React.useEffect(() => {
+    const nextMin = clampValue(parseNumber(current.priceMin, minRange), minRange, maxRange);
+    const nextMax = clampValue(parseNumber(current.priceMax, maxRange), minRange, maxRange);
+    setPriceMin(Math.min(nextMin, nextMax));
+    setPriceMax(Math.max(nextMin, nextMax));
+  }, [current.priceMin, current.priceMax, minRange, maxRange]);
 
   const applyPrice = () => {
-    let params = updateParamValue(searchParams, "price_min", priceMin || null);
-    params = updateParamValue(params, "price_max", priceMax || null);
+    const safeMin = clampValue(Math.min(priceMin, priceMax), minRange, sliderMax);
+    const safeMax = clampValue(Math.max(priceMin, priceMax), minRange, sliderMax);
+    let params = updateParamValue(searchParams, "price_min", String(safeMin));
+    params = updateParamValue(params, "price_max", String(safeMax));
     router.push(`?${params.toString()}`);
   };
+  const rangeSpan = Math.max(1, sliderMax - minRange);
+  const minValue = Math.min(priceMin, priceMax);
+  const maxValue = Math.max(priceMin, priceMax);
+  const minPercent = ((minValue - minRange) / rangeSpan) * 100;
+  const maxPercent = ((maxValue - minRange) / rangeSpan) * 100;
+  const step = rangeSpan < 1 ? 0.01 : 1;
+  const rangeDisabled = !Number.isFinite(minRange) || !Number.isFinite(sliderMax);
+  const minOnTop =
+    minValue > maxValue - Math.max(step, rangeSpan * 0.1);
+  const minZ = activeHandle === "min" || minOnTop ? "z-30" : "z-10";
+  const maxZ = activeHandle === "max" ? "z-30" : "z-20";
 
   const attributeGroups = React.useMemo(() => {
     const groups: Array<{ name: string; slug: string; values: Array<{ value: string; count?: number }> }> = [];
-    if (filters?.attributes) {
-      Object.entries(filters.attributes).forEach(([name, info]) => {
+    if (activeFilters?.attributes) {
+      Object.entries(activeFilters.attributes).forEach(([name, info]) => {
         groups.push({
           name,
           slug: info.slug,
@@ -87,30 +154,66 @@ export function FilterPanel({
       }
     });
     return Object.values(bySlug);
-  }, [filters, facets]);
+  }, [activeFilters, facets]);
 
   return (
     <div className={cn("space-y-6", className)}>
       <Section title="Price range">
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            placeholder="Min"
-            value={priceMin}
-            onChange={(event) => setPriceMin(event.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm"
-          />
-          <input
-            type="number"
-            placeholder="Max"
-            value={priceMax}
-            onChange={(event) => setPriceMax(event.target.value)}
-            className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm"
-          />
+        <div className="space-y-3">
+          <div className="relative h-2">
+            <div className="pointer-events-none absolute inset-0 rounded-full bg-muted" />
+            <div
+              className="pointer-events-none absolute h-2 rounded-full bg-primary/30"
+              style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}
+            />
+            <input
+              type="range"
+              min={minRange}
+              max={sliderMax}
+              step={step}
+              value={Math.min(priceMin, priceMax)}
+              disabled={rangeDisabled}
+              onPointerDown={() => setActiveHandle("min")}
+              onPointerUp={() => setActiveHandle(null)}
+              onChange={(event) => {
+                const next = clampValue(Number(event.target.value), minRange, sliderMax);
+                setPriceMin(Math.min(next, priceMax));
+              }}
+              onMouseUp={applyPrice}
+              onTouchEnd={applyPrice}
+              aria-label="Minimum price"
+              className={cn(
+                "range-slider range-slider-min absolute inset-0 h-2 w-full cursor-pointer bg-transparent",
+                minZ
+              )}
+            />
+            <input
+              type="range"
+              min={minRange}
+              max={sliderMax}
+              step={step}
+              value={Math.max(priceMax, priceMin)}
+              disabled={rangeDisabled}
+              onPointerDown={() => setActiveHandle("max")}
+              onPointerUp={() => setActiveHandle(null)}
+              onChange={(event) => {
+                const next = clampValue(Number(event.target.value), minRange, sliderMax);
+                setPriceMax(Math.max(next, priceMin));
+              }}
+              onMouseUp={applyPrice}
+              onTouchEnd={applyPrice}
+              aria-label="Maximum price"
+              className={cn(
+                "range-slider range-slider-max absolute inset-0 h-2 w-full cursor-pointer bg-transparent",
+                maxZ
+              )}
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs text-foreground/60">
+            <span>Min {formatMoney(minRange, currencyCode)}</span>
+            <span>Max {formatMoney(maxRange, currencyCode)}</span>
+          </div>
         </div>
-        <Button size="sm" variant="secondary" onClick={applyPrice}>
-          Apply
-        </Button>
       </Section>
 
       <Section title="Availability">
@@ -130,7 +233,7 @@ export function FilterPanel({
           />
           In stock only
         </label>
-        {filters?.has_on_sale ? (
+        {activeFilters?.has_on_sale ? (
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -196,10 +299,10 @@ export function FilterPanel({
         ) : null}
       </Section>
 
-      {filters?.tags?.length ? (
+      {activeFilters?.tags?.length ? (
         <Section title="Tags">
           <div className="flex flex-wrap gap-2">
-            {filters.tags.map((tag) => {
+            {activeFilters.tags.map((tag) => {
               const isSelected = current.tags.includes(tag.name);
               return (
                 <button

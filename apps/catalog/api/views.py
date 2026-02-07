@@ -10,7 +10,10 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.generics import CreateAPIView 
 from rest_framework.pagination import PageNumberPagination 
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q, Avg
+from django.db.models import Count, Q, Avg, F
+from django.db import models
+from decimal import Decimal
+from uuid import UUID
 
 from apps.catalog.models import (
     Category, Product, Collection, Bundle, Review, Badge, Spotlight, Facet, Tag, CustomerPhoto,
@@ -36,6 +39,7 @@ from .serializers import (
 
 from apps.notifications.api.serializers import BackInStockNotificationSerializer 
 from apps.notifications.models import BackInStockNotification
+from apps.i18n.services import CurrencyService, CurrencyConversionService
 
 
 # =============================================================================
@@ -140,6 +144,8 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         
         # Apply additional filters
         products = ProductFilterService.apply_attribute_filters(products, request.query_params)
+        if not products.query.order_by:
+            products = products.order_by('-created_at')
         
         page = self.paginate_queryset(products)
         if page is not None:
@@ -158,14 +164,29 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         
         data = []
         for facet in facets:
-            item = FacetSerializer(facet, context={'request': request}).data
-            if facet.type == 'choice' and facet.values:
-                value_counts = []
-                for v in facet.values:
-                    count = products.filter(attributes__value__iexact=v).distinct().count()
-                    if count > 0:
-                        value_counts.append({'value': v, 'count': count})
-                item['value_counts'] = value_counts
+            if isinstance(facet, dict):
+                item = dict(facet)
+                facet_type = facet.get("type")
+                facet_values = facet.get("values") or []
+                if facet_type == "choice" and facet_values:
+                    value_counts = []
+                    for v in facet_values:
+                        value = v.get("value") if isinstance(v, dict) else v
+                        if not value:
+                            continue
+                        count = products.filter(attributes__value__iexact=value).distinct().count()
+                        if count > 0:
+                            value_counts.append({"value": value, "count": count})
+                    item["value_counts"] = value_counts
+            else:
+                item = FacetSerializer(facet, context={'request': request}).data
+                if facet.type == 'choice' and facet.values:
+                    value_counts = []
+                    for v in facet.values:
+                        count = products.filter(attributes__value__iexact=v).distinct().count()
+                        if count > 0:
+                            value_counts.append({'value': v, 'count': count})
+                    item['value_counts'] = value_counts
             data.append(item)
         
         return Response(data)
@@ -220,6 +241,8 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
             'images', 'variants', 'categories', 'tags'
         )
         qs = ProductFilterService.apply_attribute_filters(qs, self.request.query_params)
+        if not qs.query.order_by:
+            qs = qs.order_by('-created_at')
         return qs
     
     def retrieve(self, request, *args, **kwargs):
@@ -308,9 +331,15 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         query = request.query_params.get('q') or request.query_params.get('search')
         category = None
         if category_param:
+            category = None
             try:
-                category = Category.objects.get(Q(id=category_param) | Q(slug=category_param))
-            except Category.DoesNotExist:
+                UUID(str(category_param))
+                category = Category.objects.filter(id=category_param).first()
+            except (ValueError, TypeError):
+                category = None
+            if not category:
+                category = Category.objects.filter(slug=category_param).first()
+            if not category:
                 try:
                     category = CategoryService.get_category_by_path(category_param)
                 except Exception:
@@ -335,8 +364,87 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
                 base_queryset=base_qs,
                 query=None
             )
-        except Exception as exc:
-            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            price_stats = base_qs.annotate(
+                effective_price=models.Case(
+                    models.When(
+                        sale_price__isnull=False,
+                        sale_price__lt=F("price"),
+                        then=F("sale_price"),
+                    ),
+                    default=F("price"),
+                    output_field=models.DecimalField(max_digits=12, decimal_places=2),
+                )
+            ).aggregate(
+                min_price=models.Min("effective_price"),
+                max_price=models.Max("effective_price"),
+            )
+            min_price = max(0.0, float(price_stats.get("min_price") or 0))
+            max_price = max(min_price, float(price_stats.get("max_price") or 0))
+            product_currency = (
+                base_qs.values_list("currency", flat=True)
+                .exclude(currency__isnull=True)
+                .exclude(currency__exact="")
+                .distinct()
+                .first()
+            )
+            default_currency = CurrencyService.get_default_currency()
+            base_code = (
+                product_currency or (default_currency.code if default_currency else "BDT")
+            ).upper()
+            currency_obj = CurrencyService.get_currency_by_code(base_code) or default_currency
+            base_symbol = (
+                currency_obj.native_symbol or currency_obj.symbol
+                if currency_obj
+                else base_code
+            )
+            has_free_shipping = False
+            try:
+                field_names = {field.name for field in Product._meta.get_fields()}
+                if "free_shipping" in field_names:
+                    has_free_shipping = base_qs.filter(free_shipping=True).exists()
+            except Exception:
+                has_free_shipping = False
+
+            filters_data = {
+                "price_range": {
+                    "min": min_price,
+                    "max": max_price,
+                    "currency": base_code,
+                    "currency_symbol": base_symbol,
+                },
+                "attributes": {},
+                "tags": [],
+                "has_on_sale": base_qs.filter(
+                    sale_price__isnull=False,
+                    sale_price__lt=F("price"),
+                ).exists(),
+                "has_free_shipping": has_free_shipping,
+            }
+
+        try:
+            price_range = filters_data.get("price_range") if isinstance(filters_data, dict) else None
+            if price_range:
+                base_code = (price_range.get("currency") or "BDT").upper()
+                user_currency = CurrencyService.get_user_currency(request=request)
+                if user_currency and user_currency.code != base_code:
+                    for key in ("min", "max"):
+                        value = price_range.get(key)
+                        if value is None:
+                            continue
+                        converted = CurrencyConversionService.convert_by_code(
+                            Decimal(str(value)),
+                            base_code,
+                            user_currency.code,
+                            round_result=True,
+                        )
+                        price_range[key] = float(converted)
+                    price_range["currency"] = user_currency.code
+                    price_range["currency_symbol"] = (
+                        user_currency.native_symbol or user_currency.symbol
+                    )
+        except Exception:
+            pass
 
         return Response(filters_data)
 

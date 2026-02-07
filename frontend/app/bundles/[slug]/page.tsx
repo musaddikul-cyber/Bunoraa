@@ -4,12 +4,14 @@ import type { Bundle, ProductListItem } from "@/lib/types";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
+import { getServerLocaleHeaders } from "@/lib/serverLocale";
 
 export const revalidate = 600;
 
 async function getBundle(slug: string) {
   try {
     const response = await apiFetch<Bundle>(`/catalog/bundles/${slug}/`, {
+      headers: await getServerLocaleHeaders(),
       next: { revalidate },
     });
     return response.data;
@@ -24,7 +26,7 @@ async function getBundle(slug: string) {
 async function getBundleProducts(slug: string) {
   const response = await apiFetch<ProductListItem[]>(
     `/catalog/bundles/${slug}/`,
-    { next: { revalidate } }
+    { headers: await getServerLocaleHeaders(), next: { revalidate } }
   );
   const data = response.data as unknown as { items?: ProductListItem[] };
   return data.items || [];

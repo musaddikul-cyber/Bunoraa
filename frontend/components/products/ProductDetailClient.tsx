@@ -18,6 +18,7 @@ import { AddToWishlistButton } from "@/components/wishlist/AddToWishlistButton";
 import { RatingStars } from "@/components/products/RatingStars";
 import { ProductBadges } from "@/components/products/ProductBadges";
 import { ProductPrice } from "@/components/products/ProductPrice";
+import { formatMoney } from "@/lib/money";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useAuthContext } from "@/components/providers/AuthProvider";
@@ -63,13 +64,44 @@ function ProductGallery({ product }: { product: ProductDetail }) {
   const images = product.images || [];
   const [active, setActive] = React.useState(0);
   const activeImage = images[active]?.image || images[0]?.image || null;
+  const [isZoomed, setIsZoomed] = React.useState(false);
+  const [isHovering, setIsHovering] = React.useState(false);
+  const [zoomOrigin, setZoomOrigin] = React.useState("center");
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!activeImage) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - bounds.left) / bounds.width) * 100;
+    const y = ((event.clientY - bounds.top) / bounds.height) * 100;
+    setZoomOrigin(`${x.toFixed(2)}% ${y.toFixed(2)}%`);
+  };
+
+  const zoomActive = isZoomed || isHovering;
 
   return (
     <div className="space-y-4">
-      <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-muted">
+      <div
+        className="aspect-[4/5] w-full overflow-hidden rounded-2xl bg-muted lg:mx-auto lg:max-w-[520px]"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => {
+          setIsHovering(false);
+          if (!isZoomed) setZoomOrigin("center");
+        }}
+        onMouseMove={handleMouseMove}
+        onClick={() => setIsZoomed((prev) => !prev)}
+      >
         {activeImage ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={activeImage} alt={product.name} className="h-full w-full object-cover" />
+          <img
+            src={activeImage}
+            alt={product.name}
+            className={cn(
+              "h-full w-full object-cover transition-transform duration-300",
+              zoomActive ? "scale-110" : "scale-100",
+              isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
+            )}
+            style={{ transformOrigin: zoomOrigin }}
+          />
         ) : null}
       </div>
       {images.length > 1 ? (
@@ -192,6 +224,7 @@ function ShippingEstimator({
     toNumber(product.price) ??
     0;
   const subtotal = unitPriceValue * safeQuantity;
+  const subtotalLabel = formatMoney(subtotal, product.currency || "USD");
   const baseWeight = toNumber(product.weight);
   const totalWeight = baseWeight ? baseWeight * safeQuantity : undefined;
 
@@ -228,6 +261,7 @@ function ShippingEstimator({
         <h3 className="text-sm font-semibold">Shipping estimate</h3>
         <p className="text-xs text-foreground/60">
           Calculated for {safeQuantity} item{safeQuantity === 1 ? "" : "s"}
+          {subtotalLabel ? ` · Subtotal ${subtotalLabel}` : ""}
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
@@ -885,21 +919,6 @@ export function ProductDetailClient({
                       <span className="text-foreground/60">{attr.attribute.name}</span>
                       <span>{attr.value}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {product.tags?.length ? (
-              <div className="space-y-2">
-                <p className="text-xs text-foreground/60">Tags</p>
-                <div className="flex flex-wrap gap-2">
-                  {product.tags.map((tag) => (
-                    <span
-                      key={tag.id}
-                      className="rounded-full border border-border px-3 py-1 text-xs"
-                    >
-                      {tag.name}
-                    </span>
                   ))}
                 </div>
               </div>

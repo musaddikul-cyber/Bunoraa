@@ -6,6 +6,7 @@ import logging
 from collections import Counter
 from decimal import Decimal
 from typing import Optional, List, Dict, Any, Tuple
+from uuid import UUID
 
 from django.db import transaction, models
 from django.db.models import Q, F, Avg, Count, Sum, Prefetch
@@ -20,6 +21,7 @@ from .models import (
     Facet, CategoryFacet, StockHistory, Reservation, StockAlert,
     DigitalAsset, ProductPrice, Currency, EcoCertification
 )
+from apps.i18n.services import CurrencyService, CurrencyConversionService
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +156,8 @@ class CategoryService:
             )
         
         qs = qs.select_related('primary_category').prefetch_related('images', 'categories', 'tags')
+        if not qs.query.order_by:
+            qs = qs.order_by('-created_at')
         
         if limit:
             return qs[:limit]
@@ -1051,9 +1055,9 @@ import django_filters
 
 class ProductFilter(django_filters.FilterSet):
     """Django-filter based product filtering."""
-    
-    price_min = django_filters.NumberFilter(field_name="price", lookup_expr="gte")
-    price_max = django_filters.NumberFilter(field_name="price", lookup_expr="lte")
+
+    price_min = django_filters.NumberFilter(method="filter_price_min")
+    price_max = django_filters.NumberFilter(method="filter_price_max")
     category = django_filters.CharFilter(method="filter_category")
     tags = django_filters.CharFilter(method="filter_tags")
     in_stock = django_filters.BooleanFilter(method="filter_in_stock")
@@ -1076,12 +1080,33 @@ class ProductFilter(django_filters.FilterSet):
 
     def filter_category(self, qs, name, value):
         """Filter by category id or slug, including descendants."""
+        cat = None
         try:
-            cat = Category.objects.get(Q(id=value) | Q(slug=value))
-        except Category.DoesNotExist:
+            UUID(str(value))
+            cat = Category.objects.filter(id=value).first()
+        except (ValueError, TypeError):
+            cat = None
+        if not cat:
+            cat = Category.objects.filter(slug=value).first()
+        if not cat:
+            try:
+                cat = CategoryService.get_category_by_path(str(value))
+            except Exception:
+                cat = None
+        if not cat:
             return qs.none()
         descendants = cat.get_descendants(include_self=True)
         return qs.filter(categories__in=descendants).distinct()
+
+    def filter_price_min(self, qs, name, value):
+        return ProductFilterService.apply_price_range_filter(
+            qs, min_price=value, request=getattr(self, "request", None)
+        )
+
+    def filter_price_max(self, qs, name, value):
+        return ProductFilterService.apply_price_range_filter(
+            qs, max_price=value, request=getattr(self, "request", None)
+        )
 
     def filter_tags(self, qs, name, value):
         """Filter by comma-separated tag names."""
@@ -1111,6 +1136,21 @@ class ProductFilter(django_filters.FilterSet):
 
 class ProductFilterService:
     """Service class for advanced product filtering."""
+
+    @classmethod
+    def annotate_effective_price(cls, qs):
+        """Annotate queryset with effective_price using sale price when applicable."""
+        return qs.annotate(
+            effective_price=models.Case(
+                models.When(
+                    sale_price__isnull=False,
+                    sale_price__lt=F("price"),
+                    then=F("sale_price"),
+                ),
+                default=F("price"),
+                output_field=models.DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
     
     @classmethod
     def apply_attribute_filters(cls, qs, params: dict):
@@ -1161,12 +1201,57 @@ class ProductFilterService:
         return qs
     
     @classmethod
-    def apply_price_range_filter(cls, qs, min_price=None, max_price=None, currency='BDT'):
+    def apply_price_range_filter(cls, qs, min_price=None, max_price=None, currency=None, request=None):
         """Apply price range filter with currency support."""
+        default_currency = CurrencyService.get_default_currency()
+        currency_source = qs
+        product_currency = (
+            currency_source.values_list("currency", flat=True)
+            .exclude(currency__isnull=True)
+            .exclude(currency__exact="")
+            .distinct()
+            .first()
+        )
+        base_code = (
+            currency
+            or product_currency
+            or (default_currency.code if default_currency else "BDT")
+        ).upper()
+
+        user_currency = None
+        if request is not None:
+            try:
+                user_currency = CurrencyService.get_user_currency(request=request)
+            except Exception:
+                user_currency = None
+
+        if user_currency and user_currency.code != base_code:
+            try:
+                if min_price is not None:
+                    min_price = CurrencyConversionService.convert_by_code(
+                        Decimal(str(min_price)),
+                        user_currency.code,
+                        base_code,
+                        round_result=False,
+                    )
+                if max_price is not None:
+                    max_price = CurrencyConversionService.convert_by_code(
+                        Decimal(str(max_price)),
+                        user_currency.code,
+                        base_code,
+                        round_result=False,
+                    )
+            except Exception:
+                pass
+
+        if min_price is not None or max_price is not None:
+            qs = cls.annotate_effective_price(qs)
         if min_price is not None:
-            qs = qs.filter(price__gte=Decimal(str(min_price)))
+            min_value = max(Decimal("0"), Decimal(str(min_price)))
+            qs = qs.filter(effective_price__gte=min_value)
         if max_price is not None:
-            qs = qs.filter(price__lte=Decimal(str(max_price)))
+            max_value = max(Decimal("0"), Decimal(str(max_price)))
+            qs = qs.filter(effective_price__lte=max_value)
         return qs
     
     @classmethod
@@ -1234,12 +1319,19 @@ class ProductFilterService:
         # Category filter
         if params.get('category'):
             try:
-                cat = Category.objects.get(
-                    Q(id=params['category']) | Q(slug=params['category'])
-                )
+                cat = None
+                try:
+                    UUID(str(params['category']))
+                    cat = Category.objects.filter(id=params['category']).first()
+                except (ValueError, TypeError):
+                    cat = None
+                if not cat:
+                    cat = Category.objects.filter(slug=params['category']).first()
+                if not cat:
+                    cat = CategoryService.get_category_by_path(str(params['category']))
                 descendants = cat.get_descendants(include_self=True)
                 qs = qs.filter(categories__in=descendants)
-            except (Category.DoesNotExist, ValueError):
+            except (Category.DoesNotExist, ValueError, AttributeError):
                 pass
         
         # Price range (in BDT)
@@ -1247,7 +1339,7 @@ class ProductFilterService:
             qs,
             min_price=params.get('price_min') or params.get('min_price'),
             max_price=params.get('price_max') or params.get('max_price'),
-            currency='BDT'
+            currency=None
         )
         
         # Stock filter
@@ -1318,17 +1410,26 @@ class ProductFilterService:
                 Q(tags__name__icontains=query)
             )
         
-        # Get price range
-        price_stats = base_qs.aggregate(
-            min_price=models.Min('price'),
-            max_price=models.Max('price')
+        # Get price range (use effective price with sale price)
+        price_qs = cls.annotate_effective_price(base_qs)
+        price_stats = price_qs.aggregate(
+            min_price=models.Min('effective_price'),
+            max_price=models.Max('effective_price')
         )
+        fallback_qs = None
+        if price_stats.get('min_price') is None or price_stats.get('max_price') is None:
+            fallback_qs = Product.objects.filter(is_active=True, is_deleted=False)
+            fallback_price_qs = cls.annotate_effective_price(fallback_qs)
+            price_stats = fallback_price_qs.aggregate(
+                min_price=models.Min('effective_price'),
+                max_price=models.Max('effective_price')
+            )
         
         # Get available attributes
         attributes = {}
         product_ids = base_qs.values_list('id', flat=True)[:1000]  # Limit for performance
         attr_values = AttributeValue.objects.filter(
-            products__id__in=product_ids
+            product__id__in=product_ids
         ).select_related('attribute').distinct()
         
         for av in attr_values:
@@ -1355,13 +1456,35 @@ class ProductFilterService:
                 has_free_shipping = base_qs.filter(free_shipping=True).exists()
         except Exception:
             has_free_shipping = False
+
+        min_price = max(0.0, float(price_stats['min_price'] or 0))
+        max_price = max(min_price, float(price_stats['max_price'] or 0))
+
+        default_currency = CurrencyService.get_default_currency()
+        currency_source = base_qs
+        if fallback_qs is not None:
+            currency_source = fallback_qs
+        product_currency = (
+            currency_source.values_list("currency", flat=True)
+            .exclude(currency__isnull=True)
+            .exclude(currency__exact="")
+            .distinct()
+            .first()
+        )
+        base_code = (product_currency or (default_currency.code if default_currency else "BDT")).upper()
+        currency_obj = CurrencyService.get_currency_by_code(base_code) or default_currency
+        base_symbol = (
+            currency_obj.native_symbol or currency_obj.symbol
+            if currency_obj
+            else base_code
+        )
         
         return {
             'price_range': {
-                'min': float(price_stats['min_price'] or 0),
-                'max': float(price_stats['max_price'] or 0),
-                'currency': 'BDT',
-                'currency_symbol': '৳',
+                'min': min_price,
+                'max': max_price,
+                'currency': base_code,
+                'currency_symbol': base_symbol,
             },
             'attributes': attributes,
             'tags': tags,

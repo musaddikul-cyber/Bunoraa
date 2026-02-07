@@ -9,6 +9,7 @@ import { SortMenu } from "@/components/products/SortMenu";
 import { ViewToggle } from "@/components/products/ViewToggle";
 import { Button } from "@/components/ui/Button";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
+import { getServerLocaleHeaders } from "@/lib/serverLocale";
 
 export const revalidate = 300;
 
@@ -30,6 +31,7 @@ async function getProducts(searchParams: SearchParams) {
 
   return apiFetch<ProductListItem[]>("/catalog/products/", {
     params,
+    headers: await getServerLocaleHeaders(),
     next: { revalidate },
   });
 }
@@ -41,7 +43,8 @@ async function getFilters(searchParams: SearchParams) {
   }
   const response = await apiFetch<ProductFilterResponse>("/catalog/products/filters/", {
     params,
-    next: { revalidate },
+    headers: await getServerLocaleHeaders(),
+    cache: "no-store",
   });
   return response.data;
 }
@@ -54,6 +57,10 @@ export default async function ProductsPage({
   const resolved = await searchParams;
   const currentPage = Number(resolved.page || 1) || 1;
   const view = resolved.view === "list" ? "list" : "grid";
+  const filterParams =
+    resolved.q && typeof resolved.q === "string" && resolved.q.trim()
+      ? { q: resolved.q }
+      : {};
 
   const [productsResponse, filterData] = await Promise.all([
     getProducts(resolved),
@@ -117,7 +124,7 @@ export default async function ProductsPage({
             <h1 className="text-3xl font-semibold">Shop the catalog</h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <FilterDrawer filters={filterData} className="lg:hidden" />
+            <FilterDrawer filters={filterData} className="lg:hidden" filterParams={filterParams} />
             <SortMenu />
             <ViewToggle />
           </div>
@@ -125,7 +132,7 @@ export default async function ProductsPage({
 
         <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
           <aside className="hidden lg:block">
-            <FilterPanel filters={filterData} />
+            <FilterPanel filters={filterData} filterParams={filterParams} />
           </aside>
           <div className="space-y-6">
             <AppliedFilters />

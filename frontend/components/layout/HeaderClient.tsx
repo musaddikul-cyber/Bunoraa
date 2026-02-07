@@ -107,7 +107,7 @@ export function HeaderClient() {
         <CartIcon />
         <span className="sr-only">Cart</span>
         {count > 0 ? (
-          <span className="absolute -right-2 -top-2 rounded-full bg-primary px-2 py-0.5 text-xs text-white">
+          <span className="absolute right-0 -top-1 rounded-full bg-primary px-2 py-0.5 text-xs text-white">
             {count}
           </span>
         ) : null}

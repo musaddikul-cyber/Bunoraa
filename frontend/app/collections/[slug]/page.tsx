@@ -4,12 +4,14 @@ import type { Collection, ProductListItem } from "@/lib/types";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
+import { getServerLocaleHeaders } from "@/lib/serverLocale";
 
 export const revalidate = 600;
 
 async function getCollection(slug: string) {
   try {
     const response = await apiFetch<Collection>(`/catalog/collections/${slug}/`, {
+      headers: await getServerLocaleHeaders(),
       next: { revalidate },
     });
     return response.data;
@@ -24,7 +26,7 @@ async function getCollection(slug: string) {
 async function getCollectionProducts(slug: string) {
   const response = await apiFetch<ProductListItem[]>(
     `/catalog/collections/${slug}/products/`,
-    { next: { revalidate } }
+    { headers: await getServerLocaleHeaders(), next: { revalidate } }
   );
   return response.data;
 }

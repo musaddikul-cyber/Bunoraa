@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
 import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
+import { getServerLocaleHeaders } from "@/lib/serverLocale";
 
 export const revalidate = 300;
 
@@ -28,6 +29,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
 async function getCategory(slug: string) {
   try {
     const response = await apiFetch<Category>(`/catalog/categories/${slug}/`, {
+      headers: await getServerLocaleHeaders(),
       next: { revalidate },
     });
     return response.data;
@@ -57,6 +59,7 @@ async function getCategoryProducts(slug: string, searchParams: SearchParams) {
     `/catalog/categories/${slug}/products/`,
     {
       params,
+      headers: await getServerLocaleHeaders(),
       next: { revalidate },
     }
   );
@@ -70,7 +73,8 @@ async function getFilters(slug: string, searchParams: SearchParams) {
   }
   const response = await apiFetch<ProductFilterResponse>("/catalog/products/filters/", {
     params,
-    next: { revalidate },
+    headers: await getServerLocaleHeaders(),
+    cache: "no-store",
   });
   return response.data;
 }
@@ -78,7 +82,7 @@ async function getFilters(slug: string, searchParams: SearchParams) {
 async function getCategoryFacets(slug: string) {
   const response = await apiFetch<CategoryFacet[]>(
     `/catalog/categories/${slug}/facets/`,
-    { next: { revalidate } }
+    { headers: await getServerLocaleHeaders(), next: { revalidate } }
   );
   return response.data;
 }
@@ -108,6 +112,10 @@ export default async function CategoryPage({
   const slugPath = slug.join("/");
   const page = Number(resolvedSearchParams.page || 1) || 1;
   const view = resolvedSearchParams.view === "list" ? "list" : "grid";
+  const filterParams: Record<string, string> = { category: slugPath };
+  if (resolvedSearchParams.q && typeof resolvedSearchParams.q === "string") {
+    filterParams.q = resolvedSearchParams.q;
+  }
 
   const [category, productsResponse, filterData, facets] = await Promise.all([
     getCategory(slugPath),
@@ -174,7 +182,12 @@ export default async function CategoryPage({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <FilterDrawer filters={filterData} facets={facets} className="lg:hidden" />
+            <FilterDrawer
+              filters={filterData}
+              facets={facets}
+              className="lg:hidden"
+              filterParams={filterParams}
+            />
             <SortMenu />
             <ViewToggle />
           </div>
@@ -182,7 +195,7 @@ export default async function CategoryPage({
 
         <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
           <aside className="hidden lg:block">
-            <FilterPanel filters={filterData} facets={facets} />
+            <FilterPanel filters={filterData} facets={facets} filterParams={filterParams} />
           </aside>
           <div className="space-y-6">
             <AppliedFilters />

@@ -470,9 +470,10 @@ class PriceConversionMixin:
         
         # Get the user's selected currency from the request
         user_currency = CurrencyService.get_user_currency(request=request)
-        
-        if not user_currency or user_currency.code == 'BDT':
-            # No conversion needed if BDT or no currency selected
+
+        base_currency = (data.get('currency') or 'BDT').upper()
+        if not user_currency or user_currency.code == base_currency:
+            # No conversion needed if base currency or no currency selected
             return data
         
         # Price fields to convert
@@ -484,11 +485,12 @@ class PriceConversionMixin:
                     amount = Decimal(str(data[field]))
                     converted = CurrencyConversionService.convert_by_code(
                         amount, 
-                        'BDT', 
+                        base_currency, 
                         user_currency.code,
                         round_result=True
                     )
                     data[field] = str(converted)
+            data['currency'] = user_currency.code
         except Exception as e:
             # Log the error but don't fail the serialization
             logger.exception(f"Error converting prices: {e}")

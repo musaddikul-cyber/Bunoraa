@@ -131,6 +131,29 @@ class ProductVariantSerializer(serializers.ModelSerializer):
             'option_values', 'current_price'
         )
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if not request:
+            return data
+        try:
+            base_currency = (getattr(instance.product, "currency", None) or "BDT").upper()
+            user_currency = CurrencyService.get_user_currency(request=request)
+            if user_currency and user_currency.code != base_currency:
+                for field in ("price", "current_price"):
+                    if field in data and data[field]:
+                        amount = Decimal(str(data[field]))
+                        converted = CurrencyConversionService.convert_by_code(
+                            amount,
+                            base_currency,
+                            user_currency.code,
+                            round_result=True,
+                        )
+                        data[field] = str(converted)
+        except Exception:
+            pass
+        return data
+
 
 class ShippingMaterialSerializer(serializers.ModelSerializer):
     class Meta:

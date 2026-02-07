@@ -109,21 +109,7 @@ export function ProductCard({
             size="sm"
             variant={isInCompare ? "primary" : "secondary"}
             onClick={() => toggleCompare(compareItemFromProduct(product))}
-            className="gap-2"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 24 24"
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="4" width="7" height="16" rx="2" />
-              <rect x="14" y="4" width="7" height="16" rx="2" />
-            </svg>
             {isInCompare ? "Compare" : "Add to compare"}
           </Button>
         </div>

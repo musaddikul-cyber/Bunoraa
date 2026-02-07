@@ -142,6 +142,52 @@
     font: inherit;
   }
 
+  .range-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    pointer-events: auto;
+  }
+
+
+  .range-slider:focus {
+    outline: none;
+  }
+
+  .range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 9999px;
+    background: hsl(var(--primary));
+    border: 2px solid hsl(var(--background));
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.15);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .range-slider::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 9999px;
+    background: hsl(var(--primary));
+    border: 2px solid hsl(var(--background));
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.15);
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .range-slider::-webkit-slider-runnable-track {
+    background: transparent;
+    border: none;
+  }
+
+  .range-slider::-moz-range-track {
+    background: transparent;
+    border: none;
+  }
+
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   select,
   textarea {

@@ -4,6 +4,7 @@ import type { ProductListItem, Collection } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { WishlistIconButton } from "@/components/wishlist/WishlistIconButton";
+import { getServerLocaleHeaders } from "@/lib/serverLocale";
 
 export const revalidate = 300;
 
@@ -18,6 +19,7 @@ type HomepageData = {
 
 async function getHomepageData() {
   const response = await apiFetch<HomepageData>("/catalog/homepage/", {
+    headers: await getServerLocaleHeaders(),
     next: { revalidate },
   });
   return response.data;

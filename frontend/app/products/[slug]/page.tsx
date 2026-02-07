@@ -3,12 +3,14 @@ import { apiFetch, ApiError } from "@/lib/api";
 import type { ProductDetail, ProductListItem } from "@/lib/types";
 import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/products/ProductDetailClient";
+import { getServerLocaleHeaders } from "@/lib/serverLocale";
 
 export const revalidate = 900;
 
 async function getProduct(slug: string) {
   try {
     const response = await apiFetch<ProductDetail>(`/catalog/products/${slug}/`, {
+      headers: await getServerLocaleHeaders(),
       next: { revalidate },
     });
     return response.data;
@@ -23,7 +25,7 @@ async function getProduct(slug: string) {
 async function getRelated(slug: string) {
   const response = await apiFetch<ProductListItem[]>(
     `/catalog/products/${slug}/related/`,
-    { params: { limit: 4 }, next: { revalidate } }
+    { params: { limit: 4 }, headers: await getServerLocaleHeaders(), next: { revalidate } }
   );
   return response.data;
 }

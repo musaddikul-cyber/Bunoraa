@@ -73,15 +73,45 @@ class ContactMessageCreateSerializer(serializers.Serializer):
 class SiteSettingsSerializer(serializers.ModelSerializer):
     """Serializer for site settings (public)."""
     
+    tagline = serializers.SerializerMethodField()
+    address = serializers.SerializerMethodField()
+    support_email = serializers.SerializerMethodField()
+    
     class Meta:
         model = SiteSettings
         fields = [
-            'site_name', 'tagline', 'logo', 'favicon',
-            'contact_email', 'support_email', 'contact_phone',
-            'address', 'currency', 'facebook_url', 'instagram_url',
-            'twitter_url', 'youtube_url', 'linkedin_url',
-            'footer_text', 'copyright_text'
+            'site_name',
+            'site_tagline',
+            'site_description',
+            'tagline',
+            'logo',
+            'logo_dark',
+            'favicon',
+            'contact_email',
+            'support_email',
+            'contact_phone',
+            'contact_address',
+            'address',
+            'currency',
+            'currency_symbol',
+            'facebook_url',
+            'instagram_url',
+            'twitter_url',
+            'youtube_url',
+            'linkedin_url',
+            'tiktok_url',
+            'footer_text',
+            'copyright_text',
         ]
+
+    def get_tagline(self, obj):
+        return getattr(obj, "site_tagline", "")
+
+    def get_address(self, obj):
+        return getattr(obj, "contact_address", "")
+
+    def get_support_email(self, obj):
+        return getattr(obj, "contact_email", "")
 
 
 class SubscriberCreateSerializer(serializers.Serializer):

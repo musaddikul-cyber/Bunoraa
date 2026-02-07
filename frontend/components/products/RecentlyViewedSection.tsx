@@ -7,7 +7,7 @@ import { formatMoney } from "@/lib/money";
 import { getRecentlyViewed } from "@/lib/recentlyViewed";
 
 export function RecentlyViewedSection() {
-  const [items, setItems] = React.useState(getRecentlyViewed());
+  const [items, setItems] = React.useState<ReturnType<typeof getRecentlyViewed>>([]);
 
   React.useEffect(() => {
     const handler = () => setItems(getRecentlyViewed());

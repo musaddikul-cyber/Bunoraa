@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  .no-spin::-webkit-outer-spin-button,
+  .no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .no-spin {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 20 6% 12%;
+    --primary: 18 70% 32%;
+    --accent: 40 94% 50%;
+    --secondary: 25 5% 40%;
+    --card: 0 0% 100%;
+    --border: 20 6% 88%;
+    --muted: 20 6% 96%;
+
+    --color-bg-primary: var(--background);
+    --color-bg-secondary: var(--muted);
+    --color-bg-tertiary: var(--muted);
+    --color-bg-muted: var(--muted);
+    --color-text-primary: var(--foreground);
+    --color-text-secondary: var(--secondary);
+    --color-text-muted: var(--secondary);
+    --color-text-inverse: 0 0% 100%;
+    --color-border: var(--border);
+    --color-border-muted: var(--border);
+    --color-card: var(--card);
+    --color-card-elevated: var(--card);
+  }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 20 6% 12%;
+    --primary: 18 70% 32%;
+    --accent: 40 94% 50%;
+    --secondary: 25 5% 40%;
+    --card: 0 0% 100%;
+    --border: 20 6% 88%;
+    --muted: 20 6% 96%;
+  }
+
+  .dark {
+    --background: 0 0% 6%;
+    --foreground: 0 0% 98%;
+    --primary: 18 70% 45%;
+    --accent: 40 94% 60%;
+    --secondary: 25 5% 70%;
+    --card: 0 0% 10%;
+    --border: 20 6% 20%;
+    --muted: 20 6% 15%;
+    --color-text-inverse: 0 0% 0%;
+  }
+
+  .moonlight {
+    --background: 222 35% 10%;
+    --foreground: 210 40% 96%;
+    --primary: 200 80% 60%;
+    --accent: 270 80% 65%;
+    --secondary: 215 25% 70%;
+    --card: 222 30% 14%;
+    --border: 220 20% 25%;
+    --muted: 220 20% 18%;
+  }
+
+  .gray {
+    --background: 0 0% 96%;
+    --foreground: 0 0% 12%;
+    --primary: 0 0% 20%;
+    --accent: 0 0% 35%;
+    --secondary: 0 0% 45%;
+    --card: 0 0% 100%;
+    --border: 0 0% 85%;
+    --muted: 0 0% 92%;
+  }
+
+  .modern {
+    --background: 210 20% 98%;
+    --foreground: 222 22% 12%;
+    --primary: 255 60% 55%;
+    --accent: 190 90% 45%;
+    --secondary: 230 15% 45%;
+    --card: 0 0% 100%;
+    --border: 220 15% 85%;
+    --muted: 220 15% 94%;
+  }
+
+  .system {
+    --background: 0 0% 100%;
+    --foreground: 20 6% 12%;
+    --primary: 18 70% 32%;
+    --accent: 40 94% 50%;
+    --secondary: 25 5% 40%;
+    --card: 0 0% 100%;
+    --border: 20 6% 88%;
+    --muted: 20 6% 96%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    min-height: 100vh;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+    line-height: 1.5;
+    min-height: 44px;
+  }
+
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .system {
+    --background: 0 0% 6%;
+    --foreground: 0 0% 98%;
+    --primary: 18 70% 45%;
+    --accent: 40 94% 60%;
+    --secondary: 25 5% 70%;
+    --card: 0 0% 10%;
+    --border: 20 6% 20%;
+    --muted: 20 6% 15%;
+    --color-text-inverse: 0 0% 0%;
+  }
+}

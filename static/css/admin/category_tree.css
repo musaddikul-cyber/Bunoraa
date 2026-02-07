@@ -1,0 +1,101 @@
+/* Local admin styles for category tree dropdown (uses Tailwind utilities when available) */
+
+/* Hide collapsed sublists */
+.category-tree ul.collapsed {
+  display: none;
+}
+
+/* Reset list visuals */
+.category-tree {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.category-item {
+  margin: 0;
+}
+.category-row {
+  cursor: pointer;
+}
+
+/* Dropdown specific tweaks */
+/* Make the visible select-like control wider so the form field has more length */
+.category-dropdown { position: relative; width: 36rem; min-width: 28rem; display: inline-block; }
+/* Keep the panel slightly wider than the control for comfortable browsing */
+.category-dropdown-panel { min-width: 28rem; width: 40rem !important; overflow: visible; }
+/* Ensure the toggle fills the control width */
+.category-dropdown-toggle { gap: 0.5rem; width: 100%; min-width: 36rem; }
+
+/* Nested children: open as an indented tab (GitHub-like) rather than a full flyout */
+.category-item { position: relative; }
+.category-item > ul.category-tree {
+  position: static; /* keep in flow */
+  left: auto;
+  top: auto;
+  margin-left: 1rem; /* small tab-like indent */
+  min-width: auto;
+  display: none; /* collapsed by default */
+  z-index: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding-left: 0.5rem; /* small inner padding for nested list */
+  box-shadow: none;
+}
+.category-item > ul.category-tree.collapsed { display: none; }
+.category-item > ul.category-tree:not(.collapsed) { display: block; }
+
+/* Make nested lists slightly separated and visually hierarchical */
+.category-item > ul.category-tree .category-row { margin-left: 0.25rem; }
+.category-item[data-depth="1"] > .category-row { padding-left: 0.25rem; }
+.category-item[data-depth="2"] > .category-row { padding-left: 0.5rem; }
+.category-item[data-depth="3"] > .category-row { padding-left: 0.75rem; }
+
+/* Summary truncation */
+.category-summary { display: inline-block; max-width: calc(100% - 1.5rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Small visual polish for admin (prefers system font) */
+.category-tree-wrapper, .category-dropdown-toggle, .category-dropdown-panel { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+
+/* Make the expand/collapse buttons look like GitHub: left aligned, borderless, transparent background, and inline with label */
+.toggle-children {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280; /* text-gray-500 */
+  cursor: pointer;
+  vertical-align: middle;
+}
+.toggle-children:focus { outline: none; box-shadow: none; }
+.toggle-spacer { width: 1.25rem; display: inline-block; }
+.toggle-children .caret { display: inline-block; transition: transform 120ms ease; font-size: 0.95rem; line-height: 1; }
+.toggle-children[aria-expanded="true"] .caret { transform: rotate(90deg); }
+
+/* Ensure rows are strict horizontal flex containers so caret stays inline (tighter gap) */
+.category-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.125rem !important; /* tightened */
+}
+
+/* Tweak the toggle caret spacing to be compact (caret sits just before label) */
+.toggle-children { margin-right: 0.125rem; }
+.toggle-children .caret { margin-right: 0; font-size: 0.9rem; }
+
+/* Make the label flexible and allow truncation */
+.category-label {
+  flex: 1 1 auto;
+  min-width: 0; /* allow truncation when container is small */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Slight shadow for panel when open */
+.category-dropdown-panel { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04); }

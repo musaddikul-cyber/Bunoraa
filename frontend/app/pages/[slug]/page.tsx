@@ -1,0 +1,53 @@
+import { apiFetch, ApiError } from "@/lib/api";
+import type { PageDetail } from "@/lib/types";
+import { notFound } from "next/navigation";
+
+export const revalidate = 300;
+
+async function getPage(slug: string) {
+  try {
+    const response = await apiFetch<PageDetail>(`/pages/pages/${slug}/`, {
+      next: { revalidate },
+    });
+    return response.data;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      notFound();
+    }
+    throw error;
+  }
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const page = await getPage(slug);
+  return {
+    title: page.meta_title || page.title,
+    description: page.meta_description || page.excerpt || "",
+  };
+}
+
+export default async function PageDetail({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const page = await getPage(slug);
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+        <h1 className="text-3xl font-semibold">{page.title}</h1>
+        <div
+          className="prose prose-stone mt-6 max-w-none"
+          dangerouslySetInnerHTML={{ __html: page.content || "" }}
+        />
+      </div>
+    </div>
+  );
+}

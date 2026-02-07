@@ -1,0 +1,85 @@
+﻿/* Global UX overrides: responsive, dark-mode-safe, and lazy rendering helpers */
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+@media (max-width: 640px) {
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@supports (content-visibility: auto) {
+  main section,
+  main article,
+  main .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: 800px;
+  }
+}
+
+[data-lazy-section].is-lazy {
+  opacity: 0.01;
+  transform: translateY(8px);
+  transition: opacity 220ms ease, transform 260ms ease;
+}
+
+[data-lazy-section].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-lazy-section].is-lazy,
+  [data-lazy-section].is-visible {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Reduce layout shift for lazy images */
+img[loading="lazy"] {
+  contain: content;
+}
+
+/* Hide placeholder assets once real images load */
+img[src*="placeholder.svg"],
+img[src*="placeholder.jpg"],
+img[src*="placeholder.png"] {
+  opacity: 0;
+}
+
+img[data-src] {
+  opacity: 0;
+}
+
+/* Ensure focus visibility on dark backgrounds */
+:focus-visible {
+  outline: 2px solid rgba(245, 158, 11, 0.9);
+  outline-offset: 2px;
+}

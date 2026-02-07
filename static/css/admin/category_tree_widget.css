@@ -1,0 +1,81 @@
+.category-tree-widget-container .category-tree-wrapper {
+    border: 1px solid #ddd;
+    padding: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    border-radius: 4px;
+}
+
+.category-tree-widget-container ul {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.category-tree-widget-container li {
+    padding: 2px 0;
+}
+
+.category-tree-widget-container .node-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.category-tree-widget-container .category-node .label {
+    cursor: pointer;
+    padding: 3px 5px;
+    border-radius: 3px;
+    display: inline-block;
+    flex: 1;
+    min-width: 0;
+}
+
+.category-tree-widget-container .category-node .label:hover {
+    background-color: #f2f2f2;
+}
+
+.category-tree-widget-container .category-node .label.selected {
+    background-color: #2563eb;
+    color: #fff;
+    font-weight: 600;
+}
+
+.category-tree-widget-container .category-node .toggle {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: #6b7280;
+}
+
+.category-tree-widget-container .category-node .toggle::before {
+    content: "\25B8";
+    font-weight: 700;
+    line-height: 1;
+}
+
+.category-tree-widget-container .category-node .toggle.spacer {
+    cursor: default;
+}
+
+.category-tree-widget-container .category-node.expanded > .node-row > .toggle::before {
+    content: "\25BE";
+}
+
+.category-tree-widget-container .children {
+    display: none;
+    margin-left: 16px;
+}
+
+.category-tree-widget-container .category-node.expanded > .children {
+    display: block;
+}

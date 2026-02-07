@@ -1,0 +1,2 @@
+worker: celery -A core worker -n worker1@%h --pool=solo -l info -E
+flower: celery -A core flower --port=5566 --loglevel=DEBUG

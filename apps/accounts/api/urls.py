@@ -1,0 +1,72 @@
+"""
+Account API URLs
+"""
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import (
+    RegisterView,
+    ProfileView,
+    PasswordChangeView,
+    AvatarUploadView,
+    PasswordResetRequestView,
+    PasswordResetView,
+    EmailVerifyView,
+    ResendVerificationView,
+    AddressViewSet,
+    UserPreferencesView,
+    UserSessionView,
+    RevokeSessionView,
+    RevokeOtherSessionsView,
+    MfaStatusView,
+    TotpSetupView,
+    TotpVerifyView,
+    TotpDisableView,
+    BackupCodesRegenerateView,
+    MfaVerifyView,
+    WebAuthnRegisterOptionsView,
+    WebAuthnRegisterVerifyView,
+    WebAuthnLoginOptionsView,
+    WebAuthnLoginVerifyView,
+    WebAuthnCredentialListView,
+    DataExportView,
+    DataExportDownloadView,
+    AccountDeletionView,
+    AccountDeletionStatusView,
+    AccountDeletionCancelView,
+)
+
+router = DefaultRouter()
+router.register(r'addresses', AddressViewSet, basename='address')
+
+urlpatterns = [
+    path('register/', RegisterView.as_view(), name='register'),
+    path('profile/', ProfileView.as_view(), name='profile'),
+    path('profile/avatar/', AvatarUploadView.as_view(), name='avatar_upload'),
+    path('password/change/', PasswordChangeView.as_view(), name='password_change'),
+    path('password/reset/request/', PasswordResetRequestView.as_view(), name='password_reset_request'),
+    path('password/reset/', PasswordResetView.as_view(), name='password_reset'),
+    path('email/verify/', EmailVerifyView.as_view(), name='email_verify'),
+    path('email/resend/', ResendVerificationView.as_view(), name='resend_verification'),
+    path('preferences/', UserPreferencesView.as_view(), name='preferences'),
+    path('sessions/', UserSessionView.as_view(), name='sessions'),
+    path('sessions/<uuid:session_id>/revoke/', RevokeSessionView.as_view(), name='session_revoke'),
+    path('sessions/revoke_others/', RevokeOtherSessionsView.as_view(), name='session_revoke_others'),
+    path('mfa/status/', MfaStatusView.as_view(), name='mfa_status'),
+    path('mfa/verify/', MfaVerifyView.as_view(), name='mfa_verify'),
+    path('mfa/totp/setup/', TotpSetupView.as_view(), name='mfa_totp_setup'),
+    path('mfa/totp/verify/', TotpVerifyView.as_view(), name='mfa_totp_verify'),
+    path('mfa/totp/disable/', TotpDisableView.as_view(), name='mfa_totp_disable'),
+    path('mfa/backup-codes/regenerate/', BackupCodesRegenerateView.as_view(), name='mfa_backup_codes'),
+    path('webauthn/register/options/', WebAuthnRegisterOptionsView.as_view(), name='webauthn_register_options'),
+    path('webauthn/register/verify/', WebAuthnRegisterVerifyView.as_view(), name='webauthn_register_verify'),
+    path('webauthn/login/options/', WebAuthnLoginOptionsView.as_view(), name='webauthn_login_options'),
+    path('webauthn/login/verify/', WebAuthnLoginVerifyView.as_view(), name='webauthn_login_verify'),
+    path('webauthn/credentials/', WebAuthnCredentialListView.as_view(), name='webauthn_credentials'),
+    path('webauthn/credentials/<uuid:credential_id>/', WebAuthnCredentialListView.as_view(), name='webauthn_credentials_delete'),
+    path('export/', DataExportView.as_view(), name='data_export'),
+    path('export/<uuid:job_id>/download/', DataExportDownloadView.as_view(), name='data_export_download'),
+    path('delete/', AccountDeletionView.as_view(), name='account_delete'),
+    path('delete/status/', AccountDeletionStatusView.as_view(), name='account_delete_status'),
+    path('delete/cancel/', AccountDeletionCancelView.as_view(), name='account_delete_cancel'),
+    path('', include(router.urls)),
+]

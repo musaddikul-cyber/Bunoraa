@@ -1,0 +1,84 @@
+# =============================================================================
+# Bunoraa ML/NN Framework Dependencies
+# =============================================================================
+# This file contains all dependencies for the comprehensive ML/NN framework.
+# Install with: pip install -r requirements-ml.txt
+# For GPU support: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# =============================================================================
+# Core Deep Learning
+# =============================================================================
+torch
+torchvision
+
+# =============================================================================
+# Traditional ML & Data Science
+# =============================================================================
+scikit-learn
+numpy
+pandas
+scipy
+# =============================================================================
+# NLP & Transformers
+# =============================================================================
+transformers
+tokenizers
+sentencepiece
+huggingface-hub
+
+# =============================================================================
+# Data Processing
+# =============================================================================
+datasets
+pyarrow
+datasets[torch,s3]
+
+# =============================================================================
+# Experiment Tracking & MLOps
+# =============================================================================
+mlflow
+accelerate
+tensorboard
+
+# =============================================================================
+# Storage & Caching (Optional - for distributed deployments)
+# =============================================================================
+s3fs
+redis
+faiss-cpu  # For similarity search; use faiss-gpu for GPU support
+
+# =============================================================================
+# Image Processing
+# =============================================================================
+Pillow
+opencv-python-headless
+
+# =============================================================================
+# Model Optimization (Optional)
+# =============================================================================
+# onnx>=1.15.0
+# onnxruntime>=1.16.0
+# optimum>=1.14.0
+
+# =============================================================================
+# Additional Utilities
+# =============================================================================
+tqdm
+python-dateutil
+pydantic
+
+# =============================================================================
+# Optional: Advanced Features
+# =============================================================================
+peft  # Parameter-efficient fine-tuning
+wandb  # Weights & Biases tracking
+# ray  # Distributed training
+# triton  # For custom CUDA kernels
+# bitsandbytes  # For 8-bit optimization
+# =============================================================================
+# Notes:
+# =============================================================================
+# - For GPU support, ensure CUDA is installed and use PyTorch GPU version
+# - faiss-gpu requires CUDA; install separately if needed
+# - For distributed training, consider adding ray[default]
+# - For cloud storage: pip install 'datasets[s3]' for S3 streaming

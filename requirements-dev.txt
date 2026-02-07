@@ -1,0 +1,9 @@
+-r requirements.txt
+
+# Development and testing tools
+pytest
+pytest-cov
+pytest-django
+black
+pycodestyle
+pyflakes

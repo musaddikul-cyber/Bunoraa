@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /search
+Disallow: /static/
+Disallow: /media/uploads/
+
+# Google-specific rules
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+# Bing-specific rules
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 2
+
+# Sitemap locations
+Sitemap: https://bunoraa.com/sitemap.xml

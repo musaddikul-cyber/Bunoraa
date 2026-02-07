@@ -1,0 +1,16 @@
+# Browsers to support - optimized for performance
+# Using a smaller list dramatically speeds up autoprefixer
+
+# Production: Modern browsers only
+[production]
+last 2 Chrome versions
+last 2 Firefox versions
+last 2 Safari versions
+last 2 Edge versions
+not dead
+not IE 11
+
+# Development: Only latest browsers for faster builds
+[development]
+last 1 Chrome version
+last 1 Firefox version

@@ -1,0 +1,35 @@
+# This is an OPTIONAL configuration for running Celery workers separately from the web server
+# This helps memory management by separating concerns
+# Only use this if you need to run background tasks
+
+services:
+  - type: background_worker
+    name: Bunoraa-Celery-Worker
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "celery -A core worker -n worker@%h --pool=solo -l warning --max-tasks-per-child=100"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bunoraa_db
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bunoraa-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: bunoraa-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: bunoraa-redis
+          property: connectionString
+      - key: DEBUG
+        value: false
+    plan: free

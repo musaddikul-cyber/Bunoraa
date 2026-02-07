@@ -1056,10 +1056,23 @@ class ProductFilter(django_filters.FilterSet):
     price_max = django_filters.NumberFilter(field_name="price", lookup_expr="lte")
     category = django_filters.CharFilter(method="filter_category")
     tags = django_filters.CharFilter(method="filter_tags")
+    in_stock = django_filters.BooleanFilter(method="filter_in_stock")
+    on_sale = django_filters.BooleanFilter(method="filter_on_sale")
+    min_rating = django_filters.NumberFilter(method="filter_min_rating")
+    new_arrivals = django_filters.BooleanFilter(method="filter_new_arrivals")
 
     class Meta:
         model = Product
-        fields = ["price_min", "price_max", "category", "tags"]
+        fields = [
+            "price_min",
+            "price_max",
+            "category",
+            "tags",
+            "in_stock",
+            "on_sale",
+            "min_rating",
+            "new_arrivals",
+        ]
 
     def filter_category(self, qs, name, value):
         """Filter by category id or slug, including descendants."""
@@ -1075,6 +1088,26 @@ class ProductFilter(django_filters.FilterSet):
         tags = [t.strip() for t in value.split(",") if t.strip()]
         return qs.filter(tags__name__in=tags).distinct()
 
+    def filter_in_stock(self, qs, name, value):
+        if value in (True, "true", "1", 1):
+            return ProductFilterService.apply_stock_filter(qs, in_stock_only=True)
+        return qs
+
+    def filter_on_sale(self, qs, name, value):
+        if value in (True, "true", "1", 1):
+            return ProductFilterService.apply_sale_filter(qs, on_sale_only=True)
+        return qs
+
+    def filter_min_rating(self, qs, name, value):
+        if value is None or value == "":
+            return qs
+        return ProductFilterService.apply_rating_filter(qs, min_rating=value)
+
+    def filter_new_arrivals(self, qs, name, value):
+        if value in (True, "true", "1", 1):
+            return ProductFilterService.apply_date_filter(qs, is_new_arrival=True)
+        return qs
+
 
 class ProductFilterService:
     """Service class for advanced product filtering."""
@@ -1085,23 +1118,46 @@ class ProductFilterService:
         Apply attribute-based filters.
         Uses queryparams like 'attr_color=red', 'attr_size=large'
         """
-        attribute_filters = {k: v for k, v in params.items() if k.startswith("attr_")}
-        
-        for key, val in attribute_filters.items():
-            attr_slug = key[len("attr_"):]
-            # Find AttributeValue with matching attribute slug and value
-            avs = AttributeValue.objects.filter(
-                Q(value__iexact=val) & Q(attribute__slug__iexact=attr_slug)
-            )
-            if not avs.exists():
-                # Also try just matching the value
-                avs = AttributeValue.objects.filter(value__iexact=val)
-            
-            if not avs.exists():
-                return qs.none()
-            
-            qs = qs.filter(attributes__in=avs).distinct()
-        
+        def normalize_values(raw_values):
+            values = []
+            for item in raw_values:
+                if item is None:
+                    continue
+                if isinstance(item, (list, tuple)):
+                    values.extend(item)
+                    continue
+                if isinstance(item, str) and "," in item:
+                    values.extend([v.strip() for v in item.split(",") if v.strip()])
+                else:
+                    values.append(str(item).strip())
+            return [v for v in values if v]
+
+        attribute_keys = []
+        if hasattr(params, "keys"):
+            attribute_keys = [k for k in params.keys() if str(k).startswith("attr_")]
+        else:
+            attribute_keys = [k for k in params if str(k).startswith("attr_")]
+
+        for key in attribute_keys:
+            attr_slug = str(key)[len("attr_"):]
+            if hasattr(params, "getlist"):
+                raw_values = params.getlist(key)
+            else:
+                raw = params.get(key) if isinstance(params, dict) else None
+                raw_values = [raw] if raw is not None else []
+
+            values = normalize_values(raw_values)
+            if not values:
+                continue
+
+            value_filter = Q()
+            for val in values:
+                value_filter |= Q(attributes__value__iexact=val)
+
+            qs = qs.filter(
+                Q(attributes__attribute__slug__iexact=attr_slug) & value_filter
+            ).distinct()
+
         return qs
     
     @classmethod
@@ -1237,16 +1293,30 @@ class ProductFilterService:
         return qs.distinct()
     
     @classmethod
-    def get_available_filters(cls, category: Category = None) -> dict:
+    def get_available_filters(
+        cls,
+        category: Category = None,
+        base_queryset=None,
+        query: str = None
+    ) -> dict:
         """
         Get available filter options for a category.
         Useful for building filter UI.
         """
-        base_qs = Product.objects.filter(is_active=True, is_deleted=False)
+        base_qs = base_queryset or Product.objects.filter(is_active=True, is_deleted=False)
         
         if category:
             descendants = category.get_descendants(include_self=True)
             base_qs = base_qs.filter(categories__in=descendants)
+
+        if query:
+            base_qs = base_qs.filter(
+                Q(name__icontains=query) |
+                Q(description__icontains=query) |
+                Q(short_description__icontains=query) |
+                Q(sku__icontains=query) |
+                Q(tags__name__icontains=query)
+            )
         
         # Get price range
         price_stats = base_qs.aggregate(
@@ -1277,6 +1347,14 @@ class ProductFilterService:
                 products__id__in=product_ids
             ).values('name', 'slug').distinct()[:50]
         )
+
+        has_free_shipping = False
+        try:
+            field_names = {field.name for field in Product._meta.get_fields()}
+            if "free_shipping" in field_names:
+                has_free_shipping = base_qs.filter(free_shipping=True).exists()
+        except Exception:
+            has_free_shipping = False
         
         return {
             'price_range': {
@@ -1291,5 +1369,5 @@ class ProductFilterService:
                 sale_price__isnull=False,
                 sale_price__lt=F('price')
             ).exists(),
-            'has_free_shipping': base_qs.filter(free_shipping=True).exists(),
+            'has_free_shipping': has_free_shipping,
         }

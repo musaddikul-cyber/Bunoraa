@@ -199,6 +199,7 @@ class ProductDetailSerializer(PriceConversionMixin, serializers.ModelSerializer)
     shipping_material = ShippingMaterialSerializer(read_only=True)
     eco_certifications = EcoCertificationSerializer(many=True, read_only=True)
     assets_3d = Product3DAssetSerializer(many=True, read_only=True)
+    badges = serializers.SerializerMethodField()
     
     current_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     discount_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
@@ -222,11 +223,12 @@ class ProductDetailSerializer(PriceConversionMixin, serializers.ModelSerializer)
             'images', 'variants', 'assets_3d',
             'shipping_material', 'eco_certifications',
             'carbon_footprint_kg', 'recycled_content_percentage', 'sustainability_score',
+            'material_breakdown',
             'is_ar_compatible', 'is_mobile_optimized',
             'meta_title', 'meta_description', 'meta_keywords',
             'is_featured', 'is_bestseller', 'is_new_arrival',
             'average_rating', 'reviews_count', 'rating_count', 'views_count', 'sales_count',
-            'breadcrumbs', 'schema_org',
+            'breadcrumbs', 'schema_org', 'badges',
             'created_at', 'updated_at'
         )
     
@@ -244,6 +246,11 @@ class ProductDetailSerializer(PriceConversionMixin, serializers.ModelSerializer)
     
     def get_schema_org(self, obj):
         return obj.to_schema()
+
+    def get_badges(self, obj):
+        from apps.catalog.services import BadgeService
+        badges = BadgeService.get_product_badges(obj)
+        return BadgeSerializer(badges, many=True, context=self.context).data
     
     def to_representation(self, instance):
         """Convert prices to user's selected currency."""

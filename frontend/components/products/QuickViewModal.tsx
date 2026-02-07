@@ -9,6 +9,9 @@ import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
 import { AddToCartButton } from "@/components/cart/AddToCartButton";
 import Link from "next/link";
+import { RatingStars } from "@/components/products/RatingStars";
+import { ProductBadges } from "@/components/products/ProductBadges";
+import { ProductPrice } from "@/components/products/ProductPrice";
 
 type QuickViewData = ProductListItem & {
   badges?: Array<{ id: string; name: string; slug: string }>;
@@ -72,19 +75,25 @@ export function QuickViewModal({
                   </p>
                   <h3 className="text-2xl font-semibold">{data.name}</h3>
                 </div>
+                <ProductBadges product={data} badges={data.badges} />
                 <p className="text-sm text-foreground/70">
                   {data.short_description}
                 </p>
-                <div className="text-lg font-semibold">
-                  {data.current_price} {data.currency}
-                </div>
+                <RatingStars rating={data.average_rating || 0} count={data.reviews_count} />
+                <ProductPrice
+                  price={data.price}
+                  salePrice={data.sale_price}
+                  currentPrice={data.current_price}
+                  currency={data.currency}
+                />
                 <div className="flex flex-wrap gap-2">
                   <AddToCartButton
                     productId={data.id}
                     variant="primary-gradient"
                     size="sm"
+                    className="px-4"
                   />
-                  <Button asChild variant="secondary" size="sm">
+                  <Button asChild variant="secondary" size="sm" className="h-11 px-4">
                     <Link href={`/products/${data.slug}/`}>View details</Link>
                   </Button>
                 </div>

@@ -4,6 +4,7 @@ import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ChatWidget } from "@/components/chat/ChatWidget";
+import { CompareTray } from "@/components/products/CompareTray";
 
 export const metadata: Metadata = {
   title: "Bunoraa",
@@ -22,6 +23,7 @@ export default function RootLayout({
           <Header />
           <main className="min-h-[70vh]">{children}</main>
           <Footer />
+          <CompareTray />
           <ChatWidget />
         </Providers>
       </body>

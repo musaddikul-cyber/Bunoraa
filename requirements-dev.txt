@@ -7,3 +7,4 @@ pytest-django
 black
 pycodestyle
 pyflakes
+uvicorn[standard]

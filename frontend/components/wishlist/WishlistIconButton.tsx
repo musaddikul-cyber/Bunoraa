@@ -11,16 +11,35 @@ export function WishlistIconButton({
   productId,
   variantId,
   className,
+  variant = "default",
+  size = "md",
+  color = "default",
 }: {
   productId: string;
   variantId?: string | null;
   className?: string;
+  variant?: "default" | "ghost";
+  size?: "sm" | "md" | "lg";
+  color?: "default" | "fixed-black";
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { addItem } = useWishlist();
   const { hasToken } = useAuthContext();
+  const { wishlistQuery, addItem, removeItem } = useWishlist({ enabled: hasToken });
   const { push } = useToast();
+
+  const wishlistItems = wishlistQuery.data?.data ?? [];
+  const existingItem = wishlistItems.find((item) => item.product_id === productId);
+  const isInWishlist = Boolean(existingItem);
+  const isBusy = addItem.isPending || removeItem.isPending;
+
+  const resolveMessage = (response: unknown, fallback: string) => {
+    if (response && typeof response === "object" && "message" in response) {
+      const message = String((response as { message?: string }).message || "").trim();
+      if (message && message.toLowerCase() !== "ok") return message;
+    }
+    return fallback;
+  };
 
   const handleClick = async () => {
     if (!hasToken) {
@@ -28,12 +47,13 @@ export function WishlistIconButton({
       return;
     }
     try {
-      const response = await addItem.mutateAsync({ productId, variantId });
-      const message =
-        response && typeof response === "object" && "message" in response
-          ? String((response as { message?: string }).message || "")
-          : "";
-      push(message || "Added to wishlist.", "success");
+      if (isInWishlist && existingItem) {
+        const response = await removeItem.mutateAsync(existingItem.id);
+        push(resolveMessage(response, "Removed from wishlist."), "success");
+      } else {
+        const response = await addItem.mutateAsync({ productId, variantId });
+        push(resolveMessage(response, "Added to wishlist."), "success");
+      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         router.push(`/account/login/?next=${encodeURIComponent(pathname || "/")}`);
@@ -43,21 +63,51 @@ export function WishlistIconButton({
     }
   };
 
+  const sizeClasses = {
+    sm: "h-8 w-8",
+    md: "h-9 w-9",
+    lg: "h-10 w-10",
+  };
+
+  const iconClasses = {
+    sm: "h-4 w-4",
+    md: "h-5 w-5",
+    lg: "h-6 w-6",
+  };
+
+  const iconTone =
+    color === "fixed-black"
+      ? isInWishlist
+        ? "fill-black text-black"
+        : "fill-transparent text-black"
+      : isInWishlist
+      ? "fill-error-500 text-error-500"
+      : "fill-transparent text-foreground/70 group-hover/heart:fill-error-500 group-hover/heart:text-error-500";
+
   return (
     <button
       type="button"
       onClick={handleClick}
       className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur",
-        "hover:bg-background",
+        "group/heart inline-flex items-center justify-center rounded-full text-foreground transition",
+        sizeClasses[size],
+        variant === "default"
+          ? "bg-background/80 shadow-sm backdrop-blur hover:bg-background"
+          : "bg-transparent hover:text-primary",
         className
       )}
-      aria-label="Add to wishlist"
+      aria-pressed={isInWishlist}
+      aria-label={isInWishlist ? "Remove from wishlist" : "Add to wishlist"}
+      disabled={isBusy}
     >
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
-        className="h-4 w-4"
+        className={cn(
+          iconClasses[size],
+          "transition",
+          iconTone
+        )}
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"

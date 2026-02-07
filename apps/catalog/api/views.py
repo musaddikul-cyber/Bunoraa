@@ -14,7 +14,7 @@ from django.db.models import Count, Q, Avg
 
 from apps.catalog.models import (
     Category, Product, Collection, Bundle, Review, Badge, Spotlight, Facet, Tag, CustomerPhoto,
-    ProductQuestion, ProductAnswer
+    ProductQuestion, ProductAnswer, ProductVariant
 )
 from apps.catalog.services import (
     CategoryService, ProductService, CollectionService, ReviewService,
@@ -35,6 +35,7 @@ from .serializers import (
 )
 
 from apps.notifications.api.serializers import BackInStockNotificationSerializer 
+from apps.notifications.models import BackInStockNotification
 
 
 # =============================================================================
@@ -238,6 +239,18 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         product = self.get_object()
         serializer = QuickViewProductSerializer(product, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='customer-photos')
+    def customer_photos(self, request, slug=None):
+        """Get approved customer photos for a product."""
+        product = self.get_object()
+        photos = CustomerPhoto.approved.filter(product=product)
+        page = self.paginate_queryset(photos)
+        if page is not None:
+            serializer = CustomerPhotoSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        serializer = CustomerPhotoSerializer(photos, many=True, context={'request': request})
+        return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
     def related(self, request, slug=None):
@@ -287,6 +300,45 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='filters')
+    def filters(self, request):
+        """Return available filters for the current product selection."""
+        category_param = request.query_params.get('category')
+        query = request.query_params.get('q') or request.query_params.get('search')
+        category = None
+        if category_param:
+            try:
+                category = Category.objects.get(Q(id=category_param) | Q(slug=category_param))
+            except Category.DoesNotExist:
+                try:
+                    category = CategoryService.get_category_by_path(category_param)
+                except Exception:
+                    category = None
+
+        base_qs = Product.objects.filter(is_active=True, is_deleted=False)
+        if category:
+            descendants = category.get_descendants(include_self=True)
+            base_qs = base_qs.filter(categories__in=descendants)
+        if query:
+            base_qs = base_qs.filter(
+                Q(name__icontains=query) |
+                Q(description__icontains=query) |
+                Q(short_description__icontains=query) |
+                Q(sku__icontains=query) |
+                Q(tags__name__icontains=query)
+            )
+
+        try:
+            filters_data = ProductFilterService.get_available_filters(
+                category=category,
+                base_queryset=base_qs,
+                query=None
+            )
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(filters_data)
 
     @action(detail=True, methods=['post'], permission_classes=[AllowAny], url_path='request-back-in-stock')
     def request_back_in_stock(self, request, slug=None):

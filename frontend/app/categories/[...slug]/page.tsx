@@ -1,10 +1,16 @@
-import { apiFetch, ApiError } from "@/lib/api";
-import type { ProductListItem } from "@/lib/types";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import Link from "next/link";
+import { apiFetch, ApiError } from "@/lib/api";
+import type { ProductListItem, ProductFilterResponse } from "@/lib/types";
+import { ProductGrid } from "@/components/products/ProductGrid";
+import { FilterPanel } from "@/components/products/FilterPanel";
+import { FilterDrawer } from "@/components/products/FilterDrawer";
+import { AppliedFilters } from "@/components/products/AppliedFilters";
+import { SortMenu } from "@/components/products/SortMenu";
+import { ViewToggle } from "@/components/products/ViewToggle";
+import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
-import { WishlistIconButton } from "@/components/wishlist/WishlistIconButton";
+import type { CategoryFacet } from "@/components/products/FilterPanel";
+import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 
 export const revalidate = 300;
 
@@ -16,6 +22,8 @@ type Category = {
   meta_title?: string | null;
   meta_description?: string | null;
 };
+
+type SearchParams = Record<string, string | string[] | undefined>;
 
 async function getCategory(slug: string) {
   try {
@@ -29,6 +37,50 @@ async function getCategory(slug: string) {
     }
     throw error;
   }
+}
+
+async function getCategoryProducts(slug: string, searchParams: SearchParams) {
+  const params: Record<string, string | number | boolean | Array<string | number | boolean> | undefined> = {};
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (key === "view") return;
+    if (value === undefined) return;
+    if (Array.isArray(value)) {
+      params[key] = value;
+      return;
+    }
+    if (value !== "") {
+      params[key] = key === "page" ? Number(value) || 1 : value;
+    }
+  });
+
+  const response = await apiFetch<ProductListItem[]>(
+    `/catalog/categories/${slug}/products/`,
+    {
+      params,
+      next: { revalidate },
+    }
+  );
+  return response;
+}
+
+async function getFilters(slug: string, searchParams: SearchParams) {
+  const params: Record<string, string> = { category: slug };
+  if (searchParams.q && typeof searchParams.q === "string") {
+    params.q = searchParams.q;
+  }
+  const response = await apiFetch<ProductFilterResponse>("/catalog/products/filters/", {
+    params,
+    next: { revalidate },
+  });
+  return response.data;
+}
+
+async function getCategoryFacets(slug: string) {
+  const response = await apiFetch<CategoryFacet[]>(
+    `/catalog/categories/${slug}/facets/`,
+    { next: { revalidate } }
+  );
+  return response.data;
 }
 
 export async function generateMetadata({
@@ -45,33 +97,23 @@ export async function generateMetadata({
   };
 }
 
-async function getCategoryProducts(slug: string, page: number) {
-  const response = await apiFetch<ProductListItem[]>(
-    `/catalog/categories/${slug}/products/`,
-    {
-      params: { page },
-      next: { revalidate },
-    }
-  );
-  return response;
-}
-
 export default async function CategoryPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string[] }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
-  const [{ slug }, resolvedSearchParams] = await Promise.all([
-    params,
-    searchParams,
-  ]);
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
   const slugPath = slug.join("/");
   const page = Number(resolvedSearchParams.page || 1) || 1;
-  const [category, productsResponse] = await Promise.all([
+  const view = resolvedSearchParams.view === "list" ? "list" : "grid";
+
+  const [category, productsResponse, filterData, facets] = await Promise.all([
     getCategory(slugPath),
-    getCategoryProducts(slugPath, page),
+    getCategoryProducts(slugPath, resolvedSearchParams),
+    getFilters(slugPath, resolvedSearchParams).catch(() => null),
+    getCategoryFacets(slugPath).catch(() => []),
   ]);
 
   const rawData = productsResponse.data as
@@ -85,8 +127,8 @@ export default async function CategoryPage({
   const products = Array.isArray(rawData)
     ? rawData
     : Array.isArray(rawData?.results)
-      ? rawData.results
-      : [];
+    ? rawData.results
+    : [];
   const pagination =
     productsResponse.meta?.pagination ||
     (rawData && !Array.isArray(rawData)
@@ -102,81 +144,79 @@ export default async function CategoryPage({
         }
       : undefined);
 
+  const baseParams = new URLSearchParams();
+  Object.entries(resolvedSearchParams).forEach(([key, value]) => {
+    if (key === "page" || value === undefined) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => baseParams.append(key, item));
+    } else if (value !== "") {
+      baseParams.set(key, value);
+    }
+  });
+
+  const pageLink = (pageNumber: number) => {
+    const params = new URLSearchParams(baseParams.toString());
+    params.set("page", String(pageNumber));
+    return `?${params.toString()}`;
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-6xl px-6 py-12">
-        <div className="mb-8">
-          <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
-            Category
-          </p>
-          <h1 className="text-3xl font-semibold">{category.name}</h1>
-          <p className="mt-2 text-foreground/70">
-            {category.meta_description || "Explore products in this category."}
-          </p>
+      <div className="mx-auto w-full max-w-7xl px-6 py-12">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
+              Category
+            </p>
+            <h1 className="text-3xl font-semibold">{category.name}</h1>
+            <p className="mt-2 text-foreground/70">
+              {category.meta_description || "Explore products in this category."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <FilterDrawer filters={filterData} facets={facets} className="lg:hidden" />
+            <SortMenu />
+            <ViewToggle />
+          </div>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((product) => (
-            <Card key={product.id} variant="bordered" className="flex flex-col gap-4">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-xl bg-muted">
-                <WishlistIconButton
-                  productId={product.id}
-                  className="absolute right-3 top-3"
-                />
-                {product.primary_image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={product.primary_image}
-                    alt={product.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : null}
-              </div>
-              <div className="flex flex-1 flex-col gap-2">
-                <h2 className="text-lg font-semibold">{product.name}</h2>
-                <p className="text-sm text-foreground/70">
-                  {product.short_description}
-                </p>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-semibold">
-                  {product.current_price} {product.currency}
-                </span>
-                <Button asChild size="sm" variant="secondary">
-                  <Link href={`/products/${product.slug}/`}>View</Link>
+        <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
+          <aside className="hidden lg:block">
+            <FilterPanel filters={filterData} facets={facets} />
+          </aside>
+          <div className="space-y-6">
+            <AppliedFilters />
+            <ProductGrid products={products} view={view} />
+
+            <div className="mt-10 flex items-center justify-between">
+              {pagination?.previous ? (
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={pageLink(page - 1)}>Previous</Link>
                 </Button>
-              </div>
-            </Card>
-          ))}
+              ) : (
+                <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
+                  Previous
+                </span>
+              )}
+              <span className="text-sm text-foreground/60">
+                Page {page}
+                {pagination?.total_pages ? ` of ${pagination.total_pages}` : ""}
+              </span>
+              {pagination?.next ? (
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={pageLink(page + 1)}>Next</Link>
+                </Button>
+              ) : (
+                <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
+                  Next
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-10 flex items-center justify-between">
-          {pagination?.previous ? (
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/categories/${slugPath}/?page=${page - 1}`}>
-                Previous
-              </Link>
-            </Button>
-          ) : (
-            <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
-              Previous
-            </span>
-          )}
-          <span className="text-sm text-foreground/60">
-            Page {page}
-            {pagination?.total_pages ? ` of ${pagination.total_pages}` : ""}
-          </span>
-          {pagination?.next ? (
-            <Button asChild variant="ghost" size="sm">
-              <Link href={`/categories/${slugPath}/?page=${page + 1}`}>
-                Next
-              </Link>
-            </Button>
-          ) : (
-            <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
-              Next
-            </span>
-          )}
+        <div className="mt-12">
+          <RecentlyViewedSection />
         </div>
       </div>
     </div>

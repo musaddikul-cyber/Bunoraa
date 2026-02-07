@@ -45,7 +45,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={toast.id}
             className={cn(
-              "pointer-events-auto w-[min(90vw,24rem)] rounded-xl border px-4 py-3 text-sm shadow-soft backdrop-blur",
+              "pointer-events-auto w-auto max-w-[90vw] rounded-xl border px-4 py-3 text-sm shadow-soft backdrop-blur",
+              "break-words",
               "border-l-4",
               variantClasses[toast.variant]
             )}

@@ -82,7 +82,7 @@ export function AddToWishlistButton({
         aria-hidden="true"
         viewBox="0 0 24 24"
         className={cn(
-          "h-4 w-4 transition",
+          "h-5 w-5 transition",
           isInWishlist
             ? "fill-error-500 text-error-500"
             : "fill-transparent text-foreground/70 group-hover/wishlist:fill-error-500 group-hover/wishlist:text-error-500"

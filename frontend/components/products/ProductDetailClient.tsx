@@ -722,35 +722,46 @@ export function ProductDetailClient({
             {inStock ? (
               <div className="space-y-2">
                 <label className="text-xs text-foreground/60">Quantity</label>
-                <div className="inline-flex items-center rounded-xl border border-border bg-card">
-                  <button
-                    type="button"
-                    className="h-10 w-10 text-lg text-foreground/70 transition hover:text-foreground disabled:opacity-40"
-                    onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
-                    disabled={quantity <= 1}
-                    aria-label="Decrease quantity"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
-                    max={maxQty ?? undefined}
-                    value={quantity}
-                    onChange={(event) =>
-                      setQuantity(clampQuantity(Number(event.target.value)))
-                    }
-                    className="h-10 w-16 bg-transparent text-center text-sm"
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="inline-flex items-center rounded-xl border border-border bg-card">
+                    <button
+                      type="button"
+                      className="h-10 w-10 text-2xl font-semibold text-foreground/70 transition hover:text-foreground disabled:opacity-40"
+                      onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
+                      disabled={quantity <= 1}
+                      aria-label="Decrease quantity"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={maxQty ?? undefined}
+                      value={quantity}
+                      onChange={(event) =>
+                        setQuantity(clampQuantity(Number(event.target.value)))
+                      }
+                      className="no-spin h-10 w-16 appearance-none bg-transparent text-center text-sm"
+                    />
+                    <button
+                      type="button"
+                      className="h-10 w-10 text-2xl font-semibold text-foreground/70 transition hover:text-foreground disabled:opacity-40"
+                      onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
+                      disabled={maxQty !== null && quantity >= maxQty}
+                      aria-label="Increase quantity"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <AddToCartButton
+                    productId={product.id}
+                    variantId={variantId}
+                    quantity={quantity}
+                    size="sm"
+                    variant="primary"
+                    disabled={!inStock}
+                    label={inStock ? "Add to cart" : "Out of stock"}
                   />
-                  <button
-                    type="button"
-                    className="h-10 w-10 text-lg text-foreground/70 transition hover:text-foreground disabled:opacity-40"
-                    onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
-                    disabled={maxQty !== null && quantity >= maxQty}
-                    aria-label="Increase quantity"
-                  >
-                    +
-                  </button>
                 </div>
                 {maxQty !== null ? (
                   <p className="text-xs text-foreground/60">
@@ -761,32 +772,38 @@ export function ProductDetailClient({
             ) : null}
 
             <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1 sm:overflow-visible">
-              <AddToCartButton
-                productId={product.id}
-                variantId={variantId}
-                quantity={quantity}
-                size="sm"
-                variant="primary"
-                disabled={!inStock}
-                label={inStock ? "Add to cart" : "Out of stock"}
-              />
               <AddToWishlistButton
                 productId={product.id}
                 variantId={variantId}
                 size="sm"
+                className="gap-2"
               />
               <Button
                 size="sm"
                 variant={isInCompare ? "primary" : "secondary"}
                 onClick={() => toggleCompare(compareItemFromProduct(product))}
+                className="gap-2"
               >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="7" height="16" rx="2" />
+                  <rect x="14" y="4" width="7" height="16" rx="2" />
+                </svg>
                 {isInCompare ? "Compare" : "Add to compare"}
               </Button>
               <Button size="sm" variant="secondary" onClick={handleShare}>
                 <svg
                   aria-hidden="true"
                   viewBox="0 0 24 24"
-                  className="h-4 w-4"
+                  className="h-5 w-5"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.8"

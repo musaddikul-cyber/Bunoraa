@@ -3,8 +3,8 @@ services:
     name: Bunoraa
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --config gunicorn_conf.py"
-    postDeployCommand: "python manage.py migrate || true && python manage.py setup_seo_schedules || true"
+    startCommand: >-
+      bash -c "python manage.py migrate || true && python manage.py setup_seo_schedules || true && gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --config gunicorn_conf.py"
     healthCheckPath: "/health/"
     envVars:
       - key: ENVIRONMENT
@@ -105,10 +105,15 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NEXT_DISABLE_PRERENDER
+        value: "true"
       - key: NEXT_PUBLIC_API_BASE_URL
         value: "https://bunoraa.com/api/v1"
       - key: NEXT_INTERNAL_API_BASE_URL
-        value: "https://bunoraa.com/api/v1"
+        fromService:
+          type: web
+          name: Bunoraa
+          property: hostport
       - key: NEXT_PUBLIC_SITE_URL
         value: "https://bunoraa.com"
       - key: NEXT_PUBLIC_MEDIA_BASE_URL
@@ -121,7 +126,6 @@ services:
 
 crons:
   - name: warmup
-    type: pull_request
     schedule: "*/30 * * * *"  # Reduced from every 5 minutes to every 30 minutes
     command: "curl -fsS --retry 2 https://bunoraa.com/health || true"
     timezone: UTC

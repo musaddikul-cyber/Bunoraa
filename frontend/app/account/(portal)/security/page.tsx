@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import {
   decodeCreationOptions,
   encodeCredential,
-} from "@/lib/webauthn";
+} from "../../../../lib/webauthn";
 
 const passwordSchema = z
   .object({

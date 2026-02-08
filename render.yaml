@@ -95,7 +95,6 @@ services:
           name: bunoraa-redis
           property: connectionString
     plan: free
-    healthCheckPath: /health/
 
   - type: web
     name: Bunoraa-Frontend
@@ -120,7 +119,7 @@ services:
         value: "wss://bunoraa.com"
     plan: free
 
-cron:
+crons:
   - name: warmup
     type: pull_request
     schedule: "*/30 * * * *"  # Reduced from every 5 minutes to every 30 minutes

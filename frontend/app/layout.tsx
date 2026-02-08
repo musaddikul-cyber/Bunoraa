@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Bunoraa e-commerce storefront",
 };
 
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{

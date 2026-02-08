@@ -124,11 +124,10 @@ services:
         value: "wss://bunoraa.com"
     plan: free
 
-crons:
+cronJobs:
   - name: warmup
     schedule: "*/30 * * * *"  # Reduced from every 5 minutes to every 30 minutes
     command: "curl -fsS --retry 2 https://bunoraa.com/health || true"
-    timezone: UTC
 
 databases:
   - name: bunoraa

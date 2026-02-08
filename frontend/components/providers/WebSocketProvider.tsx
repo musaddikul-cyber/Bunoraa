@@ -21,6 +21,8 @@ const CHANNELS: Record<string, string> = {
 };
 
 function buildWsUrl(path: string) {
+  const enabled = (process.env.NEXT_PUBLIC_WS_ENABLED || "").toLowerCase() === "true";
+  if (!enabled) return null;
   const base = (process.env.NEXT_PUBLIC_WS_BASE_URL || "").replace(/\/$/, "");
   if (!base) return null;
   const normalizedPath = base.endsWith("/ws") ? path.replace(/^\/ws/, "") : path;

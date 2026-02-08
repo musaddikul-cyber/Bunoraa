@@ -1,11 +1,17 @@
 import type { NextConfig } from "next";
+import type { RemotePattern } from "next/dist/shared/lib/image-config";
+import path from "path";
 
-function toRemotePattern(urlString?: string) {
+function toRemotePattern(urlString?: string): RemotePattern | null {
   if (!urlString) return null;
   try {
     const url = new URL(urlString);
+    const protocol = url.protocol.replace(":", "");
+    if (protocol !== "http" && protocol !== "https") {
+      return null;
+    }
     return {
-      protocol: url.protocol.replace(":", ""),
+      protocol,
       hostname: url.hostname,
       port: url.port || undefined,
       pathname: "/**",
@@ -26,12 +32,17 @@ const fallbackMediaPattern = {
 
 const remotePatterns = [mediaPattern, apiPattern, fallbackMediaPattern].filter(
   Boolean
-) as Array<NonNullable<ReturnType<typeof toRemotePattern>>>;
+) as RemotePattern[];
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
   images: {
     remotePatterns,
+  },
+  turbopack: {
+    resolveAlias: {
+      "@": path.resolve(__dirname),
+    },
   },
   async redirects() {
     return [

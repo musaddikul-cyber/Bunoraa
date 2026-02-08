@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getStoredLocale, setStoredLocale, type LocaleState } from "@/lib/locale";
 
@@ -23,6 +24,8 @@ async function fetchPreferences() {
 }
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [, startTransition] = React.useTransition();
   const [locale, setLocaleState] = React.useState<LocaleState>(() =>
     typeof window !== "undefined" ? getStoredLocale() : {}
   );
@@ -76,8 +79,11 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
         return merged;
       });
       updatePrefs.mutate(next);
+      startTransition(() => {
+        router.refresh();
+      });
     },
-    [updatePrefs]
+    [router, startTransition, updatePrefs]
   );
 
   return (

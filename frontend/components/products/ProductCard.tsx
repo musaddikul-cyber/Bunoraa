@@ -85,11 +85,6 @@ export function ProductCard({
             {product.name}
           </Link>
         </div>
-        {product.short_description ? (
-          <p className="text-sm text-foreground/70 max-h-10 overflow-hidden">
-            {product.short_description}
-          </p>
-        ) : null}
         <RatingStars rating={product.average_rating || 0} count={product.reviews_count} />
         <ProductPrice
           price={product.price}

@@ -39,8 +39,10 @@ export function SearchBar() {
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!query.trim()) return;
-    router.push(`/search/?q=${encodeURIComponent(query.trim())}`);
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    router.push(`/search/?q=${encodeURIComponent(trimmed)}`);
+    setQuery("");
   };
 
   return (

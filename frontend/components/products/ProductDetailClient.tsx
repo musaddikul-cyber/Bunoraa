@@ -212,8 +212,8 @@ function ShippingEstimator({
   unitPrice: string | number | null | undefined;
 }) {
   const { push } = useToast();
-  const [country, setCountry] = React.useState("US");
-  const [state, setState] = React.useState("");
+  const [country, setCountry] = React.useState("Bangladesh");
+  const [state, setState] = React.useState("Dhaka");
   const [postalCode, setPostalCode] = React.useState("");
   const [result, setResult] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);

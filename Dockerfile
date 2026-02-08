@@ -24,11 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js for TailwindCSS
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy requirements first for better caching
 COPY requirements.txt .
 
@@ -36,15 +31,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copy package.json and install Node dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci --only=production || npm install --only=production
-
 # Copy project files
 COPY . .
-
-# Build TailwindCSS
-RUN npm run build:css || echo "CSS build skipped"
 
 # Collect static files
 RUN python manage.py collectstatic --noinput --clear || echo "Collectstatic skipped"
@@ -62,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health/ || exit 1
 
 # Default command
-CMD ["gunicorn", "core.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "4", "--threads", "2"]
+CMD ["gunicorn", "core.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "--config", "gunicorn_conf.py"]

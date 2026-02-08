@@ -15,9 +15,17 @@ except ImportError:
 
 def main():
     """Run administrative tasks."""
-    # Default to s3 settings (PostgreSQL + S3 storage)
-    # Override with DJANGO_SETTINGS_MODULE in .env for different environments
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings.local")
+    # Prefer explicit DJANGO_SETTINGS_MODULE; otherwise infer from ENVIRONMENT.
+    settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "").strip()
+    if not settings_module or settings_module == "core.settings":
+        environment = os.environ.get("ENVIRONMENT", "").lower()
+        if environment == "production":
+            settings_module = "core.settings.production"
+        elif environment in ("development", "s3"):
+            settings_module = "core.settings.s3"
+        else:
+            settings_module = "core.settings.local"
+        os.environ["DJANGO_SETTINGS_MODULE"] = settings_module
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

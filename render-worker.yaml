@@ -9,6 +9,10 @@ services:
     buildCommand: "./build.sh"
     startCommand: "celery -A core worker -n worker@%h --pool=solo -l warning --max-tasks-per-child=100"
     envVars:
+      - key: ENVIRONMENT
+        value: "production"
+      - key: DJANGO_SETTINGS_MODULE
+        value: "core.settings.production"
       - key: DATABASE_URL
         fromDatabase:
           name: bunoraa_db

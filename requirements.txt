@@ -314,6 +314,8 @@ rembg
 
 requests
 
+sentry-sdk
+
 beautifulsoup4
 
 google-api-python-client

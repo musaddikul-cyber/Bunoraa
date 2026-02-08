@@ -4,6 +4,7 @@ Optimized for performance, security, and scalability.
 Uses PostgreSQL, Redis, Cloudflare R2 storage.
 """
 import os
+from urllib.parse import urlparse
 import dj_database_url
 from .base import *
 
@@ -17,6 +18,24 @@ ENVIRONMENT = 'production'
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY must be set in production environment")
 
+# Helpers
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
+def _normalize_origin(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ''
+    parsed = urlparse(value)
+    if not parsed.scheme:
+        value = f"https://{value}"
+        parsed = urlparse(value)
+    if not parsed.netloc:
+        return ''
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 # Parse ALLOWED_HOSTS from environment
 _env_allowed = os.environ.get('ALLOWED_HOSTS', '')
 if _env_allowed:
@@ -24,8 +43,20 @@ if _env_allowed:
 else:
     ALLOWED_HOSTS = ['bunoraa.com', 'www.bunoraa.com', 'bunoraa.onrender.com']
 
-CSRF_TRUSTED_ORIGINS = [f'https://{h}' for h in ALLOWED_HOSTS if h]
-CORS_ALLOWED_ORIGINS = [f'https://{h}' for h in ALLOWED_HOSTS if h]
+# CORS/CSRF origins - allow explicit overrides and add frontend origin if provided
+_cors_env = _split_csv(os.environ.get('CORS_ALLOWED_ORIGINS', ''))
+_csrf_env = _split_csv(os.environ.get('CSRF_TRUSTED_ORIGINS', ''))
+
+CORS_ALLOWED_ORIGINS = _cors_env or [f'https://{h}' for h in ALLOWED_HOSTS if h]
+CSRF_TRUSTED_ORIGINS = _csrf_env or [f'https://{h}' for h in ALLOWED_HOSTS if h]
+
+_frontend_origin_raw = os.environ.get('NEXT_FRONTEND_ORIGIN', '').strip() or os.environ.get('NEXT_PUBLIC_SITE_URL', '').strip()
+_frontend_origin = _normalize_origin(_frontend_origin_raw) if _frontend_origin_raw else ''
+if _frontend_origin:
+    if _frontend_origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(_frontend_origin)
+    if _frontend_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_frontend_origin)
 
 # =============================================================================
 # DATABASE - PostgreSQL
@@ -63,10 +94,10 @@ X_FRAME_OPTIONS = 'DENY'
 # Cookies
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
 CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = os.environ.get('CSRF_COOKIE_HTTPONLY', 'False').lower() in ('1', 'true', 'yes')
+CSRF_COOKIE_SAMESITE = os.environ.get('CSRF_COOKIE_SAMESITE', 'Lax')
 
 # HSTS
 SECURE_HSTS_SECONDS = 31536000  # 1 year

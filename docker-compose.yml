@@ -20,9 +20,12 @@ services:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     environment:
+      - ENVIRONMENT=production
+      - DJANGO_SETTINGS_MODULE=core.settings.production
       - DEBUG=False
-      - DATABASE_URL=postgres://bunoraa_user:mugdho22:5252/bunoraa_bd
+      - DATABASE_URL=postgresql://${DB_USER:-bunoraa}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-bunoraa_db}
       - REDIS_URL=redis://redis:6379/0
+      - NEXT_FRONTEND_ORIGIN=${NEXT_FRONTEND_ORIGIN:-}
     depends_on:
       - db
       - redis
@@ -31,7 +34,27 @@ services:
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
-             gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 4"
+             gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --config gunicorn_conf.py"
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bunoraa_frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-https://bunoraa.com/api/v1}
+      - NEXT_INTERNAL_API_BASE_URL=${NEXT_INTERNAL_API_BASE_URL:-http://web:8000/api/v1}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-https://bunoraa.com}
+      - NEXT_PUBLIC_MEDIA_BASE_URL=${NEXT_PUBLIC_MEDIA_BASE_URL:-https://media.bunoraa.com}
+      - NEXT_PUBLIC_WS_BASE_URL=${NEXT_PUBLIC_WS_BASE_URL:-wss://bunoraa.com}
+      - NEXT_PUBLIC_WS_SITE_URL=${NEXT_PUBLIC_WS_SITE_URL:-wss://bunoraa.com}
+    depends_on:
+      - web
+    networks:
+      - bunoraa_network
 
   # PostgreSQL Database
   db:
@@ -41,13 +64,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=bunoraa_db
-      - POSTGRES_USER=bunoraa_db
-      - POSTGRES_PASSWORD=mugdho22
+      - POSTGRES_DB=${DB_NAME:-bunoraa_db}
+      - POSTGRES_USER=${DB_USER:-bunoraa}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+    ports:
+      - "${DB_PORT:-5432}:5432"
     networks:
       - bunoraa_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bunoraa"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -77,8 +102,10 @@ services:
     volumes:
       - .:/app
     environment:
+      - ENVIRONMENT=production
+      - DJANGO_SETTINGS_MODULE=core.settings.production
       - DEBUG=False
-      - DATABASE_URL=postgres://bunoraa_user:mugdho22@db:5252/bunoraa_db
+      - DATABASE_URL=postgresql://${DB_USER:-bunoraa}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-bunoraa_db}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
@@ -97,8 +124,10 @@ services:
     volumes:
       - .:/app
     environment:
+      - ENVIRONMENT=production
+      - DJANGO_SETTINGS_MODULE=core.settings.production
       - DEBUG=False
-      - DATABASE_URL=postgres://bunoraa_user:mugdho22@db:5252/bunoraa_db
+      - DATABASE_URL=postgresql://${DB_USER:-bunoraa}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-bunoraa_db}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
@@ -123,6 +152,7 @@ services:
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - web
+      - frontend
     networks:
       - bunoraa_network
 

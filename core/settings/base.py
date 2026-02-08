@@ -17,8 +17,6 @@ from pathlib import Path
 from datetime import timedelta
 from corsheaders.defaults import default_headers
 
-from apps.catalog import ml
-
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -42,6 +40,14 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
 # Environment type: development, staging, production
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'production')
+
+# ML feature toggle (default: disabled)
+ML_ENABLED = os.environ.get('ML_ENABLED', 'False').lower() in ('1', 'true', 'yes')
+if ML_ENABLED:
+    try:
+        from apps.catalog import ml  # noqa: F401
+    except Exception:
+        ML_ENABLED = False
 
 # Parse ALLOWED_HOSTS from environment
 _allowed_hosts = os.environ.get('ALLOWED_HOSTS', 'bunoraa.com,www.bunoraa.com,api.bunoraa.com,localhost,127.0.0.1')
@@ -99,8 +105,9 @@ LOCAL_APPS = [
     'apps.commerce',
     'apps.chat',
     'apps.email_service',
-    # 'ml',  # Disabled: High memory consumption for Render free tier
 ]
+if ML_ENABLED:
+    LOCAL_APPS.append('ml')
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
@@ -639,9 +646,10 @@ CREDENTIAL_ENCRYPTION_KEY = os.environ.get('CREDENTIAL_ENCRYPTION_KEY', '')
 ML_MODELS_DIR = BASE_DIR / 'ml'
 ML_TRAINING_DATA_DIR = BASE_DIR / 'ml' / 'training_data'
 ML_MODELS_DATA_DIR = BASE_DIR / 'ml' / 'models_data'
-ML_MODELS_DIR.mkdir(exist_ok=True)
-ML_TRAINING_DATA_DIR.mkdir(parents=True, exist_ok=True)
-ML_MODELS_DATA_DIR.mkdir(parents=True, exist_ok=True)
+if ML_ENABLED:
+    ML_MODELS_DIR.mkdir(exist_ok=True)
+    ML_TRAINING_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    ML_MODELS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Model update schedule (in hours)
 ML_MODEL_UPDATE_INTERVAL = int(os.environ.get('ML_MODEL_UPDATE_INTERVAL', 24))
@@ -656,6 +664,8 @@ ML_FEATURES = {
     'churn_prediction': os.environ.get('ML_CHURN_PREDICTION', 'True').lower() in ('1', 'true', 'yes'),
     'image_classification': os.environ.get('ML_IMAGE_CLASSIFICATION', 'True').lower() in ('1', 'true', 'yes'),
 }
+if not ML_ENABLED:
+    ML_FEATURES = {key: False for key in ML_FEATURES}
 
 # ML Cache & Feature Store
 ML_REDIS_URL = os.environ.get('ML_REDIS_URL', 'redis://localhost:6379/1')

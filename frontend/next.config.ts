@@ -34,10 +34,15 @@ const remotePatterns = [mediaPattern, apiPattern, fallbackMediaPattern].filter(
   Boolean
 ) as RemotePattern[];
 
+const disableImageOptimization =
+  process.env.NEXT_IMAGE_UNOPTIMIZED === "true" ||
+  process.env.NEXT_IMAGE_UNOPTIMIZED === "1";
+
 const nextConfig: NextConfig = {
   trailingSlash: true,
   images: {
     remotePatterns,
+    unoptimized: disableImageOptimization,
   },
   turbopack: {
     resolveAlias: {

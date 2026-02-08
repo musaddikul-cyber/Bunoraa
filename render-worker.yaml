@@ -13,6 +13,8 @@ services:
         value: "production"
       - key: DJANGO_SETTINGS_MODULE
         value: "core.settings.production"
+      - key: ML_ENABLED
+        value: "false"
       - key: PRERENDER_ENABLED
         value: "false"
       - key: DATABASE_URL

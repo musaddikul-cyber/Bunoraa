@@ -28,6 +28,8 @@ services:
         value: bunoraa.com,www.bunoraa.com,api.bunoraa.com,bunoraa.onrender.com
       - key: NEXT_FRONTEND_ORIGIN
         value: "https://bunoraa.com"
+      - key: ML_ENABLED
+        value: "false"
       - key: PRERENDER_ENABLED
         value: "false"
       - key: REDIS_URL
@@ -115,7 +117,7 @@ services:
       - key: SENTRY_DSN
         sync: false
       - key: GUNICORN_WORKERS
-        value: "1"
+        value: "10"
       - key: GUNICORN_THREADS
         value: "1"
       - key: GUNICORN_MAX_REQUESTS
@@ -131,9 +133,13 @@ services:
     buildCommand: "npm ci && npm run build"
     startCommand: "npm run start"
     envVars:
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=256"
       - key: NODE_ENV
         value: production
       - key: NEXT_DISABLE_PRERENDER
+        value: "true"
+      - key: NEXT_IMAGE_UNOPTIMIZED
         value: "true"
       - key: NEXT_PUBLIC_API_BASE_URL
         value: "https://api.bunoraa.com/api/v1/"
@@ -147,6 +153,19 @@ services:
         value: "wss://api.bunoraa.com"
       - key: NEXT_PUBLIC_WS_ENABLED
         value: "true"
+    plan: free
+
+  - type: cron
+    name: Bunoraa-Warmup
+    runtime: python
+    schedule: "*/5 * * * *"
+    buildCommand: "echo warmup"
+    startCommand: "python scripts/warmup.py"
+    envVars:
+      - key: WARMUP_URLS
+        value: "https://api.bunoraa.com/healthz,https://bunoraa.com/file.svg"
+      - key: WARMUP_TIMEOUT
+        value: "10"
     plan: free
 
 databases:

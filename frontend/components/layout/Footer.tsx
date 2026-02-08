@@ -12,13 +12,14 @@ import type {
 import { ThemeSwitcher } from "@/components/theme/ThemeProvider";
 import { LocaleSwitcher } from "@/components/locale/LocaleSwitcher";
 import { FooterNewsletter } from "@/components/layout/FooterNewsletter";
+import { asArray } from "@/lib/array";
 
 async function getFooterPages() {
   try {
     const response = await apiFetch<MenuPage[]>("/pages/pages/footer/", {
       next: { revalidate: 600 },
     });
-    return response.data;
+    return asArray<MenuPage>(response.data);
   } catch {
     return [];
   }
@@ -52,7 +53,7 @@ async function getTopCategories() {
       params: { page_size: 6 },
       next: { revalidate: 600 },
     });
-    return response.data;
+    return asArray<Category>(response.data);
   } catch {
     return [];
   }
@@ -64,7 +65,7 @@ async function getCollections() {
       params: { page_size: 6 },
       next: { revalidate: 600 },
     });
-    return response.data;
+    return asArray<Collection>(response.data);
   } catch {
     return [];
   }

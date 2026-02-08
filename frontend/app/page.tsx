@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/Card";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { SearchBar } from "@/components/search/SearchBar";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
+import { asArray } from "@/lib/array";
 
 export const revalidate = 300;
 
@@ -110,10 +111,22 @@ async function getHomepageData(headers: Record<string, string>) {
       headers,
       next: { revalidate },
     });
+    const payload =
+      response.data && typeof response.data === "object" && !Array.isArray(response.data)
+        ? response.data
+        : {};
     return {
       ...DEFAULT_HOMEPAGE_DATA,
-      ...response.data,
-      spotlights: response.data.spotlights || [],
+      ...payload,
+      featured_products: asArray<ProductListItem>((payload as HomepageData).featured_products),
+      new_arrivals: asArray<ProductListItem>((payload as HomepageData).new_arrivals),
+      bestsellers: asArray<ProductListItem>((payload as HomepageData).bestsellers),
+      on_sale: asArray<ProductListItem>((payload as HomepageData).on_sale),
+      featured_categories: asArray<FeaturedCategory>(
+        (payload as HomepageData).featured_categories
+      ),
+      collections: asArray<Collection>((payload as HomepageData).collections),
+      spotlights: asArray<Spotlight>((payload as HomepageData).spotlights),
     };
   } catch {
     return DEFAULT_HOMEPAGE_DATA;
@@ -151,7 +164,7 @@ async function getPreorderCategories(headers: Record<string, string>) {
       params: { page_size: 4 },
       next: { revalidate },
     });
-    return response.data;
+    return asArray<PreorderCategory>(response.data);
   } catch {
     return [] as PreorderCategory[];
   }
@@ -163,7 +176,7 @@ async function getSubscriptionPlans(headers: Record<string, string>) {
       headers,
       next: { revalidate },
     });
-    return response.data;
+    return asArray<SubscriptionPlan>(response.data);
   } catch {
     return [] as SubscriptionPlan[];
   }
@@ -175,7 +188,7 @@ async function getFaqs(headers: Record<string, string>) {
       headers,
       next: { revalidate },
     });
-    return response.data;
+    return asArray<FaqItem>(response.data);
   } catch {
     return [] as FaqItem[];
   }
@@ -188,7 +201,7 @@ async function getBundles(headers: Record<string, string>) {
       params: { page_size: 4 },
       next: { revalidate },
     });
-    return response.data;
+    return asArray<BundleSummary>(response.data);
   } catch {
     return [] as BundleSummary[];
   }
@@ -231,12 +244,12 @@ export default async function Home() {
   const supportPhone = pickText(contactSettings?.phone, siteSettings?.contact_phone);
   const supportHours = pickText(contactSettings?.business_hours_note);
 
-  const featuredProducts = homepageData.featured_products || [];
-  const newArrivals = homepageData.new_arrivals || [];
-  const bestsellers = homepageData.bestsellers || [];
-  const onSale = homepageData.on_sale || [];
-  const featuredCategories = homepageData.featured_categories || [];
-  const collections = homepageData.collections || [];
+  const featuredProducts = asArray<ProductListItem>(homepageData.featured_products);
+  const newArrivals = asArray<ProductListItem>(homepageData.new_arrivals);
+  const bestsellers = asArray<ProductListItem>(homepageData.bestsellers);
+  const onSale = asArray<ProductListItem>(homepageData.on_sale);
+  const featuredCategories = asArray<FeaturedCategory>(homepageData.featured_categories);
+  const collections = asArray<Collection>(homepageData.collections);
 
   const heroStats = [
     {

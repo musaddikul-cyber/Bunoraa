@@ -241,6 +241,7 @@ CONN_MAX_AGE = int(os.environ.get('CONN_MAX_AGE', 600))
 ATOMIC_REQUESTS = False
 
 # Pre-render / warm-up settings
+PRERENDER_ENABLED = os.environ.get('PRERENDER_ENABLED', 'False').lower() in ('1', 'true', 'yes')
 PRERENDER_PATHS = ['/', '/products/', '/categories/']
 PRERENDER_CACHE_DIR = os.environ.get('PRERENDER_CACHE_DIR', 'prerender_cache')
 SITE_URL = os.environ.get('SITE_URL', 'https://bunoraa.com')
@@ -610,8 +611,8 @@ LOGGING = {
 R2_ACCOUNT_ID = os.environ.get('R2_ACCOUNT_ID', '')
 R2_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID', '')
 R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY', '')
-R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME', 'bunoraa-media')
-R2_CUSTOM_DOMAIN = os.environ.get('R2_CUSTOM_DOMAIN', 'cdn.bunoraa.com')
+R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME', 'bunoraa')
+R2_CUSTOM_DOMAIN = os.environ.get('R2_CUSTOM_DOMAIN', 'media.bunoraa.com')
 R2_BACKUP_BUCKET = os.environ.get('R2_BACKUP_BUCKET', 'bunoraa-backups')
 
 # =============================================================================

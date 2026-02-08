@@ -14,6 +14,9 @@ class Command(BaseCommand):
         parser.add_argument('--include-static', action='store_true', help='Include static pages like contact, about, faq')
 
     def handle(self, *args, **options):
+        if not getattr(settings, 'PRERENDER_ENABLED', True):
+            self.stdout.write(self.style.WARNING('PRERENDER_ENABLED is false; skipping prerender.'))
+            return
         categories_n = options.get('categories')
         products_n = options.get('products')
         include_static = options.get('include_static')

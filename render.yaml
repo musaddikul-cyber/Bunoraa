@@ -28,6 +28,8 @@ services:
         value: bunoraa.com,www.bunoraa.com,api.bunoraa.com,bunoraa.onrender.com
       - key: NEXT_FRONTEND_ORIGIN
         value: "https://bunoraa.com"
+      - key: PRERENDER_ENABLED
+        value: "false"
       - key: REDIS_URL
         fromService:
           type: redis

@@ -4,6 +4,7 @@ import type { MenuPage } from "@/lib/types";
 import { HeaderClient } from "@/components/layout/HeaderClient";
 import { SearchBar } from "@/components/search/SearchBar";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { asArray } from "@/lib/array";
 
 type Category = { id: string; name: string; slug: string };
 
@@ -12,7 +13,7 @@ async function getMenuPages() {
     const response = await apiFetch<MenuPage[]>("/pages/pages/menu/", {
       next: { revalidate: 600 },
     });
-    return response.data;
+    return asArray<MenuPage>(response.data);
   } catch {
     return [];
   }
@@ -24,7 +25,7 @@ async function getTopCategories() {
       params: { page_size: 8 },
       next: { revalidate: 600 },
     });
-    return response.data;
+    return asArray<Category>(response.data);
   } catch {
     return [];
   }

@@ -26,18 +26,26 @@ class Command(BaseCommand):
         except Exception as exc:
             self.stdout.write(self.style.ERROR(f'Failed to schedule warmup: {exc}'))
 
-        # Prerender daily at 02:00 UTC
+        # Prerender daily at 02:00 UTC (optional)
         try:
-            cron, _ = CrontabSchedule.objects.get_or_create(minute='0', hour='2', day_of_week='*', day_of_month='*', month_of_year='*', timezone='UTC')
-            PeriodicTask.objects.update_or_create(
-                name='seo-prerender-daily',
-                defaults={
-                    'crontab': cron,
-                    'task': 'apps.seo.tasks.prerender_top_task',
-                    'args': '[10,20,true]',
-                    'enabled': True,
-                }
-            )
-            self.stdout.write(self.style.SUCCESS('Scheduled prerender daily at 02:00 UTC'))
+            from django.conf import settings
+            if not getattr(settings, 'PRERENDER_ENABLED', True):
+                updated = PeriodicTask.objects.filter(name='seo-prerender-daily').update(enabled=False)
+                msg = 'Disabled prerender schedule (PRERENDER_ENABLED is false)'
+                if updated:
+                    msg += f' (updated {updated} task)'
+                self.stdout.write(self.style.WARNING(msg))
+            else:
+                cron, _ = CrontabSchedule.objects.get_or_create(minute='0', hour='2', day_of_week='*', day_of_month='*', month_of_year='*', timezone='UTC')
+                PeriodicTask.objects.update_or_create(
+                    name='seo-prerender-daily',
+                    defaults={
+                        'crontab': cron,
+                        'task': 'apps.seo.tasks.prerender_top_task',
+                        'args': '[10,20,true]',
+                        'enabled': True,
+                    }
+                )
+                self.stdout.write(self.style.SUCCESS('Scheduled prerender daily at 02:00 UTC'))
         except Exception as exc:
             self.stdout.write(self.style.ERROR(f'Failed to schedule prerender: {exc}'))

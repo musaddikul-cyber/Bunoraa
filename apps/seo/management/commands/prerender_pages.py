@@ -12,6 +12,9 @@ class Command(BaseCommand):
         parser.add_argument('--paths', nargs='*', help='Paths to prerender (overrides settings PRERENDER_PATHS)')
 
     def handle(self, *args, **options):
+        if not getattr(settings, 'PRERENDER_ENABLED', True):
+            self.stdout.write(self.style.WARNING('PRERENDER_ENABLED is false; skipping prerender.'))
+            return
         paths = options.get('paths') or getattr(settings, 'PRERENDER_PATHS', ['/'])
         cache_dir = os.path.join(settings.BASE_DIR, getattr(settings, 'PRERENDER_CACHE_DIR', 'prerender_cache'))
         os.makedirs(cache_dir, exist_ok=True)

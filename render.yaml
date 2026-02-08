@@ -2,6 +2,9 @@ services:
   - type: redis
     name: bunoraa-redis
     plan: free
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow all
 
   - type: web
     name: Bunoraa

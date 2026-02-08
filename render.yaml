@@ -1,3 +1,4 @@
+<<<<<<< HEAD
   services:
     - type: redis
       name: bunoraa-redis
@@ -152,3 +153,143 @@
       plan: free
       databaseName: bunoraa
       user: bunoraa
+=======
+services:
+  - type: redis
+    name: bunoraa-redis
+    plan: free
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow all
+
+  - type: web
+    name: Bunoraa
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: >-
+      bash -c "python manage.py migrate || true && python manage.py setup_seo_schedules || true && gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --config gunicorn_conf.py"
+    healthCheckPath: "/health/"
+    envVars:
+      - key: ENVIRONMENT
+        value: "production"
+      - key: DJANGO_SETTINGS_MODULE
+        value: "core.settings.production"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bunoraa_db
+          property: connectionString
+      - key: SECRET_KEY
+        sync: false
+      - key: GUNICORN_WORKERS
+        value: "1"  # Force 1 worker for free tier (512MB memory)
+      - key: GUNICORN_THREADS
+        value: "1"  # Single thread for minimal memory usage
+      - key: GUNICORN_MAX_REQUESTS
+        value: "500"  # Recycle workers more frequently
+      - key: GUNICORN_LOG_LEVEL
+        value: "warning"  # Reduce logging overhead
+      - key: ALLOWED_HOSTS
+        value: bunoraa.com,www.bunoraa.com,bunoraa.onrender.com
+      - key: DEBUG
+        value: false
+      - key: NEXT_FRONTEND_ORIGIN
+        value: "https://bunoraa.com"
+      - key: AWS_ACCESS_KEY_ID
+        value: "YOUR_AWS_ACCESS_KEY_ID" # Replace with your actual AWS Access Key ID
+      - key: AWS_SECRET_ACCESS_KEY
+        value: "YOUR_AWS_SECRET_ACCESS_KEY" # Replace with your actual AWS Secret Access Key
+      - key: AWS_STORAGE_BUCKET_NAME
+        value: "YOUR_AWS_STORAGE_BUCKET_NAME" # Replace with your actual S3 bucket name
+      - key: AWS_S3_REGION_NAME
+        value: "YOUR_AWS_S3_REGION_NAME" # Replace with your S3 region (e.g., us-east-1)
+      - key: EMAIL_BACKEND
+        value: "django.core.mail.backends.smtp.EmailBackend" # Or your chosen backend
+      - key: EMAIL_HOST
+        value: "YOUR_EMAIL_HOST"
+      - key: EMAIL_PORT
+        value: "YOUR_EMAIL_PORT"
+      - key: EMAIL_USE_TLS
+        value: "True" # Or False
+      - key: EMAIL_HOST_USER
+        value: "YOUR_EMAIL_HOST_USER"
+      - key: EMAIL_HOST_PASSWORD
+        value: "YOUR_EMAIL_HOST_PASSWORD"
+      - key: DEFAULT_FROM_EMAIL
+        value: "YOUR_DEFAULT_FROM_EMAIL"
+      - key: GOOGLE_CLIENT_ID
+        value: "YOUR_GOOGLE_CLIENT_ID"
+      - key: GOOGLE_CLIENT_SECRET
+        value: "YOUR_GOOGLE_CLIENT_SECRET"
+      - key: FACEBOOK_CLIENT_ID
+        value: "YOUR_FACEBOOK_CLIENT_ID"
+      - key: FACEBOOK_CLIENT_SECRET
+        value: "YOUR_FACEBOOK_CLIENT_SECRET"
+      - key: MICROSOFT_CLIENT_ID
+        value: "YOUR_MICROSOFT_CLIENT_ID"
+      - key: MICROSOFT_CLIENT_SECRET
+        value: "YOUR_MICROSOFT_CLIENT_SECRET"
+      - key: GOOGLE_REDIRECT_URI
+        value: "https://bunoraa.onrender.com/accounts/google/login/callback/" # Update with your Render URL
+      - key: FACEBOOK_REDIRECT_URI
+        value: "https://bunoraa.onrender.com/accounts/facebook/login/callback/" # Update with your Render URL
+      - key: MICROSOFT_REDIRECT_URI
+        value: "https://bunoraa.onrender.com/accounts/microsoft/login/callback/" # Update with your Render URL
+      - key: GOOGLE_API_KEY
+        value: "YOUR_GOOGLE_API_KEY"
+      - key: SSLCOMMERZ_STORE_ID
+        value: "YOUR_SSLCOMMERZ_STORE_ID"
+      - key: SSLCOMMERZ_STORE_PASS
+        value: "YOUR_SSLCOMMERZ_STORE_PASS"
+      - key: SSLCOMMERZ_SANDBOX
+        value: "True" # Or False
+      - key: SSLCOMMERZ_API_URL
+        value: "YOUR_SSLCOMMERZ_API_URL"
+      - key: SSLCOMMERZ_VALIDATION_URL
+        value: "YOUR_SSLCOMMERZ_VALIDATION_URL"
+      - key: SENTIMENT_API_URL
+        value: "YOUR_SENTIMENT_API_URL" # If applicable
+      - key: AUTO_PROCESS_PRODUCTS
+        value: "True" # Or False
+      - key: OPENAI_API_KEY
+        value: "YOUR_OPENAI_API_KEY"
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bunoraa-redis
+          property: connectionString
+    plan: free
+
+  - type: web
+    name: Bunoraa-Frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: "npm ci && npm run build"
+    startCommand: "npm run start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_DISABLE_PRERENDER
+        value: "true"
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: "https://bunoraa.com/api/v1"
+      - key: NEXT_INTERNAL_API_BASE_URL
+        fromService:
+          type: web
+          name: Bunoraa
+          property: hostport
+      - key: NEXT_PUBLIC_SITE_URL
+        value: "https://bunoraa.com"
+      - key: NEXT_PUBLIC_MEDIA_BASE_URL
+        value: "https://media.bunoraa.com"
+      - key: NEXT_PUBLIC_WS_BASE_URL
+        value: "wss://bunoraa.com"
+      - key: NEXT_PUBLIC_WS_SITE_URL
+        value: "wss://bunoraa.com"
+    plan: free
+
+databases:
+  - name: bunoraa_db
+    plan: free
+    databaseName: bunoraa
+    user: bunoraa
+>>>>>>> b8a382dd2fc6ca534f17db532685c1aa5e084735

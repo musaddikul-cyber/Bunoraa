@@ -37,7 +37,10 @@ class SSLCommerzService:
             self.is_sandbox = gateway.is_sandbox
         else:
             self.store_id = getattr(settings, 'SSLCOMMERZ_STORE_ID', '')
-            self.store_passwd = getattr(settings, 'SSLCOMMERZ_STORE_PASSWD', '')
+            self.store_passwd = (
+                getattr(settings, 'SSLCOMMERZ_STORE_PASSWD', '')
+                or getattr(settings, 'SSLCOMMERZ_STORE_PASSWORD', '')
+            )
             self.is_sandbox = getattr(settings, 'SSLCOMMERZ_IS_SANDBOX', True)
         
         self.base_url = self.SANDBOX_URL if self.is_sandbox else self.LIVE_URL

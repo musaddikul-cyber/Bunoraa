@@ -386,6 +386,8 @@ webauthn
 
 webencodings
 
+websockets
+
 whitenoise
 
 zope.event

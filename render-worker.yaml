@@ -19,7 +19,32 @@ services:
           property: connectionString
       - key: SECRET_KEY
         sync: false
+      - key: USE_S3
+        value: "True"
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_STORAGE_BUCKET_NAME
+        value: "bunoraa"
+      - key: AWS_S3_REGION_NAME
+        value: "us-east-1"
+      - key: AWS_S3_ENDPOINT_URL
+        value: "https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com"
+      - key: AWS_S3_CUSTOM_DOMAIN
+        value: "media.bunoraa.com"
+      - key: AWS_DEFAULT_ACL
+        value: "None"
+      - key: AWS_S3_CACHE_CONTROL
+        value: "max-age=86400"
+      - key: MEDIA_URL
+        value: "https://media.bunoraa.com/"
       - key: REDIS_URL
+        fromService:
+          type: redis
+          name: bunoraa-redis
+          property: connectionString
+      - key: CHANNEL_LAYERS_REDIS_URL
         fromService:
           type: redis
           name: bunoraa-redis

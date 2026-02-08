@@ -60,7 +60,7 @@ export default async function ProductsPage({
   const filterParams =
     resolved.q && typeof resolved.q === "string" && resolved.q.trim()
       ? { q: resolved.q }
-      : {};
+      : undefined;
 
   const [productsResponse, filterData] = await Promise.all([
     getProducts(resolved),

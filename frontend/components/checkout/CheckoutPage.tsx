@@ -59,8 +59,11 @@ export function CheckoutPage() {
   const cart = cartQuery.data;
   const cartSummary = cartSummaryQuery.data;
   const profile = profileQuery.data;
-  const countries = countriesQuery.data || [];
-  const pickupLocations = pickupLocationsQuery.data || [];
+  const countries = React.useMemo(() => countriesQuery.data ?? [], [countriesQuery.data]);
+  const pickupLocations = React.useMemo(
+    () => pickupLocationsQuery.data ?? [],
+    [pickupLocationsQuery.data]
+  );
 
   const resolveCountryName = React.useCallback(
     (value?: string | null) => {

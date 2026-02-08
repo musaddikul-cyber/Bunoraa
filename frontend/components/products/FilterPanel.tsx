@@ -61,7 +61,7 @@ export function FilterPanel({
 
   React.useEffect(() => {
     let cancelled = false;
-    const params = filterParams || {};
+    const params = JSON.parse(paramsKey) as Record<string, string>;
     apiFetch<ProductFilterResponse>("/catalog/products/filters/", {
       params,
       suppressError: true,
@@ -92,10 +92,13 @@ export function FilterPanel({
   const clampValue = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), max);
   const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
-  const percentFromValue = (value: number) => {
-    if (rangeSpan <= 0) return 0;
-    return ((value - minRange) / rangeSpan) * 100;
-  };
+  const percentFromValue = React.useCallback(
+    (value: number) => {
+      if (rangeSpan <= 0) return 0;
+      return ((value - minRange) / rangeSpan) * 100;
+    },
+    [minRange, rangeSpan]
+  );
   const valueFromPercent = (percent: number) => {
     if (rangeSpan <= 0) return minRange;
     return minRange + (rangeSpan * percent) / 100;
@@ -110,7 +113,7 @@ export function FilterPanel({
     const safeMax = Math.max(nextMin, nextMax);
     setMinPercentValue(clampPercent(Math.round(percentFromValue(safeMin))));
     setMaxPercentValue(clampPercent(Math.round(percentFromValue(safeMax))));
-  }, [current.priceMin, current.priceMax, minRange, maxRange, rangeSpan]);
+  }, [current.priceMin, current.priceMax, minRange, maxRange, rangeSpan, percentFromValue]);
 
   const applyPrice = () => {
     if (rangeSpan <= 0) return;

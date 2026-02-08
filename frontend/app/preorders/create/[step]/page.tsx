@@ -163,6 +163,16 @@ export default function PreorderCreateStepPage() {
     null;
   const templates = templatesQuery.data || [];
 
+  const estimatePayload = React.useMemo(() => {
+    if (!selectedCategory || !watched) return null;
+    return {
+      category_id: selectedCategory.id,
+      quantity: watched.quantity || selectedCategory.min_quantity || 1,
+      options: buildOptionPayload(watched.options || {}, selectedCategory),
+      is_rush_order: watched.is_rush_order || false,
+    };
+  }, [selectedCategory, watched]);
+
   React.useEffect(() => {
     const initialCategory = searchParams.get("category");
     if (!initialCategory || selectedCategoryId) return;
@@ -193,23 +203,12 @@ export default function PreorderCreateStepPage() {
   }, [watched]);
 
   React.useEffect(() => {
-    if (!selectedCategory || !watched) return;
-    const payload = {
-      category_id: selectedCategory.id,
-      quantity: watched.quantity || selectedCategory.min_quantity || 1,
-      options: buildOptionPayload(watched.options || {}, selectedCategory),
-      is_rush_order: watched.is_rush_order || false,
-    };
-    estimateMutation.mutate(payload, {
+    if (!estimatePayload) return;
+    estimateMutation.mutate(estimatePayload, {
       onSuccess: (data) => setEstimate(data),
       onError: () => setEstimate(null),
     });
-  }, [
-    selectedCategory?.id,
-    watched?.quantity,
-    watched?.options,
-    watched?.is_rush_order,
-  ]);
+  }, [estimatePayload, estimateMutation]);
 
   const goToStep = (next: StepKey) => {
     const nextIndex = stepOrder.indexOf(next);

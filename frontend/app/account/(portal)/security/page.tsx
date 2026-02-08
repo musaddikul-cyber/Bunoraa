@@ -86,7 +86,7 @@ export default function SecurityPage() {
     if (typeof window === "undefined" || !window.PublicKeyCredential) return;
     const options = await registerPasskeyOptions.mutateAsync();
     const decoded = decodeCreationOptions(
-      options as PublicKeyCredentialCreationOptions
+      options as unknown as PublicKeyCredentialCreationOptions
     );
     const credential = (await navigator.credentials.create({
       publicKey: decoded,

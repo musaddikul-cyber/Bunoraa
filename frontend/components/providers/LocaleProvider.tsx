@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { getStoredLocale, setStoredLocale, type LocaleState } from "@/lib/locale";
 
 type LocaleContextValue = {
@@ -33,7 +33,15 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const prefsQuery = useQuery({
     queryKey: ["locale", "preferences"],
     queryFn: fetchPreferences,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 12 * 60 * 60 * 1000,
+    gcTime: 12 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 429) return false;
+      return failureCount < 2;
+    },
   });
 
   React.useEffect(() => {

@@ -80,7 +80,7 @@ export default async function SearchPage({
 }) {
   const resolved = await searchParams;
   const query = typeof resolved.q === "string" ? resolved.q : "";
-  const filterParams = query ? { q: query } : {};
+  const filterParams = query ? { q: query } : undefined;
   const view = resolved.view === "list" ? "list" : "grid";
   const currentPage = Number(resolved.page || 1) || 1;
 
@@ -168,7 +168,9 @@ export default async function SearchPage({
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
               Search
             </p>
-            <h1 className="text-3xl font-semibold">Results for "{query}"</h1>
+            <h1 className="text-3xl font-semibold">
+              Results for &quot;{query}&quot;
+            </h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <FilterDrawer

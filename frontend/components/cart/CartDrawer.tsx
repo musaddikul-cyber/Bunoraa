@@ -52,13 +52,7 @@ export function CartDrawer({
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Your cart</h2>
-          <button className="text-sm text-foreground/60" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <MiniCart />
+        <MiniCart title="Your cart" onClose={onClose} />
       </aside>
     </div>
   );

@@ -10,6 +10,8 @@ import type {
   ProductReviewsResponse,
   ProductQuestion,
   CustomerPhoto,
+  ShippingRateResponse,
+  ShippingMethodOption,
 } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -215,7 +217,7 @@ function ShippingEstimator({
   const [country, setCountry] = React.useState("Bangladesh");
   const [state, setState] = React.useState("Dhaka");
   const [postalCode, setPostalCode] = React.useState("");
-  const [result, setResult] = React.useState<any>(null);
+  const [result, setResult] = React.useState<ShippingRateResponse | null>(null);
   const [loading, setLoading] = React.useState(false);
   const safeQuantity = Math.max(1, Number.isFinite(quantity) ? quantity : 1);
   const unitPriceValue =
@@ -235,7 +237,7 @@ function ShippingEstimator({
   const handleEstimate = async () => {
     setLoading(true);
     try {
-      const response = await apiFetch("/shipping/calculate/", {
+      const response = await apiFetch<ShippingRateResponse>("/shipping/calculate/", {
         method: "POST",
         body: {
           country,
@@ -247,7 +249,7 @@ function ShippingEstimator({
           weight: totalWeight || undefined,
         },
       });
-      setResult((response as { data?: any }).data || null);
+      setResult(response.data || null);
     } catch {
       push("Could not estimate shipping.", "error");
     } finally {
@@ -289,7 +291,7 @@ function ShippingEstimator({
       </Button>
       {result?.methods?.length ? (
         <div className="space-y-2 text-xs text-foreground/70">
-          {result.methods.map((method: any) => (
+          {result.methods.map((method: ShippingMethodOption) => (
             <div key={method.code || method.name} className="flex items-center justify-between">
               <span>{method.name}</span>
               <span>{method.rate_display || method.rate || "-"}</span>

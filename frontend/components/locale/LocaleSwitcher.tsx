@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocale } from "@/components/providers/LocaleProvider";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type LanguageOption = {
@@ -34,22 +34,48 @@ async function fetchCurrencies() {
 
 export function LocaleSwitcher({ className }: { className?: string }) {
   const { locale, setLocale, isLoading } = useLocale();
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+  const normalizeCurrencyCode = React.useCallback((value?: string | null) => {
+    if (!value) return "";
+    const code = String(value).trim().toUpperCase();
+    return /^[A-Z]{3}$/.test(code) ? code : "";
+  }, []);
   const languagesQuery = useQuery({
     queryKey: ["i18n", "languages"],
     queryFn: fetchLanguages,
-    staleTime: 30 * 60 * 1000,
+    staleTime: 12 * 60 * 60 * 1000,
+    gcTime: 12 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 429) return false;
+      return failureCount < 2;
+    },
   });
   const currenciesQuery = useQuery({
     queryKey: ["i18n", "currencies"],
     queryFn: fetchCurrencies,
-    staleTime: 30 * 60 * 1000,
+    staleTime: 12 * 60 * 60 * 1000,
+    gcTime: 12 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 429) return false;
+      return failureCount < 2;
+    },
   });
 
-  const languages = languagesQuery.data ?? [];
-  const currencies = currenciesQuery.data ?? [];
-  const language = locale.language || languages[0]?.code || "";
-  const currency = locale.currency || currencies[0]?.code || "";
-  const isBusy = isLoading || languagesQuery.isLoading || currenciesQuery.isLoading;
+  const languages = mounted ? languagesQuery.data ?? [] : [];
+  const currencies = mounted ? currenciesQuery.data ?? [] : [];
+  const language = mounted ? locale.language || languages[0]?.code || "" : "";
+  const normalizedCurrency = mounted ? normalizeCurrencyCode(locale.currency) : "";
+  const isBusy =
+    !mounted || isLoading || languagesQuery.isLoading || currenciesQuery.isLoading;
 
   const languageOptions = languages.map((option) => ({
     value: option.code,
@@ -58,10 +84,26 @@ export function LocaleSwitcher({ className }: { className?: string }) {
     }`,
   }));
 
-  const currencyOptions = currencies.map((option) => ({
-    value: option.code,
-    label: `${option.code}${option.symbol ? ` ${option.symbol}` : ""}`,
-  }));
+  const currencyOptions = currencies
+    .map((option) => {
+      const code = normalizeCurrencyCode(option.code);
+      return code
+        ? {
+            value: code,
+            label: `${code}${option.symbol ? ` ${option.symbol}` : ""}`,
+          }
+        : null;
+    })
+    .filter(
+      (option): option is { value: string; label: string } =>
+        Boolean(option?.value)
+    );
+  const resolvedCurrencyOptions =
+    normalizedCurrency &&
+    !currencyOptions.some((option) => option.value === normalizedCurrency)
+      ? [{ value: normalizedCurrency, label: normalizedCurrency }, ...currencyOptions]
+      : currencyOptions;
+  const currency = normalizedCurrency || resolvedCurrencyOptions[0]?.value || "";
 
   return (
     <div
@@ -96,15 +138,15 @@ export function LocaleSwitcher({ className }: { className?: string }) {
         <select
           value={currency}
           onChange={(event) => setLocale({ currency: event.target.value })}
-          disabled={isBusy || currencyOptions.length === 0}
+          disabled={isBusy || resolvedCurrencyOptions.length === 0}
           className="h-8 min-h-0 w-full rounded-lg border border-border bg-card px-2 text-xs leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-36 sm:text-sm"
         >
-          {currencyOptions.length === 0 ? (
+          {resolvedCurrencyOptions.length === 0 ? (
             <option value="">
               {isBusy ? "Loading..." : "No currencies"}
             </option>
           ) : (
-            currencyOptions.map((option) => (
+            resolvedCurrencyOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

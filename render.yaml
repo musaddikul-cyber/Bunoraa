@@ -1,4 +1,8 @@
 services:
+  - type: redis
+    name: bunoraa-redis
+    plan: free
+
   - type: web
     name: Bunoraa
     runtime: python
@@ -125,7 +129,7 @@ services:
     plan: free
 
 databases:
-  - name: bunoraa
+  - name: bunoraa_db
     plan: free
     databaseName: bunoraa
     user: bunoraa

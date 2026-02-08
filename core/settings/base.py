@@ -44,7 +44,7 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'production')
 
 # Parse ALLOWED_HOSTS from environment
-_allowed_hosts = os.environ.get('ALLOWED_HOSTS', 'bunoraa.com,www.bunoraa.com')
+_allowed_hosts = os.environ.get('ALLOWED_HOSTS', 'bunoraa.com,www.bunoraa.com,api.bunoraa.com,localhost,127.0.0.1')
 ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts.split(',') if h.strip()]
 
 # Application definition
@@ -244,8 +244,6 @@ ATOMIC_REQUESTS = False
 PRERENDER_PATHS = ['/', '/products/', '/categories/']
 PRERENDER_CACHE_DIR = os.environ.get('PRERENDER_CACHE_DIR', 'prerender_cache')
 SITE_URL = os.environ.get('SITE_URL', 'https://bunoraa.com')
-MAIN_CSS = os.environ.get('MAIN_CSS', '/static/css/styles.css')
-MAIN_JS = os.environ.get('MAIN_JS', '/static/js/app.bundle.js')
 ASSET_HOST = os.environ.get('ASSET_HOST', '')
 
 # Site ID
@@ -330,7 +328,7 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
-CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'https://bunoraa.com,https://www.bunoraa.com,http://localhost:8000,http://127.0.0.1:8000').split(',')
+CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:8000,http://127.0.0.1:8000').split(',')
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'x-user-currency',
@@ -339,7 +337,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 ]
 
 # CSRF Settings
-CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'https://bunoraa.com,https://www.bunoraa.com,http://localhost:8000,http://127.0.0.1:8000').split(',')
+CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:8000,http://127.0.0.1:8000').split(',')
 
 # Next.js frontend origins
 NEXT_FRONTEND_ORIGIN = os.environ.get('NEXT_FRONTEND_ORIGIN', '').strip()

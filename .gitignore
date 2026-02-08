@@ -181,3 +181,9 @@ pyrightconfig.json
 *.exe
 *.zip
 *.tar.gz
+
+# ============================================
+# Frontend Source (keep in repo)
+# ============================================
+!frontend/lib/
+!frontend/lib/**

@@ -5,6 +5,7 @@ import type { PreorderCategory } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { formatMoney } from "@/lib/checkout";
+import { asArray } from "@/lib/array";
 
 export const revalidate = 600;
 
@@ -12,7 +13,7 @@ async function getCategories() {
   const response = await apiFetch<PreorderCategory[]>("/preorders/categories/", {
     next: { revalidate },
   });
-  return response.data;
+  return asArray<PreorderCategory>(response.data);
 }
 
 export default async function PreordersLandingPage() {

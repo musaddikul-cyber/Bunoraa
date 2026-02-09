@@ -24,6 +24,8 @@ const API_BASE_URL =
   typeof window === "undefined" && INTERNAL_API_BASE_URL
     ? INTERNAL_API_BASE_URL
     : PUBLIC_API_BASE_URL;
+const FALLBACK_SITE_URL =
+  (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || "http://localhost:3000";
 let refreshPromise: Promise<string | null> | null = null;
 
 function buildUrl(path: string, params?: ApiFetchOptions["params"]) {
@@ -31,7 +33,14 @@ function buildUrl(path: string, params?: ApiFetchOptions["params"]) {
   if (!API_BASE_URL) {
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
   }
-  const url = new URL(`${API_BASE_URL}${normalizedPath}`);
+  const base = API_BASE_URL;
+  const url =
+    base.startsWith("/")
+      ? new URL(
+          `${base}${normalizedPath}`,
+          typeof window !== "undefined" ? window.location.origin : FALLBACK_SITE_URL
+        )
+      : new URL(`${base}${normalizedPath}`);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value === undefined || value === null || value === "") return;

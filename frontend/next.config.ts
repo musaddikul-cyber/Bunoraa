@@ -34,6 +34,20 @@ const remotePatterns = [mediaPattern, apiPattern, fallbackMediaPattern].filter(
   Boolean
 ) as RemotePattern[];
 
+function toOrigin(urlString?: string): string | null {
+  if (!urlString) return null;
+  try {
+    return new URL(urlString).origin;
+  } catch {
+    return null;
+  }
+}
+
+const apiProxyOrigin =
+  toOrigin(process.env.NEXT_API_PROXY_TARGET) ||
+  toOrigin(process.env.NEXT_INTERNAL_API_BASE_URL) ||
+  null;
+
 const disableImageOptimization =
   process.env.NEXT_IMAGE_UNOPTIMIZED === "true" ||
   process.env.NEXT_IMAGE_UNOPTIMIZED === "1";
@@ -58,6 +72,13 @@ const nextConfig: NextConfig = {
       { source: "/products/category/:path*", destination: "/categories/:path*", permanent: true },
       { source: "/categories/category/:path*", destination: "/categories/:path*", permanent: true },
       { source: "/account/", destination: "/account/dashboard/", permanent: false },
+    ];
+  },
+  async rewrites() {
+    if (!apiProxyOrigin) return [];
+    return [
+      { source: "/api/:path*", destination: `${apiProxyOrigin}/api/:path*` },
+      { source: "/media/:path*", destination: `${apiProxyOrigin}/media/:path*` },
     ];
   },
 };

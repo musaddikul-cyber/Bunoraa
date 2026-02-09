@@ -84,6 +84,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'core',
+    'apps.env_registry',
     'apps.accounts',
     'apps.artisans',
     'apps.catalog',
@@ -749,6 +750,17 @@ ADMINS = [
     ('Bunoraa Admin', os.environ.get('ADMIN_EMAIL', 'admin@bunoraa.com')),
 ]
 MANAGERS = ADMINS
+
+# =============================================================================
+# ENV REGISTRY SETTINGS
+# =============================================================================
+ENV_REGISTRY_SCHEMA_PATH = os.environ.get(
+    'ENV_REGISTRY_SCHEMA_PATH',
+    str(BASE_DIR / 'config' / 'env.schema.yml'),
+)
+ENV_REGISTRY_AUTOSEED = os.environ.get('ENV_REGISTRY_AUTOSEED', 'True').lower() in ('1', 'true', 'yes')
+ENV_REGISTRY_AUTOSYNC_RUNTIME = os.environ.get('ENV_REGISTRY_AUTOSYNC_RUNTIME', 'True').lower() in ('1', 'true', 'yes')
+ENV_REGISTRY_AUTOEXPORT = os.environ.get('ENV_REGISTRY_AUTOEXPORT', 'False').lower() in ('1', 'true', 'yes')
 
 # Admin site customization
 ADMIN_SITE_HEADER = 'Bunoraa Administration'

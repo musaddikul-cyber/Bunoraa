@@ -1,0 +1,27 @@
+name: Warmup Bunoraa Services
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  warmup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping endpoints
+        shell: bash
+        run: |
+          set -u
+          failed=0
+          urls=(
+            "https://api.bunoraa.com/healthz"
+          )
+          for url in "${urls[@]}"; do
+            echo "Pinging $url"
+            if ! curl -fsS --max-time 10 -H "User-Agent: BunoraaWarmup/1.0" "$url" >/dev/null; then
+              echo "Failed: $url"
+              failed=1
+            fi
+          done
+          exit $failed

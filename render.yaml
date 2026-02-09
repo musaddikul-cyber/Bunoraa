@@ -117,11 +117,19 @@ services:
       - key: SENTRY_DSN
         sync: false
       - key: GUNICORN_WORKERS
-        value: "10"
+        value: "1"
       - key: GUNICORN_THREADS
         value: "1"
       - key: GUNICORN_MAX_REQUESTS
-        value: "500"
+        value: "200"
+      - key: GUNICORN_MAX_REQUESTS_JITTER
+        value: "50"
+      - key: GUNICORN_TIMEOUT
+        value: "45"
+      - key: GUNICORN_GRACEFUL_TIMEOUT
+        value: "20"
+      - key: GUNICORN_KEEPALIVE
+        value: "5"
       - key: GUNICORN_LOG_LEVEL
         value: "warning"
     plan: free

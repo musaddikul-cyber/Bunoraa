@@ -10,23 +10,25 @@ _default_workers = max(1, multiprocessing.cpu_count() // 2)
 workers = int(os.environ.get('GUNICORN_WORKERS', str(_default_workers)))
 
 bind = '0.0.0.0:' + os.environ.get('PORT', '8000')
-preload_app = True
+# Preloading increases memory usage; keep it off for low-RAM instances.
+preload_app = False
 
 # ============================================
 # TIMEOUT SETTINGS
 # ============================================
-timeout = int(os.environ.get('GUNICORN_TIMEOUT', '60'))  # Reduced from 120
-graceful_timeout = int(os.environ.get('GUNICORN_GRACEFUL_TIMEOUT', '30'))
-keepalive = int(os.environ.get('GUNICORN_KEEPALIVE', '65'))
+timeout = int(os.environ.get('GUNICORN_TIMEOUT', '45'))  # Lower to avoid long hangs
+graceful_timeout = int(os.environ.get('GUNICORN_GRACEFUL_TIMEOUT', '20'))
+keepalive = int(os.environ.get('GUNICORN_KEEPALIVE', '5'))
 
 # ============================================
 # MEMORY MANAGEMENT - Critical for small instances
 # ============================================
 # Force worker recycling to prevent memory leaks from accumulating
-max_requests = int(os.environ.get('GUNICORN_MAX_REQUESTS', 1000))  # Recycle every 1000 requests
-max_requests_jitter = int(os.environ.get('GUNICORN_MAX_REQUESTS_JITTER', 100))  # Add randomness
+max_requests = int(os.environ.get('GUNICORN_MAX_REQUESTS', 200))  # Recycle more often on low RAM
+max_requests_jitter = int(os.environ.get('GUNICORN_MAX_REQUESTS_JITTER', 50))  # Add randomness
 
-worker_tmp_dir = '/dev/shm'
+# /dev/shm uses RAM; prefer disk-backed tmp on tiny instances
+worker_tmp_dir = '/tmp'
 
 # ============================================
 # WORKER CLASS & THREADING

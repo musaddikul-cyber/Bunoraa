@@ -92,14 +92,14 @@ def site_settings(request):
                 'CUSTOM_HEAD_SCRIPTS': '',
                 'CUSTOM_BODY_SCRIPTS': '',
                 'SOCIAL_LINKS': [],
-                'TAX_RATE': 0,
+                'TAX_RATE': 10,
             }
     
     # Determine per-request currency (do not cache - user/session based)
     # Also fetch shipping and payment settings
-    free_shipping_threshold = 2000  # Default
-    default_shipping_cost = 60  # Default
-    cod_fee = 0  # Default
+    free_shipping_threshold = 5000  # Default
+    default_shipping_cost = 100  # Default
+    cod_fee = 50  # Default
     
     try:
         from apps.i18n.services import CurrencyService, CurrencyConversionService
@@ -229,7 +229,7 @@ def site_settings(request):
         'default_shipping_cost_converted': default_shipping_cost_converted,
         'cod_fee': cod_fee,
         'cod_fee_converted': cod_fee_converted,
-        'tax_rate': cached_settings.get('TAX_RATE', 0),
+        'tax_rate': cached_settings.get('TAX_RATE', 10),
         'canonical_url': build_canonical(request),
         'meta_robots': compute_meta_robots(request),
         'IS_CRAWLER': is_crawler,

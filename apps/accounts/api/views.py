@@ -257,6 +257,44 @@ class ResendVerificationView(APIView):
         })
 
 
+class SocialTokenView(APIView):
+    """Exchange a social-authenticated session for JWT tokens."""
+    permission_classes = [IsAuthenticated]
+
+    def _issue_tokens(self, request):
+        refresh = RefreshToken.for_user(request.user)
+        access = refresh.access_token
+        expires_at = datetime.fromtimestamp(refresh['exp'], tz=timezone.utc)
+        OutstandingToken.objects.get_or_create(
+            jti=str(refresh['jti']),
+            user=request.user,
+            token=str(refresh),
+            expires_at=expires_at,
+        )
+        AuthSessionService.create_session(
+            request.user,
+            request,
+            str(access['jti']),
+            str(refresh['jti'])
+        )
+        return Response({
+            'success': True,
+            'message': 'Social login successful.',
+            'data': {
+                'access': str(access),
+                'refresh': str(refresh),
+                'mfa_required': False,
+            },
+            'meta': None
+        })
+
+    def get(self, request):
+        return self._issue_tokens(request)
+
+    def post(self, request):
+        return self._issue_tokens(request)
+
+
 class AddressViewSet(viewsets.ModelViewSet):
     """Address CRUD endpoints."""
     permission_classes = [IsAuthenticated]

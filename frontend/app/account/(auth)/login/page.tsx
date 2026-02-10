@@ -37,6 +37,8 @@ export default function LoginPage() {
   });
 
   const nextUrl = searchParams.get("next") || "/account/profile/";
+  const callbackPath = `/account/oauth/callback/?next=${encodeURIComponent(nextUrl)}`;
+  const googleOAuthUrl = `/oauth/login/google-oauth2/?next=${encodeURIComponent(callbackPath)}`;
 
   const onSubmit = async (values: FormValues) => {
     const result = await login.mutateAsync({
@@ -153,6 +155,10 @@ export default function LoginPage() {
             </p>
             <h1 className="text-2xl font-semibold">Sign in</h1>
           </div>
+
+          <Button asChild variant="secondary" className="w-full">
+            <a href={googleOAuthUrl}>Continue with Google</a>
+          </Button>
 
           {!mfaToken ? (
             <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>

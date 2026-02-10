@@ -47,6 +47,9 @@ const apiProxyOrigin =
   toOrigin(process.env.NEXT_API_PROXY_TARGET) ||
   toOrigin(process.env.NEXT_INTERNAL_API_BASE_URL) ||
   null;
+const shouldProxyMedia =
+  !process.env.NEXT_PUBLIC_MEDIA_BASE_URL ||
+  process.env.NEXT_PUBLIC_MEDIA_BASE_URL.startsWith("/");
 
 const disableImageOptimization =
   process.env.NEXT_IMAGE_UNOPTIMIZED === "true" ||
@@ -76,10 +79,14 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     if (!apiProxyOrigin) return [];
-    return [
+    const rules = [
       { source: "/api/:path*", destination: `${apiProxyOrigin}/api/:path*` },
-      { source: "/media/:path*", destination: `${apiProxyOrigin}/media/:path*` },
+      { source: "/oauth/:path*", destination: `${apiProxyOrigin}/oauth/:path*` },
     ];
+    if (shouldProxyMedia) {
+      rules.push({ source: "/media/:path*", destination: `${apiProxyOrigin}/media/:path*` });
+    }
+    return rules;
   },
 };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,6 +27,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { register } = useAuth();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -45,6 +46,10 @@ export default function RegisterPage() {
     router.push("/account/login/");
   };
 
+  const nextUrl = searchParams.get("next") || "/account/profile/";
+  const callbackPath = `/account/oauth/callback/?next=${encodeURIComponent(nextUrl)}`;
+  const googleOAuthUrl = `/oauth/login/google-oauth2/?next=${encodeURIComponent(callbackPath)}`;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-md px-6 py-20">
@@ -55,6 +60,10 @@ export default function RegisterPage() {
             </p>
             <h1 className="text-2xl font-semibold">Create account</h1>
           </div>
+
+          <Button asChild variant="secondary" className="w-full">
+            <a href={googleOAuthUrl}>Continue with Google</a>
+          </Button>
 
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <label className="block text-sm">

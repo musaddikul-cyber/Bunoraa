@@ -91,7 +91,7 @@ services:
       - key: GOOGLE_REDIRECT_URI
         value: "https://bunoraa.com/oauth/complete/google-oauth2/"
       - key: SOCIAL_AUTH_LOGIN_REDIRECT_URL
-        value: "/account/oauth/callback/"
+        value: "https://bunoraa.com/account/oauth/callback/"
       - key: SOCIAL_AUTH_REDIRECT_IS_HTTPS
         value: "True"
       - key: SSLCOMMERZ_STORE_ID
@@ -156,7 +156,7 @@ services:
       - key: NEXT_IMAGE_UNOPTIMIZED
         value: "true"
       - key: NEXT_PUBLIC_API_BASE_URL
-        value: "/api/v1"
+        value: "https://api.bunoraa.com/api/v1"
       - key: NEXT_INTERNAL_API_BASE_URL
         value: "https://api.bunoraa.com/api/v1/"
       - key: NEXT_PUBLIC_SITE_URL

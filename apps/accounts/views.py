@@ -18,6 +18,19 @@ from .models import Address
 from apps.i18n.services import GeoService as CountryService
 from .forms import LoginForm, RegistrationForm
 
+class OAuthCallbackRedirectView(View):
+    """Redirect API-domain OAuth callback to the frontend callback page."""
+
+    def get(self, request):
+        frontend_origin = (
+            getattr(settings, "NEXT_FRONTEND_ORIGIN", "").strip()
+            or getattr(settings, "SITE_URL", "").strip()
+        ).rstrip("/")
+        if not frontend_origin:
+            return redirect("/")
+        target = f"{frontend_origin}{request.get_full_path()}"
+        return redirect(target)
+
 
 class AccountDashboardView(LoginRequiredMixin, TemplateView):
     """User account dashboard."""

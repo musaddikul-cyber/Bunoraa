@@ -9,6 +9,7 @@ app_name = 'accounts'
 
 urlpatterns = [
     path('', RedirectView.as_view(pattern_name='accounts:login', permanent=False)),
+    path('oauth/callback/', views.OAuthCallbackRedirectView.as_view(), name='oauth_callback'),
     path('dashboard/', views.AccountDashboardView.as_view(), name='dashboard'),
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('addresses/', views.AddressListView.as_view(), name='addresses'),

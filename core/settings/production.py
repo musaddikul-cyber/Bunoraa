@@ -41,11 +41,11 @@ _env_allowed = os.environ.get('ALLOWED_HOSTS', '')
 if _env_allowed:
     ALLOWED_HOSTS = [h.strip() for h in _env_allowed.split(',') if h.strip()]
 else:
-    ALLOWED_HOSTS = ['bunoraa.com', 'www.bunoraa.com', 'api.bunoraa.com', 'media.bunoraa.com', 'bunoraa-pl26.onrender.com', 'bunoraa-django.onrender.com']
+    ALLOWED_HOSTS = ['bunoraa.com', 'www.bunoraa.com', 'api.bunoraa.com', 'media.bunoraa.com', 'bunoraa-pl26.onrender.com', 'bunoraa-django.onrender.com', '.onrender.com']
 
 # CORS/CSRF origins - allow explicit overrides and add frontend origin if provided
-_cors_env = _split_csv(os.environ.get('CORS_ALLOWED_ORIGINS', 'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:8000,http://127.0.0.1:8000'))
-_csrf_env = _split_csv(os.environ.get('CSRF_TRUSTED_ORIGINS', 'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:8000,http://127.0.0.1:8000'))
+_cors_env = _split_csv(os.environ.get('CORS_ALLOWED_ORIGINS', 'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com'))
+_csrf_env = _split_csv(os.environ.get('CSRF_TRUSTED_ORIGINS', 'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com'))
 
 CORS_ALLOWED_ORIGINS = _cors_env or [f'https://{h}' for h in ALLOWED_HOSTS if h]
 CSRF_TRUSTED_ORIGINS = _csrf_env or [f'https://{h}' for h in ALLOWED_HOSTS if h]

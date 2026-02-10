@@ -147,16 +147,20 @@ services:
         value: production
       - key: NEXT_DISABLE_PRERENDER
         value: "true"
+      - key: NEXT_DISABLE_BUILD_PRERENDER
+        value: "true"
       - key: NEXT_IMAGE_UNOPTIMIZED
         value: "true"
       - key: NEXT_PUBLIC_API_BASE_URL
-        value: "https://api.bunoraa.com/api/v1/"
+        value: "/api/v1"
       - key: NEXT_INTERNAL_API_BASE_URL
         value: "https://api.bunoraa.com/api/v1/"
       - key: NEXT_PUBLIC_SITE_URL
         value: "https://bunoraa.com"
       - key: NEXT_PUBLIC_MEDIA_BASE_URL
         value: "https://media.bunoraa.com"
+      - key: NEXT_API_PROXY_TARGET
+        value: "https://api.bunoraa.com"
       - key: NEXT_PUBLIC_WS_BASE_URL
         value: "wss://api.bunoraa.com"
       - key: NEXT_PUBLIC_WS_ENABLED

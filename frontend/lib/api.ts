@@ -26,6 +26,9 @@ const API_BASE_URL =
     : PUBLIC_API_BASE_URL;
 const FALLBACK_SITE_URL =
   (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || "http://localhost:3000";
+const DISABLE_BUILD_PRERENDER =
+  process.env.NEXT_DISABLE_BUILD_PRERENDER === "true" ||
+  process.env.NEXT_DISABLE_BUILD_PRERENDER === "1";
 let refreshPromise: Promise<string | null> | null = null;
 
 function buildUrl(path: string, params?: ApiFetchOptions["params"]) {
@@ -215,6 +218,9 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   const localeHeaders = getLocaleHeaders();
   const isFormData =
     typeof FormData !== "undefined" && body instanceof FormData;
+  const forceNoStore = DISABLE_BUILD_PRERENDER && typeof window === "undefined";
+  const effectiveCache = forceNoStore ? "no-store" : cache;
+  const effectiveNext = forceNoStore ? undefined : next;
 
   const init: RequestInit & { next?: { revalidate?: number } } = {
     method,
@@ -233,12 +239,12 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
           ? body
           : JSON.stringify(body)
         : undefined,
-    cache,
+    cache: effectiveCache,
     signal,
   };
 
-  if (next) {
-    init.next = next;
+  if (effectiveNext) {
+    init.next = effectiveNext;
   }
 
   const response = await fetch(url, init);

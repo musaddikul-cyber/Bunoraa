@@ -1,0 +1,77 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      DJANGO_SETTINGS_MODULE: core.settings.base
+      SECRET_KEY: ci-secret-not-for-prod
+      DEBUG: "False"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+      - name: Django system checks
+        run: python manage.py check --deploy
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+  deploy:
+    needs:
+      - backend
+      - frontend
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploys
+        env:
+          BACKEND_HOOK: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}
+          FRONTEND_HOOK: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BACKEND_HOOK}" ]; then
+            echo "Triggering backend deploy"
+            curl -fsS -X POST "$BACKEND_HOOK"
+          else
+            echo "RENDER_BACKEND_DEPLOY_HOOK is not set, skipping backend deploy"
+          fi
+          if [ -n "${FRONTEND_HOOK}" ]; then
+            echo "Triggering frontend deploy"
+            curl -fsS -X POST "$FRONTEND_HOOK"
+          else
+            echo "RENDER_FRONTEND_DEPLOY_HOOK is not set, skipping frontend deploy"
+          fi

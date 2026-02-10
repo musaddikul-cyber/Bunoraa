@@ -35,6 +35,7 @@ class ChatAgentSerializer(serializers.ModelSerializer):
         source='user',
         write_only=True
     )
+    display_name = serializers.SerializerMethodField() # Defined as SerializerMethodField
     
     class Meta:
         model = ChatAgent
@@ -50,6 +51,10 @@ class ChatAgentSerializer(serializers.ModelSerializer):
             'id', 'current_chat_count', 'total_chats_handled',
             'avg_rating', 'total_ratings', 'last_activity', 'created_at'
         ]
+
+    def get_display_name(self, obj):
+        """Derive display name from the associated user."""
+        return obj.user.get_full_name() or obj.user.email
 
 
 class ChatAgentPublicSerializer(serializers.ModelSerializer):

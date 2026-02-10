@@ -25,7 +25,11 @@ services:
       - key: SECRET_KEY
         sync: false
       - key: ALLOWED_HOSTS
-        value: bunoraa.com,www.bunoraa.com,api.bunoraa.com,bunoraa.onrender.com
+        value: bunoraa.com,www.bunoraa.com,api.bunoraa.com,.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://bunoraa.com,https://www.bunoraa.com"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://bunoraa.com,https://www.bunoraa.com"
       - key: NEXT_FRONTEND_ORIGIN
         value: "https://bunoraa.com"
       - key: ML_ENABLED
@@ -142,13 +146,15 @@ services:
     name: Bunoraa-Frontend
     runtime: node
     rootDir: frontend
-    buildCommand: "npm ci && npm run build"
+    buildCommand: "npm ci && npm run build && npm prune --omit=dev"
     startCommand: "npm run start"
     envVars:
       - key: NODE_OPTIONS
         value: "--max-old-space-size=256"
       - key: NODE_ENV
         value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
       - key: NEXT_DISABLE_PRERENDER
         value: "true"
       - key: NEXT_DISABLE_BUILD_PRERENDER

@@ -80,6 +80,7 @@ THIRD_PARTY_APPS = [
     'crispy_forms',
     'crispy_bootstrap5',
     'crispy_tailwind',
+    'drf_spectacular',
 ]
 
 LOCAL_APPS = [
@@ -256,7 +257,7 @@ SITE_URL = os.environ.get('SITE_URL', 'https://bunoraa.com')
 ASSET_HOST = os.environ.get('ASSET_HOST', '')
 
 # Site ID
-SITE_ID = 1
+SITE_ID = 2
 
 # Force site to always use default currency when True. This disables per-user
 # currency detection and forces server-side formatted amounts to use the
@@ -316,6 +317,26 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
         'user': '1000/hour',
+    },
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', # Added for drf-spectacular
+}
+
+# drf-spectacular settings for API Schema generation
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Bunoraa API',
+    'DESCRIPTION': 'Documentation for Bunoraa e-commerce platform API',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False, # This should be False in production
+    'SCHEMA_PATH_PREFIX': '/api/v1/', # Only generate schema for API v1 endpoints
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+        'filter': True,
+    },
+    'REDOC_UI_SETTINGS': {
+        'hideHostname': False,
+        'deepLinking': True,
     },
 }
 

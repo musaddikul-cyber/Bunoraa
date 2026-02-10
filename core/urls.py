@@ -7,6 +7,8 @@ from django.views.generic.base import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.sitemaps.views import sitemap
+from django.views.generic import RedirectView # Added for API docs redirect
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView # Added for API docs
 from .sitemaps import StaticViewSitemap, ProductSitemap, CategorySitemap, BlogSitemap
 from .views import HomeView, health_check
 from .views_health import health_check_detailed, readiness_check, liveness_check
@@ -48,10 +50,15 @@ urlpatterns = [
     
     # Sitemap
     path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
-    
-    # Frontend specific paths (must come before catch-all)
-    path('', HomeView.as_view(), name='home'),
-    
+
+    # API Schema views (Spectacular)
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/schema/swagger-ui/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/schema/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
+    # Redirect root URL to API Schema page
+    path('', RedirectView.as_view(url='/api/schema/swagger-ui/', permanent=True), name='api-docs-redirect'),
+
     # Catalog app replaces products and categories - unified catalog routes
     path('catalog/', include('apps.catalog.urls', namespace='catalog')),
     # Legacy product/category routes redirect to catalog

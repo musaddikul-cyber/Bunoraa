@@ -37,6 +37,7 @@ export default function RootLayout({
           <ChatWidget />
         </Providers>
       </body>
+      <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "99cd4569fd314a31bb530d46e16f26c9"}'></script>
     </html>
   );
 }

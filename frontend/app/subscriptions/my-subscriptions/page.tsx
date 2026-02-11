@@ -11,7 +11,7 @@ export default function MySubscriptionsPage() {
   const subscriptionsQuery = useQuery({
     queryKey: ["subscriptions", "list"],
     queryFn: async () => {
-      const response = await apiFetch<Subscription[]>("/subscriptions/subscriptions/");
+      const response = await apiFetch<Subscription[]>("/subscriptions/");
       return response.data;
     },
   });

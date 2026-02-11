@@ -116,8 +116,11 @@ def create_agent_profile(sender, instance, created, **kwargs):
     
     # Only auto-create for staff users
     if instance.is_staff and not ChatAgent.objects.filter(user=instance).exists():
+        from apps.chat.models import ChatSettings
+        settings_obj = ChatSettings.get_settings()
         ChatAgent.objects.create(
             user=instance,
             is_online=False,
-            is_accepting_chats=True
+            is_accepting_chats=True,
+            max_concurrent_chats=settings_obj.max_concurrent_chats
         )

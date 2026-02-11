@@ -63,3 +63,14 @@ class CoreConfig(AppConfig):
         except Exception:
             # Silently ignore errors during app readiness to avoid blocking startup
             pass
+
+        # Provide a safe default serializer for APIViews so schema generation
+        # does not fail when a serializer_class is not explicitly defined.
+        try:
+            from rest_framework.views import APIView
+            from rest_framework import serializers as drf_serializers
+
+            if not hasattr(APIView, 'serializer_class'):
+                APIView.serializer_class = drf_serializers.Serializer
+        except Exception:
+            pass

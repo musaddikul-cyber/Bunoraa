@@ -29,6 +29,7 @@ urlpatterns = [
     path('commerce/', include('apps.commerce.api.urls')),
     path('contacts/', include('apps.contacts.api.urls')),
     path('i18n/', include('apps.i18n.api.urls')),
+    path('email/', include('apps.email_service.api_urls')),
     path('notifications/', include('apps.notifications.api.urls')),
     path('orders/', include('apps.orders.api.urls')),
     path('pages/', include('apps.pages.api.urls')),

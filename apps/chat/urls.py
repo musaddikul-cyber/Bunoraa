@@ -10,7 +10,8 @@ from .api.views import (
     MessageViewSet,
     CannedResponseViewSet,
     ChatSettingsViewSet,
-    ChatAnalyticsViewSet
+    ChatAnalyticsViewSet,
+    ChatEmailInboundView,
 )
 
 app_name = 'chat'
@@ -26,4 +27,5 @@ router.register(r'analytics', ChatAnalyticsViewSet, basename='analytics')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('email/inbound/', ChatEmailInboundView.as_view(), name='email-inbound'),
 ]

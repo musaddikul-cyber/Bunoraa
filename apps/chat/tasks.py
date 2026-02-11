@@ -141,8 +141,9 @@ def auto_resolve_inactive_conversations(hours: int = 24):
         for conv in inactive:
             conv.status = ConversationStatus.CLOSED
             conv.resolved_at = timezone.now()
-            conv.resolution = f'Auto-closed after {hours} hours of inactivity'
-            conv.save()
+            resolution_note = f'Auto-closed after {hours} hours of inactivity'
+            conv.internal_notes = f"{conv.internal_notes}\n{resolution_note}".strip()
+            conv.save(update_fields=['status', 'resolved_at', 'internal_notes'])
             
             # Send closure message
             Message.objects.create(
@@ -210,7 +211,7 @@ def update_agent_online_status():
         
         ChatAgent.objects.filter(
             is_online=True,
-            last_activity__lt=threshold
+            last_active_at__lt=threshold
         ).update(is_online=False, is_accepting_chats=False)
         
         logger.info("Updated agent online status")
@@ -313,12 +314,24 @@ def sync_agent_metrics():
                 avg=Avg('rating'),
                 count=Count('id')
             )
-            
+
+            response_times = []
+            for conv in Conversation.objects.filter(
+                agent=agent,
+                first_response_at__isnull=False
+            ):
+                response_times.append((conv.first_response_at - conv.started_at).total_seconds())
+
             agent.current_chat_count = current
             agent.total_chats_handled = total
             agent.avg_rating = rated['avg'] or 0
-            agent.total_ratings = rated['count'] or 0
-            agent.save()
+            agent.avg_response_time_seconds = (
+                sum(response_times) / len(response_times) if response_times else 0
+            )
+            agent.save(update_fields=[
+                'current_chat_count', 'total_chats_handled',
+                'avg_rating', 'avg_response_time_seconds'
+            ])
         
         logger.info(f"Synced metrics for {agents.count()} agents")
         

@@ -26,7 +26,7 @@ export default function ChangePlanPage() {
   const changePlan = useMutation({
     mutationFn: async () => {
       if (!planId) return null;
-      return apiFetch(`/subscriptions/subscriptions/${id}/change_plan/`, {
+      return apiFetch(`/subscriptions/${id}/change_plan/`, {
         method: "POST",
         body: { plan_id: planId, proration_behavior: "none" },
       });

@@ -1,8 +1,12 @@
-from rest_framework.routers import DefaultRouter
+from django.urls import path, include
+from rest_framework.routers import SimpleRouter
 from .views import RecommendationViewSet, InteractionViewSet
 
-router = DefaultRouter()
-router.register(r"recommendations", RecommendationViewSet, basename="recommendation")
-router.register(r"interactions", InteractionViewSet, basename="interaction")
+interaction_router = SimpleRouter()
+interaction_router.register(r"interactions", InteractionViewSet, basename="interaction")
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('', RecommendationViewSet.as_view({'get': 'list'}), name='recommendations-list'),
+    path('<uuid:pk>/', RecommendationViewSet.as_view({'get': 'retrieve'}), name='recommendations-detail'),
+    path('', include(interaction_router.urls)),
+]

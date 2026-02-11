@@ -13,7 +13,7 @@ export default function SubscriptionCancelPage() {
 
   useEffect(() => {
     if (!id) return;
-    apiFetch(`/subscriptions/subscriptions/${id}/cancel/`, { method: "POST" })
+    apiFetch(`/subscriptions/${id}/cancel/`, { method: "POST" })
       .finally(() => router.push(`/subscriptions/subscription/${id}/`));
   }, [id, router]);
 

@@ -37,6 +37,10 @@ class ChatAgentSerializer(serializers.ModelSerializer):
     )
     display_name = serializers.SerializerMethodField()
     avatar_url = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
+    skills = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    total_ratings = serializers.SerializerMethodField()
+    last_activity = serializers.SerializerMethodField()
     
     class Meta:
         model = ChatAgent
@@ -66,11 +70,22 @@ class ChatAgentSerializer(serializers.ModelSerializer):
         from django.conf import settings
         return settings.DEFAULT_AGENT_AVATAR_URL
 
+    def get_role(self, obj):
+        return "agent"
+
+    def get_total_ratings(self, obj):
+        return obj.conversations.filter(rating__isnull=False).count()
+
+    def get_last_activity(self, obj):
+        return obj.last_active_at
+
 
 class ChatAgentPublicSerializer(serializers.ModelSerializer):
     """Public agent info (for customers)."""
     
+    display_name = serializers.SerializerMethodField()
     avatar_url = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatAgent
@@ -85,6 +100,12 @@ class ChatAgentPublicSerializer(serializers.ModelSerializer):
         # Use the default avatar URL from settings
         from django.conf import settings
         return settings.DEFAULT_AGENT_AVATAR_URL
+
+    def get_display_name(self, obj):
+        return obj.user.get_full_name() or obj.user.email
+
+    def get_role(self, obj):
+        return "agent"
 
 
 class MessageAttachmentSerializer(serializers.ModelSerializer):
@@ -151,7 +172,46 @@ class MessageCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = ['conversation', 'content', 'message_type', 'reply_to', 'attachments']
-    
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        conversation = attrs.get('conversation')
+
+        if request and conversation:
+            is_agent = ChatAgent.objects.filter(user=request.user, is_active=True).exists()
+            if not (request.user.is_staff or conversation.customer_id == request.user.id or is_agent):
+                raise serializers.ValidationError('Not authorized to post to this conversation.')
+
+        settings_obj = ChatSettings.get_settings()
+        content = attrs.get('content') or ''
+        if settings_obj.max_message_length and len(content) > settings_obj.max_message_length:
+            raise serializers.ValidationError(f'Message exceeds max length of {settings_obj.max_message_length} characters.')
+
+        attachments = attrs.get('attachments') or []
+        allowed_types = settings_obj.allowed_file_types or []
+        if isinstance(allowed_types, str):
+            allowed_types = [t.strip() for t in allowed_types.split(',') if t.strip()]
+        allowed_types = [str(t).lower() for t in allowed_types if t]
+        max_size_bytes = int(settings_obj.max_file_size_mb) * 1024 * 1024
+        for file in attachments:
+            if max_size_bytes and file.size > max_size_bytes:
+                raise serializers.ValidationError(f'Attachment exceeds max size of {settings_obj.max_file_size_mb} MB.')
+            if allowed_types:
+                import os
+                content_type = (file.content_type or '').lower()
+                file_ext = os.path.splitext(file.name or '')[1].lstrip('.').lower()
+                allowed_mimes = [t for t in allowed_types if '/' in t]
+                allowed_exts = [t.lstrip('.').lower() for t in allowed_types if '/' not in t]
+                allowed = False
+                if allowed_mimes and content_type in allowed_mimes:
+                    allowed = True
+                if allowed_exts and file_ext in allowed_exts:
+                    allowed = True
+                if not allowed:
+                    raise serializers.ValidationError('Attachment type not allowed.')
+
+        return attrs
+
     def create(self, validated_data):
         attachments_data = validated_data.pop('attachments', [])
         request = self.context.get('request')
@@ -167,10 +227,14 @@ class MessageCreateSerializer(serializers.ModelSerializer):
         
         # Handle attachments
         for file in attachments_data:
+            file_name = file.name
+            if file_name:
+                import os
+                file_name = os.path.basename(file_name)
             MessageAttachment.objects.create(
                 message=message,
                 file=file,
-                file_name=file.name,
+                file_name=file_name or file.name,
                 file_type=file.content_type,
                 file_size=file.size
             )
@@ -180,13 +244,14 @@ class MessageCreateSerializer(serializers.ModelSerializer):
 
 class ConversationSerializer(serializers.ModelSerializer):
     """Serializer for Conversations."""
-    
+
     customer = UserMinimalSerializer(read_only=True)
     agent = ChatAgentPublicSerializer(read_only=True)
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
     message_count = serializers.SerializerMethodField()
     feedback = serializers.CharField(source='rating_comment', read_only=True)
+    internal_notes = serializers.SerializerMethodField()
     
     class Meta:
         model = Conversation
@@ -195,6 +260,7 @@ class ConversationSerializer(serializers.ModelSerializer):
             'agent', 'category', 'subject', 'status', 'priority',
             'is_bot_handling', 'source', 'order_reference',
             'rating', 'feedback', 'message_count', 'last_message', 'unread_count',
+            'internal_notes',
             'created_at', 'started_at', 'first_response_at', 'resolved_at', 'last_message_at'
         ]
         read_only_fields = [
@@ -227,6 +293,15 @@ class ConversationSerializer(serializers.ModelSerializer):
             else:
                 return obj.messages.filter(is_from_customer=False, is_read=False).count()
         return 0
+
+    def get_internal_notes(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return ''
+        is_agent = ChatAgent.objects.filter(user=request.user, is_active=True).exists()
+        if is_agent or request.user.is_staff:
+            return obj.internal_notes
+        return ''
 
 
 class ConversationDetailSerializer(ConversationSerializer):
@@ -292,14 +367,16 @@ class ConversationRatingSerializer(serializers.Serializer):
 
 class CannedResponseSerializer(serializers.ModelSerializer):
     """Serializer for Canned Responses."""
-    
+
+    tags = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+
     class Meta:
         model = CannedResponse
         fields = [
             'id', 'title', 'shortcut', 'content', 'category', 'tags',
-            'agent', 'is_global', 'is_active', 'use_count', 'created_at'
+            'agent', 'is_global', 'is_active', 'use_count', 'last_used_at', 'created_at'
         ]
-        read_only_fields = ['id', 'use_count', 'created_at']
+        read_only_fields = ['id', 'use_count', 'last_used_at', 'created_at']
 
 
 class ChatSettingsSerializer(serializers.ModelSerializer):
@@ -311,14 +388,15 @@ class ChatSettingsSerializer(serializers.ModelSerializer):
             'id', 'is_chat_enabled', 'welcome_message', 'offline_message',
             'wait_message', 'ai_enabled', 'max_concurrent_chats',
             'business_hours_enabled', 'business_hours',
-            'allowed_file_types', 'max_file_size_mb'
+            'allowed_file_types', 'max_file_size_mb',
+            'support_inbox', 'email_reply_from'
         ]
         read_only_fields = ['id']
 
 
 class ChatAnalyticsSerializer(serializers.ModelSerializer):
     """Serializer for Chat Analytics."""
-    
+
     resolution_rate = serializers.SerializerMethodField()
     
     class Meta:
@@ -328,7 +406,7 @@ class ChatAnalyticsSerializer(serializers.ModelSerializer):
             'resolved_conversations', 'resolution_rate',
             'total_messages', 'customer_messages', 'agent_messages', 'bot_messages',
             'avg_first_response_seconds', 'avg_resolution_time_seconds', 'avg_rating',
-            'category_breakdown', 'hourly_breakdown'
+            'category_breakdown', 'channel_breakdown', 'hourly_breakdown', 'agent_performance'
         ]
         read_only_fields = fields
     

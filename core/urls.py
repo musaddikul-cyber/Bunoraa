@@ -6,10 +6,18 @@ from django.urls import path, include
 from django.views.generic.base import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
-from .sitemaps import sitemap_view
+from .sitemaps import sitemap_view, sitemap_index_view
 from django.views.generic import RedirectView # Added for API docs redirect
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView # Added for API docs
-from .sitemaps import StaticViewSitemap, ProductSitemap, CategorySitemap, BlogSitemap
+from .sitemaps import (
+    StaticViewSitemap,
+    ProductSitemap,
+    CategorySitemap,
+    CollectionSitemap,
+    BundleSitemap,
+    ArtisanSitemap,
+    PageSitemap,
+)
 from .views import HomeView, health_check
 from .views_health import health_check_detailed, readiness_check, liveness_check
 
@@ -17,7 +25,10 @@ sitemaps = {
     'static': StaticViewSitemap,
     'products': ProductSitemap,
     'categories': CategorySitemap,
-    'blog': BlogSitemap,
+    'collections': CollectionSitemap,
+    'bundles': BundleSitemap,
+    'artisans': ArtisanSitemap,
+    'pages': PageSitemap,
 }
 
 urlpatterns = [
@@ -48,8 +59,9 @@ urlpatterns = [
     # SEO (Robots.txt) - Served from static directory by web server
     # No need for Django route - nginx/web server serves static/robots.txt directly
     
-    # Sitemap
-    path('sitemap.xml', sitemap_view, {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
+    # Sitemap index + section sitemaps
+    path('sitemap.xml', sitemap_index_view, {'sitemaps': sitemaps}, name='sitemap-index'),
+    path('sitemap-<section>.xml', sitemap_view, {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
 
     # API Schema views (Spectacular)
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

@@ -337,7 +337,7 @@ export default function PreorderCreateStepPage() {
         for (const file of designFiles) {
           const formData = new FormData();
           formData.append("file", file);
-          await apiFetch(`/preorders/orders/${preorderNumber}/upload_design/`, {
+          await apiFetch(`/preorders/${preorderNumber}/upload_design/`, {
             method: "POST",
             body: formData,
           });
@@ -345,7 +345,7 @@ export default function PreorderCreateStepPage() {
         for (const file of referenceFiles) {
           const formData = new FormData();
           formData.append("file", file);
-          await apiFetch(`/preorders/orders/${preorderNumber}/upload_reference/`, {
+          await apiFetch(`/preorders/${preorderNumber}/upload_reference/`, {
             method: "POST",
             body: formData,
           });
@@ -356,7 +356,7 @@ export default function PreorderCreateStepPage() {
             formData.append("option_id", optionId);
             formData.append("file", file);
             await apiFetch(
-              `/preorders/orders/${preorderNumber}/upload-option-file/`,
+              `/preorders/${preorderNumber}/upload-option-file/`,
               {
                 method: "POST",
                 body: formData,

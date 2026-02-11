@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import rest_framework as filters
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from ..models import Page, FAQ, ContactMessage, SiteSettings, Subscriber
@@ -16,6 +17,33 @@ from .serializers import (
     SiteSettingsSerializer, SubscriberCreateSerializer,
     UnsubscribeSerializer, MenuPageSerializer
 )
+
+
+class ContactMessageFilter(filters.FilterSet):
+    is_read = filters.BooleanFilter(method='filter_is_read')
+    is_replied = filters.BooleanFilter(method='filter_is_replied')
+
+    class Meta:
+        model = ContactMessage
+        fields = ['status']
+
+    def filter_is_read(self, queryset, name, value):
+        if value is None:
+            return queryset
+        if value:
+            return queryset.exclude(status=ContactMessage.STATUS_NEW)
+        return queryset.filter(status=ContactMessage.STATUS_NEW)
+
+    def filter_is_replied(self, queryset, name, value):
+        if value is None:
+            return queryset
+        if value:
+            return queryset.filter(
+                status__in=[ContactMessage.STATUS_REPLIED, ContactMessage.STATUS_CLOSED]
+            )
+        return queryset.exclude(
+            status__in=[ContactMessage.STATUS_REPLIED, ContactMessage.STATUS_CLOSED]
+        )
 
 
 class PageViewSet(viewsets.ReadOnlyModelViewSet):
@@ -175,7 +203,7 @@ class ContactMessageViewSet(viewsets.ModelViewSet):
     """
     queryset = ContactMessage.objects.all().order_by('-created_at')
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['is_read', 'is_replied']
+    filterset_class = ContactMessageFilter
     search_fields = ['name', 'email', 'subject', 'message']
     
     def get_permissions(self):

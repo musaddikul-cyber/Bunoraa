@@ -459,7 +459,9 @@ class PaymentLinkViewSet(viewsets.GenericViewSet):
 
 class BNPLViewSet(viewsets.ReadOnlyModelViewSet):
     """Public endpoints to list BNPL providers and check agreements."""
+    serializer_class = BNPLProviderSerializer
     permission_classes = [IsAuthenticated]
+    queryset = BNPLProvider.objects.all()
 
     def list(self, request):
         providers = BNPLProvider.objects.filter(is_active=True)
@@ -478,6 +480,7 @@ class BNPLViewSet(viewsets.ReadOnlyModelViewSet):
 
 class RecurringChargeAdminViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = RecurringCharge.objects.order_by('-created_at')
+    serializer_class = RecurringChargeSerializer
     permission_classes = [IsAdminUser]
 
     def list(self, request, *args, **kwargs):

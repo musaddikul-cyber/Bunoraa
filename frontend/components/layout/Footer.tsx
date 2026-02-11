@@ -16,7 +16,7 @@ import { asArray } from "@/lib/array";
 
 async function getFooterPages() {
   try {
-    const response = await apiFetch<MenuPage[]>("/pages/pages/footer/", {
+    const response = await apiFetch<MenuPage[]>("/pages/footer/", {
       next: { revalidate: 600 },
     });
     return asArray<MenuPage>(response.data);

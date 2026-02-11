@@ -14,6 +14,9 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from asgiref.sync import sync_to_async
+from django.conf import settings
+from django.core.cache import cache
+import time
 
 logger = logging.getLogger('bunoraa.chat')
 
@@ -96,6 +99,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def receive_json(self, content):
         """Handle incoming WebSocket messages."""
+        if self._is_rate_limited():
+            await self.send_json({
+                'type': 'error',
+                'message': 'Rate limit exceeded'
+            })
+            return
+
         message_type = content.get('type')
         
         handlers = {
@@ -128,6 +138,36 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 'type': 'error',
                 'message': f'Unknown message type: {message_type}'
             })
+
+    def _is_rate_limited(self) -> bool:
+        """Simple fixed-window rate limit per user."""
+        if not self.user or not self.user.is_authenticated:
+            return False
+
+        limit = getattr(settings, 'CHAT_WS_RATE_LIMIT_COUNT', 30)
+        window = getattr(settings, 'CHAT_WS_RATE_LIMIT_WINDOW', 10)
+        if not limit or not window:
+            return False
+
+        key = f"chat_ws:{self.user.id}"
+        now = time.time()
+        data = cache.get(key)
+        if not data:
+            cache.set(key, {'count': 1, 'start': now}, timeout=window)
+            return False
+
+        start = data.get('start', now)
+        count = data.get('count', 0)
+        if now - start > window:
+            cache.set(key, {'count': 1, 'start': now}, timeout=window)
+            return False
+
+        if count >= limit:
+            return True
+
+        data['count'] = count + 1
+        cache.set(key, data, timeout=window)
+        return False
 
     # Message handlers
     async def handle_send_message(self, content):

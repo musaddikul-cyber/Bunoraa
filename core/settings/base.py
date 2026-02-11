@@ -257,7 +257,7 @@ SITE_URL = os.environ.get('SITE_URL', 'https://bunoraa.com')
 ASSET_HOST = os.environ.get('ASSET_HOST', '')
 
 # Site ID
-SITE_ID = 3
+SITE_ID = 2
 
 # Force site to always use default currency when True. This disables per-user
 # currency detection and forces server-side formatted amounts to use the
@@ -313,10 +313,18 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
         'user': '1000/hour',
+        'chat': '60/min',
+        'chat_messages': '30/min',
+        'chat_canned': '120/hour',
+        'chat_settings': '60/hour',
+        'chat_analytics': '60/hour',
+        'chat_email_inbound': '60/hour',
+        'chat_agents': '120/hour',
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', # Added for drf-spectacular
 }
@@ -339,6 +347,12 @@ SPECTACULAR_SETTINGS = {
         'deepLinking': True,
     },
 }
+
+# Chat configuration
+CHAT_WS_RATE_LIMIT_COUNT = int(os.environ.get('CHAT_WS_RATE_LIMIT_COUNT', 30))
+CHAT_WS_RATE_LIMIT_WINDOW = int(os.environ.get('CHAT_WS_RATE_LIMIT_WINDOW', 10))  # seconds
+CHAT_EMAIL_WEBHOOK_SECRET = os.environ.get('CHAT_EMAIL_WEBHOOK_SECRET', '')
+CHAT_AI_RATE_LIMIT_PER_MINUTE = int(os.environ.get('CHAT_AI_RATE_LIMIT_PER_MINUTE', 10))
 
 # JWT Settings
 SIMPLE_JWT = {

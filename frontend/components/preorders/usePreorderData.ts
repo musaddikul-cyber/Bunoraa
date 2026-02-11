@@ -70,7 +70,7 @@ export function useCreatePreorder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
-      const response = await apiFetch<Preorder>("/preorders/orders/", {
+      const response = await apiFetch<Preorder>("/preorders/", {
         method: "POST",
         body: payload,
         allowGuest: true,
@@ -101,7 +101,7 @@ export function usePreorderDetail(preorderNumber?: string | null) {
     queryKey: ["preorders", preorderNumber],
     queryFn: async () => {
       const response = await apiFetch<Preorder>(
-        `/preorders/orders/${preorderNumber}/`
+        `/preorders/${preorderNumber}/`
       );
       return response.data;
     },
@@ -122,7 +122,7 @@ export function usePreorderActions(preorderNumber?: string | null) {
     mutationFn: async (payload: { message: string; subject?: string }) => {
       if (!preorderNumber) throw new Error("Missing preorder number");
       const response = await apiFetch<PreorderMessage>(
-        `/preorders/orders/${preorderNumber}/send_message/`,
+        `/preorders/${preorderNumber}/send_message/`,
         { method: "POST", body: payload }
       );
       return response.data;
@@ -137,7 +137,7 @@ export function usePreorderActions(preorderNumber?: string | null) {
       form.append("file", payload.file);
       if (payload.notes) form.append("notes", payload.notes);
       const response = await apiFetch<PreorderDesign>(
-        `/preorders/orders/${preorderNumber}/upload_design/`,
+        `/preorders/${preorderNumber}/upload_design/`,
         {
           method: "POST",
           body: form,
@@ -155,7 +155,7 @@ export function usePreorderActions(preorderNumber?: string | null) {
       form.append("file", payload.file);
       if (payload.description) form.append("description", payload.description);
       const response = await apiFetch<PreorderReference>(
-        `/preorders/orders/${preorderNumber}/upload_reference/`,
+        `/preorders/${preorderNumber}/upload_reference/`,
         {
           method: "POST",
           body: form,
@@ -173,7 +173,7 @@ export function usePreorderActions(preorderNumber?: string | null) {
       form.append("option_id", payload.optionId);
       form.append("file", payload.file);
       const response = await apiFetch<PreorderOptionValue>(
-        `/preorders/orders/${preorderNumber}/upload-option-file/`,
+        `/preorders/${preorderNumber}/upload-option-file/`,
         {
           method: "POST",
           body: form,
@@ -188,7 +188,7 @@ export function usePreorderActions(preorderNumber?: string | null) {
     mutationFn: async (quoteId: string) => {
       if (!preorderNumber) throw new Error("Missing preorder number");
       const response = await apiFetch<Preorder>(
-        `/preorders/orders/${preorderNumber}/accept_quote/`,
+        `/preorders/${preorderNumber}/accept_quote/`,
         { method: "POST", body: { quote_id: quoteId } }
       );
       return response.data;
@@ -200,7 +200,7 @@ export function usePreorderActions(preorderNumber?: string | null) {
     mutationFn: async (payload: { quoteId: string; reason?: string }) => {
       if (!preorderNumber) throw new Error("Missing preorder number");
       const response = await apiFetch<Preorder>(
-        `/preorders/orders/${preorderNumber}/reject_quote/`,
+        `/preorders/${preorderNumber}/reject_quote/`,
         {
           method: "POST",
           body: { quote_id: payload.quoteId, reason: payload.reason || "" },

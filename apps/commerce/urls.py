@@ -48,7 +48,4 @@ urlpatterns = [
     path('cart/', include(cart_patterns)),
     path('wishlist/', include(wishlist_patterns)),
     path('checkout/', include(checkout_patterns)),
-    
-    # API routes
-    path('api/', include('apps.commerce.api.urls')),
 ]

@@ -24,7 +24,7 @@ export default function SubscriptionPlanPage() {
 
   const subscribe = useMutation({
     mutationFn: async () => {
-      return apiFetch("/subscriptions/subscriptions/", {
+      return apiFetch("/subscriptions/", {
         method: "POST",
         body: { plan_id: id, quantity: 1 },
       });

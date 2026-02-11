@@ -80,6 +80,8 @@ const nextConfig: NextConfig = {
   async rewrites() {
     if (!apiProxyOrigin) return [];
     const rules = [
+      { source: "/sitemap.xml", destination: `${apiProxyOrigin}/sitemap.xml` },
+      { source: "/sitemap-:section.xml", destination: `${apiProxyOrigin}/sitemap-:section.xml` },
       { source: "/api/:path*", destination: `${apiProxyOrigin}/api/:path*` },
       { source: "/oauth/:path*", destination: `${apiProxyOrigin}/oauth/:path*` },
     ];

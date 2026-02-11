@@ -6,7 +6,7 @@ export const revalidate = 900;
 
 async function getAboutPage() {
   try {
-    const response = await apiFetch<PageDetail>("/pages/pages/about/", {
+    const response = await apiFetch<PageDetail>("/pages/about/", {
       next: { revalidate },
     });
     return response.data;

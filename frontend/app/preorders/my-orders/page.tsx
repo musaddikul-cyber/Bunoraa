@@ -25,7 +25,7 @@ export default function MyPreordersPage() {
   const preordersQuery = useQuery({
     queryKey: ["preorders", "list"],
     queryFn: async () => {
-      const response = await apiFetch<Preorder[]>("/preorders/orders/");
+      const response = await apiFetch<Preorder[]>("/preorders/");
       return response.data;
     },
   });

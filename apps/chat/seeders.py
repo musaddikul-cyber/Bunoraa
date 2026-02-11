@@ -108,7 +108,7 @@ register_seed(
         model=CannedResponse,
         data_path="apps/chat/data/canned_responses.json",
         key_fields=["agent__id", "shortcut"],
-        update_fields=["title", "shortcut", "content", "category", "is_active", "agent"],
+        update_fields=["title", "shortcut", "content", "category", "tags", "is_global", "is_active", "agent"],
         description="Seed shared canned responses",
         kind="prod",
     )

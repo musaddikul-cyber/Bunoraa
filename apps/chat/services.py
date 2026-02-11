@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.db.models import Count, Avg, Q, F
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from django.core.cache import cache
 
 if TYPE_CHECKING:
     from apps.chat.models import ChatAgent
@@ -234,13 +235,23 @@ class AIService:
         """Generate AI response to customer message."""
         from apps.chat.models import Conversation, Message, ChatSettings
         import openai
-        
+
         settings_obj = ChatSettings.get_settings()
         
         if not settings_obj.ai_enabled:
             return None
         
         conversation = Conversation.objects.get(id=conversation_id)
+
+        # Rate limit AI responses per conversation
+        rate_limit = getattr(settings, 'CHAT_AI_RATE_LIMIT_PER_MINUTE', 10)
+        if rate_limit:
+            key = f"chat_ai:{conversation_id}"
+            count = cache.get(key, 0)
+            if count >= rate_limit:
+                conversation.request_human_agent()
+                return "I'm connecting you with a human agent for further assistance."
+            cache.set(key, count + 1, timeout=60)
         
         # Check if we've exceeded max AI responses
         ai_message_count = Message.objects.filter(
@@ -260,14 +271,27 @@ class AIService:
                 'role': 'user',
                 'content': customer_message
             })
-            
+
             # Call OpenAI
             client = openai.OpenAI(api_key=getattr(settings, 'OPENAI_API_KEY', ''))
-            
+
+            # Optional moderation check
+            try:
+                moderation = client.moderations.create(
+                    model='omni-moderation-latest',
+                    input=customer_message
+                )
+                if moderation and moderation.results and moderation.results[0].flagged:
+                    conversation.request_human_agent()
+                    return "I'm unable to assist with that. I'm connecting you to a human agent."
+            except Exception:
+                pass
+
             response = client.chat.completions.create(
                 model=settings_obj.ai_model,
                 messages=[
-                    {'role': 'system', 'content': settings_obj.ai_system_prompt}
+                    {'role': 'system', 'content': settings_obj.ai_system_prompt},
+                    {'role': 'system', 'content': 'Follow safety and privacy guidelines. Do not request sensitive credentials.'}
                 ] + messages,
                 temperature=settings_obj.ai_temperature,
                 max_tokens=settings_obj.ai_max_tokens
@@ -351,10 +375,11 @@ class ChatAnalyticsService:
     def update_daily_analytics(date=None):
         """Update or create daily analytics record."""
         from apps.chat.models import (
-            ChatAnalytics, Conversation, Message, 
+            ChatAnalytics, Conversation, Message,
             ConversationStatus, ChatAgent
         )
         from django.db.models import Avg, Count
+        from django.db.models.functions import TruncHour
         
         if date is None:
             date = timezone.now().date()
@@ -426,6 +451,57 @@ class ChatAnalyticsService:
                 count=Count('id')
             ).values_list('category', 'count')
         )
+
+        # Channel breakdown (by source)
+        channel_breakdown = dict(
+            conversations.values('source').annotate(
+                count=Count('id')
+            ).values_list('source', 'count')
+        )
+
+        # Hourly breakdown (messages per hour)
+        hourly = messages.annotate(hour=TruncHour('created_at')).values('hour').annotate(
+            count=Count('id')
+        ).order_by('hour')
+        hourly_breakdown = {
+            item['hour'].strftime('%H:00'): item['count']
+            for item in hourly if item['hour']
+        }
+
+        # Agent performance summary
+        agent_performance = {}
+        for agent in ChatAgent.objects.filter(is_active=True):
+            agent_conversations = conversations.filter(agent=agent)
+            agent_messages = messages.filter(
+                conversation__agent=agent,
+                is_from_customer=False,
+                is_from_bot=False
+            )
+
+            if not agent_conversations.exists() and not agent_messages.exists():
+                continue
+
+            resolved_count = agent_conversations.filter(status=ConversationStatus.RESOLVED).count()
+            total_count = agent_conversations.count()
+
+            response_times = []
+            for conv in agent_conversations.filter(first_response_at__isnull=False):
+                response_times.append((conv.first_response_at - conv.started_at).total_seconds())
+
+            avg_first_response_agent = sum(response_times) / len(response_times) if response_times else 0
+            avg_rating_agent = agent_conversations.filter(rating__isnull=False).aggregate(
+                avg=Avg('rating')
+            )['avg'] or 0
+
+            agent_performance[str(agent.id)] = {
+                'agent_name': agent.user.get_full_name() or agent.user.email,
+                'total_conversations': total_count,
+                'resolved_conversations': resolved_count,
+                'resolution_rate': (resolved_count / total_count * 100) if total_count > 0 else 0,
+                'avg_first_response_seconds': avg_first_response_agent,
+                'avg_rating': float(avg_rating_agent),
+                'messages_sent': agent_messages.count(),
+            }
         
         # Create or update analytics record
         analytics, _ = ChatAnalytics.objects.update_or_create(
@@ -442,6 +518,9 @@ class ChatAnalyticsService:
                 'avg_resolution_time_seconds': avg_resolution,
                 'avg_rating': avg_rating,
                 'category_breakdown': category_breakdown,
+                'channel_breakdown': channel_breakdown,
+                'hourly_breakdown': hourly_breakdown,
+                'agent_performance': agent_performance,
             }
         )
         

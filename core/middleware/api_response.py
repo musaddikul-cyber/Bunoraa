@@ -19,12 +19,19 @@ class APIResponseMiddleware:
         # Only process API responses
         if not request.path.startswith('/api/'):
             return response
+        # Skip schema endpoints and streaming responses
+        if request.path.startswith('/api/schema'):
+            return response
+        if getattr(response, 'streaming', False):
+            return response
         
         # Skip if already in correct format or not JSON
         if not hasattr(response, 'content'):
             return response
         
         content_type = response.get('Content-Type', '')
+        if 'application/vnd.oai.openapi' in content_type:
+            return response
         if 'application/json' not in content_type:
             return response
         

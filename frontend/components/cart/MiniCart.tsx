@@ -33,6 +33,17 @@ function formatMoney(amount: string | number, currency: string) {
   }
 }
 
+function parseMoney(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/[^0-9.,-]/.test(trimmed)) return null;
+  const normalized = trimmed.replace(/,/g, "");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function MiniCart({
   title = "Mini cart",
   onClose,
@@ -53,8 +64,19 @@ export function MiniCart({
   const cart = cartQuery.data;
   const summary = cartSummaryQuery.data;
   const currency = summary?.currency_code || cart.currency || "";
+  const derivedSubtotal = cart.items.reduce((sum, item) => {
+    const lineTotal = parseMoney(item.total);
+    if (lineTotal !== null) return sum + lineTotal;
+    const unit = parseMoney(item.unit_price) ?? 0;
+    const qty = Number.isFinite(item.quantity) ? item.quantity : 0;
+    return sum + unit * qty;
+  }, 0);
+  const apiSubtotal = parseMoney(summary?.subtotal ?? cart.subtotal);
+  const preferDerivedSubtotal = derivedSubtotal > 0 && (apiSubtotal === null || apiSubtotal === 0);
   const subtotalLabel =
-    summary?.formatted_subtotal || formatMoney(cart.subtotal, currency);
+    summary?.formatted_subtotal && !preferDerivedSubtotal
+      ? summary.formatted_subtotal
+      : formatMoney(preferDerivedSubtotal ? derivedSubtotal : apiSubtotal ?? 0, currency);
   const totalLabel =
     summary?.formatted_total ||
     (summary?.shipping_cost || summary?.tax_amount

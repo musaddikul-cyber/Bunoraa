@@ -430,6 +430,18 @@ class Timezone(models.Model):
     def __str__(self):
         return f"{self.display_name} ({self.offset})"
 
+    @property
+    def formatted_offset(self) -> str:
+        """Return a human-friendly UTC offset string."""
+        if not self.offset:
+            minutes = self.offset_minutes or 0
+            sign = "+" if minutes >= 0 else "-"
+            minutes = abs(minutes)
+            return f"UTC{sign}{minutes // 60:02d}:{minutes % 60:02d}"
+        if str(self.offset).upper().startswith("UTC"):
+            return str(self.offset)
+        return f"UTC{self.offset}"
+
 
 # =============================================================================
 # Geographic Models (Bangladesh-specific hierarchy)

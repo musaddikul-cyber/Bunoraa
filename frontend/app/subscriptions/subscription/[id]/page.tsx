@@ -16,7 +16,7 @@ export default function SubscriptionDetailPage() {
   const subscriptionQuery = useQuery({
     queryKey: ["subscriptions", id],
     queryFn: async () => {
-      const response = await apiFetch<Subscription>(`/subscriptions/subscriptions/${id}/`);
+      const response = await apiFetch<Subscription>(`/subscriptions/${id}/`);
       return response.data;
     },
     enabled: Boolean(id),
@@ -24,13 +24,13 @@ export default function SubscriptionDetailPage() {
 
   const cancel = useMutation({
     mutationFn: async () => {
-      return apiFetch(`/subscriptions/subscriptions/${id}/cancel/`, { method: "POST" });
+      return apiFetch(`/subscriptions/${id}/cancel/`, { method: "POST" });
     },
   });
 
   const resume = useMutation({
     mutationFn: async () => {
-      return apiFetch(`/subscriptions/subscriptions/${id}/resume/`, { method: "POST" });
+      return apiFetch(`/subscriptions/${id}/resume/`, { method: "POST" });
     },
   });
 

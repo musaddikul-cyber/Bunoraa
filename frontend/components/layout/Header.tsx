@@ -10,7 +10,7 @@ type Category = { id: string; name: string; slug: string };
 
 async function getMenuPages() {
   try {
-    const response = await apiFetch<MenuPage[]>("/pages/pages/menu/", {
+    const response = await apiFetch<MenuPage[]>("/pages/menu/", {
       next: { revalidate: 600 },
     });
     return asArray<MenuPage>(response.data);

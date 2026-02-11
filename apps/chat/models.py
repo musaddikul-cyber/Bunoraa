@@ -34,6 +34,7 @@ class MessageType(models.TextChoices):
     SYSTEM = 'system', 'System Message'
     AI = 'ai', 'AI Response'
     CANNED = 'canned', 'Canned Response'
+    EMAIL = 'email', 'Email'
 
 
 class ConversationCategory(models.TextChoices):
@@ -79,6 +80,8 @@ class ChatAgent(models.Model):
         default=list,
         help_text='Languages the agent can support'
     )
+    bio = models.TextField(blank=True)
+    skills = models.JSONField(default=list)
     
     # Performance metrics (updated periodically)
     total_chats_handled = models.PositiveIntegerField(default=0)
@@ -420,16 +423,19 @@ class CannedResponse(models.Model):
         choices=ConversationCategory.choices,
         default=ConversationCategory.GENERAL
     )
+    tags = models.JSONField(default=list)
+    is_global = models.BooleanField(default=False)
     
     # Usage tracking
-    usage_count = models.PositiveIntegerField(default=0)
+    use_count = models.PositiveIntegerField(default=0)
+    last_used_at = models.DateTimeField(null=True, blank=True)
     
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-usage_count', 'title']
+        ordering = ['-use_count', 'title']
         unique_together = [['agent', 'shortcut']]
 
     def __str__(self):
@@ -437,8 +443,9 @@ class CannedResponse(models.Model):
 
     def use(self):
         """Increment usage count."""
-        self.usage_count += 1
-        self.save(update_fields=['usage_count'])
+        self.use_count += 1
+        self.last_used_at = timezone.now()
+        self.save(update_fields=['use_count', 'last_used_at'])
 
 
 class TypingIndicator(models.Model):
@@ -483,6 +490,9 @@ class ChatSettings(models.Model):
     welcome_message = models.TextField(
         default='Hello! How can we help you today?'
     )
+    wait_message = models.TextField(
+        default='Thanks for reaching out. An agent will be with you shortly.'
+    )
     bot_name = models.CharField(max_length=50, default='Bunoraa Assistant')
     bot_avatar = models.ImageField(
         upload_to='chat/bot/',
@@ -509,6 +519,7 @@ class ChatSettings(models.Model):
     customer_waiting_threshold_minutes = models.PositiveIntegerField(default=2)
     
     # Limits
+    max_concurrent_chats = models.PositiveIntegerField(default=5)
     max_message_length = models.PositiveIntegerField(default=5000)
     max_file_size_mb = models.PositiveIntegerField(default=10)
     allowed_file_types = models.JSONField(
@@ -522,6 +533,8 @@ class ChatSettings(models.Model):
         max_length=255,
         default='How would you rate your experience?'
     )
+    support_inbox = models.EmailField(blank=True, default='')
+    email_reply_from = models.EmailField(blank=True, default='')
     
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -534,6 +547,42 @@ class ChatSettings(models.Model):
         if not self.pk and ChatSettings.objects.exists():
             raise ValueError('Only one ChatSettings instance is allowed.')
         super().save(*args, **kwargs)
+
+    def is_within_business_hours(self) -> bool:
+        """Check if current time falls within business hours."""
+        if not self.business_hours_enabled:
+            return True
+
+        try:
+            from zoneinfo import ZoneInfo
+            tz = ZoneInfo(self.timezone) if self.timezone else timezone.get_current_timezone()
+            now = timezone.localtime(timezone.now(), tz)
+        except Exception:
+            now = timezone.localtime(timezone.now())
+
+        day_key = now.strftime('%A').lower()
+        hours = (self.business_hours or {}).get(day_key)
+        if not hours:
+            return False
+
+        start = hours.get('start')
+        end = hours.get('end')
+        if not start or not end:
+            return False
+
+        try:
+            start_hour, start_minute = [int(x) for x in start.split(':', 1)]
+            end_hour, end_minute = [int(x) for x in end.split(':', 1)]
+        except Exception:
+            return False
+
+        start_dt = now.replace(hour=start_hour, minute=start_minute, second=0, microsecond=0)
+        end_dt = now.replace(hour=end_hour, minute=end_minute, second=0, microsecond=0)
+
+        if end_dt <= start_dt:
+            return now >= start_dt or now <= end_dt
+
+        return start_dt <= now <= end_dt
 
     @classmethod
     def get_settings(cls):
@@ -565,6 +614,8 @@ class ChatAnalytics(models.Model):
     
     # Categories breakdown
     category_breakdown = models.JSONField(default=dict)
+    channel_breakdown = models.JSONField(default=dict)
+    hourly_breakdown = models.JSONField(default=dict)
     
     # Agent performance
     agent_performance = models.JSONField(default=dict)

@@ -13,7 +13,7 @@ export default function SubscriptionReactivatePage() {
 
   useEffect(() => {
     if (!id) return;
-    apiFetch(`/subscriptions/subscriptions/${id}/resume/`, { method: "POST" })
+    apiFetch(`/subscriptions/${id}/resume/`, { method: "POST" })
       .finally(() => router.push(`/subscriptions/subscription/${id}/`));
   }, [id, router]);
 

@@ -421,6 +421,14 @@ class ContactMessage(models.Model):
     def __str__(self):
         return f"{self.name} - {self.subject}"
 
+    @property
+    def is_read(self) -> bool:
+        return self.status in {self.STATUS_READ, self.STATUS_REPLIED, self.STATUS_CLOSED}
+
+    @property
+    def is_replied(self) -> bool:
+        return self.status in {self.STATUS_REPLIED, self.STATUS_CLOSED}
+
 
 class SiteSettings(models.Model):
     """

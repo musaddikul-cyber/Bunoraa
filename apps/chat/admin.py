@@ -40,7 +40,7 @@ class ChatAgentAdmin(EnhancedModelAdmin):
             'fields': ('max_concurrent_chats', 'current_chat_count')
         }),
         ('Skills', {
-            'fields': ('languages', 'categories')
+            'fields': ('languages', 'categories', 'skills', 'bio')
         }),
         ('Performance', {
             'fields': ('total_chats_handled', 'avg_rating', 'avg_response_time_seconds')
@@ -200,10 +200,10 @@ class MessageAttachmentAdmin(EnhancedModelAdmin):
 class CannedResponseAdmin(EnhancedModelAdmin):
     """Admin for Canned Responses."""
     
-    list_display = ['title', 'shortcut', 'category', 'agent', 'usage_count', 'is_active']
-    list_filter = ['category', 'is_active', 'created_at']
+    list_display = ['title', 'shortcut', 'category', 'agent', 'use_count', 'is_global', 'is_active']
+    list_filter = ['category', 'is_active', 'is_global', 'created_at']
     search_fields = ['title', 'shortcut', 'content', 'agent__user__email']
-    readonly_fields = ['id', 'created_at', 'updated_at', 'usage_count']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'use_count', 'last_used_at']
     autocomplete_fields = ['agent']
     
     fieldsets = (
@@ -211,13 +211,13 @@ class CannedResponseAdmin(EnhancedModelAdmin):
             'fields': ('title', 'shortcut', 'content')
         }),
         ('Classification', {
-            'fields': ('category',)
+            'fields': ('category', 'tags')
         }),
         ('Ownership', {
-            'fields': ('agent',)
+            'fields': ('agent', 'is_global')
         }),
         ('Status', {
-            'fields': ('is_active', 'usage_count')
+            'fields': ('is_active', 'use_count', 'last_used_at')
         }),
         ('Metadata', {
             'fields': ('id', 'created_at', 'updated_at'),
@@ -238,7 +238,7 @@ class ChatSettingsAdmin(EnhancedModelAdmin):
             'fields': ('is_chat_enabled',)
         }),
         ('Messages', {
-            'fields': ('welcome_message', 'offline_message', 'rating_prompt')
+            'fields': ('welcome_message', 'wait_message', 'offline_message', 'rating_prompt')
         }),
         ('Business Hours', {
             'fields': ('business_hours_enabled', 'business_hours', 'timezone')
@@ -260,6 +260,12 @@ class ChatSettingsAdmin(EnhancedModelAdmin):
         }),
         ('Attachments', {
             'fields': ('allowed_file_types', 'max_file_size_mb', 'max_message_length')
+        }),
+        ('Email Channel', {
+            'fields': ('support_inbox', 'email_reply_from')
+        }),
+        ('Agent Defaults', {
+            'fields': ('max_concurrent_chats',)
         }),
         ('Rating', {
             'fields': ('request_rating',)
@@ -292,7 +298,7 @@ class ChatAnalyticsAdmin(EnhancedModelAdmin):
         'resolved_conversations', 'total_messages', 'customer_messages',
         'agent_messages', 'bot_messages', 'avg_first_response_seconds',
         'avg_resolution_time_seconds', 'avg_rating', 'category_breakdown',
-        'agent_performance', 'created_at', 'updated_at'
+        'channel_breakdown', 'hourly_breakdown', 'agent_performance', 'created_at', 'updated_at'
     ]
     ordering = ['-date']
     

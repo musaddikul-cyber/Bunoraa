@@ -1,7 +1,7 @@
 """
 Catalog URL Configuration - Web views
 """
-from django.urls import path, include
+from django.urls import path
 from . import views
 
 app_name = 'catalog'
@@ -32,6 +32,4 @@ urlpatterns = [
     # Search
     path('search/', views.SearchView.as_view(), name='search'),
     
-    # API routes
-    path('api/', include('apps.catalog.api.urls')),
 ]

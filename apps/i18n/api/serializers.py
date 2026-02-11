@@ -81,21 +81,47 @@ class CurrencySerializer(serializers.ModelSerializer):
     """Serializer for Currency model."""
     
     formatted_rate = serializers.SerializerMethodField()
+    native_name = serializers.SerializerMethodField()
+    thousands_separator = serializers.CharField(source='thousand_separator', required=False, allow_blank=True)
+    exchange_rate = serializers.SerializerMethodField()
+    last_rate_update = serializers.SerializerMethodField()
     
     class Meta:
         model = Currency
         fields = [
             'id', 'code', 'name', 'native_name', 'symbol', 'native_symbol',
             'decimal_places', 'symbol_position', 'thousands_separator',
-            'decimal_separator', 'number_system', 'exchange_rate',
+            'decimal_separator', 'number_system', 'exchange_rate', 'last_rate_update',
             'formatted_rate', 'is_active', 'is_default', 'sort_order'
         ]
         read_only_fields = ['id', 'exchange_rate', 'last_rate_update']
+
+    def get_native_name(self, obj):
+        return getattr(obj, 'native_name', None) or obj.name
+
+    def get_exchange_rate(self, obj):
+        if obj.is_default:
+            return Decimal('1')
+        try:
+            from ..services import ExchangeRateService
+            base = Currency.objects.filter(is_default=True).first()
+            if not base:
+                return None
+            rate = ExchangeRateService.get_exchange_rate(base, obj)
+            return rate
+        except Exception:
+            return None
+
+    def get_last_rate_update(self, obj):
+        return None
     
     def get_formatted_rate(self, obj):
         if obj.is_default:
             return '1.00 (Base)'
-        return f'{obj.exchange_rate:.4f}'
+        rate = self.get_exchange_rate(obj)
+        if rate is None:
+            return None
+        return f'{rate:.4f}'
 
 
 class CurrencyListSerializer(serializers.ModelSerializer):
@@ -156,7 +182,8 @@ class ExchangeRateHistorySerializer(serializers.ModelSerializer):
 class TimezoneSerializer(serializers.ModelSerializer):
     """Serializer for Timezone model."""
     
-    formatted_offset = serializers.CharField(read_only=True)
+    utc_offset = serializers.CharField(source='offset', read_only=True)
+    formatted_offset = serializers.SerializerMethodField()
     
     class Meta:
         model = Timezone
@@ -166,15 +193,21 @@ class TimezoneSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id']
 
+    def get_formatted_offset(self, obj):
+        return getattr(obj, 'formatted_offset', None) or getattr(obj, 'offset', '')
+
 
 class TimezoneListSerializer(serializers.ModelSerializer):
     """Compact serializer for timezone lists."""
     
-    formatted_offset = serializers.CharField(read_only=True)
+    formatted_offset = serializers.SerializerMethodField()
     
     class Meta:
         model = Timezone
         fields = ['id', 'name', 'display_name', 'formatted_offset']
+
+    def get_formatted_offset(self, obj):
+        return getattr(obj, 'formatted_offset', None) or getattr(obj, 'offset', '')
 
 
 # =============================================================================
@@ -184,6 +217,15 @@ class TimezoneListSerializer(serializers.ModelSerializer):
 class CountrySerializer(serializers.ModelSerializer):
     """Serializer for Country model."""
     
+    code3 = serializers.CharField(source='code_alpha3', required=False, allow_blank=True)
+    numeric_code = serializers.CharField(source='code_numeric', required=False, allow_blank=True)
+    vat_rate = serializers.DecimalField(
+        source='default_tax_rate',
+        max_digits=5,
+        decimal_places=2,
+        required=False
+    )
+    vat_name = serializers.SerializerMethodField()
     default_currency_code = serializers.CharField(
         source='default_currency.code', read_only=True, allow_null=True
     )
@@ -210,6 +252,11 @@ class CountrySerializer(serializers.ModelSerializer):
             getattr(obj, 'flag_code', None) or getattr(obj, 'code', None)
         )
 
+    def get_vat_name(self, obj):
+        if obj.default_tax_rate and obj.default_tax_rate > 0:
+            return 'VAT'
+        return ''
+
 
 class CountryListSerializer(serializers.ModelSerializer):
     """Compact serializer for country lists."""
@@ -232,11 +279,17 @@ class CountryListSerializer(serializers.ModelSerializer):
 
 class UpazilaSerializer(serializers.ModelSerializer):
     """Serializer for Upazila model."""
+
+    post_codes = serializers.ListField(
+        source='postal_codes',
+        required=False
+    )
+    shipping_zone = serializers.CharField(source='district.shipping_zone', read_only=True)
     
     class Meta:
         model = Upazila
         fields = [
-            'id', 'code', 'name', 'native_name', 'post_codes',
+            'id', 'code', 'name', 'native_name', 'post_codes', 'postal_codes',
             'shipping_zone', 'is_active', 'sort_order'
         ]
         read_only_fields = ['id']
@@ -304,6 +357,7 @@ class TranslationNamespaceSerializer(serializers.ModelSerializer):
     """Serializer for TranslationNamespace model."""
     
     key_count = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
     
     class Meta:
         model = TranslationNamespace
@@ -313,18 +367,22 @@ class TranslationNamespaceSerializer(serializers.ModelSerializer):
     def get_key_count(self, obj):
         return obj.keys.count()
 
+    def get_created_at(self, obj):
+        return None
+
 
 class TranslationKeySerializer(serializers.ModelSerializer):
     """Serializer for TranslationKey model."""
-    
+
     namespace_name = serializers.CharField(source='namespace.name', read_only=True, allow_null=True)
+    has_plural = serializers.BooleanField(source='is_plural', required=False)
     
     class Meta:
         model = TranslationKey
         fields = [
             'id', 'key', 'namespace', 'namespace_name',
             'source_text', 'context', 'max_length',
-            'has_plural', 'created_at'
+            'has_plural', 'is_plural', 'is_html', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -353,13 +411,14 @@ class ContentTranslationSerializer(serializers.ModelSerializer):
     """Serializer for ContentTranslation model."""
     
     language_code = serializers.CharField(source='language.code', read_only=True)
+    source_text = serializers.CharField(source='original_text', required=False, allow_blank=True)
     
     class Meta:
         model = ContentTranslation
         fields = [
             'id', 'content_type', 'content_id', 'field_name',
-            'language', 'language_code', 'source_text', 'translated_text',
-            'is_machine_translated', 'is_approved', 'translated_by',
+            'language', 'language_code', 'source_text', 'original_text', 'translated_text',
+            'is_machine_translated', 'is_approved', 'translated_by', 'approved_by',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

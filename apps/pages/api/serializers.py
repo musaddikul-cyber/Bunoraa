@@ -8,6 +8,8 @@ from ..models import Page, FAQ, ContactMessage, SiteSettings, Subscriber
 
 class PageListSerializer(serializers.ModelSerializer):
     """Serializer for page list."""
+
+    show_in_menu = serializers.BooleanField(source='show_in_header', required=False)
     
     class Meta:
         model = Page
@@ -19,6 +21,8 @@ class PageListSerializer(serializers.ModelSerializer):
 
 class PageDetailSerializer(serializers.ModelSerializer):
     """Serializer for page detail."""
+
+    show_in_menu = serializers.BooleanField(source='show_in_header', required=False)
     
     class Meta:
         model = Page

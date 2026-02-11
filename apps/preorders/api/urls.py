@@ -2,18 +2,18 @@
 Pre-orders API URL configuration
 """
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 from .views import (
     PreOrderCategoryViewSet, PreOrderViewSet, PreOrderTemplateViewSet,
     PreOrderPriceCalculatorAPIView, PreOrderStatisticsAPIView,
     AdminPreOrderViewSet, PreOrderTrackAPIView
 )
 
-router = DefaultRouter()
+router = SimpleRouter()
 router.register(r'categories', PreOrderCategoryViewSet, basename='preorder-category')
-router.register(r'orders', PreOrderViewSet, basename='preorder')
+router.register(r'', PreOrderViewSet, basename='preorder')
 router.register(r'templates', PreOrderTemplateViewSet, basename='preorder-template')
-router.register(r'admin/orders', AdminPreOrderViewSet, basename='admin-preorder')
+router.register(r'admin', AdminPreOrderViewSet, basename='admin-preorder')
 
 urlpatterns = [
     path('', include(router.urls)),

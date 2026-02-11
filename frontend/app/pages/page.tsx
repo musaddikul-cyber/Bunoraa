@@ -12,7 +12,7 @@ type PageSummary = {
 };
 
 async function getPages() {
-  const response = await apiFetch<PageSummary[]>("/pages/pages/", {
+  const response = await apiFetch<PageSummary[]>("/pages/", {
     next: { revalidate },
   });
   return response.data;

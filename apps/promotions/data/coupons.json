@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "code": "WELCOME10",
+      "description": "10% off your first order",
+      "discount_type": "percentage",
+      "discount_value": "10.00",
+      "minimum_order_amount": "1000.00",
+      "maximum_discount": "500.00",
+      "usage_limit": 1000,
+      "usage_limit_per_user": 1,
+      "first_order_only": true,
+      "is_active": true,
+      "categories": ["women", "home-living", "gift-sets"]
+    },
+    {
+      "code": "HOME15",
+      "description": "15% off Home & Living picks",
+      "discount_type": "percentage",
+      "discount_value": "15.00",
+      "maximum_discount": "800.00",
+      "is_active": true,
+      "categories": ["home-living", "decor", "textiles"]
+    },
+    {
+      "code": "JEWEL200",
+      "description": "BDT 200 off Jewelry orders",
+      "discount_type": "fixed",
+      "discount_value": "200.00",
+      "minimum_order_amount": "1500.00",
+      "usage_limit": 500,
+      "is_active": true,
+      "categories": ["jewelry", "necklaces", "earrings"]
+    }
+  ]
+}

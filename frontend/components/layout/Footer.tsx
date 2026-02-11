@@ -7,7 +7,6 @@ import type {
   MenuPage,
   SiteSettings,
   SocialLink,
-  StoreLocation,
 } from "@/lib/types";
 import { ThemeSwitcher } from "@/components/theme/ThemeProvider";
 import { LocaleSwitcher } from "@/components/locale/LocaleSwitcher";
@@ -71,17 +70,6 @@ async function getCollections() {
   }
 }
 
-async function getMainLocation() {
-  try {
-    const response = await apiFetch<StoreLocation>("/contacts/locations/main/", {
-      next: { revalidate: 600 },
-    });
-    return response.data;
-  } catch {
-    return null;
-  }
-}
-
 const SOCIAL_LABELS: Record<string, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
@@ -115,14 +103,12 @@ export async function Footer() {
     contactSettingsResult,
     categoriesResult,
     collectionsResult,
-    mainLocationResult,
   ] = await Promise.allSettled([
     getFooterPages(),
     getSiteSettings(),
     getContactSettings(),
     getTopCategories(),
     getCollections(),
-    getMainLocation(),
   ]);
 
   const pages = pagesResult.status === "fulfilled" ? pagesResult.value : [];
@@ -131,8 +117,6 @@ export async function Footer() {
     contactSettingsResult.status === "fulfilled" ? contactSettingsResult.value : null;
   const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : [];
   const collections = collectionsResult.status === "fulfilled" ? collectionsResult.value : [];
-  const mainLocation =
-    mainLocationResult.status === "fulfilled" ? mainLocationResult.value : null;
 
   const brandName = pickText(siteSettings?.site_name) || "Bunoraa";
   const brandDescription =
@@ -309,12 +293,6 @@ export async function Footer() {
                 </li>
               ) : null}
               {address ? <li>{address}</li> : null}
-              {mainLocation?.full_address ? (
-                <li>
-                  <span className="text-foreground/60">Main store:</span>{" "}
-                  {mainLocation.full_address}
-                </li>
-              ) : null}
             </ul>
           </div>
         </div>

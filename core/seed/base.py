@@ -118,7 +118,7 @@ class JSONSeedSpec(SeedSpec):
         if not path.exists():
             ctx.log(f"[seed:{self.name}] data file not found: {path}")
             return []
-        with path.open("r", encoding="utf-8") as fh:
+        with path.open("r", encoding="utf-8-sig") as fh:
             data = json.load(fh)
         if isinstance(data, dict):
             if "items" in data:

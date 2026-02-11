@@ -2,7 +2,7 @@
 URL Configuration for Bunoraa Chat API
 """
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from core.api.routers import DefaultRouter
 
 from .api.views import (
     ChatAgentViewSet,

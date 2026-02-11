@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "name": "Spring Artisan Sale",
+      "slug": "spring-artisan-sale",
+      "description": "Seasonal markdowns across artisan favorites.",
+      "discount_type": "percentage",
+      "discount_value": "12.00",
+      "start_date": "2026-02-01T00:00:00+06:00",
+      "end_date": "2026-03-01T23:59:59+06:00",
+      "is_active": true,
+      "categories": ["women", "home-living", "jewelry"]
+    },
+    {
+      "name": "Home Refresh",
+      "slug": "home-refresh",
+      "description": "Refresh your space with curated decor and textiles.",
+      "discount_type": "fixed",
+      "discount_value": "200.00",
+      "start_date": "2026-02-10T00:00:00+06:00",
+      "end_date": "2026-04-01T23:59:59+06:00",
+      "is_active": true,
+      "categories": ["home-living", "decor", "textiles"]
+    }
+  ]
+}

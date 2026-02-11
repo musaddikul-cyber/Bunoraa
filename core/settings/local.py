@@ -113,6 +113,7 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # THROTTLING - Disabled for Development
 # =============================================================================
 REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+    **REST_FRAMEWORK.get('DEFAULT_THROTTLE_RATES', {}),
     'anon': '10000/hour',
     'user': '10000/hour',
 }

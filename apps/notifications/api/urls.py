@@ -12,7 +12,7 @@ URL structure:
 - POST /api/v1/notifications/push-tokens/ - Register push token
 """
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from core.api.routers import DefaultRouter
 
 from .views import (
     NotificationViewSet,

@@ -2,7 +2,7 @@
 Catalog API URL Configuration
 """
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from core.api.routers import DefaultRouter
 
 from .views import (
     CategoryViewSet, ProductViewSet, CollectionViewSet, BundleViewSet,

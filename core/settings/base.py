@@ -116,6 +116,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 MIDDLEWARE = [
     'core.middleware.health_check.HealthCheckMiddleware',
     'core.middleware.ensure_trailing.EnsureTrailingSlashMiddleware',
+    'core.middleware.api_trailing_slash.ApiTrailingSlashMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'core.middleware.early_hints.EarlyHintsMiddleware',
     'core.middleware.host_canonical.HostCanonicalMiddleware',

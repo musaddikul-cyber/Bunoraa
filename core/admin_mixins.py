@@ -423,8 +423,9 @@ class AutoListFilterMixin:
                     break
             if date_field:
                 class _AutoDateRangeFilter(DateRangeFilter):
-                    date_field = date_field  # type: ignore[assignment]
+                    pass
 
+                _AutoDateRangeFilter.date_field = date_field  # type: ignore[attr-defined]
                 filters.append(_AutoDateRangeFilter)
 
         # Boolean filters

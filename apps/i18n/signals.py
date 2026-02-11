@@ -120,8 +120,15 @@ def exchange_rate_post_save(sender, instance, created, **kwargs):
     # Update currency's exchange_rate field if this is the active rate
     if instance.is_active and instance.from_currency.is_default:
         try:
-            instance.to_currency.exchange_rate = instance.rate
-            instance.to_currency.save(update_fields=['exchange_rate', 'last_rate_update'])
+            fields = {field.name for field in instance.to_currency._meta.get_fields()}
+            if 'exchange_rate' in fields:
+                instance.to_currency.exchange_rate = instance.rate
+            if 'last_rate_update' in fields:
+                from django.utils import timezone
+                instance.to_currency.last_rate_update = timezone.now()
+            update_fields = [f for f in ('exchange_rate', 'last_rate_update') if f in fields]
+            if update_fields:
+                instance.to_currency.save(update_fields=update_fields)
         except Exception as e:
             logger.error(f"Error updating currency exchange rate: {e}")
     

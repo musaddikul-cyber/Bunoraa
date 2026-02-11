@@ -321,6 +321,7 @@ export type SiteSettings = {
   support_email?: string | null;
   contact_phone?: string | null;
   contact_address?: string | null;
+  support_reply_time_note?: string | null;
   address?: string | null;
   facebook_url?: string | null;
   instagram_url?: string | null;

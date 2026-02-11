@@ -17,7 +17,7 @@ def _load_json(ctx: SeedContext, path: str) -> dict[str, Any]:
     p = ctx.resolve_path(path)
     if not p.exists():
         return {}
-    with p.open("r", encoding="utf-8") as fh:
+    with p.open("r", encoding="utf-8-sig") as fh:
         return json.load(fh)
 
 
@@ -29,7 +29,7 @@ def _resolve_user(user_ref: str | None) -> Any | None:
     except User.DoesNotExist:
         try:
             return User.objects.get(id=user_ref)
-        except User.DoesNotExist:
+        except Exception:
             return None
 
 

@@ -4,7 +4,7 @@ Internationalization API URLs
 URL patterns for i18n REST API.
 """
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from core.api.routers import DefaultRouter
 
 from .views import (
     LanguageViewSet, CurrencyViewSet, ExchangeRateViewSet,

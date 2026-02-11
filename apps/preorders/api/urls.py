@@ -2,7 +2,7 @@
 Pre-orders API URL configuration
 """
 from django.urls import path, include
-from rest_framework.routers import SimpleRouter
+from core.api.routers import SimpleRouter
 from .views import (
     PreOrderCategoryViewSet, PreOrderViewSet, PreOrderTemplateViewSet,
     PreOrderPriceCalculatorAPIView, PreOrderStatisticsAPIView,

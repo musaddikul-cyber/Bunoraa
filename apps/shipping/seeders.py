@@ -23,7 +23,7 @@ def _load_shipping_data(ctx: SeedContext) -> dict[str, Any]:
     path = ctx.resolve_path("apps/shipping/data/shipping.json")
     if not path.exists():
         return {}
-    with path.open("r", encoding="utf-8") as fh:
+    with path.open("r", encoding="utf-8-sig") as fh:
         return json.load(fh)
 
 

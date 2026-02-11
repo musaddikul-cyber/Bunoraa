@@ -95,6 +95,7 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
             'support_email',
             'contact_phone',
             'contact_address',
+            'support_reply_time_note',
             'address',
             'currency',
             'currency_symbol',

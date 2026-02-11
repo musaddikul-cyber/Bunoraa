@@ -237,14 +237,10 @@ export default async function Home() {
     pickText(siteSettings?.site_description) ||
     "Discover curated craftsmanship, artisan bundles, and bespoke orders delivered with clarity and care.";
 
-  const supportEmail = pickText(
-    contactSettings?.support_email,
-    siteSettings?.support_email,
-    siteSettings?.contact_email,
-    contactSettings?.general_email
-  );
-  const supportPhone = pickText(contactSettings?.phone, siteSettings?.contact_phone);
-  const supportHours = pickText(contactSettings?.business_hours_note);
+  const supportEmail = pickText(siteSettings?.support_email, siteSettings?.contact_email);
+  const supportPhone = pickText(siteSettings?.contact_phone);
+  const supportReplyNote =
+    pickText(siteSettings?.support_reply_time_note) || "We reply within 1 business day.";
 
   const featuredProducts = asArray<ProductListItem>(homepageData.featured_products);
   const newArrivals = asArray<ProductListItem>(homepageData.new_arrivals);
@@ -456,7 +452,7 @@ export default async function Home() {
                           Phone: <Link href={`tel:${supportPhone}`}>{supportPhone}</Link>
                         </p>
                       ) : null}
-                      {supportHours ? <p>{supportHours}</p> : null}
+                      {supportReplyNote ? <p>{supportReplyNote}</p> : null}
                     </div>
                   </div>
                 )}

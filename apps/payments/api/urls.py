@@ -2,7 +2,7 @@
 Payments API URL configuration
 """
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from core.api.routers import DefaultRouter
 
 from .views import (
     PaymentViewSet, PaymentMethodViewSet, RefundAdminViewSet, PaymentGatewayViewSet,

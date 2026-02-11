@@ -4,7 +4,7 @@ Email Service API URL Configuration (v1)
 Versioned API endpoints for /api/v1/email/
 """
 from django.urls import path, include
-from rest_framework.routers import SimpleRouter
+from core.api.routers import SimpleRouter
 
 from . import views
 

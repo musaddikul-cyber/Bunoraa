@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { formatMoney } from "@/lib/money";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { getRecentlyViewed, setRecentlyViewed } from "@/lib/recentlyViewed";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import type { ProductDetail } from "@/lib/types";
@@ -44,6 +44,7 @@ export function RecentlyViewedSection() {
           try {
             const response = await apiFetch<ProductDetail>(`/catalog/products/${item.slug}/`, {
               method: "GET",
+              suppressErrorStatus: [404],
             });
             const product = response.data;
             const primaryImage =
@@ -60,14 +61,18 @@ export function RecentlyViewedSection() {
               primary_image: primaryImage || fallbackImage,
               average_rating: product.average_rating ?? item.average_rating,
             };
-          } catch {
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 404) {
+              return null;
+            }
             return item;
           }
         })
       );
       if (cancelled) return;
-      setRecentlyViewed(updated);
-      setItems(updated);
+      const sanitized = updated.filter(Boolean) as ReturnType<typeof getRecentlyViewed>;
+      setRecentlyViewed(sanitized);
+      setItems(sanitized);
     };
 
     refresh();

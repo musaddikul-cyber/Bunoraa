@@ -448,6 +448,7 @@ class SiteSettings(models.Model):
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=20, blank=True)
     contact_address = models.TextField(blank=True)
+    support_reply_time_note = models.CharField(max_length=200, blank=True)
     
     # Social links
     facebook_url = models.URLField(blank=True)

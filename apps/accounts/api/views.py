@@ -2,7 +2,7 @@
 Account API views
 """
 import json
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone as dt_timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -14,7 +14,6 @@ from django.conf import settings
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
-from datetime import datetime
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from ..models import (
     Address,
@@ -264,7 +263,7 @@ class SocialTokenView(APIView):
     def _issue_tokens(self, request):
         refresh = RefreshToken.for_user(request.user)
         access = refresh.access_token
-        expires_at = datetime.fromtimestamp(refresh['exp'], tz=timezone.utc)
+        expires_at = datetime.fromtimestamp(refresh['exp'], tz=dt_timezone.utc)
         OutstandingToken.objects.get_or_create(
             jti=str(refresh['jti']),
             user=request.user,

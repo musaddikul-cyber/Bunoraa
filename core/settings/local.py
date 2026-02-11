@@ -52,6 +52,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
+SOCIAL_AUTH_REDIRECT_IS_HTTPS = False
+SOCIAL_AUTH_GOOGLE_OAUTH2_REDIRECT_URI = "http://localhost:8000/oauth/complete/google-oauth2/"
 
 # CORS allow all for development
 CORS_ALLOW_ALL_ORIGINS = True

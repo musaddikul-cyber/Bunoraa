@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/components/auth/useAuth";
+import { buildGoogleOAuthUrl } from "@/lib/oauth";
 
 const schema = z
   .object({
@@ -48,7 +49,7 @@ export default function RegisterPage() {
 
   const nextUrl = searchParams.get("next") || "/account/profile/";
   const callbackPath = `/account/oauth/callback/?next=${encodeURIComponent(nextUrl)}`;
-  const googleOAuthUrl = `/oauth/login/google-oauth2/?next=${encodeURIComponent(callbackPath)}`;
+  const googleOAuthUrl = buildGoogleOAuthUrl(callbackPath);
 
   return (
     <div className="min-h-screen bg-background text-foreground">

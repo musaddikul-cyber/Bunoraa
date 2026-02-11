@@ -662,9 +662,9 @@ class AuthSessionService:
             device_brand = ua.device.brand or ''
             device_model = ua.device.model or ''
             browser = ua.browser.family or ''
-            browser_version = '.'.join([v for v in ua.browser.version if v])
+            browser_version = '.'.join([str(v) for v in ua.browser.version if v])
             os_name = ua.os.family or ''
-            os_version = '.'.join([v for v in ua.os.version if v])
+            os_version = '.'.join([str(v) for v in ua.os.version if v])
 
         UserSession.objects.create(
             user=user,

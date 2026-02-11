@@ -285,6 +285,10 @@ SOCIAL_AUTH_URL_NAMESPACE = 'social'
 SOCIAL_AUTH_LOGIN_REDIRECT_URL = os.environ.get('SOCIAL_AUTH_LOGIN_REDIRECT_URL', LOGIN_REDIRECT_URL)
 # Ensure HTTPS for redirect URIs when using reverse proxies (set in production)
 SOCIAL_AUTH_REDIRECT_IS_HTTPS = os.environ.get('SOCIAL_AUTH_REDIRECT_IS_HTTPS', 'False').lower() in ('1', 'true', 'yes')
+# Custom user model uses email as USERNAME_FIELD
+SOCIAL_AUTH_USER_FIELDS = ['email', 'first_name', 'last_name']
+SOCIAL_AUTH_USERNAME_IS_FULL_EMAIL = True
+SOCIAL_AUTH_ASSOCIATE_BY_EMAIL = True
 
 # REST Framework
 REST_FRAMEWORK = {

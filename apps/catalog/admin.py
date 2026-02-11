@@ -5,6 +5,10 @@ from django.db.models import Sum, Count, F, Q
 from django.urls import reverse
 from django.http import HttpResponse
 import csv
+import os
+import tempfile
+from pathlib import Path
+from django.conf import settings
 
 from core.admin_mixins import (
     EnhancedModelAdmin,
@@ -129,12 +133,17 @@ class ProductQuestionInline(EnhancedTabularInline):
 class CategoryAdmin(EnhancedModelAdmin):
     list_display = ("name", "slug", "parent", "display_path", "depth", "product_count", "is_visible", "aspect_ratio")
     search_fields = ("name", "slug")
-    list_filter = ("is_visible", "aspect_ratio")
+    list_filter = ("is_visible", "is_deleted", "aspect_ratio", "parent", "depth")
     prepopulated_fields = {"slug": ("name",)}
     ordering = ["depth", "name"]
     
     actions = [
         "seed_default_tree",
+        "import_taxonomy_sync",
+        "import_taxonomy_no_sync",
+        "sync_and_save_taxonomy",
+        "export_taxonomy_json",
+        "export_taxonomy_csv",
         "rebuild_paths",
         "make_visible",
         "make_hidden",
@@ -159,6 +168,89 @@ class CategoryAdmin(EnhancedModelAdmin):
         except Exception as e:
             self.message_user(request, f"Error seeding categories: {e}", level="error")
     seed_default_tree.short_description = "Seed default category tree"
+
+    def import_taxonomy_sync(self, request, queryset):
+        """Import taxonomy and sync (prune) categories + facets."""
+        from django.core.management import call_command
+        try:
+            call_command("seed_categories", assign_facets=True, force=True)
+            self.message_user(
+                request,
+                "Imported taxonomy with sync (prune) and facet assignments.",
+                level="success",
+            )
+        except Exception as e:
+            self.message_user(request, f"Error importing taxonomy: {e}", level="error")
+    import_taxonomy_sync.short_description = "Import taxonomy (sync + prune)"
+
+    def import_taxonomy_no_sync(self, request, queryset):
+        """Import taxonomy without pruning existing categories."""
+        from django.core.management import call_command
+        try:
+            call_command("seed_categories", assign_facets=True, no_prune=True)
+            self.message_user(
+                request,
+                "Imported taxonomy without pruning (no sync).",
+                level="success",
+            )
+        except Exception as e:
+            self.message_user(request, f"Error importing taxonomy: {e}", level="error")
+    import_taxonomy_no_sync.short_description = "Import taxonomy (no prune)"
+
+    def sync_and_save_taxonomy(self, request, queryset):
+        """Sync taxonomy and write the current DB state back to taxonomy.json."""
+        from django.core.management import call_command
+        try:
+            call_command("seed_categories", assign_facets=True, force=True)
+            out_path = Path(settings.BASE_DIR) / "apps" / "catalog" / "data" / "taxonomy.json"
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            call_command("export_taxonomy", out=str(out_path), format="json")
+            self.message_user(
+                request,
+                f"Synced taxonomy and saved export to {out_path}.",
+                level="success",
+            )
+        except Exception as e:
+            self.message_user(request, f"Error syncing/exporting taxonomy: {e}", level="error")
+    sync_and_save_taxonomy.short_description = "Sync and save taxonomy.json"
+
+    def export_taxonomy_json(self, request, queryset):
+        """Export taxonomy as JSON (download)."""
+        from django.core.management import call_command
+        fd, path = tempfile.mkstemp(prefix="taxonomy_", suffix=".json")
+        os.close(fd)
+        try:
+            call_command("export_taxonomy", out=path, format="json")
+            with open(path, "rb") as fh:
+                data = fh.read()
+            response = HttpResponse(data, content_type="application/json")
+            response["Content-Disposition"] = 'attachment; filename="taxonomy.json"'
+            return response
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+    export_taxonomy_json.short_description = "Export taxonomy as JSON"
+
+    def export_taxonomy_csv(self, request, queryset):
+        """Export taxonomy as CSV (download)."""
+        from django.core.management import call_command
+        fd, path = tempfile.mkstemp(prefix="taxonomy_", suffix=".csv")
+        os.close(fd)
+        try:
+            call_command("export_taxonomy", out=path, format="csv")
+            with open(path, "rb") as fh:
+                data = fh.read()
+            response = HttpResponse(data, content_type="text/csv")
+            response["Content-Disposition"] = 'attachment; filename="taxonomy.csv"'
+            return response
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+    export_taxonomy_csv.short_description = "Export taxonomy as CSV"
 
     def rebuild_paths(self, request, queryset):
         """Admin action to rebuild path and depth for selected categories."""

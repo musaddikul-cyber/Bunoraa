@@ -12,6 +12,7 @@ import { useAuth } from "@/components/auth/useAuth";
 import { apiFetch } from "@/lib/api";
 import { setTokens } from "@/lib/auth";
 import { decodeRequestOptions, encodeCredential } from "../../../../lib/webauthn";
+import { buildGoogleOAuthUrl } from "@/lib/oauth";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -38,7 +39,7 @@ export default function LoginPage() {
 
   const nextUrl = searchParams.get("next") || "/account/profile/";
   const callbackPath = `/account/oauth/callback/?next=${encodeURIComponent(nextUrl)}`;
-  const googleOAuthUrl = `/oauth/login/google-oauth2/?next=${encodeURIComponent(callbackPath)}`;
+  const googleOAuthUrl = buildGoogleOAuthUrl(callbackPath);
 
   const onSubmit = async (values: FormValues) => {
     const result = await login.mutateAsync({

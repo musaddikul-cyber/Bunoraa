@@ -17,6 +17,8 @@ export default function ProfilePage() {
     newsletter_subscribed: false,
   });
   const [avatarUploading, setAvatarUploading] = React.useState(false);
+  const [verificationMessage, setVerificationMessage] = React.useState<string | null>(null);
+  const [verificationSending, setVerificationSending] = React.useState(false);
 
   React.useEffect(() => {
     if (profile) {
@@ -62,6 +64,21 @@ export default function ProfilePage() {
     }
   };
 
+  const handleResendVerification = async () => {
+    setVerificationMessage(null);
+    setVerificationSending(true);
+    try {
+      const response = await apiFetch("/accounts/email/resend/", { method: "POST" });
+      setVerificationMessage(response.message || "Verification email sent.");
+    } catch (error) {
+      setVerificationMessage(
+        error instanceof Error ? error.message : "Failed to send verification email."
+      );
+    } finally {
+      setVerificationSending(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -96,9 +113,24 @@ export default function ProfilePage() {
             <div>
               <p className="text-sm text-foreground/60">Email</p>
               <p className="font-semibold">{profile?.email || "-"}</p>
-              <p className="text-xs text-foreground/60">
-                {profile?.is_verified ? "Verified account" : "Email not verified"}
-              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-foreground/60">
+                <span>
+                  {profile?.is_verified ? "Verified account" : "Email not verified"}
+                </span>
+                {!profile?.is_verified ? (
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-primary hover:underline"
+                    onClick={handleResendVerification}
+                    disabled={verificationSending}
+                  >
+                    {verificationSending ? "Sending..." : "Send verification email"}
+                  </button>
+                ) : null}
+              </div>
+              {verificationMessage ? (
+                <p className="text-xs text-foreground/60">{verificationMessage}</p>
+              ) : null}
             </div>
           </div>
           <label className="inline-flex cursor-pointer items-center gap-2 text-sm">

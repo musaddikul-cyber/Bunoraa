@@ -1,0 +1,10 @@
+﻿[
+  {"from_currency": "BDT", "to_currency": "USD", "rate": "0.0083", "source": "default"},
+  {"from_currency": "USD", "to_currency": "BDT", "rate": "120.4819", "source": "default"},
+  {"from_currency": "BDT", "to_currency": "EUR", "rate": "0.0076", "source": "default"},
+  {"from_currency": "EUR", "to_currency": "BDT", "rate": "131.5789", "source": "default"},
+  {"from_currency": "BDT", "to_currency": "GBP", "rate": "0.0065", "source": "default"},
+  {"from_currency": "GBP", "to_currency": "BDT", "rate": "153.8462", "source": "default"},
+  {"from_currency": "BDT", "to_currency": "INR", "rate": "0.69", "source": "default"},
+  {"from_currency": "INR", "to_currency": "BDT", "rate": "1.4493", "source": "default"}
+]

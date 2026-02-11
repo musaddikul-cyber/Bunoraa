@@ -1,0 +1,23 @@
+﻿[
+  {
+    "code": "BD",
+    "code_alpha3": "BGD",
+    "code_numeric": "050",
+    "name": "Bangladesh",
+    "native_name": "\u09ac\u09be\u0982\u09b2\u09be\u09a6\u09c7\u09b6",
+    "phone_code": "+880",
+    "phone_format": "+880 XXXX-XXXXXX",
+    "continent": "asia",
+    "region": "South Asia",
+    "default_language": "bn",
+    "default_currency": "BDT",
+    "default_timezone": "Asia/Dhaka",
+    "default_tax_rate": 15.0,
+    "is_active": true,
+    "is_shipping_available": true,
+    "is_billing_allowed": true,
+    "sort_order": 1,
+    "address_format": "{name}\n{address_line1}\n{address_line2}\n{upazila}, {district}\n{division} {postal_code}\n{country}",
+    "postal_code_format": "^\\d{4}$"
+  }
+]

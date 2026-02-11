@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "title": "Welcome Discount",
+      "description": "Get 10% off your first order.",
+      "discount_percentage": 10,
+      "discount_code": "WELCOME10",
+      "min_order_amount": "500.00",
+      "max_uses": null,
+      "is_active": true
+    }
+  ]
+}

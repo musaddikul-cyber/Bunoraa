@@ -1,0 +1,5 @@
+﻿[
+  {"name": "GOTS", "slug": "gots", "issuer": "Global Organic Textile Standard", "metadata": {"type": "textile"}},
+  {"name": "Fairtrade", "slug": "fairtrade", "issuer": "Fairtrade International", "metadata": {"type": "ethics"}},
+  {"name": "OEKO-TEX", "slug": "oeko-tex", "issuer": "OEKO-TEX", "metadata": {"type": "textile"}}
+]

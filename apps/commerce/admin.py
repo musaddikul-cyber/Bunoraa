@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 
+from core.admin_mixins import EnhancedModelAdmin
 from .models import (
     Cart, CartItem, CartSettings,
     Wishlist, WishlistItem, WishlistShare,
@@ -48,7 +49,7 @@ class CheckoutEventInline(admin.TabularInline):
 # =============================================================================
 
 @admin.register(Cart)
-class CartAdmin(admin.ModelAdmin):
+class CartAdmin(EnhancedModelAdmin):
     list_display = ['id', 'user_display', 'session_key_short', 'item_count', 'total', 'coupon', 'updated_at']
     list_filter = ['updated_at', 'created_at']
     search_fields = ['user__email', 'session_key']
@@ -65,7 +66,7 @@ class CartAdmin(admin.ModelAdmin):
 
 
 @admin.register(CartSettings)
-class CartSettingsAdmin(admin.ModelAdmin):
+class CartSettingsAdmin(EnhancedModelAdmin):
     list_display = ['gift_wrap_enabled', 'gift_wrap_amount', 'cart_expiry_days', 'updated_at']
     fields = ['gift_wrap_enabled', 'gift_wrap_amount', 'gift_wrap_label', 'cart_expiry_days']
 
@@ -75,7 +76,7 @@ class CartSettingsAdmin(admin.ModelAdmin):
 # =============================================================================
 
 @admin.register(Wishlist)
-class WishlistAdmin(admin.ModelAdmin):
+class WishlistAdmin(EnhancedModelAdmin):
     list_display = ['id', 'user', 'item_count', 'updated_at']
     list_filter = ['updated_at', 'created_at']
     search_fields = ['user__email']
@@ -84,7 +85,7 @@ class WishlistAdmin(admin.ModelAdmin):
 
 
 @admin.register(WishlistShare)
-class WishlistShareAdmin(admin.ModelAdmin):
+class WishlistShareAdmin(EnhancedModelAdmin):
     list_display = ['id', 'wishlist', 'share_token_short', 'view_count', 'is_public', 'allow_comments', 'created_at']
     list_filter = ['is_public', 'allow_comments', 'created_at']
     search_fields = ['wishlist__user__email', 'share_token']
@@ -100,7 +101,7 @@ class WishlistShareAdmin(admin.ModelAdmin):
 # =============================================================================
 
 @admin.register(CheckoutSession)
-class CheckoutSessionAdmin(admin.ModelAdmin):
+class CheckoutSessionAdmin(EnhancedModelAdmin):
     list_display = [
         'id', 'user_display', 'current_step', 'email', 'shipping_city',
         'payment_method', 'total', 'created_at', 'expires_at'

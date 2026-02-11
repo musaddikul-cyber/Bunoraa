@@ -1,12 +1,12 @@
 from django.contrib import admin
 from django.conf import settings
 
-from core.admin_mixins import EnhancedModelAdmin
 
 from .forms import EnvValueForm
 from .models import EnvCategory, EnvValue, EnvVariable
 from .runtime import apply_runtime_overrides
 from .schema_loader import sync_from_schema
+from core.admin_mixins import EnhancedModelAdmin
 
 
 @admin.register(EnvCategory)

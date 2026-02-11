@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "name": "Handmade",
+      "slug": "handmade"
+    },
+    {
+      "name": "Embroidery",
+      "slug": "embroidery"
+    },
+    {
+      "name": "Care Guide",
+      "slug": "care-guide"
+    }
+  ]
+}

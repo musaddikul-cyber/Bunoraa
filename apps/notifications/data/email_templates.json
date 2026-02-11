@@ -1,0 +1,140 @@
+{
+  "items": [
+    {
+      "name": "Order Placed",
+      "notification_type": "order_placed",
+      "subject": "We received your order {{order_id}}",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your order {{order_id}} has been placed successfully.</p>",
+      "text_template": "Hi {{user_name}},\nYour order {{order_id}} has been placed successfully.",
+      "is_active": true
+    },
+    {
+      "name": "Order Confirmed",
+      "notification_type": "order_confirmed",
+      "subject": "Your order {{order_id}} is confirmed",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your order {{order_id}} is confirmed.</p>",
+      "text_template": "Hi {{user_name}},\nYour order {{order_id}} is confirmed.",
+      "is_active": true
+    },
+    {
+      "name": "Order Shipped",
+      "notification_type": "order_shipped",
+      "subject": "Your order {{order_id}} has shipped",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your order {{order_id}} has shipped. Tracking: {{tracking_number}}</p>",
+      "text_template": "Hi {{user_name}},\nYour order {{order_id}} has shipped. Tracking: {{tracking_number}}",
+      "is_active": true
+    },
+    {
+      "name": "Order Delivered",
+      "notification_type": "order_delivered",
+      "subject": "Your order {{order_id}} was delivered",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your order {{order_id}} was delivered.</p>",
+      "text_template": "Hi {{user_name}},\nYour order {{order_id}} was delivered.",
+      "is_active": true
+    },
+    {
+      "name": "Order Cancelled",
+      "notification_type": "order_cancelled",
+      "subject": "Your order {{order_id}} was cancelled",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your order {{order_id}} was cancelled.</p>",
+      "text_template": "Hi {{user_name}},\nYour order {{order_id}} was cancelled.",
+      "is_active": true
+    },
+    {
+      "name": "Order Refunded",
+      "notification_type": "order_refunded",
+      "subject": "Your order {{order_id}} was refunded",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your order {{order_id}} was refunded.</p>",
+      "text_template": "Hi {{user_name}},\nYour order {{order_id}} was refunded.",
+      "is_active": true
+    },
+    {
+      "name": "Payment Received",
+      "notification_type": "payment_received",
+      "subject": "Payment received for {{order_id}}",
+      "html_template": "<p>Hi {{user_name}},</p><p>We received your payment for order {{order_id}}.</p>",
+      "text_template": "Hi {{user_name}},\nWe received your payment for order {{order_id}}.",
+      "is_active": true
+    },
+    {
+      "name": "Payment Failed",
+      "notification_type": "payment_failed",
+      "subject": "Payment failed for {{order_id}}",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your payment for order {{order_id}} failed. Please try again.</p>",
+      "text_template": "Hi {{user_name}},\nYour payment for order {{order_id}} failed. Please try again.",
+      "is_active": true
+    },
+    {
+      "name": "Review Approved",
+      "notification_type": "review_approved",
+      "subject": "Your review was approved",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your review for {{product_name}} was approved. Thank you!</p>",
+      "text_template": "Hi {{user_name}},\nYour review for {{product_name}} was approved. Thank you!",
+      "is_active": true
+    },
+    {
+      "name": "Review Rejected",
+      "notification_type": "review_rejected",
+      "subject": "Your review was rejected",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your review for {{product_name}} was rejected.</p>",
+      "text_template": "Hi {{user_name}},\nYour review for {{product_name}} was rejected.",
+      "is_active": true
+    },
+    {
+      "name": "Price Drop",
+      "notification_type": "price_drop",
+      "subject": "Price drop on {{product_name}}",
+      "html_template": "<p>Hi {{user_name}},</p><p>{{product_name}} is now {{new_price}}.</p>",
+      "text_template": "Hi {{user_name}},\n{{product_name}} is now {{new_price}}.",
+      "is_active": true
+    },
+    {
+      "name": "Back In Stock",
+      "notification_type": "back_in_stock",
+      "subject": "{{product_name}} is back in stock",
+      "html_template": "<p>Hi {{user_name}},</p><p>{{product_name}} is back in stock.</p>",
+      "text_template": "Hi {{user_name}},\n{{product_name}} is back in stock.",
+      "is_active": true
+    },
+    {
+      "name": "Wishlist Sale",
+      "notification_type": "wishlist_sale",
+      "subject": "Wishlist item on sale",
+      "html_template": "<p>Hi {{user_name}},</p><p>{{product_name}} is on sale.</p>",
+      "text_template": "Hi {{user_name}},\n{{product_name}} is on sale.",
+      "is_active": true
+    },
+    {
+      "name": "Account Created",
+      "notification_type": "account_created",
+      "subject": "Welcome to Bunoraa",
+      "html_template": "<p>Hi {{user_name}},</p><p>Your Bunoraa account is ready.</p>",
+      "text_template": "Hi {{user_name}},\nYour Bunoraa account is ready.",
+      "is_active": true
+    },
+    {
+      "name": "Password Reset",
+      "notification_type": "password_reset",
+      "subject": "Reset your Bunoraa password",
+      "html_template": "<p>Hi {{user_name}},</p><p>Reset your password using this link: {{reset_link}}</p>",
+      "text_template": "Hi {{user_name}},\nReset your password: {{reset_link}}",
+      "is_active": true
+    },
+    {
+      "name": "Promo Code",
+      "notification_type": "promo_code",
+      "subject": "Your promo code {{promo_code}}",
+      "html_template": "<p>Hi {{user_name}},</p><p>Use promo code {{promo_code}} for your next purchase.</p>",
+      "text_template": "Hi {{user_name}},\nUse promo code {{promo_code}} for your next purchase.",
+      "is_active": true
+    },
+    {
+      "name": "General Notification",
+      "notification_type": "general",
+      "subject": "{{title}}",
+      "html_template": "<p>Hi {{user_name}},</p><p>{{message}}</p>",
+      "text_template": "Hi {{user_name}},\n{{message}}",
+      "is_active": true
+    }
+  ]
+}

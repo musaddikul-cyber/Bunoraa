@@ -1,0 +1,44 @@
+{
+  "items": [
+    {
+      "option": "Material",
+      "value": "cotton",
+      "display_name": "Cotton",
+      "price_modifier": "0.00",
+      "order": 1,
+      "is_active": true
+    },
+    {
+      "option": "Material",
+      "value": "linen",
+      "display_name": "Linen",
+      "price_modifier": "100.00",
+      "order": 2,
+      "is_active": true
+    },
+    {
+      "option": "Size",
+      "value": "small",
+      "display_name": "Small",
+      "price_modifier": "0.00",
+      "order": 1,
+      "is_active": true
+    },
+    {
+      "option": "Size",
+      "value": "medium",
+      "display_name": "Medium",
+      "price_modifier": "50.00",
+      "order": 2,
+      "is_active": true
+    },
+    {
+      "option": "Size",
+      "value": "large",
+      "display_name": "Large",
+      "price_modifier": "100.00",
+      "order": 3,
+      "is_active": true
+    }
+  ]
+}

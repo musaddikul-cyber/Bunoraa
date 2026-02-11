@@ -1,0 +1,12 @@
+{
+  "default_user": "admin@bunoraa.com",
+  "items": [
+    {
+      "domain": "bunoraa.com",
+      "verification_status": "pending",
+      "is_default": true,
+      "is_active": true,
+      "dkim_selector": "bunoraa"
+    }
+  ]
+}

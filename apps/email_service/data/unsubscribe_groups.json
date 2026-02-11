@@ -1,0 +1,23 @@
+{
+  "default_user": "admin@bunoraa.com",
+  "items": [
+    {
+      "name": "Marketing Emails",
+      "description": "Promotional emails and special offers",
+      "is_default": true,
+      "is_active": true
+    },
+    {
+      "name": "Order Updates",
+      "description": "Order confirmations and shipment notifications",
+      "is_default": false,
+      "is_active": true
+    },
+    {
+      "name": "Account Notifications",
+      "description": "Important account and security notifications",
+      "is_default": false,
+      "is_active": true
+    }
+  ]
+}

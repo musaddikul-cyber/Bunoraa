@@ -1,0 +1,7 @@
+﻿[
+  {"name": "Simple", "slug": "simple", "description": "Single SKU product"},
+  {"name": "Variant", "slug": "variant", "description": "Product with variants"},
+  {"name": "Bundle", "slug": "bundle", "description": "Bundle of multiple products"},
+  {"name": "Digital", "slug": "digital", "description": "Digital product"},
+  {"name": "Service", "slug": "service", "description": "Service or custom work"}
+]

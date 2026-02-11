@@ -11,6 +11,7 @@ from django.db.models import Count, Sum
 from django.http import HttpResponseRedirect
 from django.contrib import messages
 
+from core.admin_mixins import EnhancedModelAdmin
 from .models import (
     PreOrderCategory, PreOrderOption, PreOrderOptionChoice,
     PreOrder, PreOrderItem, PreOrderOptionValue, PreOrderDesign,
@@ -111,7 +112,7 @@ class PreOrderQuoteInline(admin.StackedInline):
 
 # Admin Classes
 @admin.register(PreOrderCategory)
-class PreOrderCategoryAdmin(admin.ModelAdmin):
+class PreOrderCategoryAdmin(EnhancedModelAdmin):
     list_display = ['name', 'base_price', 'deposit_percentage', 'min_production_days', 
                     'max_production_days', 'preorder_count', 'is_active', 'order']
     list_filter = ['is_active', 'requires_design', 'requires_approval', 'allow_rush_order']
@@ -147,7 +148,7 @@ class PreOrderCategoryAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrderOption)
-class PreOrderOptionAdmin(admin.ModelAdmin):
+class PreOrderOptionAdmin(EnhancedModelAdmin):
     list_display = ['name', 'category', 'option_type', 'is_required', 'price_modifier', 'is_active', 'order']
     list_filter = ['category', 'option_type', 'is_required', 'is_active']
     search_fields = ['name', 'description', 'category__name']
@@ -171,7 +172,7 @@ class PreOrderOptionAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrder)
-class PreOrderAdmin(admin.ModelAdmin):
+class PreOrderAdmin(EnhancedModelAdmin):
     list_display = [
         'preorder_number', 'customer_info', 'category', 'title_short',
         'status_badge', 'priority_badge', 'total_amount_display',
@@ -471,7 +472,7 @@ class PreOrderAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrderPayment)
-class PreOrderPaymentAdmin(admin.ModelAdmin):
+class PreOrderPaymentAdmin(EnhancedModelAdmin):
     list_display = [
         'preorder', 'payment_type', 'amount_display', 'payment_method',
         'status_badge', 'transaction_id', 'paid_at', 'created_at'
@@ -505,7 +506,7 @@ class PreOrderPaymentAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrderQuote)
-class PreOrderQuoteAdmin(admin.ModelAdmin):
+class PreOrderQuoteAdmin(EnhancedModelAdmin):
     list_display = [
         'quote_number', 'preorder', 'total', 'status_badge',
         'valid_until', 'is_expired_display', 'created_at'
@@ -541,7 +542,7 @@ class PreOrderQuoteAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrderMessage)
-class PreOrderMessageAdmin(admin.ModelAdmin):
+class PreOrderMessageAdmin(EnhancedModelAdmin):
     list_display = ['preorder', 'subject', 'sender_info', 'is_read', 'created_at']
     list_filter = ['is_from_customer', 'is_from_system', 'is_read', 'created_at']
     search_fields = ['preorder__preorder_number', 'subject', 'message']
@@ -559,7 +560,7 @@ class PreOrderMessageAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrderRevision)
-class PreOrderRevisionAdmin(admin.ModelAdmin):
+class PreOrderRevisionAdmin(EnhancedModelAdmin):
     list_display = ['preorder', 'revision_number', 'status_badge', 'additional_cost', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['preorder__preorder_number', 'description']
@@ -583,7 +584,7 @@ class PreOrderRevisionAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrderTemplate)
-class PreOrderTemplateAdmin(admin.ModelAdmin):
+class PreOrderTemplateAdmin(EnhancedModelAdmin):
     list_display = ['name', 'category', 'base_price', 'estimated_days', 'use_count', 'is_active', 'is_featured', 'order']
     list_filter = ['category', 'is_active', 'is_featured']
     search_fields = ['name', 'description']
@@ -604,7 +605,7 @@ class PreOrderTemplateAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrderDesign)
-class PreOrderDesignAdmin(admin.ModelAdmin):
+class PreOrderDesignAdmin(EnhancedModelAdmin):
     list_display = ['preorder', 'original_filename', 'design_type', 'version', 'is_current', 'is_approved', 'created_at']
     list_filter = ['design_type', 'is_approved', 'is_current', 'created_at']
     search_fields = ['preorder__preorder_number', 'original_filename']
@@ -613,7 +614,7 @@ class PreOrderDesignAdmin(admin.ModelAdmin):
 
 
 @admin.register(PreOrderStatusHistory)
-class PreOrderStatusHistoryAdmin(admin.ModelAdmin):
+class PreOrderStatusHistoryAdmin(EnhancedModelAdmin):
     list_display = ['preorder', 'from_status', 'to_status', 'changed_by', 'is_system', 'notification_sent', 'created_at']
     list_filter = ['to_status', 'is_system', 'notification_sent', 'created_at']
     search_fields = ['preorder__preorder_number', 'notes']

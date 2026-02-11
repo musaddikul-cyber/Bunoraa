@@ -8,6 +8,7 @@ from django.contrib.admin import SimpleListFilter
 # Import payments models lazily
 from apps.payments.models import RecurringCharge
 from .services import SubscriptionService
+from core.admin_mixins import EnhancedModelAdmin
 
 
 class RecurringChargeInline(admin.TabularInline):
@@ -18,7 +19,7 @@ class RecurringChargeInline(admin.TabularInline):
 
 
 @admin.register(Plan)
-class PlanAdmin(admin.ModelAdmin):
+class PlanAdmin(EnhancedModelAdmin):
     list_display = ("name", "interval", "price_amount", "currency", "active")
     list_filter = ("interval", "active")
     search_fields = ("name", "stripe_price_id")
@@ -44,7 +45,7 @@ class IsDeletedFilter(SimpleListFilter):
 
 
 @admin.register(Subscription)
-class SubscriptionAdmin(admin.ModelAdmin):
+class SubscriptionAdmin(EnhancedModelAdmin):
     list_display = (
         "id",
         "user_link",

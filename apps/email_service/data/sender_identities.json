@@ -1,0 +1,23 @@
+{
+  "default_user": "admin@bunoraa.com",
+  "items": [
+    {
+      "email": "noreply@bunoraa.com",
+      "from_name": "Bunoraa",
+      "reply_to": "support@bunoraa.com",
+      "is_default": true,
+      "is_active": true,
+      "verification_status": "pending",
+      "domain": "bunoraa.com"
+    },
+    {
+      "email": "support@bunoraa.com",
+      "from_name": "Bunoraa Support",
+      "reply_to": "support@bunoraa.com",
+      "is_default": false,
+      "is_active": true,
+      "verification_status": "pending",
+      "domain": "bunoraa.com"
+    }
+  ]
+}

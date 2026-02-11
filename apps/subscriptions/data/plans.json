@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "name": "Starter",
+      "interval": "month",
+      "description": "Starter monthly plan.",
+      "price_amount": "299.00",
+      "currency": "BDT",
+      "active": true,
+      "trial_period_days": 0,
+      "metadata": {}
+    },
+    {
+      "name": "Starter",
+      "interval": "year",
+      "description": "Starter yearly plan.",
+      "price_amount": "2990.00",
+      "currency": "BDT",
+      "active": true,
+      "trial_period_days": 0,
+      "metadata": {}
+    }
+  ]
+}

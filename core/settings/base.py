@@ -257,7 +257,7 @@ SITE_URL = os.environ.get('SITE_URL', 'https://bunoraa.com')
 ASSET_HOST = os.environ.get('ASSET_HOST', '')
 
 # Site ID
-SITE_ID = 2
+SITE_ID = 3
 
 # Force site to always use default currency when True. This disables per-user
 # currency detection and forces server-side formatted amounts to use the
@@ -798,3 +798,10 @@ ENV_REGISTRY_AUTOEXPORT = os.environ.get('ENV_REGISTRY_AUTOEXPORT', 'False').low
 ADMIN_SITE_HEADER = 'Bunoraa Administration'
 ADMIN_SITE_TITLE = 'Bunoraa Admin'
 ADMIN_INDEX_TITLE = 'Dashboard'
+
+# Default Agent Avatar
+DEFAULT_AGENT_AVATAR_URL = os.environ.get(
+    'DEFAULT_AGENT_AVATAR_URL',
+    STATIC_URL + 'images/assets/favicon.ico' # Fallback for local
+)
+

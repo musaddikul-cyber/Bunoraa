@@ -1,0 +1,25 @@
+{
+  "settings": {
+    "gift_wrap_enabled": true,
+    "gift_wrap_amount": "50.00",
+    "gift_wrap_label": "Gift Wrap",
+    "cart_expiry_days": 30,
+    "price_lock_enabled": true,
+    "price_lock_duration_hours": 24,
+    "price_lock_auto_apply": false,
+    "stock_reservation_enabled": true,
+    "stock_reservation_minutes": 30,
+    "minimum_order_amount": "0.00",
+    "minimum_order_message": "Minimum order amount not met",
+    "free_shipping_threshold": "3000.00",
+    "free_shipping_message": "Free delivery on orders over 3000",
+    "max_items_per_cart": 50,
+    "max_quantity_per_item": 10,
+    "abandoned_cart_threshold_hours": 1,
+    "abandoned_cart_reminder_delay_hours": 24,
+    "abandoned_cart_max_reminders": 3,
+    "abandoned_cart_discount_enabled": true,
+    "abandoned_cart_discount_percent": 10,
+    "default_currency": "BDT"
+  }
+}

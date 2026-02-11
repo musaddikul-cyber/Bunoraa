@@ -6,7 +6,7 @@ from django.urls import path, include
 from django.views.generic.base import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib.sitemaps.views import sitemap
+from .sitemaps import sitemap_view
 from django.views.generic import RedirectView # Added for API docs redirect
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView # Added for API docs
 from .sitemaps import StaticViewSitemap, ProductSitemap, CategorySitemap, BlogSitemap
@@ -49,7 +49,7 @@ urlpatterns = [
     # No need for Django route - nginx/web server serves static/robots.txt directly
     
     # Sitemap
-    path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
+    path('sitemap.xml', sitemap_view, {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
 
     # API Schema views (Spectacular)
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

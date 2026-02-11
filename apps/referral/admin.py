@@ -1,8 +1,9 @@
 from django.contrib import admin
 from .models import ReferralCode, ReferralReward
+from core.admin_mixins import EnhancedModelAdmin
 
 @admin.register(ReferralCode)
-class ReferralCodeAdmin(admin.ModelAdmin):
+class ReferralCodeAdmin(EnhancedModelAdmin):
     list_display = ('code', 'user', 'is_active', 'expires_at', 'created_at')
     list_filter = ('is_active', 'expires_at')
     search_fields = ('code', 'user__email')
@@ -23,7 +24,7 @@ class ReferralCodeAdmin(admin.ModelAdmin):
 
 
 @admin.register(ReferralReward)
-class ReferralRewardAdmin(admin.ModelAdmin):
+class ReferralRewardAdmin(EnhancedModelAdmin):
     list_display = ('reward_type', 'value', 'referrer_user', 'referee_user', 'status', 'earned_at')
     list_filter = ('reward_type', 'status')
     search_fields = ('referrer_user__email', 'referee_user__email', 'description')

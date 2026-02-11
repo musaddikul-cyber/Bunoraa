@@ -35,12 +35,13 @@ class ChatAgentSerializer(serializers.ModelSerializer):
         source='user',
         write_only=True
     )
-    display_name = serializers.SerializerMethodField() # Defined as SerializerMethodField
+    display_name = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
     
     class Meta:
         model = ChatAgent
         fields = [
-            'id', 'user', 'user_id', 'display_name', 'avatar', 'role', 'bio',
+            'id', 'user', 'user_id', 'display_name', 'avatar_url', 'role', 'bio',
             'is_online', 'is_accepting_chats', 'is_active',
             'max_concurrent_chats', 'current_chat_count',
             'languages', 'categories', 'skills',
@@ -56,14 +57,34 @@ class ChatAgentSerializer(serializers.ModelSerializer):
         """Derive display name from the associated user."""
         return obj.user.get_full_name() or obj.user.email
 
+    def get_avatar_url(self, obj):
+        """Return the agent's avatar URL or a default if not set."""
+        if obj.avatar:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
+        # Use the default avatar URL from settings
+        from django.conf import settings
+        return settings.DEFAULT_AGENT_AVATAR_URL
+
 
 class ChatAgentPublicSerializer(serializers.ModelSerializer):
     """Public agent info (for customers)."""
     
+    avatar_url = serializers.SerializerMethodField()
+
     class Meta:
         model = ChatAgent
-        fields = ['id', 'display_name', 'avatar', 'role']
+        fields = ['id', 'display_name', 'avatar_url', 'role']
         read_only_fields = fields
+
+    def get_avatar_url(self, obj):
+        """Return the agent's avatar URL or a default if not set."""
+        if obj.avatar:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
+        # Use the default avatar URL from settings
+        from django.conf import settings
+        return settings.DEFAULT_AGENT_AVATAR_URL
 
 
 class MessageAttachmentSerializer(serializers.ModelSerializer):

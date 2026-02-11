@@ -4,6 +4,7 @@ Contacts Admin Configuration
 from django.contrib import admin
 from django.utils.html import format_html
 
+from core.admin_mixins import EnhancedModelAdmin
 from .models import (
     ContactCategory, ContactInquiry, ContactResponse,
     ContactAttachment, StoreLocation, ContactSettings,
@@ -30,7 +31,7 @@ class ContactAttachmentInline(admin.TabularInline):
 
 
 @admin.register(ContactCategory)
-class ContactCategoryAdmin(admin.ModelAdmin):
+class ContactCategoryAdmin(EnhancedModelAdmin):
     """Admin for ContactCategory model."""
     
     list_display = ['name', 'slug', 'order', 'inquiries_count', 'is_active']
@@ -61,7 +62,7 @@ class ContactCategoryAdmin(admin.ModelAdmin):
 
 
 @admin.register(ContactInquiry)
-class ContactInquiryAdmin(admin.ModelAdmin):
+class ContactInquiryAdmin(EnhancedModelAdmin):
     """Admin for ContactInquiry model."""
     
     list_display = [
@@ -140,7 +141,7 @@ class ContactInquiryAdmin(admin.ModelAdmin):
 
 
 @admin.register(CustomizationRequest)
-class CustomizationRequestAdmin(admin.ModelAdmin):
+class CustomizationRequestAdmin(EnhancedModelAdmin):
     """Admin for CustomizationRequest model."""
     
     list_display = ['product', 'name', 'email', 'status', 'created_at']
@@ -192,7 +193,7 @@ class CustomizationRequestAdmin(admin.ModelAdmin):
 
 
 @admin.register(ContactResponse)
-class ContactResponseAdmin(admin.ModelAdmin):
+class ContactResponseAdmin(EnhancedModelAdmin):
     """Admin for ContactResponse model."""
     
     list_display = ['inquiry', 'subject', 'sent_by', 'sent_at', 'delivered', 'opened']
@@ -203,7 +204,7 @@ class ContactResponseAdmin(admin.ModelAdmin):
 
 
 @admin.register(StoreLocation)
-class StoreLocationAdmin(admin.ModelAdmin):
+class StoreLocationAdmin(EnhancedModelAdmin):
     """Admin for StoreLocation model."""
     
     list_display = [
@@ -248,7 +249,7 @@ class StoreLocationAdmin(admin.ModelAdmin):
 
 
 @admin.register(ContactSettings)
-class ContactSettingsAdmin(admin.ModelAdmin):
+class ContactSettingsAdmin(EnhancedModelAdmin):
     """Admin for ContactSettings model."""
     
     list_display = ['general_email', 'phone', 'allow_attachments', 'enable_auto_response']

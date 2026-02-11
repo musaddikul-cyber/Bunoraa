@@ -8,6 +8,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
 
+from core.admin_mixins import EnhancedModelAdmin
 from .models import (
     Language, Currency, ExchangeRate, ExchangeRateHistory,
     Timezone, Country, Division, District, Upazila,
@@ -21,7 +22,7 @@ from .models import (
 # =============================================================================
 
 @admin.register(Language)
-class LanguageAdmin(admin.ModelAdmin):
+class LanguageAdmin(EnhancedModelAdmin):
     list_display = (
         'name', 'code', 'native_name', 'flag_display', 
         'is_active', 'is_default', 'is_rtl', 'translation_progress_display', 'sort_order'
@@ -68,7 +69,7 @@ class LanguageAdmin(admin.ModelAdmin):
 # =============================================================================
 
 @admin.register(Currency)
-class CurrencyAdmin(admin.ModelAdmin):
+class CurrencyAdmin(EnhancedModelAdmin):
     list_display = (
         'code', 'name', 'symbol_display', 'rate_display',
         'is_active', 'is_default', 'sort_order'
@@ -126,7 +127,7 @@ class ExchangeRateHistoryInline(admin.TabularInline):
 
 
 @admin.register(ExchangeRate)
-class ExchangeRateAdmin(admin.ModelAdmin):
+class ExchangeRateAdmin(EnhancedModelAdmin):
     list_display = (
         'from_currency', 'to_currency', 'rate_display', 
         'spread_display', 'source', 'is_active', 'valid_from'
@@ -162,7 +163,7 @@ class ExchangeRateAdmin(admin.ModelAdmin):
 
 
 @admin.register(ExchangeRateHistory)
-class ExchangeRateHistoryAdmin(admin.ModelAdmin):
+class ExchangeRateHistoryAdmin(EnhancedModelAdmin):
     list_display = (
         'from_currency', 'to_currency', 'date', 
         'rate', 'ohlc_display', 'source'
@@ -191,7 +192,7 @@ class ExchangeRateHistoryAdmin(admin.ModelAdmin):
 # =============================================================================
 
 @admin.register(Timezone)
-class TimezoneAdmin(admin.ModelAdmin):
+class TimezoneAdmin(EnhancedModelAdmin):
     list_display = (
         'display_name', 'name', 'offset_display', 
         'is_common', 'is_active', 'current_time'
@@ -229,7 +230,7 @@ class DivisionInline(admin.TabularInline):
 
 
 @admin.register(Country)
-class CountryAdmin(admin.ModelAdmin):
+class CountryAdmin(EnhancedModelAdmin):
     list_display = (
         'name', 'code',
         'phone_code_display', 'default_currency', 
@@ -282,7 +283,7 @@ class DistrictInline(admin.TabularInline):
 
 
 @admin.register(Division)
-class DivisionAdmin(admin.ModelAdmin):
+class DivisionAdmin(EnhancedModelAdmin):
     list_display = ('name', 'native_name', 'code', 'country', 'district_count', 'is_active', 'sort_order')
     list_filter = ('is_active', 'country')
     search_fields = ('name', 'native_name', 'code')
@@ -303,7 +304,7 @@ class UpazilaInline(admin.TabularInline):
 
 
 @admin.register(District)
-class DistrictAdmin(admin.ModelAdmin):
+class DistrictAdmin(EnhancedModelAdmin):
     list_display = ('name', 'native_name', 'code', 'division', 'upazila_count', 'is_active', 'sort_order')
     list_filter = ('is_active', 'division__country', 'division')
     search_fields = ('name', 'native_name', 'code')
@@ -317,7 +318,7 @@ class DistrictAdmin(admin.ModelAdmin):
 
 
 @admin.register(Upazila)
-class UpazilaAdmin(admin.ModelAdmin):
+class UpazilaAdmin(EnhancedModelAdmin):
     list_display = (
         'name', 'native_name', 'code', 'district', 
         'is_active', 'sort_order'
@@ -340,7 +341,7 @@ class TranslationInline(admin.TabularInline):
 
 
 @admin.register(TranslationNamespace)
-class TranslationNamespaceAdmin(admin.ModelAdmin):
+class TranslationNamespaceAdmin(EnhancedModelAdmin):
     list_display = ('name', 'description', 'key_count')
     search_fields = ('name', 'description')
     ordering = ('name',)
@@ -351,7 +352,7 @@ class TranslationNamespaceAdmin(admin.ModelAdmin):
 
 
 @admin.register(TranslationKey)
-class TranslationKeyAdmin(admin.ModelAdmin):
+class TranslationKeyAdmin(EnhancedModelAdmin):
     list_display = ('key', 'namespace', 'context', 'translation_count', 'created_at')
     list_filter = ('namespace',)
     search_fields = ('key', 'context', 'source_text')
@@ -369,7 +370,7 @@ class TranslationKeyAdmin(admin.ModelAdmin):
 
 
 @admin.register(Translation)
-class TranslationAdmin(admin.ModelAdmin):
+class TranslationAdmin(EnhancedModelAdmin):
     list_display = (
         'key', 'language', 'status', 'status_badge',
         'is_machine_translated', 'translated_by', 'created_at'
@@ -408,7 +409,7 @@ class TranslationAdmin(admin.ModelAdmin):
 
 
 @admin.register(ContentTranslation)
-class ContentTranslationAdmin(admin.ModelAdmin):
+class ContentTranslationAdmin(EnhancedModelAdmin):
     list_display = (
         'content_type', 'content_id', 'field_name', 
         'language', 'is_approved', 'is_machine_translated', 'updated_at'
@@ -437,7 +438,7 @@ class ContentTranslationAdmin(admin.ModelAdmin):
 # =============================================================================
 
 @admin.register(UserLocalePreference)
-class UserLocalePreferenceAdmin(admin.ModelAdmin):
+class UserLocalePreferenceAdmin(EnhancedModelAdmin):
     list_display = (
         'user', 'language', 'currency', 'timezone', 
         'country', 'updated_at'
@@ -471,7 +472,7 @@ class UserLocalePreferenceAdmin(admin.ModelAdmin):
 # =============================================================================
 
 @admin.register(I18nSettings)
-class I18nSettingsAdmin(admin.ModelAdmin):
+class I18nSettingsAdmin(EnhancedModelAdmin):
     list_display = (
         'default_language', 'default_currency', 'default_timezone',
         'auto_update_exchange_rates', 'last_exchange_rate_update'

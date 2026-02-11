@@ -1,0 +1,11 @@
+﻿[
+  {"option": "color", "value": "Red"},
+  {"option": "color", "value": "Blue"},
+  {"option": "color", "value": "Green"},
+  {"option": "size", "value": "Small"},
+  {"option": "size", "value": "Medium"},
+  {"option": "size", "value": "Large"},
+  {"option": "material", "value": "Cotton"},
+  {"option": "material", "value": "Silk"},
+  {"option": "material", "value": "Wood"}
+]

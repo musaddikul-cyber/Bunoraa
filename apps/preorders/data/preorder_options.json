@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "category": "custom-embroidery",
+      "name": "Material",
+      "description": "Choose base material.",
+      "option_type": "select",
+      "is_required": true,
+      "price_modifier": "0.00",
+      "order": 1,
+      "is_active": true
+    },
+    {
+      "category": "custom-embroidery",
+      "name": "Size",
+      "description": "Select size.",
+      "option_type": "select",
+      "is_required": true,
+      "price_modifier": "0.00",
+      "order": 2,
+      "is_active": true
+    },
+    {
+      "category": "custom-embroidery",
+      "name": "Notes",
+      "description": "Add special instructions.",
+      "option_type": "textarea",
+      "is_required": false,
+      "price_modifier": "0.00",
+      "order": 3,
+      "is_active": true
+    }
+  ]
+}

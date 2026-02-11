@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "site": 1,
+      "name": "Facebook",
+      "url": "https://www.facebook.com/bunoraa",
+      "order": 1,
+      "is_active": true
+    },
+    {
+      "site": 1,
+      "name": "Instagram",
+      "url": "https://www.instagram.com/bunoraa",
+      "order": 2,
+      "is_active": true
+    },
+    {
+      "site": 1,
+      "name": "YouTube",
+      "url": "https://www.youtube.com/@bunoraa",
+      "order": 3,
+      "is_active": true
+    }
+  ]
+}

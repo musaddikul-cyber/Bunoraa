@@ -1,0 +1,23 @@
+{
+  "settings": {
+    "general_email": "hello@bunoraa.com",
+    "support_email": "support@bunoraa.com",
+    "sales_email": "sales@bunoraa.com",
+    "phone": "+8801700000000",
+    "facebook_url": "",
+    "instagram_url": "",
+    "twitter_url": "",
+    "linkedin_url": "",
+    "youtube_url": "",
+    "tiktok_url": "",
+    "allow_attachments": true,
+    "max_attachment_size_mb": 5,
+    "allowed_file_types": "jpg,jpeg,png,pdf,doc,docx",
+    "notify_on_new_inquiry": true,
+    "notification_emails": "support@bunoraa.com",
+    "enable_auto_response": true,
+    "default_auto_response_subject": "We received your message",
+    "default_auto_response_message": "Thanks for contacting Bunoraa. Our team will reply shortly.",
+    "business_hours_note": "We reply within 1 business day."
+  }
+}

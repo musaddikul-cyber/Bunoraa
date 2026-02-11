@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "code": "pay_later",
+      "name": "Pay Later",
+      "is_active": false,
+      "config": {
+        "display_name": "Pay Later",
+        "terms_url": ""
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "items": [
+    {
+      "agent": null,
+      "title": "Greeting",
+      "shortcut": "/greeting",
+      "content": "Hello! Thanks for reaching out to Bunoraa. How can we help you today?",
+      "category": "general",
+      "is_active": true
+    },
+    {
+      "agent": null,
+      "title": "Order Status",
+      "shortcut": "/order-status",
+      "content": "I can help with your order status. Please share your order number and the email used at checkout.",
+      "category": "order",
+      "is_active": true
+    },
+    {
+      "agent": null,
+      "title": "Shipping Help",
+      "shortcut": "/shipping",
+      "content": "Shipping times vary by location. Please share your delivery city and we will confirm the estimate.",
+      "category": "shipping",
+      "is_active": true
+    },
+    {
+      "agent": null,
+      "title": "Returns",
+      "shortcut": "/returns",
+      "content": "We are happy to help with returns. Please share your order number and the item you want to return.",
+      "category": "returns",
+      "is_active": true
+    }
+  ]
+}

@@ -1,72 +1,56 @@
-"""
-Management command to seed ShippingSettings.
-"""
-from decimal import Decimal
+from __future__ import annotations
+
+import os
+
 from django.core.management.base import BaseCommand
-from apps.shipping.models import ShippingSettings
+
+from core.seed.runner import SeedRunner
 
 
 class Command(BaseCommand):
-    help = 'Seeds the ShippingSettings singleton with Bangladesh defaults'
+    help = "Seed ShippingSettings singleton (wrapper around unified seed system)."
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--threshold',
+            "--threshold",
             type=float,
             default=3000,
-            help='Free shipping threshold amount (default: 2000)'
+            help="Free shipping threshold amount (default: 3000)",
         )
         parser.add_argument(
-            '--handling-days',
+            "--handling-days",
             type=int,
             default=1,
-            help='Order handling days (default: 1)'
+            help="Order handling days (default: 1)",
         )
         parser.add_argument(
-            '--enable-free-shipping',
-            action='store_true',
+            "--enable-free-shipping",
+            action="store_true",
             default=True,
-            help='Enable free shipping above threshold'
+            help="Enable free shipping above threshold",
+        )
+        parser.add_argument("--dry-run", action="store_true", help="Show changes without writing.")
+        parser.add_argument("--no-prune", action="store_true", help="Disable pruning for this run.")
+        parser.add_argument(
+            "--confirm-prune",
+            action="store_true",
+            help="Confirm pruning (if enabled) in production",
         )
 
     def handle(self, *args, **options):
-        threshold = options['threshold']
-        handling_days = options['handling_days']
-        enable_free_shipping = options['enable_free_shipping']
+        os.environ["SEED_SHIPPING_FREE_THRESHOLD"] = str(options.get("threshold"))
+        os.environ["SEED_SHIPPING_HANDLING_DAYS"] = str(options.get("handling_days"))
+        os.environ["SEED_SHIPPING_ENABLE_FREE_SHIPPING"] = "1" if options.get("enable_free_shipping") else "0"
 
-        settings, created = ShippingSettings.objects.update_or_create(
-            pk=1,
-            defaults={
-                # Origin address (Bangladesh example)
-                'origin_address_line1': 'House 123, Road 12',
-                'origin_address_line2': 'Gulshan-1',
-                'origin_city': 'Dhaka',
-                'origin_state': 'Dhaka Division',
-                'origin_postal_code': '1212',
-                'origin_country': 'BD',
-                'origin_phone': '+880 1700 000000',
-                
-                # Units
-                'default_weight_unit': 'kg',
-                'default_dimension_unit': 'cm',
-                'default_package_weight': Decimal('0.45'),
-                
-                # Display
-                'show_delivery_estimates': True,
-                'show_carrier_logos': True,
-                
-                # Free shipping
-                'enable_free_shipping': enable_free_shipping,
-                'free_shipping_threshold': Decimal(str(threshold)),
-                'free_shipping_countries': ['BD'],  # Bangladesh only
-                
-                # Processing
-                'handling_days': handling_days,
-                'cutoff_time': '15:00:00',  # 3 PM cutoff
-            }
+        runner = SeedRunner(
+            dry_run=options.get("dry_run", False),
+            prune=not options.get("no_prune", False),
+            confirm_prune=options.get("confirm_prune", False),
+            logger=self.stdout.write,
         )
-
-        action = 'Created' if created else 'Updated'
-        self.stdout.write(self.style.SUCCESS(
-            f'{action} ShippingSettings: Free shipping threshold = ৳{threshold}'
-        ))
+        result = runner.run(only=["shipping.settings"], kind="prod")
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Seeded shipping settings. Created: {result.created}, Updated: {result.updated}, Pruned: {result.pruned}, Errors: {result.errors}"
+            )
+        )

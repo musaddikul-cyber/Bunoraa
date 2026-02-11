@@ -374,6 +374,90 @@ class StockFilter(SimpleListFilter):
 
 
 # =============================================================================
+# AUTO LIST FILTERS & SELECT RELATED
+# =============================================================================
+
+
+class AutoListFilterMixin:
+    """Auto-attach common list filters and select_related for admin performance."""
+
+    auto_boolean_filters = ("is_active", "is_deleted", "is_verified")
+    auto_status_filter = "status"
+    auto_date_fields = ("created_at", "updated_at")
+
+    def _has_field(self, field_name: str) -> bool:
+        try:
+            self.model._meta.get_field(field_name)
+            return True
+        except Exception:
+            return False
+
+    def _is_boolean_field(self, field_name: str) -> bool:
+        try:
+            field = self.model._meta.get_field(field_name)
+        except Exception:
+            return False
+        from django.db import models as dj_models
+
+        return isinstance(field, (dj_models.BooleanField, getattr(dj_models, "NullBooleanField", dj_models.BooleanField)))
+
+    def get_list_filter(self, request):
+        filters = list(super().get_list_filter(request))  # type: ignore[misc]
+
+        existing = set()
+        for item in filters:
+            if isinstance(item, str):
+                existing.add(item)
+            elif hasattr(item, "parameter_name"):
+                existing.add(getattr(item, "parameter_name"))
+
+        # Date range filter
+        has_date_filter = any(
+            isinstance(item, type) and issubclass(item, DateRangeFilter) for item in filters
+        )
+        if not has_date_filter:
+            date_field = None
+            for field_name in self.auto_date_fields:
+                if self._has_field(field_name):
+                    date_field = field_name
+                    break
+            if date_field:
+                class _AutoDateRangeFilter(DateRangeFilter):
+                    date_field = date_field  # type: ignore[assignment]
+
+                filters.append(_AutoDateRangeFilter)
+
+        # Boolean filters
+        for field_name in self.auto_boolean_filters:
+            if field_name not in existing and self._is_boolean_field(field_name):
+                filters.append(field_name)
+
+        # Status filter (only if field exists)
+        if self.auto_status_filter not in existing and self._has_field(self.auto_status_filter):
+            filters.append(self.auto_status_filter)
+
+        return filters
+
+    def get_list_select_related(self, request):
+        base = super().get_list_select_related(request)  # type: ignore[misc]
+        if base is True:
+            return True
+        select_related = set(base or [])
+
+        for field_name in getattr(self, "list_display", []):
+            if not isinstance(field_name, str):
+                continue
+            try:
+                field = self.model._meta.get_field(field_name)
+            except Exception:
+                continue
+            if field.is_relation and (field.many_to_one or field.one_to_one):
+                select_related.add(field_name)
+
+        return tuple(select_related)
+
+
+# =============================================================================
 # BULK ACTION MIXINS
 # =============================================================================
 
@@ -415,7 +499,9 @@ class BulkFeaturedMixin:
 # ENHANCED MODEL ADMIN BASE
 # =============================================================================
 
-class EnhancedModelAdmin(ExportCSVMixin, ExportJSONMixin, AuditLogMixin, StatusBadgeMixin, admin.ModelAdmin):
+class EnhancedModelAdmin(
+    AutoListFilterMixin, ExportCSVMixin, ExportJSONMixin, AuditLogMixin, StatusBadgeMixin, admin.ModelAdmin
+):
     """
     Enhanced base ModelAdmin with common functionality:
     - CSV/JSON export

@@ -1,0 +1,5 @@
+﻿[
+  {"code": "bn", "name": "Bengali", "native_name": "\u09ac\u09be\u0982\u09b2\u09be", "is_default": true, "is_rtl": false, "flag_code": "BD", "locale_code": "bn_BD", "is_active": true, "sort_order": 0},
+  {"code": "en", "name": "English", "native_name": "English", "is_default": false, "is_rtl": false, "flag_code": "US", "locale_code": "en_US", "is_active": true, "sort_order": 1},
+  {"code": "hi", "name": "Hindi", "native_name": "\u0939\u093f\u0928\u094d\u0926\u0940", "is_default": false, "is_rtl": false, "flag_code": "IN", "locale_code": "hi_IN", "is_active": true, "sort_order": 2}
+]

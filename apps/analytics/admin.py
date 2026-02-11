@@ -3,10 +3,11 @@ Analytics admin configuration
 """
 from django.contrib import admin
 from .models import PageView, ProductView, SearchQuery, CartEvent, DailyStat, ProductStat, CategoryStat
+from core.admin_mixins import EnhancedModelAdmin
 
 
 @admin.register(PageView)
-class PageViewAdmin(admin.ModelAdmin):
+class PageViewAdmin(EnhancedModelAdmin):
     list_display = ['path', 'user', 'device_type', 'browser', 'created_at']
     list_filter = ['device_type', 'browser', 'os', 'created_at']
     search_fields = ['path', 'user__email']
@@ -21,7 +22,7 @@ class PageViewAdmin(admin.ModelAdmin):
 
 
 @admin.register(ProductView)
-class ProductViewAdmin(admin.ModelAdmin):
+class ProductViewAdmin(EnhancedModelAdmin):
     list_display = ['product', 'user', 'source', 'created_at']
     list_filter = ['source', 'created_at']
     search_fields = ['product__name', 'user__email']
@@ -36,7 +37,7 @@ class ProductViewAdmin(admin.ModelAdmin):
 
 
 @admin.register(SearchQuery)
-class SearchQueryAdmin(admin.ModelAdmin):
+class SearchQueryAdmin(EnhancedModelAdmin):
     list_display = ['query', 'results_count', 'clicked_product', 'user', 'created_at']
     list_filter = ['created_at']
     search_fields = ['query', 'user__email']
@@ -51,7 +52,7 @@ class SearchQueryAdmin(admin.ModelAdmin):
 
 
 @admin.register(CartEvent)
-class CartEventAdmin(admin.ModelAdmin):
+class CartEventAdmin(EnhancedModelAdmin):
     list_display = ['event_type', 'product', 'quantity', 'cart_value', 'user', 'created_at']
     list_filter = ['event_type', 'created_at']
     search_fields = ['user__email', 'product__name']
@@ -66,7 +67,7 @@ class CartEventAdmin(admin.ModelAdmin):
 
 
 @admin.register(DailyStat)
-class DailyStatAdmin(admin.ModelAdmin):
+class DailyStatAdmin(EnhancedModelAdmin):
     list_display = [
         'date', 'page_views', 'unique_visitors', 'orders_count',
         'orders_revenue', 'conversion_rate'
@@ -89,7 +90,7 @@ class DailyStatAdmin(admin.ModelAdmin):
 
 
 @admin.register(ProductStat)
-class ProductStatAdmin(admin.ModelAdmin):
+class ProductStatAdmin(EnhancedModelAdmin):
     list_display = ['product', 'date', 'views', 'orders_count', 'revenue', 'conversion_rate']
     list_filter = ['date']
     search_fields = ['product__name']
@@ -104,7 +105,7 @@ class ProductStatAdmin(admin.ModelAdmin):
 
 
 @admin.register(CategoryStat)
-class CategoryStatAdmin(admin.ModelAdmin):
+class CategoryStatAdmin(EnhancedModelAdmin):
     list_display = ['category', 'date', 'views', 'product_views', 'orders_count', 'revenue']
     list_filter = ['date']
     search_fields = ['category__name']

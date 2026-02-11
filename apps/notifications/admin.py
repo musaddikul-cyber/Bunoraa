@@ -2,6 +2,7 @@
 Notifications admin configuration
 """
 from django.contrib import admin
+from core.admin_mixins import EnhancedModelAdmin
 from .models import (
     Notification, NotificationPreference, EmailTemplate, EmailLog, PushToken,
     BackInStockNotification
@@ -9,7 +10,7 @@ from .models import (
 
 
 @admin.register(Notification)
-class NotificationAdmin(admin.ModelAdmin):
+class NotificationAdmin(EnhancedModelAdmin):
     list_display = [
         'user', 'type', 'title', 'is_read', 'created_at'
     ]
@@ -47,7 +48,7 @@ class NotificationAdmin(admin.ModelAdmin):
 
 
 @admin.register(NotificationPreference)
-class NotificationPreferenceAdmin(admin.ModelAdmin):
+class NotificationPreferenceAdmin(EnhancedModelAdmin):
     list_display = [
         'user', 'email_order_updates', 'email_promotions', 'sms_enabled', 'push_enabled'
     ]
@@ -80,7 +81,7 @@ class NotificationPreferenceAdmin(admin.ModelAdmin):
 
 
 @admin.register(EmailTemplate)
-class EmailTemplateAdmin(admin.ModelAdmin):
+class EmailTemplateAdmin(EnhancedModelAdmin):
     list_display = ['name', 'notification_type', 'subject', 'is_active', 'updated_at']
     list_filter = ['is_active', 'notification_type']
     search_fields = ['name', 'subject']
@@ -100,7 +101,7 @@ class EmailTemplateAdmin(admin.ModelAdmin):
 
 
 @admin.register(EmailLog)
-class EmailLogAdmin(admin.ModelAdmin):
+class EmailLogAdmin(EnhancedModelAdmin):
     list_display = [
         'recipient_email', 'notification_type', 'subject', 'status', 'sent_at', 'created_at'
     ]
@@ -120,7 +121,7 @@ class EmailLogAdmin(admin.ModelAdmin):
 
 
 @admin.register(PushToken)
-class PushTokenAdmin(admin.ModelAdmin):
+class PushTokenAdmin(EnhancedModelAdmin):
     list_display = ['user', 'device_type', 'device_name', 'is_active', 'last_used_at']
     list_filter = ['device_type', 'is_active']
     search_fields = ['user__email', 'device_name']
@@ -128,7 +129,7 @@ class PushTokenAdmin(admin.ModelAdmin):
 
 
 @admin.register(BackInStockNotification)
-class BackInStockNotificationAdmin(admin.ModelAdmin):
+class BackInStockNotificationAdmin(EnhancedModelAdmin):
     list_display = ('product', 'variant_display', 'user_display', 'email', 'is_notified', 'created_at')
     list_filter = ('is_notified', 'created_at')
     search_fields = ('product__name', 'user__email', 'email')

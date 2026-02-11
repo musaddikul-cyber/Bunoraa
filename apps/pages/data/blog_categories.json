@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "name": "Crafting Tips",
+      "slug": "crafting-tips",
+      "description": "Tips and guides for caring for handmade products.",
+      "icon": "sparkles"
+    },
+    {
+      "name": "Artisan Stories",
+      "slug": "artisan-stories",
+      "description": "Behind-the-scenes stories from our artisans.",
+      "icon": "users"
+    }
+  ]
+}

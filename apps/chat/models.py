@@ -84,6 +84,12 @@ class ChatAgent(models.Model):
     total_chats_handled = models.PositiveIntegerField(default=0)
     avg_response_time_seconds = models.FloatField(default=0)
     avg_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
+    avatar = models.ImageField(
+        upload_to='chat/agents/avatars/',
+        null=True,
+        blank=True,
+        help_text='Profile picture for the chat agent'
+    )
     
     # Settings
     auto_accept = models.BooleanField(default=False)

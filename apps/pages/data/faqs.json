@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "question": "How long does delivery take?",
+      "answer": "Delivery times depend on your location and the shipping method selected at checkout.",
+      "category": "Shipping",
+      "sort_order": 1,
+      "is_active": true
+    },
+    {
+      "question": "Do you accept returns?",
+      "answer": "Yes, returns are accepted within the return window stated on our policy page.",
+      "category": "Returns",
+      "sort_order": 2,
+      "is_active": true
+    },
+    {
+      "question": "Can I request customization?",
+      "answer": "Yes, many products can be customized. Contact us with your request.",
+      "category": "Customization",
+      "sort_order": 3,
+      "is_active": true
+    }
+  ]
+}

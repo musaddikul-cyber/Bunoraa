@@ -1,0 +1,35 @@
+﻿[
+  {
+    "name": "Standard Box",
+    "eco_score": 50,
+    "notes": "Standard cardboard box",
+    "packaging_weight": 0.15,
+    "length": 30,
+    "width": 20,
+    "height": 10,
+    "units_per_package": 1,
+    "dimensional_weight_divisor": 5000
+  },
+  {
+    "name": "Eco Box",
+    "eco_score": 80,
+    "notes": "Recycled cardboard packaging",
+    "packaging_weight": 0.18,
+    "length": 28,
+    "width": 18,
+    "height": 9,
+    "units_per_package": 1,
+    "dimensional_weight_divisor": 5000
+  },
+  {
+    "name": "Padded Envelope",
+    "eco_score": 60,
+    "notes": "For small lightweight items",
+    "packaging_weight": 0.05,
+    "length": 25,
+    "width": 18,
+    "height": 2,
+    "units_per_package": 1,
+    "dimensional_weight_divisor": 6000
+  }
+]

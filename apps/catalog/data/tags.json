@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "name": "New"
+    },
+    {
+      "name": "Popular"
+    },
+    {
+      "name": "Sale"
+    },
+    {
+      "name": "Limited"
+    },
+    {
+      "name": "Handmade"
+    },
+    {
+      "name": "Organic"
+    },
+    {
+      "name": "Trending"
+    },
+    {
+      "name": "Gift"
+    },
+    {
+      "name": "Eco-friendly"
+    },
+    {
+      "name": "Clearance"
+    },
+    {
+      "name": "Bestseller"
+    },
+    {
+      "name": "Exclusive"
+    },
+    {
+      "name": "Featured"
+    },
+    {
+      "name": "Artisan"
+    },
+    {
+      "name": "Traditional"
+    },
+    {
+      "name": "Modern"
+    },
+    {
+      "name": "Vintage"
+    },
+    {
+      "name": "Premium"
+    },
+    {
+      "name": "Budget-friendly"
+    },
+    {
+      "name": "Sustainable"
+    }
+  ]
+}

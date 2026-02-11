@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "name": "Custom Embroidery",
+      "slug": "custom-embroidery",
+      "description": "Custom embroidery orders for apparel and decor.",
+      "icon": "needle",
+      "base_price": "500.00",
+      "deposit_percentage": 30,
+      "min_production_days": 7,
+      "max_production_days": 30,
+      "requires_design": true,
+      "requires_approval": true,
+      "allow_rush_order": true,
+      "rush_order_fee_percentage": 25,
+      "min_quantity": 1,
+      "max_quantity": 200,
+      "is_active": true,
+      "order": 1
+    }
+  ]
+}

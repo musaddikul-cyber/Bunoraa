@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "name": "Custom Embroidery - Basic",
+      "slug": "custom-embroidery-basic",
+      "description": "A standard custom embroidery order.",
+      "category": "custom-embroidery",
+      "default_quantity": 1,
+      "base_price": "500.00",
+      "estimated_days": 14,
+      "default_options": {
+        "Material": "cotton",
+        "Size": "medium"
+      },
+      "is_active": true,
+      "is_featured": true,
+      "order": 1
+    }
+  ]
+}

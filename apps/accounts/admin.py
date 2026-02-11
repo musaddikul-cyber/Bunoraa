@@ -19,6 +19,7 @@ from .models import (
 )
 
 from core.admin_mixins import (
+    EnhancedModelAdmin,
     ExportCSVMixin,
     EnhancedTabularInline,
     DateRangeFilter,
@@ -186,7 +187,7 @@ class UserAdmin(ExportCSVMixin, BaseUserAdmin):
 
 
 @admin.register(Address)
-class AddressAdmin(admin.ModelAdmin):
+class AddressAdmin(EnhancedModelAdmin):
     """Address admin."""
     
     list_display = ['full_name', 'user', 'city', 'country', 'address_type', 'is_default', 'created_at']
@@ -207,7 +208,7 @@ class AddressAdmin(admin.ModelAdmin):
 
 
 @admin.register(PasswordResetToken)
-class PasswordResetTokenAdmin(admin.ModelAdmin):
+class PasswordResetTokenAdmin(EnhancedModelAdmin):
     """Password reset token admin."""
     
     list_display = ['user', 'created_at', 'expires_at', 'used']
@@ -218,7 +219,7 @@ class PasswordResetTokenAdmin(admin.ModelAdmin):
 
 
 @admin.register(EmailVerificationToken)
-class EmailVerificationTokenAdmin(admin.ModelAdmin):
+class EmailVerificationTokenAdmin(EnhancedModelAdmin):
     """Email verification token admin."""
     
     list_display = ['user', 'created_at', 'expires_at', 'used']
@@ -229,7 +230,7 @@ class EmailVerificationTokenAdmin(admin.ModelAdmin):
 
 
 @admin.register(WebAuthnCredential)
-class WebAuthnCredentialAdmin(admin.ModelAdmin):
+class WebAuthnCredentialAdmin(EnhancedModelAdmin):
     list_display = ['user', 'nickname', 'created_at', 'last_used_at', 'is_active']
     list_filter = ['is_active', 'created_at']
     search_fields = ['user__email', 'nickname']
@@ -238,7 +239,7 @@ class WebAuthnCredentialAdmin(admin.ModelAdmin):
 
 
 @admin.register(WebAuthnChallenge)
-class WebAuthnChallengeAdmin(admin.ModelAdmin):
+class WebAuthnChallengeAdmin(EnhancedModelAdmin):
     list_display = ['user', 'challenge_type', 'created_at', 'expires_at', 'consumed']
     list_filter = ['challenge_type', 'consumed']
     search_fields = ['user__email', 'challenge']
@@ -247,7 +248,7 @@ class WebAuthnChallengeAdmin(admin.ModelAdmin):
 
 
 @admin.register(DataExportJob)
-class DataExportJobAdmin(admin.ModelAdmin):
+class DataExportJobAdmin(EnhancedModelAdmin):
     list_display = ['user', 'status', 'requested_at', 'completed_at', 'expires_at']
     list_filter = ['status']
     search_fields = ['user__email']
@@ -256,7 +257,7 @@ class DataExportJobAdmin(admin.ModelAdmin):
 
 
 @admin.register(AccountDeletionRequest)
-class AccountDeletionRequestAdmin(admin.ModelAdmin):
+class AccountDeletionRequestAdmin(EnhancedModelAdmin):
     list_display = ['user', 'status', 'requested_at', 'scheduled_for', 'processed_at']
     list_filter = ['status']
     search_fields = ['user__email']
@@ -270,7 +271,7 @@ class AccountDeletionRequestAdmin(admin.ModelAdmin):
 
 if BEHAVIOR_MODELS_AVAILABLE:
     @admin.register(UserBehaviorProfile)
-    class UserBehaviorProfileAdmin(admin.ModelAdmin):
+    class UserBehaviorProfileAdmin(EnhancedModelAdmin):
         """User behavior profile admin for ML personalization."""
         
         list_display = ['user', 'engagement_score', 'loyalty_score', 'total_orders', 'total_spent', 'last_active']
@@ -294,7 +295,7 @@ if BEHAVIOR_MODELS_AVAILABLE:
         )
 
     @admin.register(UserPreferences)
-    class UserPreferencesAdmin(admin.ModelAdmin):
+    class UserPreferencesAdmin(EnhancedModelAdmin):
         """User preferences admin."""
         
         list_display = ['user', 'language', 'currency', 'theme', 'email_notifications', 'allow_tracking']
@@ -314,7 +315,7 @@ if BEHAVIOR_MODELS_AVAILABLE:
         )
 
     @admin.register(UserSession)
-    class UserSessionAdmin(admin.ModelAdmin):
+    class UserSessionAdmin(EnhancedModelAdmin):
         """User session admin for analytics."""
         
         list_display = ['session_key_short', 'user', 'device_type', 'browser', 'country', 'page_views', 'started_at', 'duration']
@@ -330,7 +331,7 @@ if BEHAVIOR_MODELS_AVAILABLE:
         session_key_short.short_description = 'Session'
 
     @admin.register(UserInteraction)
-    class UserInteractionAdmin(admin.ModelAdmin):
+    class UserInteractionAdmin(EnhancedModelAdmin):
         """User interaction admin for ML training data."""
         
         list_display = ['interaction_type', 'user', 'product', 'category', 'created_at']

@@ -1,0 +1,65 @@
+{
+  "default_user": "admin@bunoraa.com",
+  "items": [
+    {
+      "name": "Password Reset",
+      "template_id": "password-reset",
+      "description": "Email for password reset requests",
+      "subject": "Reset Your Bunoraa Password",
+      "html_content": "<p>Hi {{first_name}},</p><p>Click the link below to reset your password:</p><p><a href=\"{{reset_link}}\">Reset Password</a></p><p>If you did not request this, ignore this email.</p>",
+      "text_content": "Hi {{first_name}},\nReset your password: {{reset_link}}\nIf you did not request this, ignore this email.",
+      "content_type": "both",
+      "variables": ["first_name", "reset_link"],
+      "is_active": true,
+      "is_system": true
+    },
+    {
+      "name": "Email Verification",
+      "template_id": "email-verification",
+      "description": "Email for verifying a new account",
+      "subject": "Verify Your Email Address",
+      "html_content": "<p>Hi {{first_name}},</p><p>Please verify your email address:</p><p><a href=\"{{verify_link}}\">Verify Email</a></p>",
+      "text_content": "Hi {{first_name}},\nVerify your email: {{verify_link}}",
+      "content_type": "both",
+      "variables": ["first_name", "verify_link"],
+      "is_active": true,
+      "is_system": true
+    },
+    {
+      "name": "Welcome Email",
+      "template_id": "welcome",
+      "description": "Welcome email for new customers",
+      "subject": "Welcome to Bunoraa",
+      "html_content": "<p>Hi {{first_name}},</p><p>Welcome to Bunoraa! We are glad you are here.</p><p><a href=\"{{shop_url}}\">Start Shopping</a></p>",
+      "text_content": "Hi {{first_name}},\nWelcome to Bunoraa!\nStart shopping: {{shop_url}}",
+      "content_type": "both",
+      "variables": ["first_name", "shop_url"],
+      "is_active": true,
+      "is_system": true
+    },
+    {
+      "name": "Order Confirmation",
+      "template_id": "order-confirmation",
+      "description": "Order confirmation email",
+      "subject": "Your Order #{{order_id}} Confirmed",
+      "html_content": "<p>Hi {{first_name}},</p><p>Thanks for your order {{order_id}}.</p><p>Total: {{total_amount}}</p><p><a href=\"{{order_url}}\">View Order</a></p>",
+      "text_content": "Hi {{first_name}},\nYour order {{order_id}} is confirmed.\nTotal: {{total_amount}}\nView order: {{order_url}}",
+      "content_type": "both",
+      "variables": ["first_name", "order_id", "total_amount", "order_url"],
+      "is_active": true,
+      "is_system": true
+    },
+    {
+      "name": "Order Shipped",
+      "template_id": "order-shipped",
+      "description": "Order shipment notification",
+      "subject": "Your Order #{{order_id}} Has Shipped",
+      "html_content": "<p>Hi {{first_name}},</p><p>Your order {{order_id}} has shipped.</p><p>Tracking: {{tracking_number}}</p><p><a href=\"{{tracking_url}}\">Track Package</a></p>",
+      "text_content": "Hi {{first_name}},\nYour order {{order_id}} has shipped.\nTracking: {{tracking_number}}\nTrack: {{tracking_url}}",
+      "content_type": "both",
+      "variables": ["first_name", "order_id", "tracking_number", "tracking_url"],
+      "is_active": true,
+      "is_system": true
+    }
+  ]
+}

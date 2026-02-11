@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "domain": "example.com",
+      "name": "example.com"
+    },
+    {
+      "id": 2,
+      "domain": "api.bunoraa.com",
+      "name": "api.bunoraa.com"
+    },
+    {
+      "id": 3,
+      "domain": "bunoraa.com",
+      "name": "bunoraa.com"
+    },
+    {
+      "id": 4,
+      "domain": "www.bunoraa.com",
+      "name": "www.bunoraa.com"
+    }
+  ]
+}

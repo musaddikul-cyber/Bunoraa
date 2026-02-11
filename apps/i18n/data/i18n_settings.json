@@ -1,0 +1,18 @@
+﻿{
+  "default_language": "bn",
+  "fallback_language": "en",
+  "auto_detect_language": true,
+  "show_language_selector": true,
+  "default_currency": "BDT",
+  "auto_detect_currency": true,
+  "show_currency_selector": true,
+  "default_timezone": "Asia/Dhaka",
+  "auto_detect_timezone": true,
+  "show_timezone_selector": false,
+  "auto_update_exchange_rates": false,
+  "exchange_rate_provider": "manual",
+  "rounding_method": "nearest_cent",
+  "enable_machine_translation": false,
+  "enable_geo_detection": true,
+  "geo_ip_provider": "cloudflare"
+}

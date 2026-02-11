@@ -1,0 +1,7 @@
+﻿[
+  {"code": "BDT", "name": "Bangladeshi Taka", "symbol": "\u09f3", "native_symbol": "\u09f3", "decimal_places": 2, "symbol_position": "before", "number_system": "bengali", "is_base_currency": true, "is_default": true, "is_active": true, "sort_order": 0},
+  {"code": "USD", "name": "US Dollar", "symbol": "$", "native_symbol": "$", "decimal_places": 2, "symbol_position": "before", "number_system": "western", "is_base_currency": false, "is_default": false, "is_active": true, "sort_order": 1},
+  {"code": "EUR", "name": "Euro", "symbol": "\u20ac", "native_symbol": "\u20ac", "decimal_places": 2, "symbol_position": "before", "number_system": "western", "is_base_currency": false, "is_default": false, "is_active": true, "sort_order": 2},
+  {"code": "GBP", "name": "British Pound", "symbol": "\u00a3", "native_symbol": "\u00a3", "decimal_places": 2, "symbol_position": "before", "number_system": "western", "is_base_currency": false, "is_default": false, "is_active": true, "sort_order": 3},
+  {"code": "INR", "name": "Indian Rupee", "symbol": "\u20b9", "native_symbol": "\u20b9", "decimal_places": 2, "symbol_position": "before", "number_system": "indian", "is_base_currency": false, "is_default": false, "is_active": true, "sort_order": 4}
+]

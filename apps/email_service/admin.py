@@ -8,6 +8,7 @@ Django admin interface for managing the email service.
 from django.contrib import admin
 from django.utils.html import format_html
 
+from core.admin_mixins import EnhancedModelAdmin
 from .models import (
     APIKey, SenderDomain, SenderIdentity, EmailTemplate, TemplateVersion,
     EmailMessage, EmailAttachment, EmailEvent, Suppression,
@@ -16,7 +17,7 @@ from .models import (
 
 
 @admin.register(APIKey)
-class APIKeyAdmin(admin.ModelAdmin):
+class APIKeyAdmin(EnhancedModelAdmin):
     """Admin for API Keys."""
     
     list_display = [
@@ -49,7 +50,7 @@ class APIKeyAdmin(admin.ModelAdmin):
 
 
 @admin.register(SenderDomain)
-class SenderDomainAdmin(admin.ModelAdmin):
+class SenderDomainAdmin(EnhancedModelAdmin):
     """Admin for Sender Domains."""
     
     list_display = [
@@ -86,7 +87,7 @@ class SenderDomainAdmin(admin.ModelAdmin):
 
 
 @admin.register(SenderIdentity)
-class SenderIdentityAdmin(admin.ModelAdmin):
+class SenderIdentityAdmin(EnhancedModelAdmin):
     """Admin for Sender Identities."""
     
     list_display = [
@@ -98,7 +99,7 @@ class SenderIdentityAdmin(admin.ModelAdmin):
 
 
 @admin.register(EmailTemplate)
-class EmailTemplateAdmin(admin.ModelAdmin):
+class EmailTemplateAdmin(EnhancedModelAdmin):
     """Admin for Email Templates."""
     
     list_display = [
@@ -115,7 +116,7 @@ class EmailTemplateAdmin(admin.ModelAdmin):
 
 
 @admin.register(TemplateVersion)
-class TemplateVersionAdmin(admin.ModelAdmin):
+class TemplateVersionAdmin(EnhancedModelAdmin):
     """Admin for Template Versions."""
     
     list_display = ['template', 'version', 'subject', 'created_at']
@@ -142,7 +143,7 @@ class EmailEventInline(admin.TabularInline):
 
 
 @admin.register(EmailMessage)
-class EmailMessageAdmin(admin.ModelAdmin):
+class EmailMessageAdmin(EnhancedModelAdmin):
     """Admin for Email Messages."""
     
     list_display = [
@@ -222,7 +223,7 @@ class EmailMessageAdmin(admin.ModelAdmin):
 
 
 @admin.register(EmailEvent)
-class EmailEventAdmin(admin.ModelAdmin):
+class EmailEventAdmin(EnhancedModelAdmin):
     """Admin for Email Events."""
     
     list_display = [
@@ -265,7 +266,7 @@ class EmailEventAdmin(admin.ModelAdmin):
 
 
 @admin.register(Suppression)
-class SuppressionAdmin(admin.ModelAdmin):
+class SuppressionAdmin(EnhancedModelAdmin):
     """Admin for Suppressions."""
     
     list_display = ['email', 'suppression_type', 'reason_short', 'created_at']
@@ -279,7 +280,7 @@ class SuppressionAdmin(admin.ModelAdmin):
 
 
 @admin.register(UnsubscribeGroup)
-class UnsubscribeGroupAdmin(admin.ModelAdmin):
+class UnsubscribeGroupAdmin(EnhancedModelAdmin):
     """Admin for Unsubscribe Groups."""
     
     list_display = ['name', 'user', 'is_default', 'preference_count', 'created_at']
@@ -293,7 +294,7 @@ class UnsubscribeGroupAdmin(admin.ModelAdmin):
 
 
 @admin.register(UnsubscribePreference)
-class UnsubscribePreferenceAdmin(admin.ModelAdmin):
+class UnsubscribePreferenceAdmin(EnhancedModelAdmin):
     """Admin for Unsubscribe Preferences."""
     
     list_display = ['email', 'group', 'is_unsubscribed', 'created_at']
@@ -312,7 +313,7 @@ class WebhookLogInline(admin.TabularInline):
 
 
 @admin.register(Webhook)
-class WebhookAdmin(admin.ModelAdmin):
+class WebhookAdmin(EnhancedModelAdmin):
     """Admin for Webhooks."""
     
     list_display = [
@@ -334,7 +335,7 @@ class WebhookAdmin(admin.ModelAdmin):
 
 
 @admin.register(WebhookLog)
-class WebhookLogAdmin(admin.ModelAdmin):
+class WebhookLogAdmin(EnhancedModelAdmin):
     """Admin for Webhook Logs."""
     
     list_display = [
@@ -361,7 +362,7 @@ class WebhookLogAdmin(admin.ModelAdmin):
 
 
 @admin.register(DailyStats)
-class DailyStatsAdmin(admin.ModelAdmin):
+class DailyStatsAdmin(EnhancedModelAdmin):
     """Admin for Daily Statistics."""
     
     list_display = [

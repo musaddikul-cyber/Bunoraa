@@ -6,10 +6,11 @@ from django.db import models
 from django.forms import URLInput
 from django.utils.html import format_html
 from .models import Page, FAQ, ContactMessage, SiteSettings, Subscriber, SocialLink
+from core.admin_mixins import EnhancedModelAdmin
 
 
 @admin.register(Page)
-class PageAdmin(admin.ModelAdmin):
+class PageAdmin(EnhancedModelAdmin):
     list_display = ['title', 'slug', 'template', 'is_published', 'show_in_header', 'show_in_footer', 'menu_order']
     list_filter = ['is_published', 'template', 'show_in_header', 'show_in_footer']
     search_fields = ['title', 'content']
@@ -34,7 +35,7 @@ class PageAdmin(admin.ModelAdmin):
 
 
 @admin.register(FAQ)
-class FAQAdmin(admin.ModelAdmin):
+class FAQAdmin(EnhancedModelAdmin):
     list_display = ['question', 'category', 'sort_order', 'is_active']
     list_filter = ['category', 'is_active']
     search_fields = ['question', 'answer']
@@ -43,7 +44,7 @@ class FAQAdmin(admin.ModelAdmin):
 
 
 @admin.register(ContactMessage)
-class ContactMessageAdmin(admin.ModelAdmin):
+class ContactMessageAdmin(EnhancedModelAdmin):
     list_display = ['name', 'email', 'subject', 'status', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['name', 'email', 'subject', 'message']
@@ -63,7 +64,7 @@ class ContactMessageAdmin(admin.ModelAdmin):
 
 
 @admin.register(SiteSettings)
-class SiteSettingsAdmin(admin.ModelAdmin):
+class SiteSettingsAdmin(EnhancedModelAdmin):
     fieldsets = (
         ('Basic Info', {
             'fields': ('site_name', 'site_tagline', 'site_description')
@@ -121,7 +122,7 @@ class SocialLinkInline(admin.TabularInline):
 
 
 @admin.register(Subscriber)
-class SubscriberAdmin(admin.ModelAdmin):
+class SubscriberAdmin(EnhancedModelAdmin):
     list_display = ['email', 'name', 'is_active', 'is_verified', 'source', 'subscribed_at']
     list_filter = ['is_active', 'is_verified', 'source', 'subscribed_at']
     search_fields = ['email', 'name']

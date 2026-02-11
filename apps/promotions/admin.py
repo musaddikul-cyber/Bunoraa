@@ -3,10 +3,11 @@ Promotions admin configuration
 """
 from django.contrib import admin
 from .models import Coupon, CouponUsage, Banner, Sale
+from core.admin_mixins import EnhancedModelAdmin
 
 
 @admin.register(Coupon)
-class CouponAdmin(admin.ModelAdmin):
+class CouponAdmin(EnhancedModelAdmin):
     list_display = [
         'code', 'discount_type', 'discount_value', 'is_valid',
         'times_used', 'usage_limit', 'valid_from', 'valid_until', 'is_active'
@@ -44,7 +45,7 @@ class CouponAdmin(admin.ModelAdmin):
 
 
 @admin.register(CouponUsage)
-class CouponUsageAdmin(admin.ModelAdmin):
+class CouponUsageAdmin(EnhancedModelAdmin):
     list_display = ['coupon', 'user', 'order', 'discount_applied', 'created_at']
     list_filter = ['created_at']
     search_fields = ['coupon__code', 'user__email', 'order__order_number']
@@ -52,7 +53,7 @@ class CouponUsageAdmin(admin.ModelAdmin):
 
 
 @admin.register(Banner)
-class BannerAdmin(admin.ModelAdmin):
+class BannerAdmin(EnhancedModelAdmin):
     list_display = [
         'title', 'position', 'is_visible', 'sort_order',
         'start_date', 'end_date', 'is_active'
@@ -82,7 +83,7 @@ class BannerAdmin(admin.ModelAdmin):
 
 
 @admin.register(Sale)
-class SaleAdmin(admin.ModelAdmin):
+class SaleAdmin(EnhancedModelAdmin):
     list_display = [
         'name', 'slug', 'discount_type', 'discount_value',
         'is_running', 'start_date', 'end_date', 'is_active'

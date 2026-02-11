@@ -1,0 +1,14 @@
+﻿[
+  {"name": "Material", "slug": "material"},
+  {"name": "Color", "slug": "color"},
+  {"name": "Size", "slug": "size"},
+  {"name": "Style", "slug": "style"},
+  {"name": "Occasion", "slug": "occasion"},
+  {"name": "Gender", "slug": "gender"},
+  {"name": "Room", "slug": "room"},
+  {"name": "Theme", "slug": "theme"},
+  {"name": "Ingredient", "slug": "ingredient"},
+  {"name": "Scent", "slug": "scent"},
+  {"name": "Age Range", "slug": "age_range"},
+  {"name": "Season", "slug": "season"}
+]

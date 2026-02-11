@@ -1,0 +1,307 @@
+﻿{
+  "version": 1,
+  "categories": [
+    {
+      "code": "CAT_HOME",
+      "name": "Home & Living",
+      "slug": "home-living",
+      "facets": ["material", "color", "style", "room", "size"],
+      "children": [
+        {
+          "code": "CAT_HOME_DECOR",
+          "name": "Decor",
+          "slug": "decor",
+          "children": [
+            {"code": "CAT_HOME_DECOR_WALL", "name": "Wall Art", "slug": "wall-art"},
+            {"code": "CAT_HOME_DECOR_SCULPT", "name": "Sculptures", "slug": "sculptures"},
+            {"code": "CAT_HOME_DECOR_CANDLE", "name": "Candle Holders", "slug": "candle-holders"},
+            {"code": "CAT_HOME_DECOR_PLANT", "name": "Planters", "slug": "planters"},
+            {"code": "CAT_HOME_DECOR_LIGHT", "name": "Lighting", "slug": "lighting"}
+          ]
+        },
+        {
+          "code": "CAT_HOME_TEXTILES",
+          "name": "Textiles",
+          "slug": "textiles",
+          "children": [
+            {"code": "CAT_HOME_TEXT_RUGS", "name": "Rugs & Mats", "slug": "rugs-mats"},
+            {"code": "CAT_HOME_TEXT_CUSH", "name": "Cushion Covers", "slug": "cushion-covers"},
+            {"code": "CAT_HOME_TEXT_THROWS", "name": "Throws & Blankets", "slug": "throws-blankets"},
+            {"code": "CAT_HOME_TEXT_RUNNER", "name": "Table Runners", "slug": "table-runners"},
+            {"code": "CAT_HOME_TEXT_BED", "name": "Bedding", "slug": "bedding"},
+            {"code": "CAT_HOME_TEXT_CURTAIN", "name": "Curtains", "slug": "curtains"}
+          ]
+        },
+        {
+          "code": "CAT_HOME_KITCHEN",
+          "name": "Kitchen",
+          "slug": "kitchen",
+          "children": [
+            {"code": "CAT_HOME_KITCH_CERAMIC", "name": "Ceramics", "slug": "ceramics"},
+            {"code": "CAT_HOME_KITCH_WOOD", "name": "Wooden Ware", "slug": "wooden-ware"},
+            {"code": "CAT_HOME_KITCH_UTENSIL", "name": "Utensils", "slug": "utensils"},
+            {"code": "CAT_HOME_KITCH_TRAY", "name": "Serving Trays", "slug": "serving-trays"},
+            {"code": "CAT_HOME_KITCH_DRINK", "name": "Drinkware", "slug": "drinkware"}
+          ]
+        },
+        {
+          "code": "CAT_HOME_FURN",
+          "name": "Furniture",
+          "slug": "furniture",
+          "children": [
+            {"code": "CAT_HOME_FURN_STOOL", "name": "Stools & Benches", "slug": "stools-benches"},
+            {"code": "CAT_HOME_FURN_TABLE", "name": "Accent Tables", "slug": "accent-tables"},
+            {"code": "CAT_HOME_FURN_CHAIR", "name": "Wooden Chairs", "slug": "wooden-chairs"},
+            {"code": "CAT_HOME_FURN_STORE", "name": "Storage", "slug": "storage"}
+          ]
+        },
+        {
+          "code": "CAT_HOME_OUTDOOR",
+          "name": "Outdoor",
+          "slug": "outdoor",
+          "children": [
+            {"code": "CAT_HOME_OUT_PLANT", "name": "Planters & Pots", "slug": "planters-pots"}
+          ]
+        }
+      ]
+    },
+    {
+      "code": "CAT_APPAREL",
+      "name": "Fashion & Apparel",
+      "slug": "fashion-apparel",
+      "facets": ["material", "color", "size", "style", "occasion", "gender"],
+      "children": [
+        {
+          "code": "CAT_APP_WOMEN",
+          "name": "Women",
+          "slug": "women",
+          "children": [
+            {"code": "CAT_APP_W_DRESS", "name": "Dresses", "slug": "dresses"},
+            {"code": "CAT_APP_W_TUNIC", "name": "Tunics & Tops", "slug": "tunics-tops"},
+            {"code": "CAT_APP_W_SAREE", "name": "Sarees", "slug": "sarees"},
+            {"code": "CAT_APP_W_SHAWL", "name": "Shawls", "slug": "shawls"}
+          ]
+        },
+        {
+          "code": "CAT_APP_MEN",
+          "name": "Men",
+          "slug": "men",
+          "children": [
+            {"code": "CAT_APP_M_KURTA", "name": "Kurtas", "slug": "kurtas"},
+            {"code": "CAT_APP_M_SHIRT", "name": "Shirts", "slug": "shirts"}
+          ]
+        },
+        {"code": "CAT_APP_KIDS", "name": "Kids", "slug": "kids"},
+        {
+          "code": "CAT_APP_BAG",
+          "name": "Bags",
+          "slug": "bags",
+          "children": [
+            {"code": "CAT_APP_BAG_TOTE", "name": "Totes", "slug": "totes"},
+            {"code": "CAT_APP_BAG_CLUTCH", "name": "Clutches", "slug": "clutches"},
+            {"code": "CAT_APP_BAG_BACK", "name": "Backpacks", "slug": "backpacks"},
+            {"code": "CAT_APP_BAG_LEATHER", "name": "Leather Bags", "slug": "leather-bags"}
+          ]
+        },
+        {
+          "code": "CAT_APP_FOOT",
+          "name": "Footwear",
+          "slug": "footwear",
+          "children": [
+            {"code": "CAT_APP_FOOT_SANDAL", "name": "Sandals", "slug": "sandals"},
+            {"code": "CAT_APP_FOOT_SLIP", "name": "Slippers", "slug": "slippers"}
+          ]
+        },
+        {
+          "code": "CAT_APP_ACC",
+          "name": "Accessories",
+          "slug": "accessories",
+          "children": [
+            {"code": "CAT_APP_ACC_BELT", "name": "Belts", "slug": "belts"},
+            {"code": "CAT_APP_ACC_HAIR", "name": "Hair Accessories", "slug": "hair-accessories"},
+            {"code": "CAT_APP_ACC_SCARF", "name": "Scarves", "slug": "scarves"}
+          ]
+        }
+      ]
+    },
+    {
+      "code": "CAT_JEWELRY",
+      "name": "Jewelry",
+      "slug": "jewelry",
+      "facets": ["material", "color", "style", "occasion", "gemstone"],
+      "children": [
+        {
+          "code": "CAT_JEW_NECK",
+          "name": "Necklaces",
+          "slug": "necklaces",
+          "children": [
+            {"code": "CAT_JEW_NECK_BEAD", "name": "Beaded", "slug": "beaded"},
+            {"code": "CAT_JEW_NECK_SILVER", "name": "Silver", "slug": "silver"},
+            {"code": "CAT_JEW_NECK_MIN", "name": "Minimalist", "slug": "minimalist"},
+            {"code": "CAT_JEW_NECK_TRIBAL", "name": "Tribal", "slug": "tribal"}
+          ]
+        },
+        {
+          "code": "CAT_JEW_EAR",
+          "name": "Earrings",
+          "slug": "earrings",
+          "children": [
+            {"code": "CAT_JEW_EAR_STUD", "name": "Studs", "slug": "studs"},
+            {"code": "CAT_JEW_EAR_DANGLE", "name": "Danglers", "slug": "danglers"},
+            {"code": "CAT_JEW_EAR_HOOP", "name": "Hoops", "slug": "hoops"}
+          ]
+        },
+        {"code": "CAT_JEW_BRACE", "name": "Bracelets", "slug": "bracelets"},
+        {"code": "CAT_JEW_RING", "name": "Rings", "slug": "rings"},
+        {"code": "CAT_JEW_ANKLET", "name": "Anklets", "slug": "anklets"},
+        {"code": "CAT_JEW_BODY", "name": "Body Jewelry", "slug": "body-jewelry"},
+        {"code": "CAT_JEW_SET", "name": "Sets", "slug": "sets"},
+        {"code": "CAT_JEW_MEMORIAL", "name": "Memorial", "slug": "memorial"}
+      ]
+    },
+    {
+      "code": "CAT_ART",
+      "name": "Art & Collectibles",
+      "slug": "art-collectibles",
+      "facets": ["medium", "style", "subject", "size", "frame_type"],
+      "children": [
+        {
+          "code": "CAT_ART_PAINT",
+          "name": "Paintings",
+          "slug": "paintings",
+          "children": [
+            {"code": "CAT_ART_PAINT_ACR", "name": "Acrylic", "slug": "acrylic"},
+            {"code": "CAT_ART_PAINT_WATER", "name": "Watercolor", "slug": "watercolor"},
+            {"code": "CAT_ART_PAINT_MIXED", "name": "Mixed Media", "slug": "mixed-media"},
+            {"code": "CAT_ART_PAINT_FOLK", "name": "Folk Art", "slug": "folk-art"},
+            {"code": "CAT_ART_PAINT_MINI", "name": "Miniature", "slug": "miniature"}
+          ]
+        },
+        {"code": "CAT_ART_PRINT", "name": "Prints", "slug": "prints"},
+        {"code": "CAT_ART_SCULPT", "name": "Sculptures", "slug": "sculptures"},
+        {"code": "CAT_ART_CRAFT", "name": "Crafts", "slug": "crafts"},
+        {"code": "CAT_ART_LTD", "name": "Limited Editions", "slug": "limited-editions"},
+        {"code": "CAT_ART_DOLL", "name": "Dolls", "slug": "dolls"},
+        {"code": "CAT_ART_FIBER", "name": "Fiber Art", "slug": "fiber-art"},
+        {"code": "CAT_ART_GLASS", "name": "Glass Art", "slug": "glass-art"}
+      ]
+    },
+    {
+      "code": "CAT_GIFTS",
+      "name": "Gifts & Occasions",
+      "slug": "gifts-occasions",
+      "facets": ["occasion", "recipient", "price_range", "style"],
+      "children": [
+        {
+          "code": "CAT_GIFT_SET",
+          "name": "Gift Sets",
+          "slug": "gift-sets",
+          "children": [
+            {"code": "CAT_GIFT_SET_HOME", "name": "Home Boxes", "slug": "home-boxes"},
+            {"code": "CAT_GIFT_SET_JEW", "name": "Jewelry Packs", "slug": "jewelry-packs"},
+            {"code": "CAT_GIFT_SET_CARE", "name": "Care Kits", "slug": "care-kits"}
+          ]
+        },
+        {
+          "code": "CAT_GIFT_OCC",
+          "name": "By Occasion",
+          "slug": "by-occasion",
+          "children": [
+            {"code": "CAT_GIFT_OCC_BIRTH", "name": "Birthday", "slug": "birthday"},
+            {"code": "CAT_GIFT_OCC_WED", "name": "Wedding", "slug": "wedding"},
+            {"code": "CAT_GIFT_OCC_ANNIV", "name": "Anniversary", "slug": "anniversary"},
+            {"code": "CAT_GIFT_OCC_HOUSE", "name": "Housewarming", "slug": "housewarming"},
+            {"code": "CAT_GIFT_OCC_BABY", "name": "Baby Shower", "slug": "baby-shower"},
+            {"code": "CAT_GIFT_OCC_CORP", "name": "Corporate", "slug": "corporate"}
+          ]
+        },
+        {
+          "code": "CAT_GIFT_DISC",
+          "name": "Discover",
+          "slug": "discover",
+          "children": [
+            {"code": "CAT_GIFT_DISC_HIM", "name": "For Him", "slug": "for-him"},
+            {"code": "CAT_GIFT_DISC_HER", "name": "For Her", "slug": "for-her"},
+            {"code": "CAT_GIFT_DISC_FRIEND", "name": "For Friends", "slug": "for-friends"},
+            {"code": "CAT_GIFT_DISC_COUPLE", "name": "For Couples", "slug": "for-couples"},
+            {"code": "CAT_GIFT_DISC_KIDS", "name": "For Kids", "slug": "for-kids"},
+            {"code": "CAT_GIFT_DISC_PETS", "name": "For Pets", "slug": "for-pets"}
+          ]
+        },
+        {"code": "CAT_GIFT_PERSON", "name": "Personalized", "slug": "personalized"}
+      ]
+    },
+    {
+      "code": "CAT_WELLNESS",
+      "name": "Personal Care & Wellness",
+      "slug": "personal-care-wellness",
+      "facets": ["ingredient", "skin_type", "scent", "organic"],
+      "children": [
+        {"code": "CAT_WELL_SOAP", "name": "Soaps", "slug": "soaps"},
+        {"code": "CAT_WELL_SKIN", "name": "Skincare", "slug": "skincare"},
+        {"code": "CAT_WELL_BATH", "name": "Bath & Body", "slug": "bath-body"},
+        {"code": "CAT_WELL_AROMA", "name": "Aromatherapy", "slug": "aromatherapy"},
+        {"code": "CAT_WELL_HERBAL", "name": "Herbal Products", "slug": "herbal-products"},
+        {"code": "CAT_WELL_HAIR", "name": "Hair Care", "slug": "hair-care"},
+        {"code": "CAT_WELL_MAKEUP", "name": "Makeup", "slug": "makeup"},
+        {"code": "CAT_WELL_FRAG", "name": "Fragrances", "slug": "fragrances"}
+      ]
+    },
+    {
+      "code": "CAT_KIDS",
+      "name": "Kids & Baby",
+      "slug": "kids-baby",
+      "facets": ["age_range", "material", "educational", "gender"],
+      "children": [
+        {
+          "code": "CAT_KIDS_TOY",
+          "name": "Toys",
+          "slug": "toys",
+          "children": [
+            {"code": "CAT_KIDS_TOY_WOOD", "name": "Wooden", "slug": "wooden"},
+            {"code": "CAT_KIDS_TOY_SOFT", "name": "Soft", "slug": "soft"}
+          ]
+        },
+        {"code": "CAT_KIDS_APPAREL", "name": "Apparel", "slug": "apparel"},
+        {"code": "CAT_KIDS_NURSERY", "name": "Nursery Decor", "slug": "nursery-decor"},
+        {"code": "CAT_KIDS_ACC", "name": "Accessories", "slug": "accessories"},
+        {"code": "CAT_KIDS_CARE", "name": "Baby Care", "slug": "baby-care"}
+      ]
+    },
+    {
+      "code": "CAT_SEASONAL",
+      "name": "Seasonal & Featured",
+      "slug": "seasonal-featured",
+      "facets": ["season", "occasion", "style"],
+      "children": [
+        {
+          "code": "CAT_SEASON_FEST",
+          "name": "Festives",
+          "slug": "festives",
+          "children": [
+            {"code": "CAT_SEASON_FEST_EID", "name": "Eid", "slug": "eid"},
+            {"code": "CAT_SEASON_FEST_PUJA", "name": "Puja", "slug": "puja"},
+            {"code": "CAT_SEASON_FEST_WED", "name": "Wedding", "slug": "wedding"},
+            {"code": "CAT_SEASON_FEST_HOL", "name": "Holiday", "slug": "holiday"}
+          ]
+        },
+        {"code": "CAT_SEASON_HOME", "name": "Home Picks", "slug": "home-picks"},
+        {"code": "CAT_SEASON_LTD", "name": "Limited", "slug": "limited"},
+        {"code": "CAT_SEASON_ARTIST", "name": "Artists", "slug": "artists"},
+        {"code": "CAT_SEASON_ESS", "name": "Essentials", "slug": "essentials"}
+      ]
+    },
+    {
+      "code": "CAT_CUSTOM",
+      "name": "Custom & Made-to-Order",
+      "slug": "custom-made-to-order",
+      "facets": ["customization_type", "lead_time", "material"],
+      "children": [
+        {"code": "CAT_CUSTOM_JEW", "name": "Jewelry", "slug": "jewelry"},
+        {"code": "CAT_CUSTOM_DECOR", "name": "Decor", "slug": "decor"},
+        {"code": "CAT_CUSTOM_APP", "name": "Apparel", "slug": "apparel"},
+        {"code": "CAT_CUSTOM_GIFT", "name": "Gifts", "slug": "gifts"}
+      ]
+    }
+  ]
+}

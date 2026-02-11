@@ -3,6 +3,7 @@ Reviews admin configuration
 """
 from django.contrib import admin
 from .models import Review, ReviewImage, ReviewVote, ReviewReply
+from core.admin_mixins import EnhancedModelAdmin
 
 
 class ReviewImageInline(admin.TabularInline):
@@ -18,7 +19,7 @@ class ReviewReplyInline(admin.StackedInline):
 
 
 @admin.register(Review)
-class ReviewAdmin(admin.ModelAdmin):
+class ReviewAdmin(EnhancedModelAdmin):
     list_display = [
         'product', 'user', 'rating', 'status',
         'is_verified_purchase', 'helpful_count', 'created_at'
@@ -69,14 +70,14 @@ class ReviewAdmin(admin.ModelAdmin):
 
 
 @admin.register(ReviewImage)
-class ReviewImageAdmin(admin.ModelAdmin):
+class ReviewImageAdmin(EnhancedModelAdmin):
     list_display = ['review', 'image', 'caption', 'sort_order']
     list_filter = ['created_at']
     search_fields = ['review__product__name', 'caption']
 
 
 @admin.register(ReviewVote)
-class ReviewVoteAdmin(admin.ModelAdmin):
+class ReviewVoteAdmin(EnhancedModelAdmin):
     list_display = ['review', 'user', 'is_helpful', 'created_at']
     list_filter = ['is_helpful', 'created_at']
     search_fields = ['review__product__name', 'user__email']
@@ -84,7 +85,7 @@ class ReviewVoteAdmin(admin.ModelAdmin):
 
 
 @admin.register(ReviewReply)
-class ReviewReplyAdmin(admin.ModelAdmin):
+class ReviewReplyAdmin(EnhancedModelAdmin):
     list_display = ['review', 'replied_by', 'created_at']
     list_filter = ['created_at']
     search_fields = ['review__product__name', 'content']

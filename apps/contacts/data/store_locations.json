@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "name": "Bunoraa HQ",
+      "slug": "bunoraa-hq",
+      "address_line1": "House 123, Road 12",
+      "address_line2": "Gulshan-1",
+      "city": "Dhaka",
+      "state": "Dhaka Division",
+      "postal_code": "1212",
+      "country": "BD",
+      "phone": "+8801700000000",
+      "email": "support@bunoraa.com",
+      "monday_hours": "09:00-18:00",
+      "tuesday_hours": "09:00-18:00",
+      "wednesday_hours": "09:00-18:00",
+      "thursday_hours": "09:00-18:00",
+      "friday_hours": "09:00-18:00",
+      "saturday_hours": "10:00-16:00",
+      "sunday_hours": "Closed",
+      "is_pickup_location": true,
+      "is_returns_location": true,
+      "pickup_fee": "0.00",
+      "min_pickup_time_hours": 2,
+      "max_hold_days": 7,
+      "description": "Main showroom and pickup point.",
+      "order": 1,
+      "is_active": true,
+      "is_main": true
+    }
+  ]
+}

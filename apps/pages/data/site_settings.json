@@ -1,0 +1,16 @@
+{
+  "settings": {
+    "site_name": "Bunoraa",
+    "site_tagline": "Handcrafted artisan marketplace",
+    "site_description": "Discover handcrafted goods from local artisans.",
+    "contact_email": "support@bunoraa.com",
+    "contact_phone": "+8801700000000",
+    "contact_address": "Dhaka, Bangladesh",
+    "currency": "BDT",
+    "tax_rate": "10.00",
+    "default_meta_title": "Bunoraa",
+    "default_meta_description": "Handcrafted artisan marketplace in Bangladesh.",
+    "footer_text": "Handcrafted with care.",
+    "copyright_text": "© 2026 Bunoraa. All rights reserved."
+  }
+}

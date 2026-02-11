@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildItemList } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -24,6 +26,15 @@ async function getCategories() {
 
 export default async function CategoriesPage() {
   const categories = await getCategories();
+  const list = buildItemList(
+    categories.map((category) => ({
+      name: category.name,
+      url: `/categories/${category.path || category.slug}/`,
+      image: category.image || undefined,
+      description: undefined,
+    })),
+    "Categories"
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -67,6 +78,7 @@ export default async function CategoriesPage() {
           ))}
         </div>
       </div>
+      {categories.length ? <JsonLd data={list} /> : null}
     </div>
   );
 }

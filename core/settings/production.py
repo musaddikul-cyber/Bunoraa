@@ -8,6 +8,11 @@ from urllib.parse import urlparse
 import dj_database_url
 from .base import *
 
+# Sites framework defaults for production (override base if needed)
+SITE_ID = int(os.environ.get('SITE_ID', '2'))
+SITE_NAME = os.environ.get('SITE_NAME', 'Bunoraa')
+SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'api.bunoraa.com')
+
 # =============================================================================
 # PRODUCTION CONFIGURATION
 # =============================================================================

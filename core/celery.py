@@ -282,6 +282,12 @@ app.conf.beat_schedule = {
         'task': 'apps.notifications.tasks.process_daily_digest',
         'schedule': crontab(hour=9, minute=0),
     },
+
+    # Send hourly digest at the top of every hour
+    'send-hourly-digest': {
+        'task': 'apps.notifications.tasks.process_hourly_digest',
+        'schedule': crontab(minute=0),
+    },
     
     # Send weekly digest on Monday at 9 AM
     'send-weekly-digest': {

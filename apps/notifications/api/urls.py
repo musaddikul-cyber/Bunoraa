@@ -14,11 +14,21 @@ URL structure:
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import NotificationViewSet, NotificationPreferenceViewSet, PushTokenViewSet
+from .views import (
+    NotificationViewSet,
+    NotificationPreferenceViewSet,
+    PushTokenViewSet,
+    NotificationDeliveryViewSet,
+    NotificationTemplateViewSet,
+    NotificationUnsubscribeView,
+    NotificationHealthView,
+)
 
 router = DefaultRouter()
 # Register at root path to avoid double 'notifications/notifications/' URL
 router.register(r'', NotificationViewSet, basename='notifications')
+router.register(r'deliveries', NotificationDeliveryViewSet, basename='notification-deliveries')
+router.register(r'templates', NotificationTemplateViewSet, basename='notification-templates')
 
 urlpatterns = [
     # Preferences endpoint (before router to avoid conflicts)
@@ -27,6 +37,8 @@ urlpatterns = [
         'put': 'update',
         'patch': 'update'
     }), name='notification-preferences'),
+    path('unsubscribe/', NotificationUnsubscribeView.as_view(), name='notification-unsubscribe'),
+    path('health/', NotificationHealthView.as_view(), name='notification-health'),
     path('push-tokens/', PushTokenViewSet.as_view({
         'post': 'create'
     }), name='push-token-create'),

@@ -7,7 +7,13 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 export default function NotificationsPage() {
-  const { notificationsQuery, markAllRead, markRead } = useNotifications();
+  const [showUnread, setShowUnread] = React.useState(false);
+  const [category, setCategory] = React.useState("all");
+
+  const { notificationsQuery, markAllRead, markRead } = useNotifications({
+    unread: showUnread || undefined,
+    category: category !== "all" ? category : undefined,
+  });
   const [selected, setSelected] = React.useState<string[]>([]);
 
   const notifications = notificationsQuery.data || [];
@@ -46,6 +52,29 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
+        <Button
+          variant={showUnread ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => setShowUnread((prev) => !prev)}
+        >
+          {showUnread ? "Unread only" : "All"}
+        </Button>
+        <label className="flex items-center gap-2">
+          <span className="text-foreground/70">Category</span>
+          <select
+            className="rounded-lg border border-border bg-card px-3 py-1 text-sm"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+          >
+            <option value="all">All</option>
+            <option value="transactional">Transactional</option>
+            <option value="marketing">Marketing</option>
+            <option value="system">System</option>
+          </select>
+        </label>
+      </div>
+
       {notificationsQuery.isLoading ? (
         <Card variant="bordered" className="p-6 text-sm text-foreground/70">
           Loading notifications...
@@ -65,9 +94,16 @@ export default function NotificationsPage() {
               }`}
             >
               <div>
-                <h2 className="text-base font-semibold">
-                  {note.title || "Notification"}
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold">
+                    {note.title || "Notification"}
+                  </h2>
+                  {note.category ? (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs uppercase text-foreground/70">
+                      {note.category}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="text-sm text-foreground/70">{note.message}</p>
               </div>
               <input

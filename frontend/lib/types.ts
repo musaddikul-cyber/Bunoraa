@@ -443,14 +443,24 @@ export type OrderDetail = {
 
 export type NotificationItem = {
   id: string;
+  type?: string | null;
+  category?: string | null;
+  priority?: string | null;
+  status?: string | null;
+  delivery_status?: string | null;
   title?: string | null;
   message?: string | null;
+  url?: string | null;
   is_read?: boolean;
+  read_at?: string | null;
   created_at?: string | null;
-  data?: Record<string, unknown> | null;
+  channels_requested?: string[] | null;
+  channels_sent?: string[] | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type NotificationPreference = {
+  email_enabled?: boolean;
   email_order_updates?: boolean;
   email_shipping_updates?: boolean;
   email_promotions?: boolean;
@@ -465,6 +475,13 @@ export type NotificationPreference = {
   push_enabled?: boolean;
   push_order_updates?: boolean;
   push_promotions?: boolean;
+  digest_frequency?: string;
+  quiet_hours_start?: string | null;
+  quiet_hours_end?: string | null;
+  timezone?: string | null;
+  marketing_opt_in?: boolean;
+  transactional_opt_in?: boolean;
+  per_type_overrides?: Record<string, unknown> | null;
 };
 
 export type UserPreferences = {

@@ -6,6 +6,7 @@ import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.core.cache import cache
+from django.conf import settings
 from django.db import models
 
 logger = logging.getLogger('bunoraa.websocket')
@@ -46,7 +47,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             
             logger.info(f"WebSocket connected: user {self.user.id}")
         else:
-            # Allow anonymous connections for broadcasts
+            # Allow anonymous connections for broadcasts only
             await self.channel_layer.group_add(
                 'broadcast',
                 self.channel_name
@@ -74,6 +75,25 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
             message_type = data.get('type')
+
+            if await self._is_rate_limited():
+                await self.send(json.dumps({
+                    'type': 'error',
+                    'message': 'Rate limit exceeded. Please slow down.',
+                }))
+                await self.close()
+                return
+
+            allowed_types = {'mark_read', 'mark_all_read', 'ping'}
+
+            if message_type not in allowed_types:
+                return
+
+            if not (self.user and self.user.is_authenticated):
+                # Only allow ping for anonymous connections
+                if message_type == 'ping':
+                    await self.send(json.dumps({'type': 'pong'}))
+                return
             
             if message_type == 'mark_read':
                 notification_id = data.get('notification_id')
@@ -157,6 +177,30 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             user=self.user,
             is_read=False
         ).update(is_read=True)
+
+    async def _is_rate_limited(self):
+        """Simple per-user/IP rate limit for inbound WS messages."""
+        limit = getattr(settings, 'NOTIFICATION_WS_RATE_LIMIT_COUNT', 20)
+        window = getattr(settings, 'NOTIFICATION_WS_RATE_LIMIT_WINDOW', 10)
+        identifier = None
+        if self.user and self.user.is_authenticated:
+            identifier = f"user:{self.user.id}"
+        else:
+            client = self.scope.get('client') or ['anon']
+            identifier = f"ip:{client[0]}"
+        key = f"ws_notify:{identifier}"
+
+        current = cache.get(key)
+        if current is None:
+            cache.set(key, 1, window)
+            return False
+        if current >= limit:
+            return True
+        try:
+            cache.incr(key)
+        except Exception:
+            cache.set(key, current + 1, window)
+        return False
 
 
 class LiveCartConsumer(AsyncWebsocketConsumer):

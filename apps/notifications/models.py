@@ -38,6 +38,41 @@ class NotificationChannel(models.TextChoices):
     IN_APP = 'in_app', 'In-App Notification'
 
 
+class NotificationCategory(models.TextChoices):
+    """High-level notification categories."""
+    MARKETING = 'marketing', 'Marketing'
+    TRANSACTIONAL = 'transactional', 'Transactional'
+    SYSTEM = 'system', 'System'
+
+
+class NotificationPriority(models.TextChoices):
+    """Notification priority levels."""
+    LOW = 'low', 'Low'
+    NORMAL = 'normal', 'Normal'
+    HIGH = 'high', 'High'
+    URGENT = 'urgent', 'Urgent'
+
+
+class NotificationStatus(models.TextChoices):
+    """Overall notification delivery status."""
+    PENDING = 'pending', 'Pending'
+    PROCESSING = 'processing', 'Processing'
+    SENT = 'sent', 'Sent'
+    PARTIAL = 'partial', 'Partial'
+    FAILED = 'failed', 'Failed'
+    SKIPPED = 'skipped', 'Skipped'
+
+
+class DeliveryStatus(models.TextChoices):
+    """Per-channel delivery status."""
+    PENDING = 'pending', 'Pending'
+    QUEUED = 'queued', 'Queued'
+    BATCHED = 'batched', 'Batched'
+    SENT = 'sent', 'Sent'
+    FAILED = 'failed', 'Failed'
+    SKIPPED = 'skipped', 'Skipped'
+
+
 class Notification(models.Model):
     """User notification model."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -64,13 +99,34 @@ class Notification(models.Model):
     read_at = models.DateTimeField(null=True, blank=True)
     
     # Delivery tracking
+    channels_requested = models.JSONField(default=list, help_text='Channels requested for delivery')
     channels_sent = models.JSONField(default=list, help_text='Channels notification was sent to')
+    
+    # Classification
+    category = models.CharField(
+        max_length=20,
+        choices=NotificationCategory.choices,
+        default=NotificationCategory.TRANSACTIONAL
+    )
+    priority = models.CharField(
+        max_length=10,
+        choices=NotificationPriority.choices,
+        default=NotificationPriority.NORMAL
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=NotificationStatus.choices,
+        default=NotificationStatus.PENDING
+    )
+    dedupe_key = models.CharField(max_length=100, blank=True, null=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
     
     # Metadata
     metadata = models.JSONField(default=dict, blank=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         ordering = ['-created_at']
@@ -78,6 +134,8 @@ class Notification(models.Model):
             models.Index(fields=['user', '-created_at']),
             models.Index(fields=['user', 'is_read']),
             models.Index(fields=['type']),
+            models.Index(fields=['dedupe_key']),
+            models.Index(fields=['category']),
         ]
     
     def __str__(self):
@@ -91,6 +149,30 @@ class Notification(models.Model):
             self.read_at = timezone.now()
             self.save(update_fields=['is_read', 'read_at'])
 
+    def update_status_from_deliveries(self):
+        """Update overall status based on delivery records."""
+        try:
+            deliveries = self.deliveries.all()
+        except Exception:
+            return
+
+        if not deliveries.exists():
+            return
+
+        statuses = set(deliveries.values_list('status', flat=True))
+        if statuses.issubset({DeliveryStatus.SENT}):
+            self.status = NotificationStatus.SENT
+        elif DeliveryStatus.FAILED in statuses and DeliveryStatus.SENT in statuses:
+            self.status = NotificationStatus.PARTIAL
+        elif statuses.issubset({DeliveryStatus.FAILED, DeliveryStatus.SKIPPED}):
+            self.status = NotificationStatus.FAILED
+        elif DeliveryStatus.PENDING in statuses or DeliveryStatus.QUEUED in statuses or DeliveryStatus.BATCHED in statuses:
+            self.status = NotificationStatus.PROCESSING
+        else:
+            self.status = NotificationStatus.PENDING
+
+        self.save(update_fields=['status', 'updated_at'])
+
 
 class NotificationPreference(models.Model):
     """User notification preferences."""
@@ -102,6 +184,7 @@ class NotificationPreference(models.Model):
     )
     
     # Email preferences
+    email_enabled = models.BooleanField(default=True)
     email_order_updates = models.BooleanField(default=True)
     email_shipping_updates = models.BooleanField(default=True)
     email_promotions = models.BooleanField(default=True)
@@ -121,6 +204,31 @@ class NotificationPreference(models.Model):
     push_order_updates = models.BooleanField(default=True)
     push_promotions = models.BooleanField(default=True)
     
+    # Digest & quiet hours
+    DIGEST_IMMEDIATE = 'immediate'
+    DIGEST_HOURLY = 'hourly'
+    DIGEST_DAILY = 'daily'
+    DIGEST_WEEKLY = 'weekly'
+    DIGEST_NEVER = 'never'
+    DIGEST_CHOICES = [
+        (DIGEST_IMMEDIATE, 'Immediate'),
+        (DIGEST_HOURLY, 'Hourly'),
+        (DIGEST_DAILY, 'Daily'),
+        (DIGEST_WEEKLY, 'Weekly'),
+        (DIGEST_NEVER, 'Never'),
+    ]
+    digest_frequency = models.CharField(
+        max_length=20,
+        choices=DIGEST_CHOICES,
+        default=DIGEST_IMMEDIATE
+    )
+    quiet_hours_start = models.TimeField(null=True, blank=True)
+    quiet_hours_end = models.TimeField(null=True, blank=True)
+    timezone = models.CharField(max_length=50, default='Asia/Dhaka')
+    marketing_opt_in = models.BooleanField(default=True)
+    transactional_opt_in = models.BooleanField(default=True)
+    per_type_overrides = models.JSONField(default=dict, blank=True)
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -130,6 +238,67 @@ class NotificationPreference(models.Model):
     
     def __str__(self):
         return f"{self.user.email} - Notification Preferences"
+
+
+class NotificationTemplate(models.Model):
+    """Unified templates for email, SMS, push, and in-app notifications."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    notification_type = models.CharField(max_length=50, choices=NotificationType.choices)
+    channel = models.CharField(max_length=20, choices=NotificationChannel.choices)
+    language = models.CharField(max_length=10, default='en')
+    
+    subject = models.CharField(max_length=200, blank=True)
+    body = models.TextField(blank=True, help_text='Body for SMS/push/in-app')
+    html_template = models.TextField(blank=True, help_text='HTML template for email')
+    text_template = models.TextField(blank=True, help_text='Plain text template for email')
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['name']
+        indexes = [
+            models.Index(fields=['notification_type', 'channel', 'language']),
+        ]
+        unique_together = ('notification_type', 'channel', 'language')
+    
+    def __str__(self):
+        return f"{self.notification_type} ({self.channel}) [{self.language}]"
+
+
+class NotificationDelivery(models.Model):
+    """Delivery status per channel."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    notification = models.ForeignKey(
+        Notification,
+        on_delete=models.CASCADE,
+        related_name='deliveries'
+    )
+    channel = models.CharField(max_length=20, choices=NotificationChannel.choices)
+    provider = models.CharField(max_length=50, blank=True, null=True)
+    external_id = models.CharField(max_length=255, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=DeliveryStatus.choices, default=DeliveryStatus.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.TextField(blank=True, null=True)
+    scheduled_for = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    opened_at = models.DateTimeField(null=True, blank=True)
+    clicked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['channel', 'status']),
+            models.Index(fields=['notification', 'channel']),
+        ]
+    
+    def __str__(self):
+        return f"{self.notification_id} - {self.channel} ({self.status})"
 
 
 class EmailTemplate(models.Model):
@@ -174,6 +343,20 @@ class EmailLog(models.Model):
         choices=NotificationType.choices
     )
     subject = models.CharField(max_length=200)
+    notification = models.ForeignKey(
+        Notification,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='email_logs'
+    )
+    delivery = models.ForeignKey(
+        'NotificationDelivery',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='email_logs'
+    )
     
     # Status
     STATUS_PENDING = 'pending'
@@ -288,8 +471,15 @@ class PushToken(models.Model):
         related_name='push_tokens'
     )
     token = models.CharField(max_length=500, unique=True)
-    device_type = models.CharField(max_length=20)  # ios, android, web
+    device_type = models.CharField(max_length=20)  # ios, android, web, fcm_web
     device_name = models.CharField(max_length=100, blank=True, null=True)
+    platform = models.CharField(max_length=50, blank=True, null=True)
+    app_version = models.CharField(max_length=50, blank=True, null=True)
+    locale = models.CharField(max_length=10, blank=True, null=True)
+    timezone = models.CharField(max_length=50, blank=True, null=True)
+    browser = models.CharField(max_length=100, blank=True, null=True)
+    user_agent = models.CharField(max_length=500, blank=True, null=True)
+    last_ip = models.GenericIPAddressField(null=True, blank=True)
     
     is_active = models.BooleanField(default=True)
     

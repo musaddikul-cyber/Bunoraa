@@ -51,6 +51,8 @@ class APIResponseMiddleware:
             }
             
             response.content = json.dumps(wrapped_data).encode('utf-8')
+            # Ensure content-length matches modified body
+            response['Content-Length'] = str(len(response.content))
         except (json.JSONDecodeError, UnicodeDecodeError):
             pass
         

@@ -18,8 +18,7 @@ from .sitemaps import (
     ArtisanSitemap,
     PageSitemap,
 )
-from .views import HomeView, health_check
-from .views_health import health_check_detailed, readiness_check, liveness_check
+from .views import HomeView, health_check, health_check_detailed, readiness_check, liveness_check
 
 sitemaps = {
     'static': StaticViewSitemap,

@@ -3,6 +3,8 @@ import { apiFetch } from "@/lib/api";
 import type { Bundle } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildItemList } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -15,6 +17,15 @@ async function getBundles() {
 
 export default async function BundlesPage() {
   const bundles = await getBundles();
+  const list = buildItemList(
+    bundles.map((bundle) => ({
+      name: bundle.name,
+      url: `/bundles/${bundle.slug}/`,
+      image: bundle.image || undefined,
+      description: bundle.description || undefined,
+    })),
+    "Bundles"
+  );
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12">
@@ -47,6 +58,7 @@ export default async function BundlesPage() {
           </Card>
         ))}
       </div>
+      {bundles.length ? <JsonLd data={list} /> : null}
     </div>
   );
 }

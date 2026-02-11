@@ -6,6 +6,16 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
 export default function ContactPage() {
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://bunoraa.com").replace(
+    /\/$/,
+    ""
+  );
+  const contactSchema = {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    name: "Contact Bunoraa",
+    url: `${siteUrl}/contact/`,
+  };
   const [form, setForm] = React.useState({
     name: "",
     email: "",
@@ -96,6 +106,10 @@ export default function ContactPage() {
           </form>
         </Card>
       </div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(contactSchema) }}
+      />
     </div>
   );
 }

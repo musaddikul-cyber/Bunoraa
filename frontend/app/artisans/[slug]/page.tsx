@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { WishlistIconButton } from "@/components/wishlist/WishlistIconButton";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { absoluteUrl, buildBreadcrumbList, buildItemList, cleanObject } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -40,6 +42,31 @@ export default async function ArtisanDetailPage({
     tryGetArtisan(slug),
     tryGetArtisanProducts(slug),
   ]);
+  const artisanUrl = `/artisans/${slug}/`;
+  const breadcrumbs = buildBreadcrumbList([
+    { name: "Home", url: "/" },
+    { name: "Artisans", url: "/artisans/" },
+    { name: artisan?.name || "Artisan", url: artisanUrl },
+  ]);
+  const personSchema = artisan
+    ? cleanObject({
+        "@context": "https://schema.org",
+        "@type": "Person",
+        name: artisan.name,
+        description: artisan.bio || undefined,
+        image: artisan.avatar ? absoluteUrl(artisan.avatar) : undefined,
+        url: absoluteUrl(artisanUrl),
+      })
+    : null;
+  const productList = buildItemList(
+    products.slice(0, 50).map((product) => ({
+      name: product.name,
+      url: `/products/${product.slug}/`,
+      image: (product.primary_image as string | undefined) || undefined,
+      description: product.short_description || undefined,
+    })),
+    artisan?.name ? `${artisan.name} products` : "Artisan products"
+  );
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12">
@@ -85,6 +112,13 @@ export default async function ArtisanDetailPage({
           Products for this artisan are not available via the API yet.
         </Card>
       )}
+      <JsonLd
+        data={[
+          breadcrumbs,
+          ...(personSchema ? [personSchema] : []),
+          ...(products.length ? [productList] : []),
+        ]}
+      />
     </div>
   );
 }

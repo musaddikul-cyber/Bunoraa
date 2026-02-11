@@ -2,6 +2,8 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { Artisan } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildItemList } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -18,6 +20,15 @@ async function tryGetArtisans() {
 
 export default async function ArtisansPage() {
   const artisans = await tryGetArtisans();
+  const list = buildItemList(
+    artisans.map((artisan) => ({
+      name: artisan.name,
+      url: `/artisans/${artisan.slug}/`,
+      image: artisan.avatar || undefined,
+      description: artisan.bio || undefined,
+    })),
+    "Artisans"
+  );
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-12">
@@ -48,6 +59,7 @@ export default async function ArtisansPage() {
           ))}
         </div>
       )}
+      {artisans.length ? <JsonLd data={list} /> : null}
     </div>
   );
 }

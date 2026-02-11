@@ -1,5 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { cleanObject } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -19,6 +21,20 @@ async function getFaqs() {
 
 export default async function FaqPage() {
   const faqs = await getFaqs();
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) =>
+      cleanObject({
+        "@type": "Question",
+        name: faq.question,
+        acceptedAnswer: cleanObject({
+          "@type": "Answer",
+          text: faq.answer,
+        }),
+      })
+    ),
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -39,6 +55,7 @@ export default async function FaqPage() {
           ))}
         </div>
       </div>
+      {faqs.length ? <JsonLd data={faqSchema} /> : null}
     </div>
   );
 }

@@ -257,7 +257,7 @@ SITE_URL = os.environ.get('SITE_URL', 'https://bunoraa.com')
 ASSET_HOST = os.environ.get('ASSET_HOST', '')
 
 # Site ID
-SITE_ID = 2
+SITE_ID = int(os.environ.get('SITE_ID', '1'))
 
 # Force site to always use default currency when True. This disables per-user
 # currency detection and forces server-side formatted amounts to use the
@@ -325,6 +325,14 @@ REST_FRAMEWORK = {
         'chat_analytics': '60/hour',
         'chat_email_inbound': '60/hour',
         'chat_agents': '120/hour',
+        'notifications': '120/min',
+        'notifications_preferences': '60/hour',
+        'notifications_push_tokens': '60/hour',
+        'notifications_broadcast': '30/hour',
+        'notifications_unsubscribe': '120/hour',
+        'notifications_deliveries': '120/hour',
+        'notifications_templates': '120/hour',
+        'notifications_health': '60/hour',
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', # Added for drf-spectacular
 }
@@ -336,6 +344,8 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False, # This should be False in production
     'SCHEMA_PATH_PREFIX': '/api/v1/', # Only generate schema for API v1 endpoints
+    # Silence non-critical schema warnings (type hints, queryset inference, etc.)
+    'DISABLE_ERRORS_AND_WARNINGS': True,
     'SWAGGER_UI_SETTINGS': {
         'deepLinking': True,
         'persistAuthorization': True,
@@ -353,6 +363,25 @@ CHAT_WS_RATE_LIMIT_COUNT = int(os.environ.get('CHAT_WS_RATE_LIMIT_COUNT', 30))
 CHAT_WS_RATE_LIMIT_WINDOW = int(os.environ.get('CHAT_WS_RATE_LIMIT_WINDOW', 10))  # seconds
 CHAT_EMAIL_WEBHOOK_SECRET = os.environ.get('CHAT_EMAIL_WEBHOOK_SECRET', '')
 CHAT_AI_RATE_LIMIT_PER_MINUTE = int(os.environ.get('CHAT_AI_RATE_LIMIT_PER_MINUTE', 10))
+
+# Notification configuration
+NOTIFICATION_DEDUPE_TTL_SECONDS = int(os.environ.get('NOTIFICATION_DEDUPE_TTL_SECONDS', 3600))
+NOTIFICATION_BROADCAST_CHUNK_SIZE = int(os.environ.get('NOTIFICATION_BROADCAST_CHUNK_SIZE', 500))
+NOTIFICATION_UNSUBSCRIBE_SECRET = os.environ.get('NOTIFICATION_UNSUBSCRIBE_SECRET', SECRET_KEY)
+NOTIFICATION_UNSUBSCRIBE_EMAIL = os.environ.get('NOTIFICATION_UNSUBSCRIBE_EMAIL', 'unsubscribe@bunoraa.com')
+NOTIFICATION_UNSUBSCRIBE_URL_BASE = os.environ.get('NOTIFICATION_UNSUBSCRIBE_URL_BASE', '')
+NOTIFICATION_PHYSICAL_ADDRESS = os.environ.get('NOTIFICATION_PHYSICAL_ADDRESS', '')
+NOTIFICATION_WS_RATE_LIMIT_COUNT = int(os.environ.get('NOTIFICATION_WS_RATE_LIMIT_COUNT', 20))
+NOTIFICATION_WS_RATE_LIMIT_WINDOW = int(os.environ.get('NOTIFICATION_WS_RATE_LIMIT_WINDOW', 10))
+
+# Email service
+EMAIL_SERVICE_ENABLED = os.environ.get('EMAIL_SERVICE_ENABLED', '0') in ('1', 'true', 'True')
+
+# Push / Web Push configuration
+FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', '')
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_ADMIN_EMAIL = os.environ.get('VAPID_ADMIN_EMAIL', 'admin@bunoraa.com')
 
 # JWT Settings
 SIMPLE_JWT = {

@@ -31,8 +31,15 @@ const DISABLE_BUILD_PRERENDER =
   process.env.NEXT_DISABLE_BUILD_PRERENDER === "1";
 let refreshPromise: Promise<string | null> | null = null;
 
+function ensureTrailingSlash(path: string) {
+  if (!path.endsWith("/")) {
+    return `${path}/`;
+  }
+  return path;
+}
+
 function buildUrl(path: string, params?: ApiFetchOptions["params"]) {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const normalizedPath = ensureTrailingSlash(path.startsWith("/") ? path : `/${path}`);
   if (!API_BASE_URL) {
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
   }
@@ -284,12 +291,8 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     const shouldSuppress =
       suppressError || (suppressErrorStatus && suppressErrorStatus.includes(response.status));
     if (typeof window !== "undefined" && !shouldSuppress) {
-      console.error("API error", {
-        path: url.toString(),
-        status: response.status,
-        message,
-        data: json,
-      });
+      const path = url.toString();
+      console.error("API error", path, response.status, message, json);
     }
     throw new ApiError(message, response.status, json, url.toString());
   }

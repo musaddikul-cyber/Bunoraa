@@ -73,19 +73,45 @@ export function MiniCart({
   }, 0);
   const apiSubtotal = parseMoney(summary?.subtotal ?? cart.subtotal);
   const preferDerivedSubtotal = derivedSubtotal > 0 && (apiSubtotal === null || apiSubtotal === 0);
+  const subtotalValue = preferDerivedSubtotal ? derivedSubtotal : apiSubtotal ?? derivedSubtotal ?? 0;
   const subtotalLabel =
     summary?.formatted_subtotal && !preferDerivedSubtotal
       ? summary.formatted_subtotal
-      : formatMoney(preferDerivedSubtotal ? derivedSubtotal : apiSubtotal ?? 0, currency);
+      : formatMoney(subtotalValue, currency);
+
+  const discount = parseMoney(summary?.discount_amount ?? cart.discount_amount) ?? 0;
+  const shipping = parseMoney(summary?.shipping_cost) ?? 0;
+  const tax = parseMoney(summary?.tax_amount) ?? 0;
+  const giftWrap =
+    parseMoney(summary?.gift_wrap_amount ?? summary?.gift_wrap_cost) ?? 0;
+  const paymentFee = parseMoney(summary?.payment_fee_amount) ?? 0;
+
+  const totalCandidate = parseMoney(summary?.total ?? cart.total);
+  let computedTotal = subtotalValue - discount + shipping + tax + giftWrap + paymentFee;
+  if (!Number.isFinite(computedTotal)) {
+    computedTotal = subtotalValue;
+  }
+  computedTotal = Math.max(0, computedTotal);
+  const totalValue =
+    totalCandidate !== null && totalCandidate > 0
+      ? totalCandidate
+      : computedTotal > 0
+      ? computedTotal
+      : subtotalValue;
+
   const totalLabel =
-    summary?.formatted_total ||
-    (summary?.shipping_cost || summary?.tax_amount
-      ? formatMoney(cart.total, currency)
-      : "");
+    summary?.formatted_total || formatMoney(totalValue, currency);
+
+  const hasAdjustments =
+    summary?.shipping_cost !== undefined ||
+    summary?.tax_amount !== undefined ||
+    summary?.discount_amount !== undefined ||
+    summary?.gift_wrap_amount !== undefined ||
+    summary?.gift_wrap_cost !== undefined ||
+    summary?.payment_fee_amount !== undefined;
   const showEstimatedTotal =
     Boolean(totalLabel) &&
-    totalLabel !== subtotalLabel &&
-    (summary?.shipping_cost !== undefined || summary?.tax_amount !== undefined);
+    (totalValue !== subtotalValue || hasAdjustments);
 
   return (
     <Card variant="bordered" className="flex flex-col gap-4">

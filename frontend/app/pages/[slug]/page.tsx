@@ -1,6 +1,8 @@
 import { apiFetch, ApiError } from "@/lib/api";
 import type { PageDetail } from "@/lib/types";
 import { notFound } from "next/navigation";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { absoluteUrl, buildBreadcrumbList, cleanObject } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -38,6 +40,19 @@ export default async function PageDetail({
 }) {
   const { slug } = await params;
   const page = await getPage(slug);
+  const pageUrl = `/pages/${page.slug}/`;
+  const pageSchema = cleanObject({
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: page.meta_title || page.title,
+    description: page.meta_description || page.excerpt || undefined,
+    url: absoluteUrl(pageUrl),
+  });
+  const breadcrumbs = buildBreadcrumbList([
+    { name: "Home", url: "/" },
+    { name: "Pages", url: "/pages/" },
+    { name: page.title, url: pageUrl },
+  ]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -48,6 +63,7 @@ export default async function PageDetail({
           dangerouslySetInnerHTML={{ __html: page.content || "" }}
         />
       </div>
+      <JsonLd data={[pageSchema, breadcrumbs]} />
     </div>
   );
 }

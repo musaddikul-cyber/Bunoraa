@@ -38,7 +38,15 @@ async function fetchProfile() {
 
 export function useAuth() {
   const queryClient = useQueryClient();
-  const hasToken = Boolean(getAccessToken());
+  const [hasToken, setHasToken] = React.useState(false);
+
+  const syncHasToken = React.useCallback(() => {
+    setHasToken(Boolean(getAccessToken()));
+  }, []);
+
+  React.useEffect(() => {
+    syncHasToken();
+  }, [syncHasToken]);
 
   const profileQuery = useQuery({
     queryKey: ["profile"],
@@ -66,6 +74,7 @@ export function useAuth() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      syncHasToken();
     },
   });
 
@@ -92,6 +101,7 @@ export function useAuth() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      syncHasToken();
     },
   });
 
@@ -120,8 +130,9 @@ export function useAuth() {
 
   const logout = React.useCallback(() => {
     clearTokens();
+    syncHasToken();
     queryClient.removeQueries({ queryKey: ["profile"] });
-  }, [queryClient]);
+  }, [queryClient, syncHasToken]);
 
   return {
     hasToken,

@@ -63,6 +63,42 @@ def _absolute_url(url: str) -> str:
     return urljoin(f"{base}/", url.lstrip("/"))
 
 
+def _is_local_request(request) -> bool:
+    try:
+        host = (request.get_host() or "").split(":")[0].lower()
+    except Exception:
+        return False
+    return host in {"localhost", "127.0.0.1", "0.0.0.0", "[::1]"} or host.endswith(".local")
+
+
+def _rewrite_url_for_request(url: str, request) -> str:
+    if not url:
+        return url
+    try:
+        if url.startswith("//"):
+            url = f"{request.scheme}:{url}"
+        parsed = urlparse(url)
+        if parsed.scheme in {"http", "https"}:
+            return parsed._replace(scheme=request.scheme, netloc=request.get_host()).geturl()
+        if url.startswith("/"):
+            return f"{request.scheme}://{request.get_host()}{url}"
+    except Exception:
+        return url
+    return url
+
+
+def _rewrite_urls_for_request(urls: list[dict], request) -> None:
+    for url_info in urls:
+        loc = url_info.get("location")
+        if loc:
+            url_info["location"] = _rewrite_url_for_request(loc, request)
+        images = url_info.get("images")
+        if isinstance(images, list):
+            for img in images:
+                if isinstance(img, dict) and img.get("location"):
+                    img["location"] = _rewrite_url_for_request(img["location"], request)
+
+
 def _normalize_images(images) -> list[dict]:
     normalized: list[dict] = []
     for image in images or []:
@@ -348,6 +384,10 @@ def sitemap_index_view(
     except Site.DoesNotExist:
         req_site = RequestSite(request)
 
+    local_override = _is_local_request(request)
+    if local_override:
+        base_url = f"{req_protocol}://{request.get_host()}"
+
     sites = []
     all_indexes_lastmod = True
     latest_lastmod = None
@@ -373,6 +413,10 @@ def sitemap_index_view(
         # Add links to all pages of the sitemap.
         for page in range(2, site.paginator.num_pages + 1):
             sites.append(SitemapIndexItem(f"{absolute_url}?p={page}", site_lastmod))
+
+    if local_override:
+        for item in sites:
+            item.location = _rewrite_url_for_request(item.location, request)
 
     headers = {"Last-Modified": http_date(latest_lastmod.timestamp())} if all_indexes_lastmod and latest_lastmod else None
     return TemplateResponse(
@@ -424,6 +468,9 @@ def sitemap_view(
             raise Http404(f"Page {page} empty") from exc
         except PageNotAnInteger as exc:
             raise Http404(f"No page '{page}'") from exc
+
+    if _is_local_request(request):
+        _rewrite_urls_for_request(urls, request)
 
     headers = {"Last-Modified": http_date(lastmod.timestamp())} if all_sites_lastmod and lastmod else None
     return TemplateResponse(

@@ -7,6 +7,7 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 from django.template.loader import render_to_string
+from .models import NotificationChannel
 
 logger = logging.getLogger('bunoraa.notifications')
 
@@ -25,75 +26,87 @@ def send_notification(self, user_id: int, notification_type: str, context: dict 
     
     try:
         from apps.accounts.models import User
-        from apps.notifications.models import Notification, NotificationPreference
+        from apps.notifications.services import NotificationService
         
         user = User.objects.get(pk=user_id)
         context = context or {}
         
-        # Get user's notification preferences
-        prefs = NotificationPreference.objects.filter(
+        notification = NotificationService.create_notification(
             user=user,
-            notification_type=notification_type
-        ).first()
-        
-        # Default channels if no preferences set
-        channels = ['in_app']
-        if prefs:
-            channels = prefs.enabled_channels
-        else:
-            # Default: email + in_app for important notifications
-            important_types = [
-                'order_placed', 'order_shipped', 'order_delivered',
-                'payment_received', 'payment_failed'
-            ]
-            if notification_type in important_types:
-                channels = ['email', 'in_app']
-        
-        # Create in-app notification
-        notification = Notification.objects.create(
-            user=user,
-            type=notification_type,
+            notification_type=notification_type,
             title=get_notification_title(notification_type, context),
             message=get_notification_message(notification_type, context),
-            data=context,
+            url=context.get('url'),
+            reference_type=context.get('reference_type'),
+            reference_id=context.get('reference_id'),
+            metadata=context,
+            dedupe_key=context.get('dedupe_key'),
         )
         
-        # Send via each enabled channel
-        results = {'in_app': True}
-        
-        if 'email' in channels and user.email:
-            try:
-                send_email_notification.delay(
-                    user_id, notification_type, context
-                )
-                results['email'] = 'queued'
-            except Exception as e:
-                results['email'] = str(e)
-        
-        if 'sms' in channels and user.phone_number:
-            try:
-                send_sms_notification.delay(
-                    user_id, notification_type, context
-                )
-                results['sms'] = 'queued'
-            except Exception as e:
-                results['sms'] = str(e)
-        
-        if 'push' in channels:
-            try:
-                send_push_notification.delay(
-                    user_id, notification_type, context
-                )
-                results['push'] = 'queued'
-            except Exception as e:
-                results['push'] = str(e)
-        
-        logger.info(f"Notification sent: {results}")
-        return results
+        return {'notification_id': str(notification.id)}
         
     except Exception as e:
         logger.error(f"Failed to send notification: {e}")
         raise self.retry(exc=e, countdown=60)
+
+
+@shared_task(bind=True, max_retries=5)
+def send_notification_delivery(self, delivery_id: str):
+    """
+    Send a notification delivery for a specific channel.
+    """
+    from apps.notifications.models import NotificationDelivery
+    from apps.notifications.services import DeliveryService
+    from apps.notifications.models import DeliveryStatus
+
+    try:
+        delivery = NotificationDelivery.objects.select_related('notification', 'notification__user').get(id=delivery_id)
+    except NotificationDelivery.DoesNotExist:
+        return {'error': 'delivery_not_found'}
+
+    if delivery.status in {DeliveryStatus.SENT, DeliveryStatus.SKIPPED, DeliveryStatus.BATCHED}:
+        return {'status': delivery.status}
+
+    if delivery.scheduled_for and delivery.scheduled_for > timezone.now():
+        send_notification_delivery.apply_async(args=[delivery_id], eta=delivery.scheduled_for)
+        return {'status': 'rescheduled'}
+
+    delivery.attempts += 1
+    delivery.status = DeliveryStatus.QUEUED
+    delivery.save(update_fields=['attempts', 'status', 'updated_at'])
+
+    result = DeliveryService.send(delivery)
+
+    if result.get('success'):
+        delivery.status = DeliveryStatus.SENT
+        delivery.provider = result.get('provider')
+        delivery.external_id = result.get('external_id')
+        delivery.sent_at = timezone.now()
+        delivery.error = None
+        delivery.save(update_fields=['status', 'provider', 'external_id', 'sent_at', 'error', 'updated_at'])
+
+        try:
+            notification = delivery.notification
+            channels_sent = set(notification.channels_sent or [])
+            channel_value = delivery.channel.value if hasattr(delivery.channel, 'value') else str(delivery.channel)
+            channels_sent.add(channel_value)
+            notification.channels_sent = list(channels_sent)
+            notification.save(update_fields=['channels_sent', 'updated_at'])
+        except Exception:
+            pass
+    else:
+        delivery.status = DeliveryStatus.FAILED
+        delivery.error = result.get('error') or 'delivery_failed'
+        delivery.save(update_fields=['status', 'error', 'updated_at'])
+        raise self.retry(exc=Exception(delivery.error), countdown=min(300, 5 * delivery.attempts * 60))
+
+    # Update notification aggregate status
+    try:
+        delivery.notification.update_status_from_deliveries()
+    except Exception:
+        pass
+
+    return {'status': delivery.status, 'provider': delivery.provider}
 
 
 @shared_task(bind=True, max_retries=3)
@@ -103,49 +116,23 @@ def send_email_notification(self, user_id: int, notification_type: str, context:
     """
     try:
         from apps.accounts.models import User
-        from django.core.mail import EmailMultiAlternatives
+        from apps.notifications.services import NotificationService
         
         user = User.objects.get(pk=user_id)
-        context['user'] = user
-        context['site_name'] = 'Bunoraa'
-        context['site_url'] = getattr(settings, 'SITE_URL', 'https://bunoraa.com')
+        context = context or {}
         
-        # Render templates
-        subject = get_notification_title(notification_type, context)
-        
-        # Try to use specific template, fall back to generic
-        try:
-            html_content = render_to_string(
-                f'emails/notifications/{notification_type}.html',
-                context
-            )
-        except Exception:
-            html_content = render_to_string(
-                'emails/notifications/generic.html',
-                {**context, 'notification_type': notification_type}
-            )
-        
-        try:
-            text_content = render_to_string(
-                f'emails/notifications/{notification_type}.txt',
-                context
-            )
-        except Exception:
-            text_content = get_notification_message(notification_type, context)
-        
-        # Send email
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=text_content,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[user.email],
+        notification = NotificationService.create_notification(
+            user=user,
+            notification_type=notification_type,
+            title=get_notification_title(notification_type, context),
+            message=get_notification_message(notification_type, context),
+            url=context.get('url'),
+            reference_type=context.get('reference_type'),
+            reference_id=context.get('reference_id'),
+            metadata=context,
+            requested_channels=[NotificationChannel.IN_APP, NotificationChannel.EMAIL],
         )
-        email.attach_alternative(html_content, 'text/html')
-        email.send(fail_silently=False)
-        
-        logger.info(f"Email notification sent to {user.email}")
-        return {'sent': True, 'email': user.email}
-        
+        return {'notification_id': str(notification.id)}
     except Exception as e:
         logger.error(f"Failed to send email notification: {e}")
         raise self.retry(exc=e, countdown=120)
@@ -158,28 +145,23 @@ def send_sms_notification(user_id: int, notification_type: str, context: dict):
     """
     try:
         from apps.accounts.models import User
+        from apps.notifications.services import NotificationService
         
         user = User.objects.get(pk=user_id)
+        context = context or {}
         
-        if not user.phone_number:
-            return {'skipped': True, 'reason': 'No phone number'}
-        
-        message = get_notification_message(notification_type, context, short=True)
-        
-        # Use configured SMS provider
-        sms_provider = getattr(settings, 'SMS_PROVIDER', None)
-        
-        if sms_provider == 'twilio':
-            send_via_twilio(user.phone_number, message)
-        elif sms_provider == 'sslwireless':
-            send_via_sslwireless(user.phone_number, message)
-        else:
-            logger.warning("No SMS provider configured")
-            return {'skipped': True, 'reason': 'No SMS provider'}
-        
-        logger.info(f"SMS notification sent to {user.phone_number}")
-        return {'sent': True}
-        
+        notification = NotificationService.create_notification(
+            user=user,
+            notification_type=notification_type,
+            title=get_notification_title(notification_type, context),
+            message=get_notification_message(notification_type, context),
+            url=context.get('url'),
+            reference_type=context.get('reference_type'),
+            reference_id=context.get('reference_id'),
+            metadata=context,
+            requested_channels=[NotificationChannel.IN_APP, NotificationChannel.SMS],
+        )
+        return {'notification_id': str(notification.id)}
     except Exception as e:
         logger.error(f"Failed to send SMS notification: {e}")
         return {'error': str(e)}
@@ -192,47 +174,72 @@ def send_push_notification(user_id: int, notification_type: str, context: dict):
     Uses the enhanced push services for comprehensive delivery.
     """
     try:
-        from apps.notifications.services import PushNotificationManager
+        from apps.accounts.models import User
+        from apps.notifications.services import NotificationService
         
-        title = get_notification_title(notification_type, context)
-        body = get_notification_message(notification_type, context, short=True)
+        user = User.objects.get(pk=user_id)
+        context = context or {}
         
-        # Build push-specific options
-        push_options = {
-            'click_action': context.get('url'),
-            'data': {
-                'type': notification_type,
-                'reference_type': context.get('reference_type'),
-                'reference_id': context.get('reference_id')
-            }
-        }
-        
-        # Add image if available
-        if 'image_url' in context:
-            push_options['image_url'] = context['image_url']
-        
-        # Determine priority based on notification type
-        high_priority_types = [
-            'order_placed', 'order_shipped', 'payment_failed', 
-            'back_in_stock', 'price_drop'
-        ]
-        push_options['priority'] = 'high' if notification_type in high_priority_types else 'normal'
-        
-        # Send via PushNotificationManager
-        result = PushNotificationManager.send_to_user(
-            user_id=user_id,
-            title=title,
-            body=body,
+        notification = NotificationService.create_notification(
+            user=user,
             notification_type=notification_type,
-            **push_options
+            title=get_notification_title(notification_type, context),
+            message=get_notification_message(notification_type, context),
+            url=context.get('url'),
+            reference_type=context.get('reference_type'),
+            reference_id=context.get('reference_id'),
+            metadata=context,
+            requested_channels=[NotificationChannel.IN_APP, NotificationChannel.PUSH],
         )
-        
-        logger.info(f"Push notification result for user {user_id}: {result}")
-        return result
-        
+        return {'notification_id': str(notification.id)}
     except Exception as e:
         logger.error(f"Failed to send push notification: {e}")
         return {'error': str(e)}
+
+
+@shared_task(bind=True, max_retries=2)
+def send_broadcast_notification(
+    self,
+    user_ids: list,
+    notification_type: str,
+    title: str,
+    message: str,
+    url: str = None,
+    metadata: dict = None,
+    category: str = None,
+    priority: str = None,
+    channels: list = None,
+    dedupe_key: str = None,
+):
+    """
+    Send a broadcast notification to a list of users.
+    """
+    try:
+        from apps.accounts.models import User
+        from apps.notifications.services import NotificationService
+
+        metadata = metadata or {}
+        queryset = User.objects.filter(id__in=user_ids, is_active=True)
+        sent = 0
+        for user in queryset.iterator():
+            NotificationService.create_notification(
+                user=user,
+                notification_type=notification_type,
+                title=title,
+                message=message,
+                url=url,
+                metadata=metadata,
+                category=category,
+                priority=priority,
+                requested_channels=channels,
+                dedupe_key=dedupe_key,
+            )
+            sent += 1
+
+        return {'sent': sent}
+    except Exception as e:
+        logger.error(f"Failed to send broadcast notification: {e}")
+        raise self.retry(exc=e, countdown=120)
 
 
 @shared_task
@@ -273,6 +280,19 @@ def process_daily_digest():
     
     result = DigestService.process_daily_digests()
     logger.info(f"Daily digest completed: {result}")
+    return result
+
+
+@shared_task
+def process_hourly_digest():
+    """
+    Process and send hourly notification digests.
+    Should be scheduled to run once per hour.
+    """
+    from apps.notifications.services import DigestService
+    
+    result = DigestService.process_hourly_digests()
+    logger.info(f"Hourly digest completed: {result}")
     return result
 
 

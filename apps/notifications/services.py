@@ -1,16 +1,370 @@
 """
 Notifications services
 """
+from datetime import timedelta
+from zoneinfo import ZoneInfo
 from django.core.mail import send_mail, EmailMultiAlternatives
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
+from django.db import transaction
 from django.template import Template, Context
 from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils import timezone
 
 from .models import (
-    Notification, NotificationType, NotificationChannel,
-    NotificationPreference, EmailTemplate, EmailLog
+    Notification,
+    NotificationType,
+    NotificationChannel,
+    NotificationCategory,
+    NotificationPriority,
+    NotificationStatus,
+    DeliveryStatus,
+    NotificationPreference,
+    NotificationDelivery,
+    NotificationTemplate,
+    EmailTemplate,
+    EmailLog,
 )
+
+
+# =============================================================================
+# Notification preference resolution & orchestration
+# =============================================================================
+
+CRITICAL_TYPES = {
+    NotificationType.PASSWORD_RESET,
+    NotificationType.PAYMENT_FAILED,
+}
+
+TRANSACTIONAL_TYPES = {
+    NotificationType.ORDER_PLACED,
+    NotificationType.ORDER_CONFIRMED,
+    NotificationType.ORDER_SHIPPED,
+    NotificationType.ORDER_DELIVERED,
+    NotificationType.ORDER_CANCELLED,
+    NotificationType.ORDER_REFUNDED,
+    NotificationType.PAYMENT_RECEIVED,
+    NotificationType.PAYMENT_FAILED,
+    NotificationType.REVIEW_APPROVED,
+    NotificationType.REVIEW_REJECTED,
+    NotificationType.ACCOUNT_CREATED,
+    NotificationType.PASSWORD_RESET,
+}
+
+MARKETING_TYPES = {
+    NotificationType.PRICE_DROP,
+    NotificationType.BACK_IN_STOCK,
+    NotificationType.WISHLIST_SALE,
+    NotificationType.PROMO_CODE,
+}
+
+
+def resolve_category(notification_type: str) -> str:
+    if notification_type in MARKETING_TYPES:
+        return NotificationCategory.MARKETING
+    if notification_type in TRANSACTIONAL_TYPES:
+        return NotificationCategory.TRANSACTIONAL
+    return NotificationCategory.SYSTEM
+
+
+def resolve_priority(notification_type: str) -> str:
+    if notification_type in CRITICAL_TYPES:
+        return NotificationPriority.URGENT
+    if notification_type in {
+        NotificationType.ORDER_SHIPPED,
+        NotificationType.ORDER_DELIVERED,
+        NotificationType.PAYMENT_RECEIVED,
+    }:
+        return NotificationPriority.HIGH
+    return NotificationPriority.NORMAL
+
+
+class PreferenceResolver:
+    """Resolve allowed channels and delivery timing based on preferences."""
+
+    @staticmethod
+    def _get_user_timezone(user, prefs: NotificationPreference):
+        tz_name = prefs.timezone
+        try:
+            user_prefs = getattr(user, 'preferences', None)
+            if user_prefs and user_prefs.timezone:
+                tz_name = user_prefs.timezone
+        except Exception:
+            pass
+        try:
+            return ZoneInfo(tz_name or 'UTC')
+        except Exception:
+            return timezone.get_default_timezone()
+
+    @staticmethod
+    def _is_within_quiet_hours(now_local, prefs: NotificationPreference) -> bool:
+        if not prefs.quiet_hours_start or not prefs.quiet_hours_end:
+            return False
+        start = prefs.quiet_hours_start
+        end = prefs.quiet_hours_end
+        current = now_local.time()
+
+        if start < end:
+            return start <= current < end
+        # Overnight range (e.g., 22:00 -> 07:00)
+        return current >= start or current < end
+
+    @staticmethod
+    def _next_quiet_hours_end(now_local, prefs: NotificationPreference):
+        if not prefs.quiet_hours_start or not prefs.quiet_hours_end:
+            return None
+        end = prefs.quiet_hours_end
+        today_end = now_local.replace(
+            hour=end.hour,
+            minute=end.minute,
+            second=end.second,
+            microsecond=0,
+        )
+        if today_end > now_local:
+            return today_end
+        return today_end + timedelta(days=1)
+
+    @staticmethod
+    def _type_allowed(prefs: NotificationPreference, notification_type: str, channel: str) -> bool:
+        email_type_map = {
+            NotificationType.ORDER_PLACED: prefs.email_order_updates,
+            NotificationType.ORDER_CONFIRMED: prefs.email_order_updates,
+            NotificationType.ORDER_SHIPPED: prefs.email_shipping_updates,
+            NotificationType.ORDER_DELIVERED: prefs.email_shipping_updates,
+            NotificationType.ORDER_CANCELLED: prefs.email_order_updates,
+            NotificationType.ORDER_REFUNDED: prefs.email_order_updates,
+            NotificationType.PAYMENT_RECEIVED: prefs.email_order_updates,
+            NotificationType.PAYMENT_FAILED: prefs.email_order_updates,
+            NotificationType.REVIEW_APPROVED: prefs.email_reviews,
+            NotificationType.REVIEW_REJECTED: prefs.email_reviews,
+            NotificationType.PRICE_DROP: prefs.email_price_drops,
+            NotificationType.BACK_IN_STOCK: prefs.email_back_in_stock,
+            NotificationType.WISHLIST_SALE: prefs.email_promotions,
+            NotificationType.PROMO_CODE: prefs.email_promotions,
+        }
+        sms_type_map = {
+            NotificationType.ORDER_PLACED: prefs.sms_order_updates,
+            NotificationType.ORDER_CONFIRMED: prefs.sms_order_updates,
+            NotificationType.ORDER_SHIPPED: prefs.sms_shipping_updates,
+            NotificationType.ORDER_DELIVERED: prefs.sms_shipping_updates,
+            NotificationType.ORDER_CANCELLED: prefs.sms_order_updates,
+            NotificationType.ORDER_REFUNDED: prefs.sms_order_updates,
+            NotificationType.PAYMENT_RECEIVED: prefs.sms_order_updates,
+            NotificationType.PAYMENT_FAILED: prefs.sms_order_updates,
+            NotificationType.PROMO_CODE: prefs.sms_promotions,
+        }
+        push_type_map = {
+            NotificationType.ORDER_PLACED: prefs.push_order_updates,
+            NotificationType.ORDER_CONFIRMED: prefs.push_order_updates,
+            NotificationType.ORDER_SHIPPED: prefs.push_order_updates,
+            NotificationType.ORDER_DELIVERED: prefs.push_order_updates,
+            NotificationType.ORDER_CANCELLED: prefs.push_order_updates,
+            NotificationType.PAYMENT_RECEIVED: prefs.push_order_updates,
+            NotificationType.PAYMENT_FAILED: prefs.push_order_updates,
+            NotificationType.PROMO_CODE: prefs.push_promotions,
+        }
+
+        if channel == NotificationChannel.EMAIL:
+            return email_type_map.get(notification_type, True)
+        if channel == NotificationChannel.SMS:
+            return sms_type_map.get(notification_type, True)
+        if channel == NotificationChannel.PUSH:
+            return push_type_map.get(notification_type, True)
+        return True
+
+    @staticmethod
+    def resolve(user, notification_type: str, category: str, priority: str, requested_channels=None):
+        prefs, _ = NotificationPreference.objects.get_or_create(user=user)
+
+        # Sync from user preferences if available
+        try:
+            user_prefs = getattr(user, 'preferences', None)
+            if user_prefs and user_prefs.updated_at and user_prefs.updated_at > prefs.updated_at:
+                NotificationService.sync_from_user_preferences(user_prefs, prefs)
+        except Exception:
+            pass
+
+        allowed = {NotificationChannel.IN_APP}
+
+        user_prefs = getattr(user, 'preferences', None)
+
+        if prefs.email_enabled and (not user_prefs or user_prefs.email_notifications):
+            if PreferenceResolver._type_allowed(prefs, notification_type, NotificationChannel.EMAIL):
+                allowed.add(NotificationChannel.EMAIL)
+        if prefs.sms_enabled and (not user_prefs or user_prefs.sms_notifications):
+            if PreferenceResolver._type_allowed(prefs, notification_type, NotificationChannel.SMS):
+                allowed.add(NotificationChannel.SMS)
+        if prefs.push_enabled and (not user_prefs or user_prefs.push_notifications):
+            if PreferenceResolver._type_allowed(prefs, notification_type, NotificationChannel.PUSH):
+                allowed.add(NotificationChannel.PUSH)
+
+        if category == NotificationCategory.MARKETING and not prefs.marketing_opt_in:
+            allowed.discard(NotificationChannel.EMAIL)
+            allowed.discard(NotificationChannel.SMS)
+            allowed.discard(NotificationChannel.PUSH)
+        if category == NotificationCategory.TRANSACTIONAL and not prefs.transactional_opt_in:
+            allowed = {NotificationChannel.IN_APP}
+
+        # Per-type overrides
+        override = (prefs.per_type_overrides or {}).get(notification_type)
+        if isinstance(override, dict):
+            if override.get('enabled') is False:
+                allowed = {NotificationChannel.IN_APP}
+            if override.get('channels'):
+                channel_values = set()
+                for channel in override['channels']:
+                    try:
+                        channel_values.add(NotificationChannel(channel))
+                    except Exception:
+                        continue
+                allowed = {NotificationChannel.IN_APP} | channel_values
+            for ch in ['email', 'sms', 'push', 'in_app']:
+                if ch in override:
+                    try:
+                        channel_enum = NotificationChannel(ch)
+                    except Exception:
+                        continue
+                    if override[ch]:
+                        allowed.add(channel_enum)
+                    else:
+                        allowed.discard(channel_enum)
+
+        if requested_channels:
+            requested_set = set()
+            for channel in requested_channels:
+                if isinstance(channel, str):
+                    try:
+                        requested_set.add(NotificationChannel(channel))
+                    except Exception:
+                        continue
+                else:
+                    requested_set.add(channel)
+            allowed = allowed.intersection(requested_set)
+
+        tz = PreferenceResolver._get_user_timezone(user, prefs)
+        now_local = timezone.now().astimezone(tz)
+        within_quiet = PreferenceResolver._is_within_quiet_hours(now_local, prefs)
+        next_send_local = PreferenceResolver._next_quiet_hours_end(now_local, prefs) if within_quiet else None
+
+        schedule = {
+            'defer_until': None,
+            'batch_email': False,
+        }
+
+        if within_quiet and priority != NotificationPriority.URGENT:
+            if next_send_local:
+                schedule['defer_until'] = next_send_local.astimezone(timezone.utc)
+
+        if prefs.digest_frequency != NotificationPreference.DIGEST_IMMEDIATE:
+            if category == NotificationCategory.MARKETING and priority != NotificationPriority.URGENT:
+                schedule['batch_email'] = True
+
+        return prefs, allowed, schedule
+
+
+class NotificationOrchestrator:
+    """Create notifications, deliveries, and dispatch tasks."""
+
+    @staticmethod
+    def create_notification(
+        user,
+        notification_type,
+        title,
+        message,
+        url=None,
+        reference_type=None,
+        reference_id=None,
+        metadata=None,
+        requested_channels=None,
+        category=None,
+        priority=None,
+        dedupe_key=None,
+        expires_at=None,
+    ):
+        category = category or resolve_category(notification_type)
+        priority = priority or resolve_priority(notification_type)
+
+        dedupe_ttl = int(getattr(settings, 'NOTIFICATION_DEDUPE_TTL_SECONDS', 3600))
+        if dedupe_key:
+            cutoff = timezone.now() - timedelta(seconds=dedupe_ttl)
+            existing = Notification.objects.filter(
+                user=user,
+                dedupe_key=dedupe_key,
+                created_at__gte=cutoff,
+            ).first()
+            if existing:
+                return existing
+
+        prefs, allowed_channels, schedule = PreferenceResolver.resolve(
+            user=user,
+            notification_type=notification_type,
+            category=category,
+            priority=priority,
+            requested_channels=requested_channels,
+        )
+
+        with transaction.atomic():
+            notification = Notification.objects.create(
+                user=user,
+                type=notification_type,
+                title=title,
+                message=message,
+                url=url,
+                reference_type=reference_type,
+                reference_id=str(reference_id) if reference_id else None,
+                metadata=metadata or {},
+                category=category,
+                priority=priority,
+                status=NotificationStatus.PENDING,
+                dedupe_key=dedupe_key,
+                expires_at=expires_at,
+                channels_requested=[c.value if hasattr(c, 'value') else c for c in allowed_channels],
+                channels_sent=[],
+            )
+
+            # In-app delivery is considered sent immediately
+            NotificationDelivery.objects.create(
+                notification=notification,
+                channel=NotificationChannel.IN_APP,
+                status=DeliveryStatus.SENT,
+                sent_at=timezone.now()
+            )
+            notification.channels_sent = [NotificationChannel.IN_APP.value]
+
+            for channel in allowed_channels:
+                if channel == NotificationChannel.IN_APP:
+                    continue
+
+                status = DeliveryStatus.PENDING
+                scheduled_for = None
+                if schedule.get('defer_until'):
+                    scheduled_for = schedule['defer_until']
+                    status = DeliveryStatus.QUEUED
+                if channel == NotificationChannel.EMAIL and schedule.get('batch_email'):
+                    status = DeliveryStatus.BATCHED
+
+                delivery = NotificationDelivery.objects.create(
+                    notification=notification,
+                    channel=channel,
+                    status=status,
+                    scheduled_for=scheduled_for,
+                )
+
+                if status in {DeliveryStatus.PENDING, DeliveryStatus.QUEUED}:
+                    NotificationOrchestrator.dispatch_delivery(delivery)
+
+            notification.status = NotificationStatus.PROCESSING if len(allowed_channels) > 1 else NotificationStatus.SENT
+            notification.save(update_fields=['channels_sent', 'status', 'updated_at'])
+
+        return notification
+
+    @staticmethod
+    def dispatch_delivery(delivery: NotificationDelivery):
+        from apps.notifications.tasks import send_notification_delivery
+        if delivery.scheduled_for and delivery.scheduled_for > timezone.now():
+            send_notification_delivery.apply_async(args=[str(delivery.id)], eta=delivery.scheduled_for)
+        else:
+            send_notification_delivery.delay(str(delivery.id))
 
 
 class NotificationService:
@@ -27,7 +381,12 @@ class NotificationService:
         reference_id=None,
         metadata=None,
         send_email=True,
-        send_push=True
+        send_push=True,
+        category=None,
+        priority=None,
+        dedupe_key=None,
+        expires_at=None,
+        requested_channels=None
     ):
         """
         Create a notification for a user.
@@ -47,44 +406,37 @@ class NotificationService:
         Returns:
             Notification instance
         """
-        notification = Notification.objects.create(
+        caller_channels = None
+        if requested_channels is not None:
+            caller_channels = requested_channels
+        elif not send_email or not send_push:
+            caller_channels = {
+                NotificationChannel.IN_APP,
+                NotificationChannel.EMAIL,
+                NotificationChannel.SMS,
+                NotificationChannel.PUSH,
+            }
+            if not send_email:
+                caller_channels.discard(NotificationChannel.EMAIL)
+            if not send_push:
+                caller_channels.discard(NotificationChannel.PUSH)
+            caller_channels = list(caller_channels)
+
+        return NotificationOrchestrator.create_notification(
             user=user,
-            type=notification_type,
+            notification_type=notification_type,
             title=title,
             message=message,
             url=url,
             reference_type=reference_type,
-            reference_id=str(reference_id) if reference_id else None,
-            metadata=metadata or {}
+            reference_id=reference_id,
+            metadata=metadata,
+            requested_channels=caller_channels,
+            category=category,
+            priority=priority,
+            dedupe_key=dedupe_key,
+            expires_at=expires_at,
         )
-        
-        channels_sent = [NotificationChannel.IN_APP]
-        
-        # Get user preferences
-        prefs = NotificationService._get_preferences(user)
-        
-        # Send email if enabled
-        if send_email and NotificationService._should_send_email(prefs, notification_type):
-            email_context = {
-                'title': title,
-                'message': message,
-                'url': url,
-            }
-            if metadata:
-                email_context.update(metadata)
-            email_sent = EmailService.send_notification_email(
-                user=user,
-                notification_type=notification_type,
-                context=email_context,
-            )
-            if email_sent:
-                channels_sent.append(NotificationChannel.EMAIL)
-        
-        # Update channels sent
-        notification.channels_sent = [c.value if hasattr(c, 'value') else c for c in channels_sent]
-        notification.save(update_fields=['channels_sent'])
-        
-        return notification
     
     @staticmethod
     def _get_preferences(user):
@@ -112,6 +464,51 @@ class NotificationService:
             NotificationType.PROMO_CODE: prefs.email_promotions,
         }
         return email_type_map.get(notification_type, True)
+
+    @staticmethod
+    def sync_from_user_preferences(user_prefs, prefs: NotificationPreference = None):
+        """Sync NotificationPreference fields from accounts.UserPreferences."""
+        if not user_prefs:
+            return prefs
+        if prefs is None:
+            prefs, _ = NotificationPreference.objects.get_or_create(user=user_prefs.user)
+
+        updates = {
+            'email_enabled': user_prefs.email_notifications,
+            'sms_enabled': user_prefs.sms_notifications,
+            'push_enabled': user_prefs.push_notifications,
+            'email_order_updates': user_prefs.notify_order_updates,
+            'email_shipping_updates': user_prefs.notify_order_updates,
+            'email_promotions': user_prefs.notify_promotions,
+            'email_price_drops': user_prefs.notify_price_drops,
+            'email_back_in_stock': user_prefs.notify_back_in_stock,
+            'push_order_updates': user_prefs.notify_order_updates,
+            'push_promotions': user_prefs.notify_promotions,
+            'sms_order_updates': user_prefs.notify_order_updates,
+            'sms_shipping_updates': user_prefs.notify_order_updates,
+            'sms_promotions': user_prefs.notify_promotions,
+            'timezone': user_prefs.timezone or prefs.timezone,
+        }
+
+        NotificationPreference.objects.filter(id=prefs.id).update(**updates)
+        for key, value in updates.items():
+            setattr(prefs, key, value)
+        return prefs
+
+    @staticmethod
+    def build_unsubscribe_token(email: str, user_id: str = '') -> str:
+        signer = TimestampSigner(getattr(settings, 'NOTIFICATION_UNSUBSCRIBE_SECRET', settings.SECRET_KEY))
+        return signer.sign(f"{email}:{user_id}")
+
+    @staticmethod
+    def verify_unsubscribe_token(token: str, max_age_seconds: int = 60 * 60 * 24 * 30):
+        signer = TimestampSigner(getattr(settings, 'NOTIFICATION_UNSUBSCRIBE_SECRET', settings.SECRET_KEY))
+        try:
+            value = signer.unsign(token, max_age=max_age_seconds)
+            email, user_id = value.split(':', 1)
+            return email, user_id or None
+        except (BadSignature, SignatureExpired):
+            return None, None
     
     @staticmethod
     def get_user_notifications(user, unread_only=False, limit=None):
@@ -157,20 +554,17 @@ class EmailService:
     @staticmethod
     def send_notification_email(user, notification_type, context):
         """Send notification email to user."""
-        template = EmailTemplate.objects.filter(
+        subject, text_body, html_body = EmailService._render_email_templates(
+            user=user,
             notification_type=notification_type,
-            is_active=True
-        ).first()
-        
-        if not template:
-            # Use default template
-            subject = context.get('title', 'Notification from Bunoraa')
-            message = context.get('message', '')
-        else:
-            # Render template
-            subject = Template(template.subject).render(Context(context))
-            message = Template(template.text_template).render(Context(context))
-        
+            context=context,
+        )
+
+        unsubscribe_headers = EmailService._build_unsubscribe_headers(user)
+
+        notification = context.get('notification')
+        delivery = context.get('delivery')
+
         # Create email log
         log = EmailLog.objects.create(
             recipient_email=user.email,
@@ -178,38 +572,145 @@ class EmailService:
             notification_type=notification_type,
             subject=subject,
             reference_type=context.get('reference_type'),
-            reference_id=context.get('reference_id')
+            reference_id=context.get('reference_id'),
+            notification=notification,
+            delivery=delivery,
         )
-        
+
         try:
-            if template and template.html_template:
-                html_content = Template(template.html_template).render(Context(context))
+            if EmailService._use_email_service():
+                external_id = EmailService._send_via_email_service(
+                    user=user,
+                    subject=subject,
+                    html_body=html_body,
+                    text_body=text_body,
+                    headers=unsubscribe_headers,
+                    metadata={
+                        'notification_type': notification_type,
+                        'notification_id': str(notification.id) if notification else None,
+                        'delivery_id': str(delivery.id) if delivery else None,
+                    }
+                )
+            else:
                 email = EmailMultiAlternatives(
                     subject=subject,
-                    body=message,
+                    body=text_body or '',
                     from_email=settings.DEFAULT_FROM_EMAIL,
-                    to=[user.email]
+                    to=[user.email],
+                    headers=unsubscribe_headers or None,
                 )
-                email.attach_alternative(html_content, 'text/html')
+                if html_body:
+                    email.attach_alternative(html_body, 'text/html')
                 email.send()
-            else:
-                send_mail(
-                    subject=subject,
-                    message=message,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[user.email]
-                )
-            
+                external_id = None
+
             log.status = EmailLog.STATUS_SENT
             log.sent_at = timezone.now()
             log.save(update_fields=['status', 'sent_at'])
             return True
-            
+
         except Exception as e:
             log.status = EmailLog.STATUS_FAILED
             log.error_message = str(e)
             log.save(update_fields=['status', 'error_message'])
             return False
+
+    @staticmethod
+    def _render_email_templates(user, notification_type, context):
+        language = 'en'
+        try:
+            user_prefs = getattr(user, 'preferences', None)
+            if user_prefs and user_prefs.language:
+                language = user_prefs.language
+        except Exception:
+            pass
+
+        context = {
+            **context,
+            'user': user,
+            'site_name': getattr(settings, 'SITE_NAME', 'Bunoraa'),
+            'site_url': getattr(settings, 'SITE_URL', 'https://bunoraa.com'),
+            'physical_address': getattr(settings, 'NOTIFICATION_PHYSICAL_ADDRESS', ''),
+            'unsubscribe_url': EmailService._build_unsubscribe_url(user),
+        }
+
+        template = NotificationTemplate.objects.filter(
+            notification_type=notification_type,
+            channel=NotificationChannel.EMAIL,
+            language=language,
+            is_active=True,
+        ).first()
+
+        if template:
+            subject = Template(template.subject or context.get('title', '')).render(Context(context))
+            text_body = Template(template.text_template or template.body or context.get('message', '')).render(Context(context))
+            html_body = Template(template.html_template or '').render(Context(context)) if template.html_template else None
+            return subject, text_body, html_body
+
+        # Fallback to legacy EmailTemplate
+        legacy = EmailTemplate.objects.filter(
+            notification_type=notification_type,
+            is_active=True
+        ).first()
+
+        if legacy:
+            subject = Template(legacy.subject).render(Context(context))
+            text_body = Template(legacy.text_template).render(Context(context))
+            html_body = Template(legacy.html_template).render(Context(context)) if legacy.html_template else None
+            return subject, text_body, html_body
+
+        subject = context.get('title', 'Notification from Bunoraa')
+        text_body = context.get('message', '')
+        html_body = None
+        return subject, text_body, html_body
+
+    @staticmethod
+    def _build_unsubscribe_url(user):
+        base_url = getattr(settings, 'NOTIFICATION_UNSUBSCRIBE_URL_BASE', '').strip()
+        if not base_url:
+            base_url = f"{getattr(settings, 'SITE_URL', 'https://bunoraa.com').rstrip('/')}/api/v1/notifications/unsubscribe/"
+        token = NotificationService.build_unsubscribe_token(user.email, str(user.id))
+        return f"{base_url}?token={token}"
+
+    @staticmethod
+    def _build_unsubscribe_headers(user):
+        unsubscribe_email = getattr(settings, 'NOTIFICATION_UNSUBSCRIBE_EMAIL', 'unsubscribe@bunoraa.com')
+        unsubscribe_url = EmailService._build_unsubscribe_url(user)
+        return {
+            'List-Unsubscribe': f"<mailto:{unsubscribe_email}>, <{unsubscribe_url}>",
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        }
+
+    @staticmethod
+    def _use_email_service():
+        return getattr(settings, 'EMAIL_SERVICE_ENABLED', False)
+
+    @staticmethod
+    def _send_via_email_service(user, subject, html_body, text_body, headers=None, metadata=None):
+        try:
+            from apps.email_service.models import EmailMessage
+            from apps.email_service.engine import QueueManager
+            import uuid
+
+            message = EmailMessage.objects.create(
+                api_key=None,
+                user=user,
+                message_id=str(uuid.uuid4()),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                from_name=getattr(settings, 'SITE_NAME', 'Bunoraa'),
+                to_email=user.email,
+                subject=subject,
+                html_body=html_body or '',
+                text_body=text_body or '',
+                headers=headers or {},
+                metadata=metadata or {},
+                categories=['notifications'],
+                tags=[metadata.get('notification_type')] if metadata else [],
+            )
+            QueueManager.enqueue(message)
+            return message.message_id
+        except Exception:
+            raise
     
     @staticmethod
     def send_order_confirmation(order):
@@ -301,6 +802,123 @@ class EmailService:
             url='/',
             send_push=False
         )
+
+
+class DeliveryService:
+    """Send notifications per channel and update delivery status."""
+
+    @staticmethod
+    def _render_channel_body(notification, channel: str, user):
+        language = 'en'
+        try:
+            user_prefs = getattr(user, 'preferences', None)
+            if user_prefs and user_prefs.language:
+                language = user_prefs.language
+        except Exception:
+            pass
+
+        context = {
+            'title': notification.title,
+            'message': notification.message,
+            'url': notification.url,
+            'notification': notification,
+            'user': user,
+            'metadata': notification.metadata,
+        }
+
+        template = NotificationTemplate.objects.filter(
+            notification_type=notification.type,
+            channel=channel,
+            language=language,
+            is_active=True
+        ).first()
+
+        if template and template.body:
+            return Template(template.body).render(Context(context))
+        return notification.message
+
+    @staticmethod
+    def send(delivery: NotificationDelivery):
+        if delivery.channel == NotificationChannel.EMAIL:
+            return DeliveryService.send_email(delivery)
+        if delivery.channel == NotificationChannel.SMS:
+            return DeliveryService.send_sms(delivery)
+        if delivery.channel == NotificationChannel.PUSH:
+            return DeliveryService.send_push(delivery)
+        return {'success': True, 'provider': 'in_app'}
+
+    @staticmethod
+    def send_email(delivery: NotificationDelivery):
+        notification = delivery.notification
+        user = notification.user
+        context = {
+            'title': notification.title,
+            'message': notification.message,
+            'url': notification.url,
+            'reference_type': notification.reference_type,
+            'reference_id': notification.reference_id,
+            'notification': notification,
+            'delivery': delivery,
+        }
+
+        success = EmailService.send_notification_email(
+            user=user,
+            notification_type=notification.type,
+            context=context
+        )
+        return {
+            'success': success,
+            'provider': 'email_service' if EmailService._use_email_service() else 'django',
+            'external_id': None,
+        }
+
+    @staticmethod
+    def send_sms(delivery: NotificationDelivery):
+        notification = delivery.notification
+        user = notification.user
+
+        phone = getattr(user, 'phone_number', None)
+        if not phone:
+            return {'success': False, 'provider': 'sms', 'error': 'Missing phone number'}
+
+        body = DeliveryService._render_channel_body(notification, NotificationChannel.SMS, user)
+        if len(body) > 160:
+            body = body[:157] + '...'
+
+        sms_service = SMSService()
+        result = sms_service.send(phone=phone, message=body)
+        return {
+            'success': result.get('success', False),
+            'provider': sms_service.provider,
+            'external_id': result.get('message_id'),
+            'error': result.get('message') if not result.get('success') else None,
+        }
+
+    @staticmethod
+    def send_push(delivery: NotificationDelivery):
+        notification = delivery.notification
+        user = notification.user
+
+        body = DeliveryService._render_channel_body(notification, NotificationChannel.PUSH, user)
+        title = notification.title or 'Notification'
+
+        result = PushNotificationManager.send_to_user(
+            user_id=user.id,
+            title=title,
+            body=body,
+            notification_type=notification.type,
+            data={
+                'notification_id': str(notification.id),
+                'type': notification.type,
+            },
+            click_action=notification.url,
+        )
+        success = result.get('success', 0) > 0 or result.get('success', False)
+        return {
+            'success': success,
+            'provider': 'fcm/webpush',
+            'external_id': None,
+        }
 
 
 class OrderNotificationService:
@@ -398,8 +1016,7 @@ class DigestService:
         
         Returns list of user IDs.
         """
-        from apps.notifications.models import Notification, NotificationPreference
-        from apps.accounts.models import User
+        from apps.notifications.models import NotificationDelivery, NotificationPreference, NotificationChannel, DeliveryStatus
         
         now = timezone.now()
         
@@ -413,16 +1030,20 @@ class DigestService:
         else:
             return []
         
-        # Get users with unread notifications in the time window
-        users_with_notifications = Notification.objects.filter(
-            is_read=False,
-            created_at__gte=since
-        ).values_list('user_id', flat=True).distinct()
+        # Only consider users with batched email deliveries in the time window
+        users_with_notifications = NotificationDelivery.objects.filter(
+            channel=NotificationChannel.EMAIL,
+            status=DeliveryStatus.BATCHED,
+            created_at__gte=since,
+        ).values_list('notification__user_id', flat=True).distinct()
         
         # Filter by digest preference
-        # For now, return all users with notifications
-        # In production, check NotificationPreference.digest_frequency
-        return list(users_with_notifications)
+        eligible_users = NotificationPreference.objects.filter(
+            user_id__in=users_with_notifications,
+            digest_frequency=frequency
+        ).values_list('user_id', flat=True)
+
+        return list(eligible_users)
     
     @staticmethod
     def generate_digest(user_id: int, since: timezone.datetime = None) -> Optional[Dict[str, Any]]:
@@ -434,7 +1055,7 @@ class DigestService:
         - notification groups by type
         - recommendations
         """
-        from apps.notifications.models import Notification, NotificationType
+        from apps.notifications.models import Notification, NotificationType, NotificationChannel, DeliveryStatus
         from apps.accounts.models import User
         
         try:
@@ -447,8 +1068,10 @@ class DigestService:
         
         notifications = Notification.objects.filter(
             user_id=user_id,
-            created_at__gte=since
-        ).order_by('-created_at')
+            created_at__gte=since,
+            deliveries__channel=NotificationChannel.EMAIL,
+            deliveries__status=DeliveryStatus.BATCHED,
+        ).distinct().order_by('-created_at')
         
         if not notifications.exists():
             return None
@@ -559,6 +1182,13 @@ class DigestService:
             log.save(update_fields=['status', 'sent_at'])
             
             logger.info(f"Digest email sent to {user.email}")
+            try:
+                DigestService.mark_batched_deliveries_sent(
+                    user_id=user_id,
+                    since=digest.get('period_start'),
+                )
+            except Exception:
+                pass
             return True
             
         except Exception as e:
@@ -568,6 +1198,41 @@ class DigestService:
             
             logger.error(f"Failed to send digest to {user.email}: {e}")
             return False
+
+    @staticmethod
+    def mark_batched_deliveries_sent(user_id: int, since: timezone.datetime = None):
+        """
+        Mark batched email deliveries as sent after a digest goes out.
+        Also updates notification channels_sent and status.
+        """
+        from apps.notifications.models import NotificationDelivery, Notification, NotificationChannel, DeliveryStatus
+
+        if since is None:
+            since = timezone.now() - timedelta(days=1)
+
+        deliveries = NotificationDelivery.objects.select_related('notification').filter(
+            notification__user_id=user_id,
+            notification__created_at__gte=since,
+            channel=NotificationChannel.EMAIL,
+            status=DeliveryStatus.BATCHED,
+        )
+
+        if not deliveries.exists():
+            return
+
+        now = timezone.now()
+        deliveries.update(status=DeliveryStatus.SENT, sent_at=now, updated_at=now)
+
+        notifications = Notification.objects.filter(deliveries__in=deliveries).distinct()
+        for notification in notifications:
+            channels_sent = set(notification.channels_sent or [])
+            channels_sent.add(NotificationChannel.EMAIL.value)
+            notification.channels_sent = list(channels_sent)
+            notification.save(update_fields=['channels_sent', 'updated_at'])
+            try:
+                notification.update_status_from_deliveries()
+            except Exception:
+                continue
     
     @staticmethod
     def _generate_simple_digest_html(digest: Dict[str, Any]) -> str:
@@ -712,6 +1377,32 @@ class DigestService:
                     failed += 1
         
         logger.info(f"Weekly digest processed: {sent} sent, {failed} failed")
+        return {'sent': sent, 'failed': failed}
+
+    @staticmethod
+    def process_hourly_digests():
+        """
+        Process and send hourly digests.
+        """
+        users = DigestService.get_pending_digest_users(DigestFrequency.HOURLY)
+        
+        sent = 0
+        failed = 0
+        
+        for user_id in users:
+            digest = DigestService.generate_digest(
+                user_id,
+                since=timezone.now() - timedelta(hours=1)
+            )
+            
+            if digest and digest['stats']['unread'] > 0:
+                success = DigestService.send_digest_email(user_id, digest)
+                if success:
+                    sent += 1
+                else:
+                    failed += 1
+        
+        logger.info(f"Hourly digest processed: {sent} sent, {failed} failed")
         return {'sent': sent, 'failed': failed}
 
 

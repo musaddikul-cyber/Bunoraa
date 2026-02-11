@@ -12,6 +12,8 @@ import { notFound } from "next/navigation";
 import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildBreadcrumbList, buildItemList } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -168,6 +170,22 @@ export default async function CategoryPage({
     return `?${params.toString()}`;
   };
 
+  const categoryUrl = `/categories/${slugPath}/`;
+  const breadcrumbs = buildBreadcrumbList([
+    { name: "Home", url: "/" },
+    { name: "Categories", url: "/categories/" },
+    { name: category.name, url: categoryUrl },
+  ]);
+  const productList = buildItemList(
+    products.slice(0, 50).map((product) => ({
+      name: product.name,
+      url: `/products/${product.slug}/`,
+      image: (product.primary_image as string | undefined) || undefined,
+      description: product.short_description || undefined,
+    })),
+    `${category.name} products`
+  );
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-7xl px-6 py-12">
@@ -232,6 +250,7 @@ export default async function CategoryPage({
           <RecentlyViewedSection />
         </div>
       </div>
+      <JsonLd data={[breadcrumbs, productList]} />
     </div>
   );
 }

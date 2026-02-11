@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildItemList } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -20,6 +22,14 @@ async function getPages() {
 
 export default async function PagesIndex() {
   const pages = await getPages();
+  const pagesList = buildItemList(
+    pages.map((page) => ({
+      name: page.title,
+      url: `/pages/${page.slug}/`,
+      description: page.excerpt || undefined,
+    })),
+    "Pages"
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -38,6 +48,7 @@ export default async function PagesIndex() {
           ))}
         </div>
       </div>
+      {pages.length ? <JsonLd data={pagesList} /> : null}
     </div>
   );
 }

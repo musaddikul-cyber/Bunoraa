@@ -16,6 +16,8 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { SearchBar } from "@/components/search/SearchBar";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { SITE_URL, absoluteUrl, buildItemList, cleanObject } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -306,6 +308,45 @@ export default async function Home() {
       href: "/products/?ordering=-sales_count",
       items: bestsellers.slice(0, 4),
     },
+  ];
+
+  const homePageSchema = cleanObject({
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: brandName,
+    description: heroDescription,
+    url: absoluteUrl("/"),
+    isPartOf: {
+      "@type": "WebSite",
+      name: "Bunoraa",
+      url: SITE_URL,
+    },
+  });
+
+  const featuredList = buildItemList(
+    featuredProducts.slice(0, 10).map((product) => ({
+      name: product.name,
+      url: `/products/${product.slug}/`,
+      image: getImage(product) || undefined,
+      description: product.short_description || undefined,
+    })),
+    "Featured products"
+  );
+
+  const collectionsList = buildItemList(
+    collections.slice(0, 10).map((collection) => ({
+      name: collection.name,
+      url: `/collections/${collection.slug}/`,
+      image: collection.image || undefined,
+      description: collection.description || undefined,
+    })),
+    "Collections"
+  );
+
+  const jsonLd = [
+    homePageSchema,
+    ...(featuredProducts.length ? [featuredList] : []),
+    ...(collections.length ? [collectionsList] : []),
   ];
 
   return (
@@ -694,6 +735,7 @@ export default async function Home() {
           </div>
         </Card>
       </section>
+      <JsonLd data={jsonLd} />
     </div>
   );
 }

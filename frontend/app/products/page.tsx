@@ -10,6 +10,8 @@ import { ViewToggle } from "@/components/products/ViewToggle";
 import { Button } from "@/components/ui/Button";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildItemList } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -113,6 +115,16 @@ export default async function ProductsPage({
     return `?${params.toString()}`;
   };
 
+  const productList = buildItemList(
+    products.slice(0, 50).map((product) => ({
+      name: product.name,
+      url: `/products/${product.slug}/`,
+      image: (product.primary_image as string | undefined) || undefined,
+      description: product.short_description || undefined,
+    })),
+    "Products"
+  );
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-7xl px-6 py-12">
@@ -169,6 +181,7 @@ export default async function ProductsPage({
           <RecentlyViewedSection />
         </div>
       </div>
+      {products.length ? <JsonLd data={productList} /> : null}
     </div>
   );
 }

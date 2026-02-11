@@ -6,8 +6,18 @@ import type { NotificationItem } from "@/lib/types";
 const listKey = ["notifications"] as const;
 const unreadKey = ["notifications", "unread"] as const;
 
-async function fetchNotifications() {
-  const response = await apiFetch<NotificationItem[]>("/notifications/");
+export type NotificationFilters = {
+  unread?: boolean;
+  category?: string;
+  type?: string;
+  priority?: string;
+  status?: string;
+};
+
+async function fetchNotifications(filters?: NotificationFilters) {
+  const response = await apiFetch<NotificationItem[]>("/notifications/", {
+    params: filters,
+  });
   return response.data;
 }
 
@@ -16,13 +26,13 @@ async function fetchUnreadCount() {
   return response.data;
 }
 
-export function useNotifications() {
+export function useNotifications(filters?: NotificationFilters) {
   const queryClient = useQueryClient();
   const hasToken = Boolean(getAccessToken());
 
   const notificationsQuery = useQuery({
-    queryKey: listKey,
-    queryFn: fetchNotifications,
+    queryKey: [...listKey, filters],
+    queryFn: () => fetchNotifications(filters),
     enabled: hasToken,
   });
 

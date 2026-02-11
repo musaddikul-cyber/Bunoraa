@@ -1,16 +1,34 @@
 """
 Notifications API views
 """
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 
-from ..models import Notification, NotificationPreference, PushToken
+from ..models import (
+    Notification,
+    NotificationPreference,
+    NotificationDelivery,
+    NotificationTemplate,
+    PushToken,
+)
 from ..services import NotificationService
 from .serializers import (
-    NotificationSerializer, NotificationPreferenceSerializer,
-    MarkReadSerializer, PushTokenSerializer
+    NotificationSerializer,
+    NotificationPreferenceSerializer,
+    NotificationDeliverySerializer,
+    NotificationTemplateSerializer,
+    NotificationBroadcastSerializer,
+    NotificationUnsubscribeSerializer,
+    MarkReadSerializer,
+    PushTokenSerializer,
 )
 
 
@@ -27,9 +45,28 @@ class NotificationViewSet(viewsets.ModelViewSet):
     """
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'notifications'
     
     def get_queryset(self):
-        return Notification.objects.filter(user=self.request.user)
+        queryset = Notification.objects.filter(user=self.request.user)
+
+        notif_type = self.request.query_params.get('type')
+        if notif_type:
+            queryset = queryset.filter(type=notif_type)
+
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+
+        priority = self.request.query_params.get('priority')
+        if priority:
+            queryset = queryset.filter(priority=priority)
+
+        return queryset
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -115,7 +152,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
             Notification.objects.filter(
                 id__in=notification_ids,
                 user=request.user
-            ).update(is_read=True)
+            ).update(is_read=True, read_at=timezone.now())
             count = len(notification_ids)
         else:
             count = 0
@@ -156,6 +193,58 @@ class NotificationViewSet(viewsets.ModelViewSet):
             'meta': {}
         }, status=status.HTTP_404_NOT_FOUND)
 
+    @action(
+        detail=False,
+        methods=['post'],
+        permission_classes=[IsAdminUser],
+        throttle_scope='notifications_broadcast'
+    )
+    def broadcast(self, request):
+        """Broadcast a notification to multiple users (admin only)."""
+        serializer = NotificationBroadcastSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        User = get_user_model()
+        user_ids = data.get('user_ids')
+        if not user_ids:
+            user_ids = list(User.objects.filter(is_active=True).values_list('id', flat=True))
+
+        if not user_ids:
+            return Response({
+                'success': False,
+                'message': 'No users found for broadcast.',
+                'data': {},
+                'meta': {}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.notifications.tasks import send_broadcast_notification
+
+        chunk_size = int(getattr(settings, 'NOTIFICATION_BROADCAST_CHUNK_SIZE', 500))
+        queued = 0
+        for i in range(0, len(user_ids), chunk_size):
+            chunk = user_ids[i:i + chunk_size]
+            send_broadcast_notification.delay(
+                chunk,
+                data['notification_type'],
+                data['title'],
+                data['message'],
+                data.get('url'),
+                data.get('metadata') or {},
+                data.get('category'),
+                data.get('priority'),
+                data.get('channels'),
+                data.get('dedupe_key'),
+            )
+            queued += len(chunk)
+
+        return Response({
+            'success': True,
+            'message': 'Broadcast queued successfully.',
+            'data': {'queued': queued},
+            'meta': {}
+        })
+
 
 class NotificationPreferenceViewSet(viewsets.ViewSet):
     """
@@ -165,6 +254,7 @@ class NotificationPreferenceViewSet(viewsets.ViewSet):
     PUT /api/v1/notifications/preferences/ - Update preferences
     """
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'notifications_preferences'
     
     def list(self, request):
         """Get user's notification preferences."""
@@ -183,6 +273,30 @@ class NotificationPreferenceViewSet(viewsets.ViewSet):
         serializer = NotificationPreferenceSerializer(prefs, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+
+        try:
+            from apps.accounts.behavior_models import UserPreferences
+            user_prefs, _ = UserPreferences.objects.get_or_create(user=request.user)
+            user_prefs.email_notifications = prefs.email_enabled
+            user_prefs.sms_notifications = prefs.sms_enabled
+            user_prefs.push_notifications = prefs.push_enabled
+            user_prefs.notify_order_updates = (
+                prefs.email_order_updates or prefs.sms_order_updates or prefs.push_order_updates
+            )
+            user_prefs.notify_promotions = (
+                prefs.email_promotions or prefs.sms_promotions or prefs.push_promotions
+            )
+            user_prefs.notify_price_drops = prefs.email_price_drops
+            user_prefs.notify_back_in_stock = prefs.email_back_in_stock
+            if prefs.timezone:
+                user_prefs.timezone = prefs.timezone
+            user_prefs.save(update_fields=[
+                'email_notifications', 'sms_notifications', 'push_notifications',
+                'notify_order_updates', 'notify_promotions', 'notify_price_drops',
+                'notify_back_in_stock', 'timezone', 'updated_at'
+            ])
+        except Exception:
+            pass
         
         return Response({
             'success': True,
@@ -200,19 +314,27 @@ class PushTokenViewSet(viewsets.ViewSet):
     DELETE /api/v1/notifications/push-tokens/{token}/ - Remove token
     """
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'notifications_push_tokens'
     
     def create(self, request):
         """Register a push token."""
         serializer = PushTokenSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+        validated = serializer.validated_data
         token, created = PushToken.objects.update_or_create(
-            token=serializer.validated_data['token'],
+            token=validated['token'],
             defaults={
                 'user': request.user,
-                'device_type': serializer.validated_data['device_type'],
-                'device_name': serializer.validated_data.get('device_name'),
-                'is_active': True
+                'device_type': validated['device_type'],
+                'device_name': validated.get('device_name'),
+                'platform': validated.get('platform'),
+                'app_version': validated.get('app_version'),
+                'locale': validated.get('locale'),
+                'timezone': validated.get('timezone'),
+                'browser': validated.get('browser'),
+                'user_agent': validated.get('user_agent') or request.META.get('HTTP_USER_AGENT', ''),
+                'last_ip': request.META.get('REMOTE_ADDR'),
+                'is_active': True,
             }
         )
         
@@ -244,3 +366,123 @@ class PushTokenViewSet(viewsets.ViewSet):
             'data': {},
             'meta': {}
         }, status=status.HTTP_404_NOT_FOUND)
+
+
+class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
+    """Admin viewset for delivery logs."""
+    serializer_class = NotificationDeliverySerializer
+    permission_classes = [IsAdminUser]
+    throttle_scope = 'notifications_deliveries'
+
+    def get_queryset(self):
+        queryset = NotificationDelivery.objects.select_related('notification', 'notification__user')
+
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+
+        channel = self.request.query_params.get('channel')
+        if channel:
+            queryset = queryset.filter(channel=channel)
+
+        user_id = self.request.query_params.get('user_id')
+        if user_id:
+            queryset = queryset.filter(notification__user_id=user_id)
+
+        notification_id = self.request.query_params.get('notification_id')
+        if notification_id:
+            queryset = queryset.filter(notification_id=notification_id)
+
+        return queryset
+
+
+class NotificationTemplateViewSet(viewsets.ModelViewSet):
+    """Admin viewset for notification templates."""
+    serializer_class = NotificationTemplateSerializer
+    queryset = NotificationTemplate.objects.all()
+    permission_classes = [IsAdminUser]
+    throttle_scope = 'notifications_templates'
+
+
+class NotificationUnsubscribeView(APIView):
+    """Handle one-click unsubscribe requests."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [JSONParser, FormParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'notifications_unsubscribe'
+
+    def get(self, request):
+        return self._handle(request)
+
+    def post(self, request):
+        return self._handle(request)
+
+    def _handle(self, request):
+        token = request.query_params.get('token') or request.data.get('token')
+        serializer = NotificationUnsubscribeSerializer(data={'token': token})
+        serializer.is_valid(raise_exception=True)
+
+        email, user_id = NotificationService.verify_unsubscribe_token(serializer.validated_data['token'])
+        if not email:
+            return Response({
+                'success': False,
+                'message': 'Invalid or expired unsubscribe token.',
+                'data': {},
+                'meta': {}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if user_id:
+            prefs, _ = NotificationPreference.objects.get_or_create(user_id=user_id)
+            prefs.marketing_opt_in = False
+            prefs.email_promotions = False
+            prefs.email_newsletter = False
+            prefs.sms_promotions = False
+            prefs.push_promotions = False
+            prefs.save(update_fields=[
+                'marketing_opt_in', 'email_promotions', 'email_newsletter',
+                'sms_promotions', 'push_promotions', 'updated_at'
+            ])
+
+            try:
+                from apps.email_service.models import Suppression
+                Suppression.objects.get_or_create(
+                    user_id=user_id,
+                    email=email,
+                    suppression_type=Suppression.SuppressionType.UNSUBSCRIBE,
+                )
+            except Exception:
+                pass
+
+        return Response({
+            'success': True,
+            'message': 'You have been unsubscribed from marketing notifications.',
+            'data': {'email': email},
+            'meta': {}
+        })
+
+
+class NotificationHealthView(APIView):
+    """Admin health check for notification providers."""
+    permission_classes = [IsAdminUser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'notifications_health'
+
+    def get(self, request):
+        sms_provider = getattr(settings, 'SMS_PROVIDER', 'ssl_wireless')
+        vapid_public = getattr(settings, 'VAPID_PUBLIC_KEY', '')
+        vapid_private = getattr(settings, 'VAPID_PRIVATE_KEY', '')
+        firebase_credentials = getattr(settings, 'FIREBASE_CREDENTIALS_PATH', None)
+
+        return Response({
+            'success': True,
+            'message': 'Notification provider status',
+            'data': {
+                'email_service_enabled': getattr(settings, 'EMAIL_SERVICE_ENABLED', False),
+                'sms_provider': sms_provider,
+                'sms_configured': bool(getattr(settings, 'SSL_WIRELESS_API_TOKEN', '') or getattr(settings, 'BULKSMS_API_KEY', '') or getattr(settings, 'INFOBIP_API_KEY', '')),
+                'vapid_configured': bool(vapid_public and vapid_private),
+                'firebase_configured': bool(firebase_credentials),
+            },
+            'meta': {}
+        })

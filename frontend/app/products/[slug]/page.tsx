@@ -4,6 +4,8 @@ import type { ProductDetail, ProductListItem } from "@/lib/types";
 import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/products/ProductDetailClient";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildBreadcrumbList } from "@/lib/seo";
 
 export const revalidate = 900;
 
@@ -54,17 +56,30 @@ export default async function ProductDetailPage({
     getRelated(slug).catch(() => []),
   ]);
 
+  const breadcrumbItems = [
+    { name: "Home", url: "/" },
+    { name: "Products", url: "/products/" },
+  ];
+  if (product.breadcrumbs && product.breadcrumbs.length) {
+    product.breadcrumbs.forEach((crumb) => {
+      breadcrumbItems.push({ name: crumb.name, url: `/categories/${crumb.slug}/` });
+    });
+  } else if (product.primary_category) {
+    breadcrumbItems.push({
+      name: product.primary_category.name,
+      url: `/categories/${product.primary_category.slug}/`,
+    });
+  }
+  breadcrumbItems.push({ name: product.name, url: `/products/${product.slug}/` });
+  const breadcrumbs = buildBreadcrumbList(breadcrumbItems);
+  const jsonLd = [breadcrumbs, ...(product.schema_org ? [product.schema_org] : [])];
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-6xl px-6 py-12">
         <ProductDetailClient product={product} relatedProducts={relatedProducts} />
       </div>
-      {product.schema_org ? (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(product.schema_org) }}
-        />
-      ) : null}
+      <JsonLd data={jsonLd} />
     </div>
   );
 }

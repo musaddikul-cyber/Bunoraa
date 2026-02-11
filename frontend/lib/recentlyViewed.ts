@@ -42,6 +42,12 @@ export function addRecentlyViewed(item: Omit<RecentlyViewedItem, "viewed_at">) {
   notify();
 }
 
+export function setRecentlyViewed(items: RecentlyViewedItem[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(KEY, JSON.stringify(items.slice(0, MAX_ITEMS)));
+  notify();
+}
+
 export function clearRecentlyViewed() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(KEY);

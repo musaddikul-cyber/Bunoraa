@@ -5,6 +5,8 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { buildBreadcrumbList, buildItemList } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -42,6 +44,21 @@ export default async function BundleDetailPage({
     getBundle(slug),
     getBundleProducts(slug),
   ]);
+  const bundleUrl = `/bundles/${bundle.slug}/`;
+  const breadcrumbs = buildBreadcrumbList([
+    { name: "Home", url: "/" },
+    { name: "Bundles", url: "/bundles/" },
+    { name: bundle.name, url: bundleUrl },
+  ]);
+  const productList = buildItemList(
+    products.slice(0, 50).map((product) => ({
+      name: product.name,
+      url: `/products/${product.slug}/`,
+      image: (product.primary_image as string | undefined) || undefined,
+      description: product.short_description || undefined,
+    })),
+    `${bundle.name} items`
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -67,6 +84,7 @@ export default async function BundleDetailPage({
           </p>
         )}
       </div>
+      <JsonLd data={[breadcrumbs, ...(products.length ? [productList] : [])]} />
     </div>
   );
 }

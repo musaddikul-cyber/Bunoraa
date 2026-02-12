@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
 
 from apps.email_service.models import EmailMessage, APIKey, EmailTemplate, UnsubscribeGroup
 from apps.email_service.engine import DeliveryEngine
@@ -60,6 +61,32 @@ class EmailServiceIntegration:
         except Exception as e:
             logger.error(f"Failed to create unsubscribe group: {e}")
             return None
+
+    @staticmethod
+    def _get_site_url() -> str:
+        """Prefer frontend origin for user-facing links; fallback to SITE_URL."""
+        frontend = getattr(settings, "NEXT_FRONTEND_ORIGIN", "") or getattr(
+            settings, "NEXT_PUBLIC_SITE_URL", ""
+        )
+        site_url = frontend or getattr(settings, "SITE_URL", "https://bunoraa.com")
+        return site_url.rstrip("/")
+
+    @staticmethod
+    def _send_fallback_email(subject: str, to_email: str, text_content: str, html_content: str) -> bool:
+        """Fallback to Django email backend when email service is unavailable."""
+        try:
+            send_mail(
+                subject,
+                text_content,
+                settings.DEFAULT_FROM_EMAIL,
+                [to_email],
+                html_message=html_content,
+                fail_silently=False,
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Fallback email send failed for {to_email}: {e}")
+            return False
     
     @staticmethod
     def send_verification_email(user: User, token: str) -> bool:
@@ -75,7 +102,7 @@ class EmailServiceIntegration:
         """
         try:
             # Build verification URL
-            site_url = getattr(settings, 'SITE_URL', 'https://bunoraa.com')
+            site_url = EmailServiceIntegration._get_site_url()
             verification_url = f"{site_url}/account/verify-email/{token}/"
             
             # Render email content
@@ -92,8 +119,13 @@ class EmailServiceIntegration:
             # Get API key
             api_key = EmailServiceIntegration.get_api_key()
             if not api_key:
-                logger.error("No API key available for sending verification email")
-                return False
+                logger.error("No API key available for sending verification email; using fallback backend")
+                return EmailServiceIntegration._send_fallback_email(
+                    'Verify Your Email Address',
+                    user.email,
+                    text_content,
+                    html_content,
+                )
             
             # Create email message
             message = EmailMessage.objects.create(
@@ -123,7 +155,12 @@ class EmailServiceIntegration:
             
         except Exception as e:
             logger.error(f"Failed to send verification email to {user.email}: {e}")
-            return False
+            return EmailServiceIntegration._send_fallback_email(
+                'Verify Your Email Address',
+                user.email,
+                text_content if 'text_content' in locals() else '',
+                html_content if 'html_content' in locals() else '',
+            )
     
     @staticmethod
     def send_password_reset_email(user: User, token: str) -> bool:
@@ -214,7 +251,13 @@ class EmailServiceIntegration:
             
             api_key = EmailServiceIntegration.get_api_key()
             if not api_key:
-                return False
+                logger.error("No API key available for email change verification; using fallback backend")
+                return EmailServiceIntegration._send_fallback_email(
+                    'Verify Your New Email Address',
+                    new_email,
+                    text_content,
+                    html_content,
+                )
             
             message = EmailMessage.objects.create(
                 message_id=f"welcome_{user.id}_{secrets.token_hex(4)}@bunoraa.com",
@@ -302,7 +345,7 @@ class EmailServiceIntegration:
             True if queued successfully, False otherwise
         """
         try:
-            site_url = getattr(settings, 'SITE_URL', 'https://bunoraa.com')
+            site_url = EmailServiceIntegration._get_site_url()
             verification_url = f"{site_url}/account/verify-new-email/{token}/"
             
             context = {
@@ -343,4 +386,9 @@ class EmailServiceIntegration:
             
         except Exception as e:
             logger.error(f"Failed to send email change verification to {new_email}: {e}")
-            return False
+            return EmailServiceIntegration._send_fallback_email(
+                'Verify Your New Email Address',
+                new_email,
+                text_content if 'text_content' in locals() else '',
+                html_content if 'html_content' in locals() else '',
+            )

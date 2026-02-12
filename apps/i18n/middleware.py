@@ -4,9 +4,17 @@ Internationalization Middleware
 Middleware for automatic locale detection and setting.
 """
 import logging
+from zoneinfo import ZoneInfo
+from django.conf import settings
 from django.utils import timezone as django_timezone
+from django.utils.cache import patch_vary_headers
 from django.utils.deprecation import MiddlewareMixin
 from django.utils.translation import activate
+
+try:
+    from django.utils.translation import LANGUAGE_SESSION_KEY
+except ImportError:  # Django >=5.2 may not expose this constant
+    LANGUAGE_SESSION_KEY = 'django_language'
 
 logger = logging.getLogger(__name__)
 
@@ -37,37 +45,60 @@ class LocaleMiddleware(MiddlewareMixin):
         if language:
             request.LANGUAGE_CODE = language.code
             request.language = language
+            request.locale = language.locale_code or language.code
             activate(language.code)
-            request.session['language'] = language.code
+            if hasattr(request, 'session'):
+                if request.session.get(LANGUAGE_SESSION_KEY) != language.code:
+                    request.session[LANGUAGE_SESSION_KEY] = language.code
+                if request.session.get('language') != language.code:
+                    request.session['language'] = language.code
         
         # Set Currency
         currency = self._get_currency(request, user)
         if currency:
             request.currency = currency
-            request.session['currency_code'] = currency.code
+            if hasattr(request, 'session'):
+                if request.session.get('currency_code') != currency.code:
+                    request.session['currency_code'] = currency.code
         
         # Set Timezone
         tz = self._get_timezone(request, user)
         if tz:
             request.timezone = tz
             try:
-                import pytz
-                django_timezone.activate(pytz.timezone(tz.name))
+                django_timezone.activate(ZoneInfo(tz.name))
             except Exception:
-                pass
+                try:
+                    import pytz
+                    django_timezone.activate(pytz.timezone(tz.name))
+                except Exception:
+                    pass
+            if hasattr(request, 'session'):
+                if request.session.get('timezone') != tz.name:
+                    request.session['timezone'] = tz.name
     
     def process_response(self, request, response):
         """Process response to set cookies."""
         # Set language cookie if changed
         if hasattr(request, 'language') and request.language:
-            current_cookie = request.COOKIES.get('language')
+            cookie_name = getattr(settings, 'LANGUAGE_COOKIE_NAME', 'language')
+            current_cookie = request.COOKIES.get(cookie_name) or request.COOKIES.get('language')
             if current_cookie != request.language.code:
                 response.set_cookie(
-                    'language', request.language.code,
-                    max_age=365 * 24 * 60 * 60,
+                    cookie_name,
+                    request.language.code,
+                    max_age=getattr(settings, 'LANGUAGE_COOKIE_AGE', 365 * 24 * 60 * 60),
                     httponly=False,
-                    samesite='Lax'
+                    samesite=getattr(settings, 'LANGUAGE_COOKIE_SAMESITE', 'Lax')
                 )
+                if cookie_name != 'language':
+                    response.set_cookie(
+                        'language',
+                        request.language.code,
+                        max_age=365 * 24 * 60 * 60,
+                        httponly=False,
+                        samesite='Lax'
+                    )
         
         # Set currency cookie if changed
         if hasattr(request, 'currency') and request.currency:
@@ -79,6 +110,13 @@ class LocaleMiddleware(MiddlewareMixin):
                     httponly=False,
                     samesite='Lax'
                 )
+
+        # Content-Language header for caches/clients
+        if hasattr(request, 'language') and request.language:
+            response['Content-Language'] = request.language.code
+
+        # Ensure caches vary on language/cookie headers
+        patch_vary_headers(response, ['Accept-Language', 'X-User-Language', 'Cookie'])
         
         return response
     
@@ -87,14 +125,15 @@ class LocaleMiddleware(MiddlewareMixin):
         from .services import LanguageService
         
         # 1. Session
-        session_lang = request.session.get('language')
+        session_lang = request.session.get(LANGUAGE_SESSION_KEY) or request.session.get('language')
         if session_lang:
             lang = LanguageService.get_language_by_code(session_lang)
             if lang:
                 return lang
         
         # 2. Cookie
-        cookie_lang = request.COOKIES.get('language')
+        cookie_name = getattr(settings, 'LANGUAGE_COOKIE_NAME', 'language')
+        cookie_lang = request.COOKIES.get(cookie_name) or request.COOKIES.get('language')
         if cookie_lang:
             lang = LanguageService.get_language_by_code(cookie_lang)
             if lang:

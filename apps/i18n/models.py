@@ -85,7 +85,19 @@ class Language(models.Model):
             self.translation_progress = int((self.translated_strings / self.total_strings) * 100)
         super().save(*args, **kwargs)
         # Clear cache
-        cache.delete_many(['active_languages', 'default_language', f'language_{self.code}'])
+        def _norm(code):
+            if not code:
+                return None
+            return str(code).strip().replace('_', '-').lower()
+        lang_keys = {self.code, self.locale_code}
+        language_cache_keys = [
+            f"i18n_language_{_norm(code)}" for code in lang_keys if _norm(code)
+        ]
+        cache.delete_many([
+            'i18n_active_languages',
+            'i18n_default_language',
+            *language_cache_keys,
+        ])
 
 
 # =============================================================================
@@ -171,7 +183,12 @@ class Currency(models.Model):
             Currency.objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False)
         super().save(*args, **kwargs)
         # Clear cache
-        cache.delete_many(['active_currencies', 'default_currency', f'currency_{self.code}'])
+        cache.delete_many([
+            'i18n_active_currencies',
+            'i18n_default_currency',
+            'i18n_default_currency_v2',
+            f'i18n_currency_{self.code}',
+        ])
     
     def format_amount(self, amount, use_native_symbol=False):
         """Format an amount in this currency."""

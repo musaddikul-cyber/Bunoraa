@@ -48,10 +48,10 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     if (!prefsQuery.data) return;
     const data = prefsQuery.data as Record<string, unknown>;
     const next: LocaleState = {
-      language: (data.language as string) || (data.language_code as string),
+      language: (data.language_code as string) || (data.language as string),
       currency: (data.currency_code as string) || (data.currency as string),
-      timezone: (data.timezone as string) || (data.timezone_name as string),
-      country: (data.country as string) || (data.country_code as string),
+      timezone: (data.timezone_name as string) || (data.timezone as string),
+      country: (data.country_code as string) || (data.country as string),
     };
     setLocaleState((prev) => {
       const merged = { ...prev, ...next };

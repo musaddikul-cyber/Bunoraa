@@ -29,6 +29,38 @@ class LanguageService:
     """Service for language operations."""
     
     CACHE_TIMEOUT = 3600  # 1 hour
+    _CACHE_MISS = "__i18n_lang_miss__"
+
+    @staticmethod
+    def normalize_code(code: str) -> str:
+        """
+        Normalize a language tag to a canonical BCP47-style form.
+
+        Examples:
+            en-us -> en-US
+            zh_hant_cn -> zh-Hant-CN
+        """
+        if not code:
+            return ""
+        raw = str(code).strip()
+        if not raw:
+            return ""
+        raw = raw.replace('_', '-')
+        parts = [p for p in raw.split('-') if p]
+        if not parts:
+            return ""
+        normalized = []
+        for index, part in enumerate(parts):
+            if index == 0:
+                normalized.append(part.lower())
+                continue
+            if len(part) == 2 and part.isalpha():
+                normalized.append(part.upper())
+            elif len(part) == 4 and part.isalpha():
+                normalized.append(part.title())
+            else:
+                normalized.append(part.lower())
+        return "-".join(normalized)
     
     @staticmethod
     def get_active_languages() -> List[Language]:
@@ -49,7 +81,16 @@ class LanguageService:
         language = cache.get(cache_key)
         
         if language is None:
-            language = Language.objects.filter(is_default=True).first()
+            language = None
+            try:
+                settings = I18nSettings.get_settings()
+                if settings.default_language and settings.default_language.is_active:
+                    language = settings.default_language
+            except Exception:
+                language = None
+
+            if not language:
+                language = Language.objects.filter(is_default=True).first()
             if not language:
                 language = Language.objects.filter(is_active=True).first()
             if language:
@@ -58,28 +99,91 @@ class LanguageService:
         return language
     
     @staticmethod
-    def get_language_by_code(code: str) -> Optional[Language]:
-        """Get language by code."""
-        cache_key = f'i18n_language_{code}'
-        language = cache.get(cache_key)
-        
-        if language is None:
-            language = Language.objects.filter(code=code, is_active=True).first()
-            if language:
-                cache.set(cache_key, language, LanguageService.CACHE_TIMEOUT)
-        
+    def get_language_by_code(code: str, allow_fallback: bool = True) -> Optional[Language]:
+        """Get language by code or locale code (BCP47)."""
+        if not code:
+            return None
+        if isinstance(code, Language):
+            return code
+
+        normalized = LanguageService.normalize_code(code)
+        if not normalized:
+            return None
+
+        cache_key = f'i18n_language_{normalized.lower()}'
+        cached = cache.get(cache_key)
+        if cached == LanguageService._CACHE_MISS:
+            return None
+        if cached is not None:
+            return cached
+
+        alt = normalized.replace('-', '_')
+        language = Language.objects.filter(is_active=True).filter(
+            models.Q(code__iexact=normalized) |
+            models.Q(locale_code__iexact=normalized) |
+            models.Q(code__iexact=alt) |
+            models.Q(locale_code__iexact=alt)
+        ).first()
+
+        if not language and allow_fallback and '-' in normalized:
+            base = normalized.split('-')[0]
+            language = LanguageService.get_language_by_code(base, allow_fallback=False)
+
+        cache.set(
+            cache_key,
+            language if language else LanguageService._CACHE_MISS,
+            LanguageService.CACHE_TIMEOUT,
+        )
         return language
+
+    @staticmethod
+    def parse_accept_language(value: str) -> List[str]:
+        """
+        Parse Accept-Language header into a sorted list of language tags.
+        Respects q-values (RFC 9110).
+        """
+        if not value:
+            return []
+
+        items = []
+        for order, raw in enumerate(value.split(',')):
+            entry = raw.strip()
+            if not entry:
+                continue
+            parts = [p.strip() for p in entry.split(';') if p.strip()]
+            tag = parts[0]
+            q = 1.0
+            for param in parts[1:]:
+                if param.startswith('q='):
+                    try:
+                        q = float(param[2:])
+                    except ValueError:
+                        q = 0.0
+            if q <= 0:
+                continue
+            items.append((tag, q, order))
+
+        items.sort(key=lambda item: (-item[1], item[2]))
+        return [item[0] for item in items]
     
     @staticmethod
     def detect_language(request) -> Optional[Language]:
         """Detect language from request."""
         # Priority 1: Query parameter
-        if request.GET.get('lang'):
-            lang = LanguageService.get_language_by_code(request.GET['lang'])
+        lang_param = request.GET.get('lang') or request.GET.get('language')
+        if lang_param:
+            lang = LanguageService.get_language_by_code(lang_param)
+            if lang:
+                return lang
+
+        # Priority 2: Explicit header (e.g. SPA preference)
+        header_lang = request.META.get('HTTP_X_USER_LANGUAGE') or request.META.get('HTTP_X_LANGUAGE')
+        if header_lang:
+            lang = LanguageService.get_language_by_code(header_lang)
             if lang:
                 return lang
         
-        # Priority 2: Session
+        # Priority 3: Session
         if hasattr(request, 'session'):
             lang_code = request.session.get('language')
             if lang_code:
@@ -87,24 +191,70 @@ class LanguageService:
                 if lang:
                     return lang
         
-        # Priority 3: Cookie
+        # Priority 4: Cookie
         if hasattr(request, 'COOKIES'):
-            lang_code = request.COOKIES.get('language')
+            lang_code = request.COOKIES.get(getattr(django_settings, 'LANGUAGE_COOKIE_NAME', 'language')) \
+                or request.COOKIES.get('language')
             if lang_code:
                 lang = LanguageService.get_language_by_code(lang_code)
                 if lang:
                     return lang
         
-        # Priority 4: Accept-Language header
-        accept_lang = request.META.get('HTTP_ACCEPT_LANGUAGE', '')
-        if accept_lang:
-            for lang_item in accept_lang.split(','):
-                lang_code = lang_item.split(';')[0].split('-')[0].strip()
-                lang = LanguageService.get_language_by_code(lang_code)
+        # Priority 5: Accept-Language header (if auto-detect enabled)
+        auto_detect = True
+        try:
+            settings = I18nSettings.get_settings()
+            auto_detect = settings.auto_detect_language
+        except Exception:
+            auto_detect = True
+
+        if auto_detect:
+            accept_lang = request.META.get('HTTP_ACCEPT_LANGUAGE', '')
+            for lang_item in LanguageService.parse_accept_language(accept_lang):
+                if lang_item == '*':
+                    return LanguageService.get_default_language()
+                lang = LanguageService.get_language_by_code(lang_item)
                 if lang:
                     return lang
         
         return LanguageService.get_default_language()
+
+    @staticmethod
+    def get_fallback_chain(language_code: str) -> List[str]:
+        """Get fallback language codes in priority order."""
+        codes: List[str] = []
+
+        def _add(code: str):
+            if code and code not in codes:
+                codes.append(code)
+
+        normalized = LanguageService.normalize_code(language_code)
+        if normalized:
+            _add(normalized)
+            base = normalized.split('-')[0]
+            if base and base != normalized:
+                _add(base)
+
+        try:
+            settings = I18nSettings.get_settings()
+            if settings.fallback_language:
+                _add(settings.fallback_language.code)
+            if settings.default_language:
+                _add(settings.default_language.code)
+        except Exception:
+            pass
+
+        default_lang = LanguageService.get_default_language()
+        if default_lang:
+            _add(default_lang.code)
+
+        # Ensure all codes resolve to active languages
+        resolved: List[str] = []
+        for code in codes:
+            lang = LanguageService.get_language_by_code(code, allow_fallback=False)
+            if lang and lang.code not in resolved:
+                resolved.append(lang.code)
+        return resolved
     
     @staticmethod
     def get_user_language(user=None, request=None) -> Optional[Language]:
@@ -113,7 +263,7 @@ class LanguageService:
         if user and user.is_authenticated:
             try:
                 pref = UserLocalePreference.objects.filter(user=user).select_related('language').first()
-                if pref and pref.language and not pref.auto_detect_language:
+                if pref and pref.language and pref.language.is_active and not pref.auto_detect_language:
                     return pref.language
             except Exception:
                 pass
@@ -290,7 +440,7 @@ class CurrencyService:
             try:
                 pref = UserLocalePreference.objects.filter(user=user).select_related('currency').first()
                 logger.debug(f"[Currency] User {user.id} preference: currency={pref.currency if pref else None}, auto_detect={pref.auto_detect_currency if pref else None}")
-                if pref and pref.currency and not pref.auto_detect_currency:
+                if pref and pref.currency and pref.currency.is_active and not pref.auto_detect_currency:
                     logger.debug(f"[Currency] Returning user preference: {pref.currency.code}")
                     return pref.currency
             except Exception as e:
@@ -947,7 +1097,7 @@ class TimezoneService:
         if user and user.is_authenticated:
             try:
                 pref = UserLocalePreference.objects.filter(user=user).select_related('timezone').first()
-                if pref and pref.timezone and not pref.auto_detect_timezone:
+                if pref and pref.timezone and pref.timezone.is_active and not pref.auto_detect_timezone:
                     return pref.timezone
             except Exception:
                 pass
@@ -1059,61 +1209,190 @@ class TranslationService:
     """Service for translation operations."""
     
     CACHE_TIMEOUT = 3600
+    _CACHE_MISS = "__i18n_trans_miss__"
+    _CONTENT_CACHE_MISS = "__i18n_content_miss__"
+
+    @staticmethod
+    def _select_plural_form(plural_forms: Dict[str, Any], count: int) -> Optional[str]:
+        """Select the best plural form for a count."""
+        if not plural_forms:
+            return None
+
+        # Prefer explicit numeric keys first
+        numeric_key = str(count)
+        if numeric_key in plural_forms:
+            return plural_forms.get(numeric_key)
+
+        if count == 0 and 'zero' in plural_forms:
+            return plural_forms.get('zero')
+        if count == 1 and 'one' in plural_forms:
+            return plural_forms.get('one')
+        if count == 2 and 'two' in plural_forms:
+            return plural_forms.get('two')
+
+        # Fall back to CLDR-like buckets if present
+        for key in ('few', 'many', 'other'):
+            if key in plural_forms:
+                return plural_forms.get(key)
+        return None
+
+    @staticmethod
+    def _translation_cache_key(namespace: str, key: str, language_code: str, count: Optional[int], fallback: bool) -> str:
+        lang_key = LanguageService.normalize_code(language_code).lower()
+        count_key = 'none' if count is None else str(count)
+        return f'i18n_trans_{namespace or "default"}_{key}_{lang_key}_c{count_key}_fb{1 if fallback else 0}'
+
+    @staticmethod
+    def _content_cache_key(content_type: str, content_id: str, field_name: str, language_code: str, fallback: bool) -> str:
+        lang_key = LanguageService.normalize_code(language_code).lower()
+        return f'i18n_content_{content_type}_{content_id}_{field_name}_{lang_key}_fb{1 if fallback else 0}'
     
     @staticmethod
-    def get_translation(key: str, language_code: str, namespace: str = None) -> Optional[str]:
-        """Get translation for a key."""
-        cache_key = f'i18n_trans_{namespace or "default"}_{key}_{language_code}'
-        translation = cache.get(cache_key)
-        
-        if translation is not None:
-            return translation
-        
-        # Build query
+    def get_translation(
+        key: str,
+        language_code: str,
+        namespace: str = None,
+        count: Optional[int] = None,
+        fallback: bool = True,
+        default: Optional[str] = None,
+    ) -> Optional[str]:
+        """Get translation for a key with fallback and plural support."""
+        if not key or not language_code:
+            return default
+
+        cache_key = TranslationService._translation_cache_key(namespace, key, language_code, count, fallback)
+        cached = cache.get(cache_key)
+        if cached == TranslationService._CACHE_MISS:
+            return default
+        if cached is not None:
+            return cached
+
+        language_codes = (
+            LanguageService.get_fallback_chain(language_code)
+            if fallback
+            else [LanguageService.normalize_code(language_code)]
+        )
+
+        for lang_code in language_codes:
+            value = TranslationService._get_translation_for_language(
+                key, lang_code, namespace, count
+            )
+            if value is not None:
+                cache.set(cache_key, value, TranslationService.CACHE_TIMEOUT)
+                return value
+
+        cache.set(cache_key, TranslationService._CACHE_MISS, TranslationService.CACHE_TIMEOUT)
+        return default
+
+    @staticmethod
+    def _get_translation_for_language(
+        key: str,
+        language_code: str,
+        namespace: Optional[str],
+        count: Optional[int]
+    ) -> Optional[str]:
+        """Get translation for a specific language without fallback."""
+        if not language_code:
+            return None
+
+        count_key = 'none' if count is None else str(count)
+        cache_key = f'i18n_trans_{namespace or "default"}_{key}_{LanguageService.normalize_code(language_code).lower()}_c{count_key}'
+        cached = cache.get(cache_key)
+        if cached == TranslationService._CACHE_MISS:
+            return None
+        if cached is not None:
+            return cached
+
         query = Translation.objects.filter(
             key__key=key,
-            language__code=language_code,
+            language__code__iexact=language_code,
             status='approved'
         )
-        
         if namespace:
             query = query.filter(key__namespace__name=namespace)
-        
+
         trans_obj = query.select_related('key').first()
-        
-        if trans_obj:
-            cache.set(cache_key, trans_obj.translated_text, TranslationService.CACHE_TIMEOUT)
-            return trans_obj.translated_text
-        
-        return None
+        if not trans_obj:
+            cache.set(cache_key, TranslationService._CACHE_MISS, TranslationService.CACHE_TIMEOUT)
+            return None
+
+        value = trans_obj.translated_text
+        if count is not None and (trans_obj.plural_forms or trans_obj.key.is_plural):
+            plural_value = TranslationService._select_plural_form(trans_obj.plural_forms or {}, count)
+            if plural_value:
+                value = plural_value
+
+        cache.set(cache_key, value, TranslationService.CACHE_TIMEOUT)
+        return value
     
     @staticmethod
     def get_content_translation(
         content_type: str,
         content_id: str,
         field_name: str,
+        language_code: str,
+        fallback: bool = True,
+        default: Optional[str] = None,
+    ) -> Optional[str]:
+        """Get translation for dynamic content with fallback."""
+        if not content_type or not content_id or not field_name or not language_code:
+            return default
+
+        cache_key = TranslationService._content_cache_key(
+            content_type, content_id, field_name, language_code, fallback
+        )
+        cached = cache.get(cache_key)
+        if cached == TranslationService._CONTENT_CACHE_MISS:
+            return default
+        if cached is not None:
+            return cached
+
+        language_codes = (
+            LanguageService.get_fallback_chain(language_code)
+            if fallback
+            else [LanguageService.normalize_code(language_code)]
+        )
+
+        for lang_code in language_codes:
+            value = TranslationService._get_content_translation_for_language(
+                content_type, content_id, field_name, lang_code
+            )
+            if value is not None:
+                cache.set(cache_key, value, TranslationService.CACHE_TIMEOUT)
+                return value
+
+        cache.set(cache_key, TranslationService._CONTENT_CACHE_MISS, TranslationService.CACHE_TIMEOUT)
+        return default
+
+    @staticmethod
+    def _get_content_translation_for_language(
+        content_type: str,
+        content_id: str,
+        field_name: str,
         language_code: str
     ) -> Optional[str]:
-        """Get translation for dynamic content."""
-        cache_key = f'i18n_content_{content_type}_{content_id}_{field_name}_{language_code}'
-        translation = cache.get(cache_key)
-        
-        if translation is not None:
-            return translation
-        
+        """Get content translation for a specific language."""
+        cache_key = f'i18n_content_{content_type}_{content_id}_{field_name}_{LanguageService.normalize_code(language_code).lower()}'
+        cached = cache.get(cache_key)
+        if cached == TranslationService._CONTENT_CACHE_MISS:
+            return None
+        if cached is not None:
+            return cached
+
         trans_obj = ContentTranslation.objects.filter(
             content_type=content_type,
             content_id=content_id,
             field_name=field_name,
-            language__code=language_code,
+            language__code__iexact=language_code,
             is_approved=True
         ).first()
-        
-        if trans_obj:
-            cache.set(cache_key, trans_obj.translated_text, TranslationService.CACHE_TIMEOUT)
-            return trans_obj.translated_text
-        
-        return None
+
+        if not trans_obj:
+            cache.set(cache_key, TranslationService._CONTENT_CACHE_MISS, TranslationService.CACHE_TIMEOUT)
+            return None
+
+        cache.set(cache_key, trans_obj.translated_text, TranslationService.CACHE_TIMEOUT)
+        return trans_obj.translated_text
     
     @staticmethod
     def set_content_translation(

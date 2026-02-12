@@ -14,7 +14,7 @@ from ..models import (
     Language, Currency, ExchangeRate, ExchangeRateHistory,
     Timezone, Country, Division, District, Upazila,
     TranslationNamespace, TranslationKey, Translation, ContentTranslation,
-    UserLocalePreference
+    UserLocalePreference, I18nSettings
 )
 from ..services import (
     LanguageService, CurrencyService, ExchangeRateService,
@@ -505,16 +505,45 @@ class UserLocalePreferenceView(APIView):
             serializer = UserLocalePreferenceSerializer(pref)
             return Response(serializer.data)
         else:
-            # Return session-based preferences for anonymous users
+            # Return detected/session-based preferences for anonymous users
+            language = LanguageService.detect_language(request)
+            currency = CurrencyService.get_user_currency(user=None, request=request)
+            timezone_obj = TimezoneService.get_user_timezone(user=None, request=request)
+            country = GeoService.detect_country(request)
+
+            try:
+                settings = I18nSettings.get_settings()
+                auto_detect_language = settings.auto_detect_language
+                auto_detect_currency = settings.auto_detect_currency
+                auto_detect_timezone = settings.auto_detect_timezone
+            except Exception:
+                auto_detect_language = True
+                auto_detect_currency = True
+                auto_detect_timezone = True
+
+            # Session overrides if explicitly set
+            auto_detect_language = request.session.get('auto_detect_language', auto_detect_language)
+            auto_detect_currency = request.session.get('auto_detect_currency', auto_detect_currency)
+            auto_detect_timezone = request.session.get('auto_detect_timezone', auto_detect_timezone)
+
+            language_code = getattr(language, 'code', None)
+            currency_code = getattr(currency, 'code', None)
+            timezone_name = getattr(timezone_obj, 'name', None)
+            country_code = getattr(country, 'code', None)
+
             return Response({
-                'language': request.session.get('language'),
-                'language_name': request.session.get('language'),
-                'currency_code': request.session.get('currency_code'),
-                'currency': None,
-                'timezone': request.session.get('timezone'),
-                'timezone_name': request.session.get('timezone'),
-                'auto_detect_language': request.session.get('auto_detect_language', True),
-                'auto_detect_currency': request.session.get('auto_detect_currency', True),
+                'language': language_code,
+                'language_code': language_code,
+                'language_name': getattr(language, 'native_name', None) or getattr(language, 'name', None),
+                'currency': currency_code,
+                'currency_code': currency_code,
+                'timezone': timezone_name,
+                'timezone_name': timezone_name,
+                'country': country_code,
+                'country_code': country_code,
+                'auto_detect_language': auto_detect_language,
+                'auto_detect_currency': auto_detect_currency,
+                'auto_detect_timezone': auto_detect_timezone,
             })
     
     def post(self, request):

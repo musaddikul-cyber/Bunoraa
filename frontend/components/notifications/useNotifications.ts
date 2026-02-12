@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { useAuthContext } from "@/components/providers/AuthProvider";
 import type { NotificationItem } from "@/lib/types";
 
 const listKey = ["notifications"] as const;
@@ -28,7 +28,7 @@ async function fetchUnreadCount() {
 
 export function useNotifications(filters?: NotificationFilters) {
   const queryClient = useQueryClient();
-  const hasToken = Boolean(getAccessToken());
+  const { hasToken } = useAuthContext();
 
   const notificationsQuery = useQuery({
     queryKey: [...listKey, filters],

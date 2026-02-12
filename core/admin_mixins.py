@@ -4,12 +4,17 @@ Provides reusable functionality for admin classes.
 """
 import csv
 import json
+import zipfile
 from datetime import datetime
-from io import StringIO
+from io import BytesIO, StringIO
+from pathlib import Path
 
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.http import HttpResponse
+from django.core.management import call_command
+from django.core.serializers.json import DjangoJSONEncoder
+from django.conf import settings
 from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
@@ -521,7 +526,7 @@ class EnhancedModelAdmin(
     actions = ['export_as_csv', 'export_as_json']
     
     def get_actions(self, request):
-        """Get actions and add export actions."""
+        """Get actions and add export + seed actions."""
         actions = super().get_actions(request)
         
         # Add export actions if not already present
@@ -537,8 +542,295 @@ class EnhancedModelAdmin(
                 'export_as_json',
                 self.export_as_json.short_description
             )
+
+        # Add seed actions if this model has seed specs
+        if self._seed_has_specs():
+            for action_name in (
+                "seed_import_sync",
+                "seed_import_no_sync",
+                "seed_sync_and_save",
+                "seed_export_json",
+                "seed_export_csv",
+            ):
+                if hasattr(self, action_name) and action_name not in actions:
+                    action = getattr(self, action_name)
+                    actions[action_name] = (action, action_name, action.short_description)
         
         return actions
+
+    # -------------------------------------------------------------------------
+    # Seed actions (auto-enabled for models with JSON seed specs)
+    # -------------------------------------------------------------------------
+
+    seed_specs: list[str] | None = None
+
+    def _seed_has_specs(self) -> bool:
+        return len(self._seed_get_specs()) > 0
+
+    def _seed_get_specs(self):
+        from core.seed.registry import autodiscover_seeders, get_seed_specs
+        from core.seed.base import JSONSeedSpec
+
+        autodiscover_seeders()
+        specs = get_seed_specs()
+
+        if self.seed_specs:
+            matched = []
+            for name in self.seed_specs:
+                spec = specs.get(name)
+                if spec:
+                    matched.append(spec)
+            return matched
+
+        # Auto-detect JSON seed specs for this model
+        matched = []
+        for spec in specs.values():
+            if isinstance(spec, JSONSeedSpec) and getattr(spec, "model", None) is self.model and spec.kind == "prod":
+                matched.append(spec)
+        return matched
+
+    def _seed_get_export_fields(self, spec):
+        fields: list[str] = []
+        key_fields = list(spec.key_fields or [])
+        update_fields = list(spec.update_fields or [])
+
+        # Avoid duplicating key fields that are represented by base field names
+        for field in key_fields:
+            if "__" in field:
+                base = field.split("__", 1)[0]
+                if base in update_fields or base in getattr(spec, "fk_fields", {}) or base in getattr(spec, "m2m_fields", {}):
+                    continue
+            if field not in fields:
+                fields.append(field)
+
+        for field in update_fields:
+            if field not in fields:
+                fields.append(field)
+
+        for field in getattr(spec, "m2m_fields", {}).keys():
+            if field not in fields:
+                fields.append(field)
+
+        return fields
+
+    def _seed_resolve_attr(self, obj, path: str):
+        value = obj
+        for part in path.split("__"):
+            value = getattr(value, part, None)
+            if value is None:
+                break
+        return value
+
+    def _seed_export_records(self, spec):
+        from core.seed.base import JSONSeedSpec
+
+        if not isinstance(spec, JSONSeedSpec):
+            raise ValueError("Export only supported for JSON seed specs.")
+
+        fields = self._seed_get_export_fields(spec)
+        fk_fields = getattr(spec, "fk_fields", {}) or {}
+        m2m_fields = getattr(spec, "m2m_fields", {}) or {}
+
+        qs = spec.model.objects.all()
+        # Stable ordering if possible
+        order_fields = [f for f in (spec.key_fields or []) if "__" not in f]
+        if order_fields:
+            qs = qs.order_by(*order_fields)
+        else:
+            qs = qs.order_by("pk")
+
+        records = []
+        for obj in qs:
+            record = {}
+            for field in fields:
+                if field in m2m_fields:
+                    model, lookup_field = m2m_fields[field]
+                    items = getattr(obj, field).all()
+                    record[field] = list(items.values_list(lookup_field, flat=True))
+                    continue
+                if field in fk_fields:
+                    _, lookup_field = fk_fields[field]
+                    rel = getattr(obj, field, None)
+                    record[field] = getattr(rel, lookup_field, None) if rel else None
+                    continue
+                if "__" in field:
+                    value = self._seed_resolve_attr(obj, field)
+                else:
+                    value = getattr(obj, field, None)
+                if hasattr(value, "pk"):
+                    value = value.pk
+                record[field] = value
+            records.append(record)
+        return records
+
+    def _seed_write_data_path(self, spec, records):
+        data_path = Path(spec.data_path)
+        if not data_path.is_absolute():
+            data_path = Path(settings.BASE_DIR) / data_path
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Preserve existing JSON structure when possible
+        payload = None
+        if data_path.exists():
+            try:
+                with data_path.open("r", encoding="utf-8-sig") as fh:
+                    payload = json.load(fh)
+            except Exception:
+                payload = None
+
+        if hasattr(spec, "section_key"):
+            if not isinstance(payload, dict):
+                payload = {}
+            payload[getattr(spec, "section_key")] = records
+        elif isinstance(payload, dict):
+            if "items" in payload:
+                payload["items"] = records
+            elif "data" in payload:
+                payload["data"] = records
+            else:
+                payload = records
+        else:
+            payload = records
+
+        with data_path.open("w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, ensure_ascii=False, cls=DjangoJSONEncoder)
+        return data_path
+
+    def _seed_build_download(self, specs, fmt: str):
+        if len(specs) == 1:
+            spec = specs[0]
+            records = self._seed_export_records(spec)
+            if fmt == "json":
+                data = json.dumps(records, indent=2, ensure_ascii=False, cls=DjangoJSONEncoder).encode("utf-8")
+                content_type = "application/json"
+                filename = f"{spec.name.replace('.', '_')}.json"
+            else:
+                output = StringIO()
+                fields = self._seed_get_export_fields(spec)
+                writer = csv.DictWriter(output, fieldnames=fields)
+                writer.writeheader()
+                for row in records:
+                    flat = {}
+                    for key, value in row.items():
+                        if isinstance(value, list):
+                            flat[key] = ",".join(str(v) for v in value)
+                        elif isinstance(value, dict):
+                            flat[key] = json.dumps(value, ensure_ascii=False)
+                        else:
+                            flat[key] = value
+                    writer.writerow(flat)
+                data = output.getvalue().encode("utf-8")
+                content_type = "text/csv"
+                filename = f"{spec.name.replace('.', '_')}.csv"
+            return data, content_type, filename
+
+        # Multiple specs -> zip
+        buffer = BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for spec in specs:
+                records = self._seed_export_records(spec)
+                if fmt == "json":
+                    content = json.dumps(records, indent=2, ensure_ascii=False, cls=DjangoJSONEncoder).encode("utf-8")
+                    name = f"{spec.name.replace('.', '_')}.json"
+                else:
+                    output = StringIO()
+                    fields = self._seed_get_export_fields(spec)
+                    writer = csv.DictWriter(output, fieldnames=fields)
+                    writer.writeheader()
+                    for row in records:
+                        flat = {}
+                    for key, value in row.items():
+                        if isinstance(value, list):
+                            flat[key] = ",".join(str(v) for v in value)
+                        elif isinstance(value, dict):
+                            flat[key] = json.dumps(value, ensure_ascii=False)
+                        else:
+                            flat[key] = value
+                        writer.writerow(flat)
+                    content = output.getvalue().encode("utf-8")
+                    name = f"{spec.name.replace('.', '_')}.csv"
+                zf.writestr(name, content)
+        buffer.seek(0)
+        return buffer.read(), "application/zip", f"seed_export_{fmt}.zip"
+
+    def _seed_run(self, request, *, no_prune: bool):
+        specs = self._seed_get_specs()
+        if not specs:
+            self.message_user(request, "No seed specs found for this model.", level=messages.WARNING)
+            return False
+        names = ",".join([spec.name for spec in specs])
+        call_command("seed", only=names, no_prune=no_prune, confirm_prune=True)
+        return True
+
+    def seed_import_sync(self, request, queryset):
+        """Import seed data (sync + prune)."""
+        try:
+            if self._seed_run(request, no_prune=False):
+                self.message_user(request, "Imported seed data with sync (prune).", level=messages.SUCCESS)
+        except Exception as exc:
+            self.message_user(request, f"Error importing seed data: {exc}", level=messages.ERROR)
+    seed_import_sync.short_description = "Import seed data (sync + prune)"
+
+    def seed_import_no_sync(self, request, queryset):
+        """Import seed data without pruning existing records."""
+        try:
+            if self._seed_run(request, no_prune=True):
+                self.message_user(request, "Imported seed data without pruning.", level=messages.SUCCESS)
+        except Exception as exc:
+            self.message_user(request, f"Error importing seed data: {exc}", level=messages.ERROR)
+    seed_import_no_sync.short_description = "Import seed data (no prune)"
+
+    def seed_sync_and_save(self, request, queryset):
+        """Sync seed data and export back to the data file."""
+        try:
+            specs = self._seed_get_specs()
+            if not specs:
+                self.message_user(request, "No seed specs found for this model.", level=messages.WARNING)
+                return
+            self._seed_run(request, no_prune=False)
+            exported_paths = []
+            for spec in specs:
+                records = self._seed_export_records(spec)
+                path = self._seed_write_data_path(spec, records)
+                exported_paths.append(str(path))
+            self.message_user(
+                request,
+                f"Synced seed data and saved export: {', '.join(exported_paths)}",
+                level=messages.SUCCESS,
+            )
+        except Exception as exc:
+            self.message_user(request, f"Error syncing/exporting seed data: {exc}", level=messages.ERROR)
+    seed_sync_and_save.short_description = "Sync and save seed data"
+
+    def seed_export_json(self, request, queryset):
+        """Export seed data as JSON (download)."""
+        try:
+            specs = self._seed_get_specs()
+            if not specs:
+                self.message_user(request, "No seed specs found for this model.", level=messages.WARNING)
+                return
+            data, content_type, filename = self._seed_build_download(specs, "json")
+            response = HttpResponse(data, content_type=content_type)
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
+            return response
+        except Exception as exc:
+            self.message_user(request, f"Error exporting seed data: {exc}", level=messages.ERROR)
+    seed_export_json.short_description = "Export seed data as JSON"
+
+    def seed_export_csv(self, request, queryset):
+        """Export seed data as CSV (download)."""
+        try:
+            specs = self._seed_get_specs()
+            if not specs:
+                self.message_user(request, "No seed specs found for this model.", level=messages.WARNING)
+                return
+            data, content_type, filename = self._seed_build_download(specs, "csv")
+            response = HttpResponse(data, content_type=content_type)
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
+            return response
+        except Exception as exc:
+            self.message_user(request, f"Error exporting seed data: {exc}", level=messages.ERROR)
+    seed_export_csv.short_description = "Export seed data as CSV"
 
 
 class EnhancedStackedInline(admin.StackedInline):

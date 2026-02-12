@@ -31,6 +31,7 @@ CACHE_KEYS = {
     'currencies': [
         'i18n_active_currencies',
         'i18n_default_currency',
+        'i18n_default_currency_v2',
     ],
     'timezones': [
         'i18n_all_timezones',
@@ -54,6 +55,12 @@ def clear_cache_keys(category: str):
     logger.debug(f"Cleared {len(keys)} cache keys for category: {category}")
 
 
+def _normalize_lang_code(code: str) -> str:
+    if not code:
+        return ''
+    return str(code).strip().replace('_', '-').lower()
+
+
 # =============================================================================
 # Language Signals
 # =============================================================================
@@ -63,7 +70,10 @@ def language_post_save(sender, instance, created, **kwargs):
     """Handle language save."""
     # Clear language caches
     clear_cache_keys('languages')
-    cache.delete(f'i18n_language_{instance.code}')
+    for code in {instance.code, instance.locale_code}:
+        norm = _normalize_lang_code(code)
+        if norm:
+            cache.delete(f'i18n_language_{norm}')
     
     # Ensure only one default
     if instance.is_default:
@@ -76,7 +86,10 @@ def language_post_save(sender, instance, created, **kwargs):
 def language_post_delete(sender, instance, **kwargs):
     """Handle language deletion."""
     clear_cache_keys('languages')
-    cache.delete(f'i18n_language_{instance.code}')
+    for code in {instance.code, instance.locale_code}:
+        norm = _normalize_lang_code(code)
+        if norm:
+            cache.delete(f'i18n_language_{norm}')
     logger.info(f"Language deleted: {instance.code}")
 
 

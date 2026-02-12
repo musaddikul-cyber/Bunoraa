@@ -272,7 +272,7 @@ def is_rtl(language):
 # =============================================================================
 
 @register.simple_tag(takes_context=True)
-def trans_key(context, key, namespace=None, default=''):
+def trans_key(context, key, namespace=None, default='', count=None):
     """
     Get translation for a key.
     
@@ -292,7 +292,14 @@ def trans_key(context, key, namespace=None, default=''):
     if not language:
         return default or key
     
-    translation = TranslationService.get_translation(key, language.code, namespace)
+    translation = TranslationService.get_translation(
+        key,
+        language.code,
+        namespace=namespace,
+        count=count,
+        fallback=True,
+        default=default or key,
+    )
     return translation or default or key
 
 
@@ -317,7 +324,12 @@ def translate_content(context, content_type, content_id, field_name, default='')
         return default
     
     translation = TranslationService.get_content_translation(
-        content_type, str(content_id), field_name, language.code
+        content_type,
+        str(content_id),
+        field_name,
+        language.code,
+        fallback=True,
+        default=default,
     )
     return translation or default
 

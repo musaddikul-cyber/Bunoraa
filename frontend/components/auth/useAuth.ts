@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "@/lib/api";
-import { clearTokens, getAccessToken, setTokens } from "@/lib/auth";
+import { AUTH_EVENT_NAME, clearTokens, getAccessToken, setTokens } from "@/lib/auth";
 import type { UserProfile } from "@/lib/types";
 
 type LoginInput = {
@@ -46,6 +46,17 @@ export function useAuth() {
 
   React.useEffect(() => {
     syncHasToken();
+  }, [syncHasToken]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => syncHasToken();
+    window.addEventListener(AUTH_EVENT_NAME, handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener(AUTH_EVENT_NAME, handler);
+      window.removeEventListener("storage", handler);
+    };
   }, [syncHasToken]);
 
   const profileQuery = useQuery({

@@ -34,14 +34,21 @@ def update_exchange_rates():
         
         # Check if update is needed based on frequency
         if settings.last_exchange_rate_update:
-            frequency_hours = {
-                'hourly': 1,
-                '6_hours': 6,
-                '12_hours': 12,
-                'daily': 24,
-                'weekly': 168,
-            }
-            hours = frequency_hours.get(settings.exchange_rate_update_frequency, 24)
+            frequency = settings.exchange_rate_update_frequency
+            if isinstance(frequency, str):
+                frequency_hours = {
+                    'hourly': 1,
+                    '6_hours': 6,
+                    '12_hours': 12,
+                    'daily': 24,
+                    'weekly': 168,
+                }
+                hours = frequency_hours.get(frequency, 24)
+            else:
+                try:
+                    hours = int(frequency)
+                except (TypeError, ValueError):
+                    hours = 24
             next_update = settings.last_exchange_rate_update + timedelta(hours=hours)
             
             if timezone.now() < next_update:
@@ -305,11 +312,11 @@ def auto_translate_content(content_type: str, content_id: str, field_name: str,
     try:
         settings = I18nSettings.get_settings()
         
-        if not settings.auto_translate_content:
+        if not settings.enable_machine_translation or not settings.auto_translate_new_content:
             return {'status': 'skipped', 'reason': 'auto_translate_disabled'}
         
-        provider = settings.machine_translation_provider
-        api_key = settings.machine_translation_api_key
+        provider = settings.translation_provider
+        api_key = settings.translation_api_key
         
         if not provider or provider == 'none':
             return {'status': 'skipped', 'reason': 'no_provider_configured'}
@@ -335,10 +342,10 @@ def auto_translate_content(content_type: str, content_id: str, field_name: str,
                         field_name=field_name,
                         language=target_lang,
                         defaults={
-                            'source_text': source_text,
+                            'original_text': source_text,
                             'translated_text': translated_text,
                             'is_machine_translated': True,
-                            'is_approved': False,  # Machine translations need review
+                            'is_approved': not settings.require_human_review,
                         }
                     )
                     translated_count += 1

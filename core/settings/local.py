@@ -42,9 +42,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_ROOT.mkdir(exist_ok=True)
 
 # =============================================================================
-# EMAIL - Console Backend for Development
+# EMAIL - Console Backend for Development (overrideable via env)
 # =============================================================================
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend',
+)
 
 # =============================================================================
 # SECURITY - Relaxed for Development

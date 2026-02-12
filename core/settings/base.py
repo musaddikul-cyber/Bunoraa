@@ -128,6 +128,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.i18n.middleware.LocaleMiddleware',
     # 'core.middleware.bot_prerender.BotPreRenderMiddleware',  # Disabled: Memory overhead
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -211,6 +212,10 @@ LANGUAGES = [
     ('hi', 'हिंदी'),
 ]
 
+LANGUAGE_COOKIE_NAME = os.environ.get('LANGUAGE_COOKIE_NAME', 'language')
+LANGUAGE_COOKIE_AGE = int(os.environ.get('LANGUAGE_COOKIE_AGE', 365 * 24 * 60 * 60))
+LANGUAGE_COOKIE_SAMESITE = os.environ.get('LANGUAGE_COOKIE_SAMESITE', 'Lax')
+
 LOCALE_PATHS = [
     BASE_DIR / 'locale',
 ]
@@ -293,7 +298,7 @@ SOCIAL_AUTH_ASSOCIATE_BY_EMAIL = True
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'core.authentication.OptionalJWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -380,7 +385,7 @@ NOTIFICATION_WS_RATE_LIMIT_COUNT = int(os.environ.get('NOTIFICATION_WS_RATE_LIMI
 NOTIFICATION_WS_RATE_LIMIT_WINDOW = int(os.environ.get('NOTIFICATION_WS_RATE_LIMIT_WINDOW', 10))
 
 # Email service
-EMAIL_SERVICE_ENABLED = os.environ.get('EMAIL_SERVICE_ENABLED', '0') in ('1', 'true', 'True')
+EMAIL_SERVICE_ENABLED = os.environ.get('EMAIL_SERVICE_ENABLED', '1') in ('1', 'true', 'True')
 
 # Push / Web Push configuration
 FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', '')

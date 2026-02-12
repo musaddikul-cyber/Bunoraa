@@ -1,5 +1,11 @@
 const ACCESS_KEY = "access_token";
 const REFRESH_KEY = "refresh_token";
+export const AUTH_EVENT_NAME = "bunoraa:auth";
+
+function notifyAuthChange() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(AUTH_EVENT_NAME));
+}
 
 function getTokenStorageType() {
   if (typeof window === "undefined") return null;
@@ -25,6 +31,7 @@ export function setTokens(access: string, refresh?: string, remember = true) {
     window.localStorage.removeItem(ACCESS_KEY);
     window.localStorage.removeItem(REFRESH_KEY);
   }
+  notifyAuthChange();
 }
 
 export function clearTokens() {
@@ -33,6 +40,7 @@ export function clearTokens() {
   window.localStorage.removeItem(REFRESH_KEY);
   window.sessionStorage.removeItem(ACCESS_KEY);
   window.sessionStorage.removeItem(REFRESH_KEY);
+  notifyAuthChange();
 }
 
 export function setAccessToken(access: string) {
@@ -41,6 +49,7 @@ export function setAccessToken(access: string) {
   const storage =
     storageType === "session" ? window.sessionStorage : window.localStorage;
   storage.setItem(ACCESS_KEY, access);
+  notifyAuthChange();
 }
 
 export function getAccessToken() {

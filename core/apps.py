@@ -74,3 +74,32 @@ class CoreConfig(AppConfig):
                 APIView.serializer_class = drf_serializers.Serializer
         except Exception:
             pass
+
+        # Register all local models for simple history tracking
+        try:
+            from simple_history import register
+            from django.conf import settings
+
+            local_app_names = set(getattr(settings, "LOCAL_APPS", [])) | {"core"}
+
+            for model in apps.get_models():
+                app_label = model._meta.app_label
+                try:
+                    app_config = apps.get_app_config(app_label)
+                except Exception:
+                    app_config = None
+
+                if app_config and app_config.name not in local_app_names:
+                    continue
+                if model._meta.abstract or model._meta.proxy:
+                    continue
+                if model.__name__.startswith('Historical'):
+                    continue
+                if hasattr(model, 'history'):
+                    continue
+                try:
+                    register(model)
+                except Exception:
+                    continue
+        except Exception:
+            pass

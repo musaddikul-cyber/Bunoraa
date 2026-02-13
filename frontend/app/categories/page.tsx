@@ -2,7 +2,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildItemList } from "@/lib/seo";
+import { buildCollectionPage, buildItemList } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -26,15 +26,23 @@ async function getCategories() {
 
 export default async function CategoriesPage() {
   const categories = await getCategories();
+  const listId = "/categories/#itemlist";
   const list = buildItemList(
     categories.map((category) => ({
       name: category.name,
-      url: `/categories/${category.path || category.slug}/`,
+      url: `/categories/${category.slug}/`,
       image: category.image || undefined,
       description: undefined,
     })),
-    "Categories"
+    "Categories",
+    listId
   );
+  const collectionPage = buildCollectionPage({
+    name: "Categories",
+    description: "Browse Bunoraa product categories.",
+    url: "/categories/",
+    itemListId: listId,
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -69,7 +77,7 @@ export default async function CategoriesPage() {
                 </div>
                 <Link
                   className="text-sm font-medium text-primary"
-                  href={`/categories/${category.path || category.slug}/`}
+                  href={`/categories/${category.slug}/`}
                 >
                   View
                 </Link>
@@ -78,7 +86,7 @@ export default async function CategoriesPage() {
           ))}
         </div>
       </div>
-      {categories.length ? <JsonLd data={list} /> : null}
+      {categories.length ? <JsonLd data={[collectionPage, list]} /> : null}
     </div>
   );
 }

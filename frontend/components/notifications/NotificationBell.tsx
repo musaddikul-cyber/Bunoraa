@@ -10,7 +10,7 @@ export function NotificationBell() {
   return (
     <Link
       href="/notifications/"
-      className="relative inline-flex items-center p-2 text-sm"
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none"
       aria-label="Notifications"
     >
       <svg

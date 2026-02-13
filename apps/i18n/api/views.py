@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
+import hashlib
 
 from ..models import (
     Language, Currency, ExchangeRate, ExchangeRateHistory,
@@ -19,7 +20,7 @@ from ..models import (
 from ..services import (
     LanguageService, CurrencyService, ExchangeRateService,
     TimezoneService, GeoService, CurrencyConversionService,
-    UserPreferenceService
+    UserPreferenceService, TranslationService
 )
 from .serializers import (
     LanguageSerializer, LanguageListSerializer,
@@ -504,47 +505,174 @@ class UserLocalePreferenceView(APIView):
             pref = UserPreferenceService.get_or_create_preference(request.user)
             serializer = UserLocalePreferenceSerializer(pref)
             return Response(serializer.data)
+
+        # Return detected/session-based preferences for anonymous users
+        language = LanguageService.detect_language(request)
+        currency = CurrencyService.get_user_currency(user=None, request=request)
+        timezone_obj = TimezoneService.get_user_timezone(user=None, request=request)
+        country = GeoService.detect_country(request)
+
+        try:
+            settings = I18nSettings.get_settings()
+            auto_detect_language = settings.auto_detect_language
+            auto_detect_currency = settings.auto_detect_currency
+            auto_detect_timezone = settings.auto_detect_timezone
+        except Exception:
+            auto_detect_language = True
+            auto_detect_currency = True
+            auto_detect_timezone = True
+
+        # Session overrides if explicitly set
+        auto_detect_language = request.session.get('auto_detect_language', auto_detect_language)
+        auto_detect_currency = request.session.get('auto_detect_currency', auto_detect_currency)
+        auto_detect_timezone = request.session.get('auto_detect_timezone', auto_detect_timezone)
+
+        language_code = getattr(language, 'code', None)
+        currency_code = getattr(currency, 'code', None)
+        timezone_name = getattr(timezone_obj, 'name', None)
+        country_code = getattr(country, 'code', None)
+
+        return Response({
+            'language': language_code,
+            'language_code': language_code,
+            'language_name': getattr(language, 'native_name', None) or getattr(language, 'name', None),
+            'currency': currency_code,
+            'currency_code': currency_code,
+            'timezone': timezone_name,
+            'timezone_name': timezone_name,
+            'country': country_code,
+            'country_code': country_code,
+            'auto_detect_language': auto_detect_language,
+            'auto_detect_currency': auto_detect_currency,
+            'auto_detect_timezone': auto_detect_timezone,
+        })
+
+    def post(self, request):
+        """Create or update user's locale preferences (alias for PUT)."""
+        return self.put(request)
+
+    def put(self, request):
+        """Update current user's locale preferences."""
+        serializer = UserLocalePreferenceUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        validated_data = serializer.validated_data.copy()
+
+        # Handle auto_detect alias -> auto_detect_currency
+        if 'auto_detect' in validated_data:
+            auto_detect_value = validated_data.pop('auto_detect')
+            if 'auto_detect_currency' not in validated_data:
+                validated_data['auto_detect_currency'] = auto_detect_value
+
+        # When setting currency_code manually, disable auto-detect by default
+        if 'currency_code' in validated_data and validated_data['currency_code']:
+            if 'auto_detect_currency' not in validated_data:
+                validated_data['auto_detect_currency'] = False
+
+        response = Response()
+
+        # Update based on authentication status
+        if request.user.is_authenticated:
+            pref = UserPreferenceService.update_preference(
+                request.user, **validated_data
+            )
+
+            # Update session
+            if pref.language:
+                request.session['language'] = pref.language.code
+                request.session['django_language'] = pref.language.code
+            if pref.currency:
+                request.session['currency_code'] = pref.currency.code
+            if pref.timezone:
+                request.session['timezone'] = pref.timezone.name
+
+            response_data = UserLocalePreferenceSerializer(pref).data
+            response_data['success'] = True
+            response.data = response_data
+
+            if pref.currency:
+                response.set_cookie(
+                    'currency',
+                    pref.currency.code,
+                    max_age=365 * 24 * 60 * 60,
+                    httponly=False,
+                    samesite='Lax'
+                )
         else:
-            # Return detected/session-based preferences for anonymous users
+            response_data = {'success': True}
+
+            if 'language_code' in validated_data or 'language' in validated_data:
+                lang_code = validated_data.get('language_code') or validated_data.get('language')
+                if lang_code:
+                    request.session['language'] = lang_code
+                    request.session['django_language'] = lang_code
+                    response_data['language'] = lang_code
+
+            if 'currency_code' in validated_data or 'currency' in validated_data:
+                curr_code = validated_data.get('currency_code') or validated_data.get('currency')
+                if curr_code:
+                    request.session['currency_code'] = curr_code
+                    response_data['currency_code'] = curr_code
+                    response.set_cookie(
+                        'currency',
+                        curr_code,
+                        max_age=365 * 24 * 60 * 60,
+                        httponly=False,
+                        samesite='Lax'
+                    )
+
+            if 'timezone' in validated_data:
+                tz = validated_data.get('timezone')
+                if tz:
+                    request.session['timezone'] = tz
+                    response_data['timezone'] = tz
+
+            response.data = response_data
+
+        return response
+
+    def patch(self, request):
+        """Partial update of user's locale preferences."""
+        return self.put(request)
+
+
+# =============================================================================
+# Messages API (UI translations)
+# =============================================================================
+
+class MessagesView(APIView):
+    """Return translation messages for one or more namespaces with caching."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        lang = request.query_params.get('lang')
+        if not lang:
             language = LanguageService.detect_language(request)
-            currency = CurrencyService.get_user_currency(user=None, request=request)
-            timezone_obj = TimezoneService.get_user_timezone(user=None, request=request)
-            country = GeoService.detect_country(request)
+            lang = language.code if language else 'en'
 
-            try:
-                settings = I18nSettings.get_settings()
-                auto_detect_language = settings.auto_detect_language
-                auto_detect_currency = settings.auto_detect_currency
-                auto_detect_timezone = settings.auto_detect_timezone
-            except Exception:
-                auto_detect_language = True
-                auto_detect_currency = True
-                auto_detect_timezone = True
+        namespaces_param = request.query_params.get('namespaces') or request.query_params.get('namespace') or ''
+        namespaces = [n.strip() for n in namespaces_param.split(',') if n.strip()]
+        if not namespaces:
+            return Response({'error': 'namespaces parameter is required'}, status=400)
 
-            # Session overrides if explicitly set
-            auto_detect_language = request.session.get('auto_detect_language', auto_detect_language)
-            auto_detect_currency = request.session.get('auto_detect_currency', auto_detect_currency)
-            auto_detect_timezone = request.session.get('auto_detect_timezone', auto_detect_timezone)
+        latest = TranslationService.get_latest_translation_timestamp(lang, namespaces)
+        etag_base = f"{lang}:{','.join(sorted(namespaces))}:{latest.isoformat() if latest else 'none'}"
+        etag = hashlib.sha256(etag_base.encode('utf-8')).hexdigest()
+        if request.headers.get('If-None-Match') == etag:
+            return Response(status=304)
 
-            language_code = getattr(language, 'code', None)
-            currency_code = getattr(currency, 'code', None)
-            timezone_name = getattr(timezone_obj, 'name', None)
-            country_code = getattr(country, 'code', None)
+        bundles = TranslationService.get_translations_bundle(lang, namespaces)
 
-            return Response({
-                'language': language_code,
-                'language_code': language_code,
-                'language_name': getattr(language, 'native_name', None) or getattr(language, 'name', None),
-                'currency': currency_code,
-                'currency_code': currency_code,
-                'timezone': timezone_name,
-                'timezone_name': timezone_name,
-                'country': country_code,
-                'country_code': country_code,
-                'auto_detect_language': auto_detect_language,
-                'auto_detect_currency': auto_detect_currency,
-                'auto_detect_timezone': auto_detect_timezone,
-            })
+        resp = Response({
+            'language': lang,
+            'namespaces': namespaces,
+            'messages': bundles,
+            'updated_at': latest.isoformat() if latest else None,
+        })
+        resp['ETag'] = etag
+        resp['Cache-Control'] = 'public, max-age=300, stale-while-revalidate=300'
+        return resp
     
     def post(self, request):
         """Create or update user's locale preferences (alias for PUT for convenience)."""

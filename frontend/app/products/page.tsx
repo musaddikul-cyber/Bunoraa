@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildItemList } from "@/lib/seo";
+import { buildCollectionPage, buildItemList } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -98,6 +98,12 @@ export default async function ProductsPage({
             : 1,
         }
       : undefined);
+  const totalCount = pagination?.count ?? products.length;
+  const showFilters = totalCount > 1;
+  const showPagination =
+    (pagination?.total_pages ? pagination.total_pages > 1 : totalCount > products.length) &&
+    products.length > 0;
+  const showRecentlyViewed = totalCount > 1;
 
   const baseParams = new URLSearchParams();
   Object.entries(resolved).forEach(([key, value]) => {
@@ -115,6 +121,7 @@ export default async function ProductsPage({
     return `?${params.toString()}`;
   };
 
+  const listId = "/products/#itemlist";
   const productList = buildItemList(
     products.slice(0, 50).map((product) => ({
       name: product.name,
@@ -122,8 +129,15 @@ export default async function ProductsPage({
       image: (product.primary_image as string | undefined) || undefined,
       description: product.short_description || undefined,
     })),
-    "Products"
+    "Products",
+    listId
   );
+  const collectionPage = buildCollectionPage({
+    name: "Products",
+    description: "Shop the Bunoraa catalog.",
+    url: "/products/",
+    itemListId: listId,
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -136,52 +150,65 @@ export default async function ProductsPage({
             <h1 className="text-3xl font-semibold">Shop the catalog</h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <FilterDrawer filters={filterData} className="lg:hidden" filterParams={filterParams} />
+            {showFilters ? (
+              <FilterDrawer
+                filters={filterData}
+                productCount={totalCount}
+                className="lg:hidden"
+                filterParams={filterParams}
+              />
+            ) : null}
             <SortMenu />
             <ViewToggle />
           </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
-          <aside className="hidden lg:block">
-            <FilterPanel filters={filterData} filterParams={filterParams} />
-          </aside>
+        <div className={showFilters ? "grid gap-8 lg:grid-cols-[260px_1fr]" : "grid gap-8"}>
+          {showFilters ? (
+            <aside className="hidden lg:block">
+              <FilterPanel filters={filterData} productCount={totalCount} filterParams={filterParams} />
+            </aside>
+          ) : null}
           <div className="space-y-6">
             <AppliedFilters />
             <ProductGrid products={products} view={view} />
 
-            <div className="mt-10 flex items-center justify-between">
-              {pagination?.previous ? (
-                <Button asChild variant="ghost" size="sm">
-                  <Link href={pageLink(currentPage - 1)}>Previous</Link>
-                </Button>
-              ) : (
-                <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
-                  Previous
+            {showPagination ? (
+              <div className="mt-10 flex items-center justify-between">
+                {pagination?.previous ? (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={pageLink(currentPage - 1)}>Previous</Link>
+                  </Button>
+                ) : (
+                  <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
+                    Previous
+                  </span>
+                )}
+                <span className="text-sm text-foreground/60">
+                  Page {currentPage}
+                  {pagination?.total_pages ? ` of ${pagination.total_pages}` : ""}
                 </span>
-              )}
-              <span className="text-sm text-foreground/60">
-                Page {currentPage}
-                {pagination?.total_pages ? ` of ${pagination.total_pages}` : ""}
-              </span>
-              {pagination?.next ? (
-                <Button asChild variant="ghost" size="sm">
-                  <Link href={pageLink(currentPage + 1)}>Next</Link>
-                </Button>
-              ) : (
-                <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
-                  Next
-                </span>
-              )}
-            </div>
+                {pagination?.next ? (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={pageLink(currentPage + 1)}>Next</Link>
+                  </Button>
+                ) : (
+                  <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
+                    Next
+                  </span>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-12">
-          <RecentlyViewedSection />
-        </div>
+        {showRecentlyViewed ? (
+          <div className="mt-12">
+            <RecentlyViewedSection />
+          </div>
+        ) : null}
       </div>
-      {products.length ? <JsonLd data={productList} /> : null}
+      {products.length ? <JsonLd data={[collectionPage, productList]} /> : null}
     </div>
   );
 }

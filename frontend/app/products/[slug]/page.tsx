@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/products/ProductDetailClient";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildBreadcrumbList } from "@/lib/seo";
+import { buildBreadcrumbList, buildProductSchema } from "@/lib/seo";
 
 export const revalidate = 900;
 
@@ -72,7 +72,8 @@ export default async function ProductDetailPage({
   }
   breadcrumbItems.push({ name: product.name, url: `/products/${product.slug}/` });
   const breadcrumbs = buildBreadcrumbList(breadcrumbItems);
-  const jsonLd = [breadcrumbs, ...(product.schema_org ? [product.schema_org] : [])];
+  const productSchema = product.schema_org || buildProductSchema(product);
+  const jsonLd = [breadcrumbs, ...(productSchema ? [productSchema] : [])];
 
   return (
     <div className="min-h-screen bg-background text-foreground">

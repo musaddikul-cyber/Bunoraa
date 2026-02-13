@@ -55,6 +55,8 @@ ALLOWED_HOSTS = [h.strip() for h in _allowed_hosts.split(',') if h.strip()]
 
 # Application definition
 DJANGO_APPS = [
+    'admin_interface',
+    'colorfield',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -72,6 +74,15 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
+    'import_export',
+    'simple_history',
+    'django_otp',
+    'django_otp.plugins.otp_totp',
+    'django_otp.plugins.otp_static',
+    'two_factor',
+    'axes',
+    'django_admin_listfilter_dropdown',
+    'rangefilter',
     'storages',
     'django_hugeicons_stroke',
     'django_celery_beat',
@@ -128,6 +139,9 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django_otp.middleware.OTPMiddleware',
+    'axes.middleware.AxesMiddleware',
+    'simple_history.middleware.HistoryRequestMiddleware',
     'apps.i18n.middleware.LocaleMiddleware',
     # 'core.middleware.bot_prerender.BotPreRenderMiddleware',  # Disabled: Memory overhead
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -147,7 +161,7 @@ ROOT_URLCONF = 'core.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -230,6 +244,10 @@ OPENEXCHANGE_RATES_API_KEY = os.environ.get('OPENEXCHANGE_RATES_API_KEY', '')
 EXCHANGERATESAPI_KEY = os.environ.get('EXCHANGERATESAPI_KEY', '')
 FIXER_API_KEY = os.environ.get('FIXER_API_KEY', '')
 
+# Machine Translation (self-hosted LibreTranslate)
+LIBRETRANSLATE_URL = os.environ.get('LIBRETRANSLATE_URL', '')
+LIBRETRANSLATE_API_KEY = os.environ.get('LIBRETRANSLATE_API_KEY', '')
+
 # Default country
 DEFAULT_COUNTRY = 'BD'
 DEFAULT_PHONE_REGION = 'BD'
@@ -277,6 +295,7 @@ LOGIN_REDIRECT_URL = '/account/dashboard/'
 # Social Auth (Google) - using python-social-auth (social-auth-app-django)
 # Install: pip install social-auth-app-django
 AUTHENTICATION_BACKENDS = (
+    'axes.backends.AxesBackend',
     'social_core.backends.google.GoogleOAuth2',
     'django.contrib.auth.backends.ModelBackend',
 )
@@ -442,10 +461,12 @@ for origin in [NEXT_FRONTEND_ORIGIN, NEXT_DEV_ORIGIN]:
         CSRF_TRUSTED_ORIGINS.append(origin)
 
 # Security Settings (enable in production)
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+SILENCED_SYSTEM_CHECKS = ['security.W019']
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -835,6 +856,16 @@ ADMINS = [
     ('Bunoraa Admin', os.environ.get('ADMIN_EMAIL', 'admin@bunoraa.com')),
 ]
 MANAGERS = ADMINS
+
+# Admin security hardening
+AXES_ENABLED = True
+AXES_FAILURE_LIMIT = int(os.environ.get('AXES_FAILURE_LIMIT', 5))
+AXES_COOLOFF_TIME = timedelta(minutes=int(os.environ.get('AXES_COOLOFF_MINUTES', 30)))
+AXES_LOCK_OUT_AT_FAILURE = True
+AXES_RESET_ON_SUCCESS = True
+AXES_CLIENT_IP_CALLABLE = 'core.utils.axes.get_client_ip'
+
+OTP_TOTP_ISSUER = os.environ.get('OTP_TOTP_ISSUER', 'Bunoraa Admin')
 
 # =============================================================================
 # ENV REGISTRY SETTINGS

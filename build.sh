@@ -10,7 +10,9 @@ pip install -r requirements.txt
 # Run migrations and collectstatic
 python manage.py makemigrations --noinput
 python manage.py migrate --noinput
-python manage.py collectstatic --noinput
+python manage.py seed_admin_interface_themes || true
+python manage.py sync_admin_interface_theme || true
+python manage.py collectstatic --noinput --clear
 
 # Optimize production setup (indexes, analyze, compression)
 python manage.py setup_production --optimize-db --create-indexes || true

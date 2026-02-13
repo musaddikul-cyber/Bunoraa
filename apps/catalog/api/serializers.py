@@ -11,13 +11,47 @@ from apps.catalog.models import (
     Currency, ProductPrice, EcoCertification, CustomerPhoto,
     ProductQuestion, ProductAnswer
 )
-from apps.i18n.services import CurrencyService, CurrencyConversionService
+from apps.i18n.services import CurrencyService, CurrencyConversionService, TranslationService
 from apps.i18n.api.serializers import PriceConversionMixin
 
 
 # =============================================================================
 # Base Serializers
 # =============================================================================
+
+class ContentTranslationMixin:
+    """Mixin to translate declared fields using ContentTranslation."""
+
+    content_type: str | None = None
+    translatable_fields: list[str] = []
+
+    def _get_language_code(self) -> str | None:
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        if request and hasattr(request, 'language') and request.language:
+            return request.language.code
+        return None
+
+    def _translate_field(self, instance, field_name: str, value: str):
+        if not self.content_type or value is None:
+            return value
+        language_code = self._get_language_code()
+        if not language_code:
+            return value
+        return TranslationService.get_content_translation(
+            self.content_type,
+            str(instance.pk),
+            field_name,
+            language_code,
+            fallback=True,
+            default=value,
+        )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        for field in self.translatable_fields or []:
+            if field in data:
+                data[field] = self._translate_field(instance, field, data[field])
+        return data
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -57,18 +91,24 @@ class OptionValueSerializer(serializers.ModelSerializer):
 # Category Serializers
 # =============================================================================
 
-class CategoryListSerializer(serializers.ModelSerializer):
+class CategoryListSerializer(ContentTranslationMixin, serializers.ModelSerializer):
     """Lightweight category serializer for lists."""
+
+    content_type = "category"
+    translatable_fields = ["name"]
     
     class Meta:
         model = Category
         fields = ('id', 'name', 'slug', 'depth', 'path', 'image', 'icon', 'product_count')
 
 
-class CategorySerializer(serializers.ModelSerializer):
+class CategorySerializer(ContentTranslationMixin, serializers.ModelSerializer):
     """Full category serializer with children."""
     children = serializers.SerializerMethodField()
     breadcrumbs = serializers.SerializerMethodField()
+
+    content_type = "category"
+    translatable_fields = ["name", "meta_title", "meta_description", "meta_keywords"]
     
     class Meta:
         model = Category
@@ -173,7 +213,7 @@ class BadgeSerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'slug', 'css_class', 'start', 'end', 'priority')
 
 
-class ProductListSerializer(PriceConversionMixin, serializers.ModelSerializer):
+class ProductListSerializer(ContentTranslationMixin, PriceConversionMixin, serializers.ModelSerializer):
     """Lightweight product serializer for lists."""
     primary_image = serializers.SerializerMethodField()
     current_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -181,6 +221,9 @@ class ProductListSerializer(PriceConversionMixin, serializers.ModelSerializer):
     is_on_sale = serializers.BooleanField(read_only=True)
     is_in_stock = serializers.SerializerMethodField()
     primary_category_name = serializers.CharField(source='primary_category.name', read_only=True)
+
+    content_type = "product"
+    translatable_fields = ["name", "short_description"]
     
     class Meta:
         model = Product
@@ -211,7 +254,7 @@ class ProductListSerializer(PriceConversionMixin, serializers.ModelSerializer):
         return self.convert_price_fields(data)
 
 
-class ProductDetailSerializer(PriceConversionMixin, serializers.ModelSerializer):
+class ProductDetailSerializer(ContentTranslationMixin, PriceConversionMixin, serializers.ModelSerializer):
     """Full product serializer with all details."""
     images = ProductImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
@@ -233,6 +276,16 @@ class ProductDetailSerializer(PriceConversionMixin, serializers.ModelSerializer)
     
     breadcrumbs = serializers.SerializerMethodField()
     schema_org = serializers.SerializerMethodField()
+
+    content_type = "product"
+    translatable_fields = [
+        "name",
+        "short_description",
+        "description",
+        "meta_title",
+        "meta_description",
+        "meta_keywords",
+    ]
     
     class Meta:
         model = Product

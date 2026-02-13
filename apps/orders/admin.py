@@ -4,7 +4,7 @@ Orders admin configuration
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import Order, OrderItem, OrderStatusHistory
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 
 class OrderItemInline(admin.TabularInline):
@@ -27,7 +27,7 @@ class OrderStatusHistoryInline(admin.TabularInline):
 
 
 @admin.register(Order)
-class OrderAdmin(EnhancedModelAdmin):
+class OrderAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'order_number', 'user_email', 'status', 'status_badge', 'item_count',
         'total', 'payment_status_badge', 'created_at'
@@ -253,7 +253,7 @@ class OrderAdmin(EnhancedModelAdmin):
 
 
 @admin.register(OrderItem)
-class OrderItemAdmin(EnhancedModelAdmin):
+class OrderItemAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['order', 'product_name', 'variant_name', 'unit_price', 'quantity', 'line_total']
     list_filter = ['order__status', 'created_at']
     search_fields = ['order__order_number', 'product_name', 'product_sku']
@@ -265,7 +265,7 @@ class OrderItemAdmin(EnhancedModelAdmin):
 
 
 @admin.register(OrderStatusHistory)
-class OrderStatusHistoryAdmin(EnhancedModelAdmin):
+class OrderStatusHistoryAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['order', 'old_status', 'new_status', 'changed_by', 'created_at']
     list_filter = ['new_status', 'created_at']
     search_fields = ['order__order_number', 'notes']

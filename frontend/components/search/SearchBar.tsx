@@ -44,6 +44,10 @@ export function SearchBar() {
     router.push(`/search/?q=${encodeURIComponent(trimmed)}`);
     setQuery("");
   };
+  const handleSelection = (href: string) => {
+    setQuery("");
+    router.push(href);
+  };
 
   return (
     <div className="relative w-full max-w-md">
@@ -56,7 +60,9 @@ export function SearchBar() {
         />
       </form>
 
-      {suggestions.data && (suggestions.data.products.length > 0 || suggestions.data.categories.length > 0) ? (
+      {query.trim().length >= 2 &&
+      suggestions.data &&
+      (suggestions.data.products.length > 0 || suggestions.data.categories.length > 0) ? (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 rounded-xl border border-border bg-card p-3 shadow-lg">
           {suggestions.data.products.length > 0 ? (
             <div>
@@ -67,7 +73,7 @@ export function SearchBar() {
                     <button
                       type="button"
                       className="w-full text-left text-sm text-foreground/80 hover:text-foreground"
-                      onClick={() => router.push(`/products/${item.slug}/`)}
+                      onClick={() => handleSelection(`/products/${item.slug}/`)}
                     >
                       {item.name}
                     </button>
@@ -85,7 +91,7 @@ export function SearchBar() {
                     <button
                       type="button"
                       className="w-full text-left text-sm text-foreground/80 hover:text-foreground"
-                      onClick={() => router.push(`/categories/${item.slug}/`)}
+                      onClick={() => handleSelection(`/categories/${item.slug}/`)}
                     >
                       {item.name}
                     </button>

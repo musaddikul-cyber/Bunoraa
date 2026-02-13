@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.urls import reverse
 
 
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 from .models import (
     ChatAgent, Conversation, Message, MessageAttachment,
     CannedResponse, TypingIndicator, ChatSettings, ChatAnalytics
@@ -15,7 +15,7 @@ from .models import (
 
 
 @admin.register(ChatAgent)
-class ChatAgentAdmin(EnhancedModelAdmin):
+class ChatAgentAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Chat Agents."""
     
     list_display = [
@@ -70,7 +70,7 @@ class MessageInline(admin.TabularInline):
 
 
 @admin.register(Conversation)
-class ConversationAdmin(EnhancedModelAdmin):
+class ConversationAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Conversations."""
     
     list_display = [
@@ -126,7 +126,7 @@ class ConversationAdmin(EnhancedModelAdmin):
 
 
 @admin.register(Message)
-class MessageAdmin(EnhancedModelAdmin):
+class MessageAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Messages."""
     
     list_display = [
@@ -183,7 +183,7 @@ class MessageAdmin(EnhancedModelAdmin):
 
 
 @admin.register(MessageAttachment)
-class MessageAttachmentAdmin(EnhancedModelAdmin):
+class MessageAttachmentAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Message Attachments."""
     
     list_display = ['id_short', 'message', 'file_name', 'file_type', 'file_size', 'created_at']
@@ -197,7 +197,7 @@ class MessageAttachmentAdmin(EnhancedModelAdmin):
 
 
 @admin.register(CannedResponse)
-class CannedResponseAdmin(EnhancedModelAdmin):
+class CannedResponseAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Canned Responses."""
     
     list_display = ['title', 'shortcut', 'category', 'agent', 'use_count', 'is_global', 'is_active']
@@ -227,7 +227,7 @@ class CannedResponseAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ChatSettings)
-class ChatSettingsAdmin(EnhancedModelAdmin):
+class ChatSettingsAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Chat Settings (singleton)."""
     
     list_display = ['__str__', 'is_chat_enabled', 'ai_enabled']
@@ -285,7 +285,7 @@ class ChatSettingsAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ChatAnalytics)
-class ChatAnalyticsAdmin(EnhancedModelAdmin):
+class ChatAnalyticsAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Chat Analytics."""
     
     list_display = [
@@ -328,6 +328,6 @@ from django.conf import settings as django_settings
 
 if getattr(django_settings, 'DEBUG', False):
     @admin.register(TypingIndicator)
-    class TypingIndicatorAdmin(EnhancedModelAdmin):
+    class TypingIndicatorAdmin(ImportExportEnhancedModelAdmin):
         list_display = ['conversation', 'user', 'started_at']
         readonly_fields = ['conversation', 'user', 'started_at']

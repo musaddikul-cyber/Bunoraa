@@ -102,19 +102,31 @@ export function ChatWidget() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      <button
-        className="rounded-full bg-primary px-4 py-2 text-sm text-white shadow-lg"
-        onClick={() => setOpen((prev) => !prev)}
-      >
-        {open ? "Close chat" : "Chat"}
-      </button>
+      {!open ? (
+        <button
+          className="rounded-full bg-primary px-4 py-2 text-sm text-white shadow-lg"
+          onClick={() => setOpen(true)}
+        >
+          Chat
+        </button>
+      ) : null}
       <div
         className={cn(
           "mt-3 w-80 rounded-2xl border border-border bg-card p-4 shadow-xl",
           open ? "block" : "hidden"
         )}
       >
-        <div className="mb-3 text-sm font-semibold">Support chat</div>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold">Support chat</div>
+          <button
+            type="button"
+            className="rounded-full border border-border bg-background/80 px-2.5 py-1 text-xs text-foreground/70 shadow-sm transition hover:bg-muted hover:text-foreground"
+            onClick={() => setOpen(false)}
+            aria-label="Close chat"
+          >
+            Close
+          </button>
+        </div>
         <div className="max-h-64 space-y-2 overflow-y-auto text-sm">
           {messages.length === 0 ? (
             <p className="text-foreground/60">Start a conversation.</p>

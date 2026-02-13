@@ -4,7 +4,7 @@ Contacts Admin Configuration
 from django.contrib import admin
 from django.utils.html import format_html
 
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 from .models import (
     ContactCategory, ContactInquiry, ContactResponse,
     ContactAttachment, StoreLocation, ContactSettings,
@@ -31,7 +31,7 @@ class ContactAttachmentInline(admin.TabularInline):
 
 
 @admin.register(ContactCategory)
-class ContactCategoryAdmin(EnhancedModelAdmin):
+class ContactCategoryAdmin(ImportExportEnhancedModelAdmin):
     """Admin for ContactCategory model."""
     
     list_display = ['name', 'slug', 'order', 'inquiries_count', 'is_active']
@@ -62,7 +62,7 @@ class ContactCategoryAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ContactInquiry)
-class ContactInquiryAdmin(EnhancedModelAdmin):
+class ContactInquiryAdmin(ImportExportEnhancedModelAdmin):
     """Admin for ContactInquiry model."""
     
     list_display = [
@@ -141,7 +141,7 @@ class ContactInquiryAdmin(EnhancedModelAdmin):
 
 
 @admin.register(CustomizationRequest)
-class CustomizationRequestAdmin(EnhancedModelAdmin):
+class CustomizationRequestAdmin(ImportExportEnhancedModelAdmin):
     """Admin for CustomizationRequest model."""
     
     list_display = ['product', 'name', 'email', 'status', 'created_at']
@@ -193,7 +193,7 @@ class CustomizationRequestAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ContactResponse)
-class ContactResponseAdmin(EnhancedModelAdmin):
+class ContactResponseAdmin(ImportExportEnhancedModelAdmin):
     """Admin for ContactResponse model."""
     
     list_display = ['inquiry', 'subject', 'sent_by', 'sent_at', 'delivered', 'opened']
@@ -204,7 +204,7 @@ class ContactResponseAdmin(EnhancedModelAdmin):
 
 
 @admin.register(StoreLocation)
-class StoreLocationAdmin(EnhancedModelAdmin):
+class StoreLocationAdmin(ImportExportEnhancedModelAdmin):
     """Admin for StoreLocation model."""
     
     list_display = [
@@ -249,7 +249,7 @@ class StoreLocationAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ContactSettings)
-class ContactSettingsAdmin(EnhancedModelAdmin):
+class ContactSettingsAdmin(ImportExportEnhancedModelAdmin):
     """Admin for ContactSettings model."""
     
     list_display = ['general_email', 'phone', 'allow_attachments', 'enable_auto_response']

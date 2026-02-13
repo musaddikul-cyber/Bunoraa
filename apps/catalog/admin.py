@@ -11,7 +11,7 @@ from pathlib import Path
 from django.conf import settings
 
 from core.admin_mixins import (
-    EnhancedModelAdmin,
+    ImportExportEnhancedModelAdmin,
     EnhancedTabularInline,
     ExportCSVMixin,
     BulkActivateMixin,
@@ -130,7 +130,7 @@ class ProductQuestionInline(EnhancedTabularInline):
 
 
 @admin.register(Category)
-class CategoryAdmin(EnhancedModelAdmin):
+class CategoryAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name", "slug", "parent", "display_path", "depth", "product_count", "is_visible", "aspect_ratio")
     search_fields = ("name", "slug")
     list_filter = ("is_visible", "is_deleted", "aspect_ratio", "parent", "depth")
@@ -305,7 +305,7 @@ class CategoryAdmin(EnhancedModelAdmin):
 from .forms import ProductAdminForm 
 
 @admin.register(Product)
-class ProductAdmin(EnhancedModelAdmin, BulkActivateMixin, BulkFeaturedMixin):
+class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeaturedMixin):
     form = ProductAdminForm 
     list_display = (
         "thumbnail_preview", "name", "sku", "primary_category_display", 
@@ -571,61 +571,61 @@ class ProductAdmin(EnhancedModelAdmin, BulkActivateMixin, BulkFeaturedMixin):
 
 
 @admin.register(ShippingMaterial)
-class ShippingMaterialAdmin(EnhancedModelAdmin):
+class ShippingMaterialAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name", "eco_score", "created_at")
     search_fields = ("name",)
 
 
 @admin.register(Badge)
-class BadgeAdmin(EnhancedModelAdmin):
+class BadgeAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name", "slug", "is_active", "start", "end", "priority")
     search_fields = ("name", "slug")
     prepopulated_fields = {"slug": ("name",)}
 
 
 @admin.register(Spotlight)
-class SpotlightAdmin(EnhancedModelAdmin):
+class SpotlightAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name", "placement", "product", "category", "start", "end", "priority", "is_active")
     list_filter = ("placement", "is_active")
 
 
 @admin.register(Product3DAsset)
-class Product3DAssetAdmin(EnhancedModelAdmin):
+class Product3DAssetAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("product", "file_type", "validated", "is_ar_compatible", "uploaded_at")
     readonly_fields = ("uploaded_at",)
 
 
 @admin.register(Attribute)
-class AttributeAdmin(EnhancedModelAdmin):
+class AttributeAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name", "slug")
     search_fields = ("name", "slug")
 
 
 @admin.register(AttributeValue)
-class AttributeValueAdmin(EnhancedModelAdmin):
+class AttributeValueAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("attribute", "value")
     search_fields = ("value",)
 
 
 @admin.register(Facet)
-class FacetAdmin(EnhancedModelAdmin):
+class FacetAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name", "slug", "type")
     search_fields = ("name",)
 
 
 @admin.register(CategoryFacet)
-class CategoryFacetAdmin(EnhancedModelAdmin):
+class CategoryFacetAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("category", "facet")
 
 
 @admin.register(Tag)
-class TagAdmin(EnhancedModelAdmin):
+class TagAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name",)
     search_fields = ("name",)
 
 
 @admin.register(ProductQuestion)
-class ProductQuestionAdmin(EnhancedModelAdmin):
+class ProductQuestionAdmin(ImportExportEnhancedModelAdmin):
     list_display = ('product', 'user', 'question_text', 'status', 'created_at')
     list_filter = ('status', 'created_at')
     search_fields = ('product__name', 'user__email', 'question_text')
@@ -647,7 +647,7 @@ class ProductQuestionAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ProductAnswer)
-class ProductAnswerAdmin(EnhancedModelAdmin):
+class ProductAnswerAdmin(ImportExportEnhancedModelAdmin):
     list_display = ('question', 'user', 'answer_text', 'status', 'created_at')
     list_filter = ('status', 'created_at')
     search_fields = ('question__question_text', 'user__email', 'answer_text')
@@ -669,13 +669,13 @@ class ProductAnswerAdmin(EnhancedModelAdmin):
 
 # Inline registered for ProductVariant to ensure attribute M2M is manageable
 @admin.register(ProductVariant)
-class ProductVariantAdmin(EnhancedModelAdmin):
+class ProductVariantAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("sku", "product", "price", "stock_quantity", "is_default")
     search_fields = ("sku", "product__name")
 
 
 @admin.register(CustomerPhoto)
-class CustomerPhotoAdmin(EnhancedModelAdmin):
+class CustomerPhotoAdmin(ImportExportEnhancedModelAdmin):
     list_display = ('product', 'user', 'status', 'created_at', 'thumbnail_preview')
     list_filter = ('status', 'created_at')
     search_fields = ('product__name', 'user__email', 'description')

@@ -12,7 +12,7 @@ from .views import (
     DivisionViewSet, DistrictViewSet, UpazilaViewSet,
     TranslationNamespaceViewSet, TranslationKeyViewSet,
     TranslationViewSet, ContentTranslationViewSet,
-    UserLocalePreferenceView
+    UserLocalePreferenceView, MessagesView
 )
 
 app_name = 'i18n_api'
@@ -38,4 +38,5 @@ urlpatterns = [
     # Custom views
     path('convert/', CurrencyConversionView.as_view(), name='convert'),
     path('preferences/', UserLocalePreferenceView.as_view(), name='preferences'),
+    path('messages/', MessagesView.as_view(), name='messages'),
 ]

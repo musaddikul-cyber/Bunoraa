@@ -38,7 +38,13 @@ export function CartDrawer({
   }
 
   return (
-    <div className="fixed inset-0 z-50" aria-hidden={!isOpen}>
+    <div
+      className="fixed inset-0 z-50"
+      aria-hidden={!isOpen}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div
         className={cn(
           "absolute inset-0 bg-black/40 transition-opacity",
@@ -51,6 +57,7 @@ export function CartDrawer({
           "absolute right-0 top-0 h-full w-full max-w-sm transform bg-background p-6 shadow-xl transition-transform",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
+        onClick={(event) => event.stopPropagation()}
       >
         <MiniCart title="Your cart" onClose={onClose} />
       </aside>

@@ -57,9 +57,9 @@ export default async function PageDetail({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-4xl px-6 py-12">
-        <h1 className="text-3xl font-semibold">{page.title}</h1>
+        <h1 className="text-3xl font-semibold text-foreground">{page.title}</h1>
         <div
-          className="prose prose-stone mt-6 max-w-none"
+          className="prose mt-6 max-w-none text-foreground prose-headings:text-foreground prose-p:text-foreground/80 prose-li:text-foreground/80 prose-strong:text-foreground prose-a:text-primary prose-a:underline prose-a:underline-offset-4 prose-hr:border-border"
           dangerouslySetInnerHTML={{ __html: page.content || "" }}
         />
       </div>

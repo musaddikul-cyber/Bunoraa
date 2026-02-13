@@ -112,14 +112,21 @@ class CategoryService:
     @classmethod
     def get_category_by_slug(cls, slug: str) -> Optional[Category]:
         """Get category by slug with related data."""
-        try:
-            return Category.objects.get(
-                slug=slug,
-                is_visible=True,
-                is_deleted=False
-            )
-        except Category.DoesNotExist:
+        qs = Category.objects.filter(
+            slug=slug,
+            is_visible=True,
+            is_deleted=False
+        )
+        if not qs.exists():
             return None
+
+        # Prefer top-level category when slugs collide across parents.
+        root_match = qs.filter(parent__isnull=True).order_by("path").first()
+        if root_match:
+            return root_match
+
+        # Fall back to a deterministic choice (shallowest, then path).
+        return qs.order_by("depth", "path").first()
     
     @classmethod
     def get_category_by_path(cls, path: str) -> Optional[Category]:

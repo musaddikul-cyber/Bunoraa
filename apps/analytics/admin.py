@@ -3,11 +3,11 @@ Analytics admin configuration
 """
 from django.contrib import admin
 from .models import PageView, ProductView, SearchQuery, CartEvent, DailyStat, ProductStat, CategoryStat
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 
 @admin.register(PageView)
-class PageViewAdmin(EnhancedModelAdmin):
+class PageViewAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['path', 'user', 'device_type', 'browser', 'created_at']
     list_filter = ['device_type', 'browser', 'os', 'created_at']
     search_fields = ['path', 'user__email']
@@ -22,7 +22,7 @@ class PageViewAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ProductView)
-class ProductViewAdmin(EnhancedModelAdmin):
+class ProductViewAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['product', 'user', 'source', 'created_at']
     list_filter = ['source', 'created_at']
     search_fields = ['product__name', 'user__email']
@@ -37,7 +37,7 @@ class ProductViewAdmin(EnhancedModelAdmin):
 
 
 @admin.register(SearchQuery)
-class SearchQueryAdmin(EnhancedModelAdmin):
+class SearchQueryAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['query', 'results_count', 'clicked_product', 'user', 'created_at']
     list_filter = ['created_at']
     search_fields = ['query', 'user__email']
@@ -52,7 +52,7 @@ class SearchQueryAdmin(EnhancedModelAdmin):
 
 
 @admin.register(CartEvent)
-class CartEventAdmin(EnhancedModelAdmin):
+class CartEventAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['event_type', 'product', 'quantity', 'cart_value', 'user', 'created_at']
     list_filter = ['event_type', 'created_at']
     search_fields = ['user__email', 'product__name']
@@ -67,7 +67,7 @@ class CartEventAdmin(EnhancedModelAdmin):
 
 
 @admin.register(DailyStat)
-class DailyStatAdmin(EnhancedModelAdmin):
+class DailyStatAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'date', 'page_views', 'unique_visitors', 'orders_count',
         'orders_revenue', 'conversion_rate'
@@ -90,7 +90,7 @@ class DailyStatAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ProductStat)
-class ProductStatAdmin(EnhancedModelAdmin):
+class ProductStatAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['product', 'date', 'views', 'orders_count', 'revenue', 'conversion_rate']
     list_filter = ['date']
     search_fields = ['product__name']
@@ -105,7 +105,7 @@ class ProductStatAdmin(EnhancedModelAdmin):
 
 
 @admin.register(CategoryStat)
-class CategoryStatAdmin(EnhancedModelAdmin):
+class CategoryStatAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['category', 'date', 'views', 'product_views', 'orders_count', 'revenue']
     list_filter = ['date']
     search_fields = ['category__name']

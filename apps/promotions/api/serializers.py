@@ -45,7 +45,11 @@ class BannerSerializer(serializers.ModelSerializer):
         model = Banner
         fields = [
             'id', 'title', 'subtitle', 'image', 'image_mobile',
-            'link_url', 'link_text', 'position'
+            'link_url', 'link_text', 'position',
+            'style_height', 'style_width', 'style_max_width',
+            'style_border_radius', 'style_border_width',
+            'style_border_color', 'style_background_color',
+            'overlay_color', 'overlay_opacity', 'text_color'
         ]
 
 

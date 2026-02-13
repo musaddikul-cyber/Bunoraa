@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { SearchBar } from "@/components/search/SearchBar";
+import { HeroBannerSlider, type HeroBanner } from "@/components/promotions/HeroBannerSlider";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -50,6 +51,10 @@ type HomepageData = {
   featured_categories: FeaturedCategory[];
   collections: Collection[];
   spotlights?: Spotlight[];
+};
+
+type Banner = HeroBanner & {
+  position?: string | null;
 };
 
 type FaqItem = {
@@ -209,6 +214,19 @@ async function getBundles(headers: Record<string, string>) {
   }
 }
 
+async function getBanners(headers: Record<string, string>, position?: string) {
+  try {
+    const response = await apiFetch<Banner[]>("/promotions/banners/", {
+      headers,
+      params: position ? { position } : undefined,
+      next: { revalidate },
+    });
+    return asArray<Banner>(response.data);
+  } catch {
+    return [] as Banner[];
+  }
+}
+
 export default async function Home() {
   const localeHeaders = await getServerLocaleHeaders();
   const [
@@ -219,6 +237,8 @@ export default async function Home() {
     subscriptionPlans,
     faqs,
     bundles,
+    heroBanners,
+    secondaryBanners,
   ] = await Promise.all([
     getHomepageData(localeHeaders),
     getSiteSettings(localeHeaders),
@@ -227,6 +247,8 @@ export default async function Home() {
     getSubscriptionPlans(localeHeaders),
     getFaqs(localeHeaders),
     getBundles(localeHeaders),
+    getBanners(localeHeaders, "home_hero"),
+    getBanners(localeHeaders, "home_secondary"),
   ]);
 
   const brandName = pickText(siteSettings?.site_name) || "Bunoraa";
@@ -379,7 +401,7 @@ export default async function Home() {
                 <Button asChild variant="secondary">
                   <Link href="/preorders/">Start a preorder</Link>
                 </Button>
-                <Button asChild variant="ghost">
+                <Button asChild variant="secondary">
                   <Link href="/collections/">Browse collections</Link>
                 </Button>
               </div>
@@ -420,7 +442,7 @@ export default async function Home() {
                     </p>
                     <h2 className="text-xl font-semibold">Live commerce overview</h2>
                   </div>
-                  <Button asChild variant="ghost" size="sm">
+                  <Button asChild variant="secondary" size="sm">
                     <Link href="/products/">View catalog</Link>
                   </Button>
                 </div>
@@ -432,9 +454,9 @@ export default async function Home() {
                       </dt>
                       <dd className="mt-2 text-2xl font-semibold">{stat.value}</dd>
                       <p className="mt-1 text-xs text-foreground/55">{stat.description}</p>
-                      <Link href={stat.href} className="mt-2 inline-flex text-xs font-semibold text-primary">
-                        Explore
-                      </Link>
+                      <Button asChild size="sm" variant="secondary" className="mt-3">
+                        <Link href={stat.href}>Explore</Link>
+                      </Button>
                     </div>
                   ))}
                 </dl>
@@ -462,6 +484,53 @@ export default async function Home() {
           </div>
         </div>
       </section>
+      {heroBanners.length ? (
+        <section className="mx-auto w-full max-w-7xl px-6 py-10">
+          <HeroBannerSlider banners={heroBanners} className="mx-auto" />
+        </section>
+      ) : null}
+      {secondaryBanners.length ? (
+        <section className="mx-auto w-full max-w-7xl px-6 pb-12">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {secondaryBanners.map((banner) => {
+              const content = (
+                <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
+                  <picture>
+                    {banner.image_mobile ? (
+                      <source media="(max-width: 640px)" srcSet={banner.image_mobile} />
+                    ) : null}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={banner.image}
+                      alt={banner.title}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </picture>
+                  <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-black/10 to-transparent p-5 text-white">
+                    <h3 className="text-lg font-semibold">{banner.title}</h3>
+                    {banner.subtitle ? (
+                      <p className="mt-1 text-xs text-white/80">{banner.subtitle}</p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+              if (banner.link_url) {
+                return (
+                  <a
+                    key={banner.id}
+                    href={banner.link_url}
+                    className="block transition hover:-translate-y-0.5"
+                  >
+                    {content}
+                  </a>
+                );
+              }
+              return <div key={banner.id}>{content}</div>;
+            })}
+          </div>
+        </section>
+      ) : null}
       <section className="mx-auto w-full max-w-7xl space-y-12 px-6 py-12" id="highlights">
         {productSections.map((section) => (
           <div key={section.id} className="space-y-6">
@@ -472,7 +541,7 @@ export default async function Home() {
                 </p>
                 <p className="mt-2 text-sm text-foreground/60">{section.description}</p>
               </div>
-              <Button asChild variant="ghost">
+              <Button asChild variant="secondary" size="sm">
                 <Link href={section.href}>View all</Link>
               </Button>
             </div>
@@ -486,7 +555,7 @@ export default async function Home() {
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Categories</p>
             <h2 className="text-2xl font-semibold">Shop by category</h2>
           </div>
-          <Button asChild variant="ghost">
+          <Button asChild variant="secondary" size="sm">
             <Link href="/categories/">Browse all</Link>
           </Button>
         </div>
@@ -523,7 +592,7 @@ export default async function Home() {
             <Card key={block.title} variant="bordered" className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">{block.title}</h3>
-                <Button asChild size="sm" variant="ghost">
+                <Button asChild size="sm" variant="secondary">
                   <Link href={block.href}>View all</Link>
                 </Button>
               </div>
@@ -568,7 +637,7 @@ export default async function Home() {
                 <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Collections</p>
                 <h2 className="text-2xl font-semibold">Curated themes</h2>
               </div>
-              <Button asChild size="sm" variant="ghost">
+              <Button asChild size="sm" variant="secondary">
                 <Link href="/collections/">All collections</Link>
               </Button>
             </div>
@@ -595,7 +664,7 @@ export default async function Home() {
                 <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Bundles</p>
                 <h2 className="text-2xl font-semibold">Ready-to-ship sets</h2>
               </div>
-              <Button asChild size="sm" variant="ghost">
+              <Button asChild size="sm" variant="secondary">
                 <Link href="/bundles/">Browse bundles</Link>
               </Button>
             </div>
@@ -633,7 +702,7 @@ export default async function Home() {
               Launch custom production runs with transparent timelines.
             </p>
           </div>
-          <Button asChild variant="ghost">
+          <Button asChild variant="secondary" size="sm">
             <Link href="/preorders/">Manage preorders</Link>
           </Button>
         </div>
@@ -669,7 +738,7 @@ export default async function Home() {
               <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Subscriptions</p>
               <h2 className="text-2xl font-semibold">Recurring delivery plans</h2>
             </div>
-            <Button asChild variant="ghost">
+            <Button asChild variant="secondary" size="sm">
               <Link href="/subscriptions/">See all plans</Link>
             </Button>
           </div>
@@ -698,7 +767,7 @@ export default async function Home() {
               <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">FAQ</p>
               <h2 className="text-2xl font-semibold">Answers at a glance</h2>
             </div>
-            <Button asChild variant="ghost">
+            <Button asChild variant="secondary" size="sm">
               <Link href="/faq/">Visit FAQ</Link>
             </Button>
           </div>

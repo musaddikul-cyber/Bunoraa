@@ -402,7 +402,9 @@ class TranslationSerializer(serializers.ModelSerializer):
             'id', 'key', 'key_name', 'language', 'language_code',
             'translated_text', 'plural_forms', 'status',
             'is_machine_translated', 'translated_by', 'translated_by_username',
-            'reviewed_by', 'created_at', 'updated_at'
+            'reviewed_by', 'created_at', 'updated_at',
+            'source_language', 'source_text_hash', 'provider',
+            'translated_at', 'error_message', 'needs_retranslation'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -419,7 +421,9 @@ class ContentTranslationSerializer(serializers.ModelSerializer):
             'id', 'content_type', 'content_id', 'field_name',
             'language', 'language_code', 'source_text', 'original_text', 'translated_text',
             'is_machine_translated', 'is_approved', 'translated_by', 'approved_by',
-            'created_at', 'updated_at'
+            'created_at', 'updated_at',
+            'source_language', 'source_text_hash', 'provider',
+            'translated_at', 'error_message', 'needs_retranslation'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 

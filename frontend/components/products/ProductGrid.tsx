@@ -11,7 +11,7 @@ export function ProductGrid({
   products,
   view = "grid",
   isLoading = false,
-  emptyMessage = "No products found.",
+  emptyMessage = "We could not find any products matching your current filters.",
 }: {
   products: ProductListItem[];
   view?: "grid" | "list";
@@ -31,7 +31,15 @@ export function ProductGrid({
   }
 
   if (!products.length) {
-    return <p className="text-sm text-foreground/60">{emptyMessage}</p>;
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-card/40 px-6 py-10 text-center">
+        <h3 className="text-lg font-semibold text-foreground">No products found</h3>
+        <p className="mt-2 text-sm text-foreground/70">{emptyMessage}</p>
+        <p className="mt-3 text-xs text-foreground/50">
+          Try adjusting your filters or search terms.
+        </p>
+      </div>
+    );
   }
 
   return (

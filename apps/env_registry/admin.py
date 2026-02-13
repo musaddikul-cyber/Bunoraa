@@ -6,11 +6,11 @@ from .forms import EnvValueForm
 from .models import EnvCategory, EnvValue, EnvVariable
 from .runtime import apply_runtime_overrides
 from .schema_loader import sync_from_schema
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 
 @admin.register(EnvCategory)
-class EnvCategoryAdmin(EnhancedModelAdmin):
+class EnvCategoryAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name", "slug", "order", "is_active")
     list_filter = ("is_active",)
     search_fields = ("name", "slug")
@@ -18,7 +18,7 @@ class EnvCategoryAdmin(EnhancedModelAdmin):
 
 
 @admin.register(EnvVariable)
-class EnvVariableAdmin(EnhancedModelAdmin):
+class EnvVariableAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         "key",
         "category",
@@ -47,7 +47,7 @@ class EnvVariableAdmin(EnhancedModelAdmin):
 
 
 @admin.register(EnvValue)
-class EnvValueAdmin(EnhancedModelAdmin):
+class EnvValueAdmin(ImportExportEnhancedModelAdmin):
     form = EnvValueForm
     list_display = ("variable", "environment", "masked_value", "updated_at", "updated_by")
     list_filter = ("environment", "variable__category", "variable__is_secret", "variable__is_active")

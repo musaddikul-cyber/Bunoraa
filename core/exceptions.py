@@ -54,6 +54,7 @@ def custom_exception_handler(exc, context):
 # CSRF failure handler: return structured JSON and set a fresh CSRF cookie so clients can retry
 from django.middleware.csrf import get_token
 from django.http import JsonResponse
+from django.views.csrf import csrf_failure as django_csrf_failure
 
 
 def csrf_failure(request, reason=""):
@@ -64,18 +65,30 @@ def csrf_failure(request, reason=""):
         user_info = 'unknown'
     logger.warning('CSRF failure: %s (%s) for path %s', reason, user_info, getattr(request, 'path', ''))
 
-    token = get_token(request)
+    path = getattr(request, 'path', '') or ''
+    accepts = request.META.get('HTTP_ACCEPT', '')
+
+    # Use Django's default CSRF failure view for HTML/admin pages
+    if path.startswith('/admin') or 'text/html' in accepts:
+        return django_csrf_failure(request, reason=reason)
+
+    # API-style JSON response
+    token = None
+    if not request.COOKIES.get('csrftoken'):
+        token = get_token(request)
+
     resp = JsonResponse({
         'success': False,
         'message': 'CSRF validation failed',
         'data': None,
         'meta': {
             'reason': str(reason),
-            'new_csrf_token': token
+            'new_csrf_token': token,
         }
     }, status=403)
-    # ensure cookie is set so client can pick it up
-    resp.set_cookie('csrftoken', token, samesite='Lax', httponly=False)
+    # Only set a fresh cookie if missing to avoid rotating tokens during API calls
+    if token:
+        resp.set_cookie('csrftoken', token, samesite='Lax', httponly=False)
     return resp
 
 

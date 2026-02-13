@@ -3,11 +3,11 @@ Promotions admin configuration
 """
 from django.contrib import admin
 from .models import Coupon, CouponUsage, Banner, Sale
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 
 @admin.register(Coupon)
-class CouponAdmin(EnhancedModelAdmin):
+class CouponAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'code', 'discount_type', 'discount_value', 'is_valid',
         'times_used', 'usage_limit', 'valid_from', 'valid_until', 'is_active'
@@ -45,7 +45,7 @@ class CouponAdmin(EnhancedModelAdmin):
 
 
 @admin.register(CouponUsage)
-class CouponUsageAdmin(EnhancedModelAdmin):
+class CouponUsageAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['coupon', 'user', 'order', 'discount_applied', 'created_at']
     list_filter = ['created_at']
     search_fields = ['coupon__code', 'user__email', 'order__order_number']
@@ -53,7 +53,7 @@ class CouponUsageAdmin(EnhancedModelAdmin):
 
 
 @admin.register(Banner)
-class BannerAdmin(EnhancedModelAdmin):
+class BannerAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'title', 'position', 'is_visible', 'sort_order',
         'start_date', 'end_date', 'is_active'
@@ -73,6 +73,15 @@ class BannerAdmin(EnhancedModelAdmin):
         ('Link', {
             'fields': ('link_url', 'link_text')
         }),
+        ('Style', {
+            'fields': (
+                'style_height', 'style_width', 'style_max_width',
+                'style_border_radius', 'style_border_width',
+                'style_border_color', 'style_background_color',
+                'overlay_color', 'overlay_opacity', 'text_color'
+            ),
+            'classes': ('collapse',),
+        }),
         ('Display', {
             'fields': ('position', 'sort_order')
         }),
@@ -83,7 +92,7 @@ class BannerAdmin(EnhancedModelAdmin):
 
 
 @admin.register(Sale)
-class SaleAdmin(EnhancedModelAdmin):
+class SaleAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'name', 'slug', 'discount_type', 'discount_value',
         'is_running', 'start_date', 'end_date', 'is_active'

@@ -2,7 +2,7 @@
 Notifications admin configuration
 """
 from django.contrib import admin
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 from .models import (
     Notification,
     NotificationPreference,
@@ -16,7 +16,7 @@ from .models import (
 
 
 @admin.register(Notification)
-class NotificationAdmin(EnhancedModelAdmin):
+class NotificationAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'user', 'type', 'category', 'priority', 'status', 'title', 'is_read', 'created_at'
     ]
@@ -54,7 +54,7 @@ class NotificationAdmin(EnhancedModelAdmin):
 
 
 @admin.register(NotificationPreference)
-class NotificationPreferenceAdmin(EnhancedModelAdmin):
+class NotificationPreferenceAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'user', 'email_enabled', 'email_promotions', 'sms_enabled', 'push_enabled', 'digest_frequency'
     ]
@@ -93,7 +93,7 @@ class NotificationPreferenceAdmin(EnhancedModelAdmin):
 
 
 @admin.register(NotificationTemplate)
-class NotificationTemplateAdmin(EnhancedModelAdmin):
+class NotificationTemplateAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['name', 'notification_type', 'channel', 'language', 'is_active', 'updated_at']
     list_filter = ['channel', 'language', 'is_active']
     search_fields = ['name', 'subject']
@@ -113,7 +113,7 @@ class NotificationTemplateAdmin(EnhancedModelAdmin):
 
 
 @admin.register(NotificationDelivery)
-class NotificationDeliveryAdmin(EnhancedModelAdmin):
+class NotificationDeliveryAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'notification', 'channel', 'status', 'attempts', 'provider', 'external_id', 'sent_at', 'created_at'
     ]
@@ -133,7 +133,7 @@ class NotificationDeliveryAdmin(EnhancedModelAdmin):
 
 
 @admin.register(EmailTemplate)
-class EmailTemplateAdmin(EnhancedModelAdmin):
+class EmailTemplateAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['name', 'notification_type', 'subject', 'is_active', 'updated_at']
     list_filter = ['is_active', 'notification_type']
     search_fields = ['name', 'subject']
@@ -153,7 +153,7 @@ class EmailTemplateAdmin(EnhancedModelAdmin):
 
 
 @admin.register(EmailLog)
-class EmailLogAdmin(EnhancedModelAdmin):
+class EmailLogAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'recipient_email', 'notification_type', 'subject', 'status', 'sent_at', 'created_at'
     ]
@@ -173,7 +173,7 @@ class EmailLogAdmin(EnhancedModelAdmin):
 
 
 @admin.register(PushToken)
-class PushTokenAdmin(EnhancedModelAdmin):
+class PushTokenAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['user', 'device_type', 'device_name', 'platform', 'browser', 'is_active', 'last_used_at']
     list_filter = ['device_type', 'platform', 'is_active']
     search_fields = ['user__email', 'device_name', 'token']
@@ -181,7 +181,7 @@ class PushTokenAdmin(EnhancedModelAdmin):
 
 
 @admin.register(BackInStockNotification)
-class BackInStockNotificationAdmin(EnhancedModelAdmin):
+class BackInStockNotificationAdmin(ImportExportEnhancedModelAdmin):
     list_display = ('product', 'variant_display', 'user_display', 'email', 'is_notified', 'created_at')
     list_filter = ('is_notified', 'created_at')
     search_fields = ('product__name', 'user__email', 'email')

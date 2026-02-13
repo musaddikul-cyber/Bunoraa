@@ -2,7 +2,7 @@
 Payments admin configuration
 """
 from django.contrib import admin
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 from .models import (
     Payment, PaymentMethod, Refund, PaymentGateway,
     PaymentTransaction, PaymentLink, BkashCredential, BNPLProvider, BNPLAgreement, RecurringCharge
@@ -10,7 +10,7 @@ from .models import (
 
 
 @admin.register(PaymentGateway)
-class PaymentGatewayAdmin(EnhancedModelAdmin):
+class PaymentGatewayAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['name', 'code', 'is_active', 'fee_text', 'is_sandbox', 'ssl_store_id', 'bkash_mode', 'nagad_merchant_id', 'supports_recurring', 'supports_bnpl', 'sort_order']
     list_filter = ['is_active', 'is_sandbox', 'fee_type']
     search_fields = ['name', 'code', 'description']
@@ -67,7 +67,7 @@ class PaymentGatewayAdmin(EnhancedModelAdmin):
 
 
 @admin.register(PaymentMethod)
-class PaymentMethodAdmin(EnhancedModelAdmin):
+class PaymentMethodAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['user', 'type', 'card_brand', 'card_last_four', 'is_default', 'is_active', 'created_at']
     list_filter = ['type', 'card_brand', 'is_default', 'is_active']
     search_fields = ['user__email', 'card_last_four', 'paypal_email']
@@ -96,7 +96,7 @@ class PaymentMethodAdmin(EnhancedModelAdmin):
 
 
 @admin.register(Payment)
-class PaymentAdmin(EnhancedModelAdmin):
+class PaymentAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['id', 'order', 'amount', 'currency', 'status', 'paid_at', 'created_at']
     list_filter = ['status', 'currency', 'created_at']
     search_fields = ['id', 'order__order_number', 'user__email', 'stripe_payment_intent_id']
@@ -145,7 +145,7 @@ class RefundInline(admin.TabularInline):
 
 
 @admin.register(Refund)
-class RefundAdmin(EnhancedModelAdmin):
+class RefundAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['id', 'payment', 'amount', 'reason', 'status', 'created_by', 'created_at']
     list_filter = ['status', 'reason', 'created_at']
     search_fields = ['id', 'payment__stripe_payment_intent_id', 'stripe_refund_id']
@@ -174,7 +174,7 @@ class RefundAdmin(EnhancedModelAdmin):
 
 
 @admin.register(PaymentTransaction)
-class PaymentTransactionAdmin(EnhancedModelAdmin):
+class PaymentTransactionAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['reference', 'gateway', 'event_type', 'fee_amount', 'created_at']
     list_filter = ['gateway', 'event_type', 'created_at']
     search_fields = ['reference', 'payload']
@@ -182,7 +182,7 @@ class PaymentTransactionAdmin(EnhancedModelAdmin):
 
 
 @admin.register(PaymentLink)
-class PaymentLinkAdmin(EnhancedModelAdmin):
+class PaymentLinkAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['code', 'order', 'gateway', 'amount', 'currency', 'is_active', 'expires_at', 'created_at']
     list_filter = ['is_active', 'gateway', 'currency']
     search_fields = ['code', 'order__order_number']
@@ -190,21 +190,21 @@ class PaymentLinkAdmin(EnhancedModelAdmin):
 
 
 @admin.register(BNPLProvider)
-class BNPLProviderAdmin(EnhancedModelAdmin):
+class BNPLProviderAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['code', 'name', 'is_active', 'created_at']
     list_filter = ['is_active']
     search_fields = ['code', 'name']
 
 
 @admin.register(BNPLAgreement)
-class BNPLAgreementAdmin(EnhancedModelAdmin):
+class BNPLAgreementAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['provider', 'user', 'approved', 'approved_at', 'created_at']
     list_filter = ['approved', 'provider']
     search_fields = ['provider__code', 'user__email']
 
 
 @admin.register(RecurringCharge)
-class RecurringChargeAdmin(EnhancedModelAdmin):
+class RecurringChargeAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['subscription', 'amount', 'currency', 'status', 'attempt_at', 'processed_at']
     list_filter = ['status', 'currency']
     search_fields = ['subscription__stripe_subscription_id']

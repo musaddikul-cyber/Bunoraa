@@ -2,10 +2,16 @@
 Bunoraa URL Configuration
 """
 from django.contrib import admin
+from django.conf import settings as dj_settings
+from django.contrib.auth import REDIRECT_FIELD_NAME
+from django.contrib.auth.views import redirect_to_login
 from django.urls import path, include
 from django.views.generic.base import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
+from django.shortcuts import resolve_url
+from django.utils.http import url_has_allowed_host_and_scheme
+from two_factor.admin import AdminSiteOTPRequired
 from .sitemaps import sitemap_view, sitemap_index_view
 from django.views.generic import RedirectView # Added for API docs redirect
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView # Added for API docs
@@ -19,6 +25,23 @@ from .sitemaps import (
     PageSitemap,
 )
 from .views import HomeView, health_check, health_check_detailed, readiness_check, liveness_check
+
+class BunoraaAdminSite(AdminSiteOTPRequired):
+    """Admin site that redirects login to the OTP-enabled login view."""
+
+    def login(self, request, extra_context=None):
+        redirect_to = request.POST.get(REDIRECT_FIELD_NAME, request.GET.get(REDIRECT_FIELD_NAME))
+
+        if not redirect_to or not url_has_allowed_host_and_scheme(
+            url=redirect_to, allowed_hosts=[request.get_host()]
+        ):
+            redirect_to = resolve_url(dj_settings.LOGIN_REDIRECT_URL)
+
+        return redirect_to_login(redirect_to, login_url=resolve_url('two_factor:login'))
+
+
+# Enforce OTP for admin site without changing registrations
+admin.site.__class__ = BunoraaAdminSite
 
 sitemaps = {
     'static': StaticViewSitemap,
@@ -37,6 +60,9 @@ urlpatterns = [
     # Admin Dashboard (custom)
     path('admin/dashboard/', include('core.admin_urls')),
     
+    # Two-factor URLs (namespaced for OTP redirects)
+    path('', include(('core.two_factor_urls', 'two_factor'), namespace='two_factor')),
+
     # Admin
     path('admin', RedirectView.as_view(url='/admin/', permanent=True)),
     path('admin/', admin.site.urls),

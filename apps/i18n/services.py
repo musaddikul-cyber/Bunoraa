@@ -4,6 +4,8 @@ Internationalization Services
 Comprehensive services for multi-language, multi-currency, and localization operations.
 """
 import logging
+import hashlib
+import time
 from decimal import Decimal, ROUND_HALF_UP, ROUND_UP
 from typing import Optional, List, Dict, Any
 from django.db import models, transaction
@@ -15,8 +17,10 @@ from .models import (
     Language, Currency, ExchangeRate, ExchangeRateHistory,
     Timezone, Country, Division, District, Upazila,
     Translation, TranslationKey, ContentTranslation,
+    TranslationJob, TranslationGlossary,
     UserLocalePreference, I18nSettings
 )
+from .translation_providers import LibreTranslateProvider, TranslationProviderError
 
 logger = logging.getLogger(__name__)
 
@@ -1202,6 +1206,108 @@ class GeoService:
 
 
 # =============================================================================
+# Machine Translation Service
+# =============================================================================
+
+class MachineTranslationService:
+    """Unified machine translation service with provider abstraction."""
+
+    _provider_name: Optional[str] = None
+    _provider_instance: Optional[object] = None
+
+    @staticmethod
+    def _get_provider():
+        try:
+            settings = I18nSettings.get_settings()
+            provider = settings.translation_provider or 'libretranslate'
+        except Exception:
+            provider = 'libretranslate'
+
+        if MachineTranslationService._provider_instance and provider == MachineTranslationService._provider_name:
+            return MachineTranslationService._provider_instance
+
+        if provider == 'libretranslate':
+            base_url = getattr(django_settings, 'LIBRETRANSLATE_URL', '')
+            api_key = getattr(django_settings, 'LIBRETRANSLATE_API_KEY', '') or ''
+            if not api_key:
+                try:
+                    settings = I18nSettings.get_settings()
+                    api_key = settings.translation_api_key or ''
+                except Exception:
+                    api_key = ''
+            MachineTranslationService._provider_instance = LibreTranslateProvider(base_url, api_key)
+            MachineTranslationService._provider_name = provider
+            return MachineTranslationService._provider_instance
+
+        # Fallback to None for unsupported providers in this service
+        MachineTranslationService._provider_instance = None
+        MachineTranslationService._provider_name = provider
+        return None
+
+    @staticmethod
+    def _load_glossary() -> List[TranslationGlossary]:
+        return list(TranslationGlossary.objects.filter(is_active=True).order_by('-priority', 'term'))
+
+    @staticmethod
+    def _apply_glossary(texts: List[str]) -> tuple[List[str], Dict[str, str]]:
+        if not texts:
+            return texts, {}
+        glossary = MachineTranslationService._load_glossary()
+        if not glossary:
+            return texts, {}
+
+        import re
+
+        replacements: Dict[str, str] = {}
+        processed: List[str] = texts[:]
+
+        for idx, entry in enumerate(glossary):
+            term = entry.term
+            if not term:
+                continue
+            token = f"__GLOSSARY_{idx}__"
+            replacements[token] = entry.replacement or entry.term
+            flags = 0 if entry.case_sensitive else re.IGNORECASE
+            pattern = re.compile(re.escape(term), flags)
+
+            for i, text in enumerate(processed):
+                if not text:
+                    continue
+                processed[i] = pattern.sub(token, text)
+
+        return processed, replacements
+
+    @staticmethod
+    def _restore_glossary(texts: List[str], replacements: Dict[str, str]) -> List[str]:
+        if not texts or not replacements:
+            return texts
+        restored: List[str] = []
+        for text in texts:
+            updated = text
+            for token, value in replacements.items():
+                updated = updated.replace(token, value)
+            restored.append(updated)
+        return restored
+
+    @staticmethod
+    def translate_texts(texts: List[str], source_language: str, target_language: str, fmt: str = 'text') -> List[str]:
+        provider = MachineTranslationService._get_provider()
+        if provider is None:
+            raise TranslationProviderError("No machine translation provider configured")
+
+        prepared, replacements = MachineTranslationService._apply_glossary(texts)
+        translated = provider.translate(prepared, source_language, target_language, fmt)
+        return MachineTranslationService._restore_glossary(translated, replacements)
+
+    @staticmethod
+    def list_languages() -> List[dict]:
+        provider = MachineTranslationService._get_provider()
+        if provider is None:
+            return []
+        return provider.languages()
+
+
+# =============================================================================
 # Translation Service
 # =============================================================================
 
@@ -1211,6 +1317,49 @@ class TranslationService:
     CACHE_TIMEOUT = 3600
     _CACHE_MISS = "__i18n_trans_miss__"
     _CONTENT_CACHE_MISS = "__i18n_content_miss__"
+
+    @staticmethod
+    def compute_source_hash(text: str) -> str:
+        if text is None:
+            text = ''
+        return hashlib.sha256(str(text).encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def get_translations_bundle(language_code: str, namespaces: List[str]) -> Dict[str, Dict[str, str]]:
+        bundles: Dict[str, Dict[str, str]] = {}
+        if not namespaces:
+            return bundles
+
+        language_codes = LanguageService.get_fallback_chain(language_code)
+        # Low priority first so higher priority can override
+        language_codes = list(reversed(language_codes))
+
+        for namespace in namespaces:
+            merged: Dict[str, str] = {}
+            for lang_code in language_codes:
+                qs = Translation.objects.filter(
+                    key__namespace__name=namespace,
+                    language__code=lang_code,
+                    status='approved'
+                ).select_related('key')
+                for key, text in qs.values_list('key__key', 'translated_text'):
+                    if key not in merged:
+                        merged[key] = text
+            bundles[namespace] = merged
+
+        return bundles
+
+    @staticmethod
+    def get_latest_translation_timestamp(language_code: str, namespaces: List[str]) -> Optional[timezone.datetime]:
+        if not namespaces:
+            return None
+        language_codes = LanguageService.get_fallback_chain(language_code)
+        latest = Translation.objects.filter(
+            key__namespace__name__in=namespaces,
+            language__code__in=language_codes,
+            status='approved'
+        ).order_by('-updated_at').values_list('updated_at', flat=True).first()
+        return latest
 
     @staticmethod
     def _select_plural_form(plural_forms: Dict[str, Any], count: int) -> Optional[str]:
@@ -1409,6 +1558,16 @@ class TranslationService:
         if not language:
             raise ValueError(f"Language not found: {language_code}")
         
+        source_language = 'en'
+        provider_name = ''
+        try:
+            settings = I18nSettings.get_settings()
+            source_language = settings.source_language or 'en'
+            provider_name = settings.translation_provider or ''
+        except Exception:
+            source_language = 'en'
+            provider_name = ''
+
         translation, created = ContentTranslation.objects.update_or_create(
             content_type=content_type,
             content_id=content_id,
@@ -1419,6 +1578,12 @@ class TranslationService:
                 'translated_by': user,
                 'is_machine_translated': is_machine,
                 'is_approved': not is_machine,
+                'source_language': source_language,
+                'source_text_hash': TranslationService.compute_source_hash(text),
+                'provider': 'manual' if not is_machine else provider_name,
+                'translated_at': timezone.now(),
+                'error_message': '',
+                'needs_retranslation': False,
             }
         )
         

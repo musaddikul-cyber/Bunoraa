@@ -4,6 +4,7 @@ Internationalization Celery Tasks
 Background tasks for exchange rate updates, cleanup, and maintenance.
 """
 import logging
+import time
 from celery import shared_task
 from django.utils import timezone
 from django.core.cache import cache
@@ -307,7 +308,8 @@ def auto_translate_content(content_type: str, content_id: str, field_name: str,
     Auto-translate content using machine translation.
     Called when new content is created that needs translation.
     """
-    from .models import Language, ContentTranslation, I18nSettings
+    from .models import Language, ContentTranslation, I18nSettings, TranslationJob
+    from .services import TranslationService, MachineTranslationService
     
     try:
         settings = I18nSettings.get_settings()
@@ -315,8 +317,8 @@ def auto_translate_content(content_type: str, content_id: str, field_name: str,
         if not settings.enable_machine_translation or not settings.auto_translate_new_content:
             return {'status': 'skipped', 'reason': 'auto_translate_disabled'}
         
-        provider = settings.translation_provider
-        api_key = settings.translation_api_key
+        provider = settings.translation_provider or 'libretranslate'
+        source_language = source_language or settings.source_language or 'en'
         
         if not provider or provider == 'none':
             return {'status': 'skipped', 'reason': 'no_provider_configured'}
@@ -329,11 +331,38 @@ def auto_translate_content(content_type: str, content_id: str, field_name: str,
         translated_count = 0
         
         for target_lang in target_languages:
+            job = TranslationJob.objects.create(
+                job_type=TranslationJob.TYPE_CONTENT,
+                content_type=content_type,
+                content_id=str(content_id),
+                field_name=field_name,
+                language=target_lang,
+                source_language=source_language,
+                provider=provider,
+                status=TranslationJob.STATUS_PROCESSING,
+                started_at=timezone.now(),
+            )
             try:
+                source_hash = TranslationService.compute_source_hash(source_text)
+                existing = ContentTranslation.objects.filter(
+                    content_type=content_type,
+                    content_id=content_id,
+                    field_name=field_name,
+                    language=target_lang,
+                ).first()
+
+                if existing and existing.source_text_hash == source_hash and not existing.needs_retranslation:
+                    job.status = TranslationJob.STATUS_SKIPPED
+                    job.completed_at = timezone.now()
+                    job.save(update_fields=['status', 'completed_at'])
+                    continue
+
+                start_time = time.time()
                 translated_text = _machine_translate(
-                    source_text, source_language, 
-                    target_lang.code, provider, api_key
+                    source_text, source_language,
+                    target_lang.code, provider, settings.translation_api_key
                 )
+                latency_ms = int((time.time() - start_time) * 1000)
                 
                 if translated_text:
                     ContentTranslation.objects.update_or_create(
@@ -346,11 +375,24 @@ def auto_translate_content(content_type: str, content_id: str, field_name: str,
                             'translated_text': translated_text,
                             'is_machine_translated': True,
                             'is_approved': not settings.require_human_review,
+                            'source_language': source_language,
+                            'source_text_hash': source_hash,
+                            'provider': provider,
+                            'translated_at': timezone.now(),
+                            'error_message': '',
+                            'needs_retranslation': False,
                         }
                     )
                     translated_count += 1
-                    
+                    job.status = TranslationJob.STATUS_SUCCESS
+                    job.latency_ms = latency_ms
+                    job.completed_at = timezone.now()
+                    job.save(update_fields=['status', 'latency_ms', 'completed_at'])
             except Exception as e:
+                job.status = TranslationJob.STATUS_FAILED
+                job.last_error = str(e)
+                job.completed_at = timezone.now()
+                job.save(update_fields=['status', 'last_error', 'completed_at'])
                 logger.error(f"Error translating to {target_lang.code}: {e}")
                 continue
         
@@ -366,11 +408,185 @@ def auto_translate_content(content_type: str, content_id: str, field_name: str,
         return {'status': 'error', 'error': str(e)}
 
 
-def _machine_translate(text: str, source_lang: str, target_lang: str, 
+@shared_task(name='i18n.auto_translate_key')
+def auto_translate_key(namespace: str, key: str, source_text: str, source_language: str = 'en'):
+    """
+    Auto-translate a TranslationKey into all active languages.
+    Used for UI messages and static keys.
+    """
+    from .models import Language, TranslationKey, Translation, I18nSettings, TranslationJob
+    from .services import TranslationService
+
+    try:
+        settings = I18nSettings.get_settings()
+        if not settings.enable_machine_translation:
+            return {'status': 'skipped', 'reason': 'machine_translation_disabled'}
+
+        provider = settings.translation_provider or 'libretranslate'
+        source_language = source_language or settings.source_language or 'en'
+
+        tkey = TranslationKey.objects.filter(
+            key=key,
+            namespace__name=namespace
+        ).select_related('namespace').first()
+        if not tkey:
+            return {'status': 'skipped', 'reason': 'key_not_found'}
+
+        source_hash = TranslationService.compute_source_hash(source_text)
+        translated_count = 0
+
+        for lang in Language.objects.filter(is_active=True).exclude(code=source_language):
+            job = TranslationJob.objects.create(
+                job_type=TranslationJob.TYPE_KEY,
+                translation_key=f"{namespace}:{key}",
+                language=lang,
+                source_language=source_language,
+                source_text_hash=source_hash,
+                provider=provider,
+                status=TranslationJob.STATUS_PROCESSING,
+                started_at=timezone.now(),
+            )
+            try:
+                existing = Translation.objects.filter(key=tkey, language=lang).first()
+                if existing and existing.source_text_hash == source_hash and not existing.needs_retranslation:
+                    job.status = TranslationJob.STATUS_SKIPPED
+                    job.completed_at = timezone.now()
+                    job.save(update_fields=['status', 'completed_at'])
+                    continue
+
+                start_time = time.time()
+                translated_text = _machine_translate(
+                    source_text, source_language, lang.code, provider, settings.translation_api_key
+                )
+                latency_ms = int((time.time() - start_time) * 1000)
+
+                if translated_text:
+                    Translation.objects.update_or_create(
+                        key=tkey,
+                        language=lang,
+                        defaults={
+                            'translated_text': translated_text,
+                            'status': 'approved' if not settings.require_human_review else 'pending_review',
+                            'is_machine_translated': True,
+                            'source_language': source_language,
+                            'source_text_hash': source_hash,
+                            'provider': provider,
+                            'translated_at': timezone.now(),
+                            'error_message': '',
+                            'needs_retranslation': False,
+                        }
+                    )
+                    translated_count += 1
+                    job.status = TranslationJob.STATUS_SUCCESS
+                    job.latency_ms = latency_ms
+                    job.completed_at = timezone.now()
+                    job.save(update_fields=['status', 'latency_ms', 'completed_at'])
+            except Exception as exc:
+                job.status = TranslationJob.STATUS_FAILED
+                job.last_error = str(exc)
+                job.completed_at = timezone.now()
+                job.save(update_fields=['status', 'last_error', 'completed_at'])
+                logger.error(f"Error translating key {namespace}:{key} -> {lang.code}: {exc}")
+
+        return {'status': 'success', 'translations_created': translated_count}
+    except Exception as exc:
+        logger.error(f"Error in auto_translate_key: {exc}")
+        return {'status': 'error', 'error': str(exc)}
+
+
+@shared_task(name='i18n.auto_translate_notification_template')
+def auto_translate_notification_template(notification_type: str, target_language: str, source_language: str = 'en'):
+    """Auto-translate NotificationTemplate for a target language."""
+    from apps.notifications.models import NotificationTemplate, NotificationChannel
+    from .models import I18nSettings
+
+    try:
+        settings = I18nSettings.get_settings()
+        if not settings.enable_machine_translation:
+            return {'status': 'skipped', 'reason': 'machine_translation_disabled'}
+
+        provider = settings.translation_provider or 'libretranslate'
+        source_language = source_language or settings.source_language or 'en'
+
+        source_template = NotificationTemplate.objects.filter(
+            notification_type=notification_type,
+            channel=NotificationChannel.EMAIL,
+            language=source_language,
+            is_active=True,
+        ).first()
+
+        if not source_template:
+            source_template = NotificationTemplate.objects.filter(
+                notification_type=notification_type,
+                channel=NotificationChannel.EMAIL,
+                is_active=True,
+            ).order_by('-updated_at').first()
+
+        if not source_template:
+            return {'status': 'skipped', 'reason': 'source_template_missing'}
+
+        subject = _machine_translate(
+            source_template.subject or '',
+            source_language,
+            target_language,
+            provider,
+            settings.translation_api_key
+        ) if source_template.subject else ''
+
+        body = _machine_translate(
+            source_template.body or '',
+            source_language,
+            target_language,
+            provider,
+            settings.translation_api_key
+        ) if source_template.body else ''
+
+        html_template = _machine_translate(
+            source_template.html_template or '',
+            source_language,
+            target_language,
+            provider,
+            settings.translation_api_key
+        ) if source_template.html_template else ''
+
+        text_template = _machine_translate(
+            source_template.text_template or '',
+            source_language,
+            target_language,
+            provider,
+            settings.translation_api_key
+        ) if source_template.text_template else ''
+
+        NotificationTemplate.objects.update_or_create(
+            notification_type=notification_type,
+            channel=NotificationChannel.EMAIL,
+            language=target_language,
+            defaults={
+                'name': source_template.name,
+                'subject': subject,
+                'body': body,
+                'html_template': html_template,
+                'text_template': text_template,
+                'is_active': source_template.is_active,
+            }
+        )
+
+        return {'status': 'success', 'language': target_language}
+    except Exception as exc:
+        logger.error(f"Error translating notification template: {exc}")
+        return {'status': 'error', 'error': str(exc)}
+
+
+def _machine_translate(text: str, source_lang: str, target_lang: str,
                        provider: str, api_key: str) -> str:
     """Perform machine translation using configured provider."""
     import requests
-    
+    from .services import MachineTranslationService
+
+    if provider == 'libretranslate':
+        result = MachineTranslationService.translate_texts([text], source_lang, target_lang)
+        return result[0] if result else None
+
     if provider == 'google':
         # Google Cloud Translation API
         url = 'https://translation.googleapis.com/language/translate/v2'
@@ -385,8 +601,8 @@ def _machine_translate(text: str, source_lang: str, target_lang: str,
         response.raise_for_status()
         data = response.json()
         return data['data']['translations'][0]['translatedText']
-    
-    elif provider == 'deepl':
+
+    if provider == 'deepl':
         # DeepL API
         url = 'https://api-free.deepl.com/v2/translate'
         data = {
@@ -399,8 +615,8 @@ def _machine_translate(text: str, source_lang: str, target_lang: str,
         response.raise_for_status()
         result = response.json()
         return result['translations'][0]['text']
-    
-    elif provider == 'azure':
+
+    if provider == 'azure':
         # Azure Translator
         url = 'https://api.cognitive.microsofttranslator.com/translate'
         params = {
@@ -413,12 +629,12 @@ def _machine_translate(text: str, source_lang: str, target_lang: str,
             'Content-Type': 'application/json'
         }
         body = [{'text': text}]
-        response = requests.post(url, params=params, headers=headers, 
+        response = requests.post(url, params=params, headers=headers,
                                 json=body, timeout=30)
         response.raise_for_status()
         result = response.json()
         return result[0]['translations'][0]['text']
-    
+
     return None
 
 

@@ -7,6 +7,7 @@ import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCart } from "@/components/cart/useCart";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import { useWishlist } from "@/components/wishlist/useWishlist";
+import { useToast } from "@/components/ui/ToastProvider";
 
 function HeartIcon() {
   return (
@@ -49,6 +50,7 @@ export function HeaderClient() {
   const [open, setOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const { push } = useToast();
   const { cartQuery } = useCart();
   const { hasToken, profileQuery, logout } = useAuthContext();
   const { wishlistQuery } = useWishlist({ enabled: mounted && hasToken });
@@ -61,6 +63,16 @@ export function HeaderClient() {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (count <= 0) return;
+    if (typeof window === "undefined") return;
+    const key = "cart_prompt_shown";
+    if (window.sessionStorage.getItem(key)) return;
+    push("You have items waiting in your cart.", "info");
+    window.sessionStorage.setItem(key, "true");
+  }, [count, mounted, push]);
 
   React.useEffect(() => {
     if (!menuOpen) return;
@@ -83,12 +95,10 @@ export function HeaderClient() {
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">
-      <div className="flex">
-        <NotificationBell />
-      </div>
+      <NotificationBell />
       <Link
         href="/wishlist/"
-        className="relative hidden p-2 text-sm sm:inline-flex"
+        className="relative hidden h-9 w-9 items-center justify-center rounded-full text-sm leading-none sm:inline-flex"
         aria-label="Wishlist"
       >
         <HeartIcon />
@@ -100,7 +110,7 @@ export function HeaderClient() {
         ) : null}
       </Link>
       <button
-        className="relative p-2 text-sm"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none"
         onClick={() => setOpen((prev) => !prev)}
         aria-label="Cart"
       >
@@ -119,7 +129,7 @@ export function HeaderClient() {
       ) : hasToken ? (
         <div className="relative" ref={menuRef}>
           <button
-            className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-sm sm:px-3"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none"
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-haspopup="menu"
             aria-expanded={menuOpen}

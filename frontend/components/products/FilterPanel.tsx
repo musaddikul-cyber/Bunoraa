@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ProductFilterResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
@@ -23,6 +24,13 @@ export type CategoryFacet = {
   value_counts?: Array<{ value: string; count: number }>;
 };
 
+export type CategoryFilterItem = {
+  id: string;
+  name: string;
+  slug: string;
+  product_count?: number | null;
+};
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
@@ -35,11 +43,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export function FilterPanel({
   filters,
   facets,
+  categories,
+  productCount,
   className,
   filterParams,
 }: {
   filters: ProductFilterResponse | null;
   facets?: CategoryFacet[];
+  categories?: CategoryFilterItem[];
+  productCount?: number;
   className?: string;
   filterParams?: Record<string, string>;
 }) {
@@ -58,6 +70,7 @@ export function FilterPanel({
   }, []);
 
   const paramsKey = React.useMemo(() => JSON.stringify(filterParams || {}), [filterParams]);
+  const shouldHideFilters = typeof productCount === "number" && productCount <= 1;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -140,7 +153,9 @@ export function FilterPanel({
         groups.push({
           name,
           slug: info.slug,
-          values: info.values.map((value) => ({ value })),
+          values: info.values
+            .map((value) => ({ value }))
+            .filter((item) => String(item.value).trim().length > 0),
         });
       });
     }
@@ -151,11 +166,13 @@ export function FilterPanel({
           : (facet.values || []).map((item) => ({
               value: typeof item === "string" ? item : item.value,
             }));
-        groups.push({ name: facet.name, slug: facet.slug, values });
+        const cleaned = values.filter((item) => String(item.value).trim().length > 0);
+        groups.push({ name: facet.name, slug: facet.slug, values: cleaned });
       });
     }
     const bySlug: Record<string, { name: string; slug: string; values: Array<{ value: string; count?: number }> }> = {};
     groups.forEach((group) => {
+      if (!group.values.length) return;
       if (!bySlug[group.slug]) {
         bySlug[group.slug] = { ...group };
       } else {
@@ -164,11 +181,49 @@ export function FilterPanel({
         bySlug[group.slug].values = Array.from(merged.values());
       }
     });
-    return Object.values(bySlug);
+    return Object.values(bySlug).filter((group) => group.values.length > 0);
   }, [activeFilters, facets]);
+
+  const categoryQuery = searchParams.toString();
+  const categorySuffix = categoryQuery ? `?${categoryQuery}` : "";
+  const visibleCategories = React.useMemo(
+    () =>
+      (categories || []).filter((category) => {
+        if (!category) return false;
+        if (!category.name || !category.name.trim()) return false;
+        if (!category.slug || !category.slug.trim()) return false;
+        if (typeof category.product_count === "number") {
+          return category.product_count > 0;
+        }
+        return true;
+      }),
+    [categories]
+  );
+
+  if (shouldHideFilters) {
+    return null;
+  }
 
   return (
     <div className={cn("space-y-6", className)}>
+      {visibleCategories.length ? (
+        <Section title="Subcategories">
+          <div className="flex flex-wrap gap-2">
+            {visibleCategories.map((category) => (
+              <Link
+                key={category.id}
+                className="rounded-full border border-border px-3 py-1 text-xs text-foreground/70 transition hover:border-primary/40 hover:text-foreground"
+                href={`/categories/${category.slug}/${categorySuffix}`}
+              >
+                {category.name}
+                {typeof category.product_count === "number"
+                  ? ` (${category.product_count})`
+                  : ""}
+              </Link>
+            ))}
+          </div>
+        </Section>
+      ) : null}
       <Section title="Price range">
         <div className="space-y-3">
           <div className="relative h-4">

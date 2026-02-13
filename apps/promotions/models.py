@@ -4,6 +4,7 @@ Promotions models
 import uuid
 from decimal import Decimal
 from django.db import models
+from colorfield.fields import ColorField
 from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -328,7 +329,37 @@ class Banner(models.Model):
     # Link
     link_url = models.URLField(blank=True)
     link_text = models.CharField(max_length=100, blank=True)
-    
+
+    # Style controls (optional)
+    style_height = models.CharField(
+        max_length=20, blank=True,
+        help_text="CSS height value for the banner (e.g. 420px, 60vh)."
+    )
+    style_width = models.CharField(
+        max_length=20, blank=True,
+        help_text="CSS width value for the banner (e.g. 100%, 1200px)."
+    )
+    style_max_width = models.CharField(
+        max_length=20, blank=True,
+        help_text="CSS max-width value for the banner (e.g. 1200px)."
+    )
+    style_border_radius = models.CharField(
+        max_length=20, blank=True,
+        help_text="CSS border-radius value (e.g. 24px)."
+    )
+    style_border_width = models.CharField(
+        max_length=10, blank=True,
+        help_text="CSS border width (e.g. 1px)."
+    )
+    style_border_color = ColorField(blank=True, null=True)
+    style_background_color = ColorField(blank=True, null=True)
+    overlay_color = ColorField(blank=True, null=True)
+    overlay_opacity = models.DecimalField(
+        max_digits=3, decimal_places=2, null=True, blank=True,
+        help_text="Overlay opacity from 0 to 1 (e.g. 0.6)."
+    )
+    text_color = ColorField(blank=True, null=True)
+
     # Positioning
     POSITION_HOME_HERO = 'home_hero'
     POSITION_HOME_SECONDARY = 'home_secondary'

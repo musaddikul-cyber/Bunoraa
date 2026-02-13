@@ -8,7 +8,7 @@ Django admin interface for managing the email service.
 from django.contrib import admin
 from django.utils.html import format_html
 
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 from .models import (
     APIKey, SenderDomain, SenderIdentity, EmailTemplate, TemplateVersion,
     EmailMessage, EmailAttachment, EmailEvent, Suppression,
@@ -17,7 +17,7 @@ from .models import (
 
 
 @admin.register(APIKey)
-class APIKeyAdmin(EnhancedModelAdmin):
+class APIKeyAdmin(ImportExportEnhancedModelAdmin):
     """Admin for API Keys."""
     
     list_display = [
@@ -50,7 +50,7 @@ class APIKeyAdmin(EnhancedModelAdmin):
 
 
 @admin.register(SenderDomain)
-class SenderDomainAdmin(EnhancedModelAdmin):
+class SenderDomainAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Sender Domains."""
     
     list_display = [
@@ -87,7 +87,7 @@ class SenderDomainAdmin(EnhancedModelAdmin):
 
 
 @admin.register(SenderIdentity)
-class SenderIdentityAdmin(EnhancedModelAdmin):
+class SenderIdentityAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Sender Identities."""
     
     list_display = [
@@ -99,7 +99,7 @@ class SenderIdentityAdmin(EnhancedModelAdmin):
 
 
 @admin.register(EmailTemplate)
-class EmailTemplateAdmin(EnhancedModelAdmin):
+class EmailTemplateAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Email Templates."""
     
     list_display = [
@@ -116,7 +116,7 @@ class EmailTemplateAdmin(EnhancedModelAdmin):
 
 
 @admin.register(TemplateVersion)
-class TemplateVersionAdmin(EnhancedModelAdmin):
+class TemplateVersionAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Template Versions."""
     
     list_display = ['template', 'version', 'subject', 'created_at']
@@ -143,7 +143,7 @@ class EmailEventInline(admin.TabularInline):
 
 
 @admin.register(EmailMessage)
-class EmailMessageAdmin(EnhancedModelAdmin):
+class EmailMessageAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Email Messages."""
     
     list_display = [
@@ -223,7 +223,7 @@ class EmailMessageAdmin(EnhancedModelAdmin):
 
 
 @admin.register(EmailEvent)
-class EmailEventAdmin(EnhancedModelAdmin):
+class EmailEventAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Email Events."""
     
     list_display = [
@@ -266,7 +266,7 @@ class EmailEventAdmin(EnhancedModelAdmin):
 
 
 @admin.register(Suppression)
-class SuppressionAdmin(EnhancedModelAdmin):
+class SuppressionAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Suppressions."""
     
     list_display = ['email', 'suppression_type', 'reason_short', 'created_at']
@@ -280,7 +280,7 @@ class SuppressionAdmin(EnhancedModelAdmin):
 
 
 @admin.register(UnsubscribeGroup)
-class UnsubscribeGroupAdmin(EnhancedModelAdmin):
+class UnsubscribeGroupAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Unsubscribe Groups."""
     
     list_display = ['name', 'user', 'is_default', 'preference_count', 'created_at']
@@ -294,7 +294,7 @@ class UnsubscribeGroupAdmin(EnhancedModelAdmin):
 
 
 @admin.register(UnsubscribePreference)
-class UnsubscribePreferenceAdmin(EnhancedModelAdmin):
+class UnsubscribePreferenceAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Unsubscribe Preferences."""
     
     list_display = ['email', 'group', 'is_unsubscribed', 'created_at']
@@ -313,7 +313,7 @@ class WebhookLogInline(admin.TabularInline):
 
 
 @admin.register(Webhook)
-class WebhookAdmin(EnhancedModelAdmin):
+class WebhookAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Webhooks."""
     
     list_display = [
@@ -335,7 +335,7 @@ class WebhookAdmin(EnhancedModelAdmin):
 
 
 @admin.register(WebhookLog)
-class WebhookLogAdmin(EnhancedModelAdmin):
+class WebhookLogAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Webhook Logs."""
     
     list_display = [
@@ -362,7 +362,7 @@ class WebhookLogAdmin(EnhancedModelAdmin):
 
 
 @admin.register(DailyStats)
-class DailyStatsAdmin(EnhancedModelAdmin):
+class DailyStatsAdmin(ImportExportEnhancedModelAdmin):
     """Admin for Daily Statistics."""
     
     list_display = [

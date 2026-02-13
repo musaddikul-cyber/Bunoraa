@@ -19,8 +19,7 @@ from .models import (
 )
 
 from core.admin_mixins import (
-    EnhancedModelAdmin,
-    ExportCSVMixin,
+    ImportExportEnhancedModelAdmin,
     EnhancedTabularInline,
     DateRangeFilter,
     format_currency,
@@ -50,7 +49,7 @@ class AddressInline(EnhancedTabularInline):
 
 
 @admin.register(User)
-class UserAdmin(ExportCSVMixin, BaseUserAdmin):
+class UserAdmin(ImportExportEnhancedModelAdmin, BaseUserAdmin):
     """Enhanced custom user admin with advanced features."""
     
     list_display = [
@@ -187,7 +186,7 @@ class UserAdmin(ExportCSVMixin, BaseUserAdmin):
 
 
 @admin.register(Address)
-class AddressAdmin(EnhancedModelAdmin):
+class AddressAdmin(ImportExportEnhancedModelAdmin):
     """Address admin."""
     
     list_display = ['full_name', 'user', 'city', 'country', 'address_type', 'is_default', 'created_at']
@@ -208,7 +207,7 @@ class AddressAdmin(EnhancedModelAdmin):
 
 
 @admin.register(PasswordResetToken)
-class PasswordResetTokenAdmin(EnhancedModelAdmin):
+class PasswordResetTokenAdmin(ImportExportEnhancedModelAdmin):
     """Password reset token admin."""
     
     list_display = ['user', 'created_at', 'expires_at', 'used']
@@ -219,7 +218,7 @@ class PasswordResetTokenAdmin(EnhancedModelAdmin):
 
 
 @admin.register(EmailVerificationToken)
-class EmailVerificationTokenAdmin(EnhancedModelAdmin):
+class EmailVerificationTokenAdmin(ImportExportEnhancedModelAdmin):
     """Email verification token admin."""
     
     list_display = ['user', 'created_at', 'expires_at', 'used']
@@ -230,7 +229,7 @@ class EmailVerificationTokenAdmin(EnhancedModelAdmin):
 
 
 @admin.register(WebAuthnCredential)
-class WebAuthnCredentialAdmin(EnhancedModelAdmin):
+class WebAuthnCredentialAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['user', 'nickname', 'created_at', 'last_used_at', 'is_active']
     list_filter = ['is_active', 'created_at']
     search_fields = ['user__email', 'nickname']
@@ -239,7 +238,7 @@ class WebAuthnCredentialAdmin(EnhancedModelAdmin):
 
 
 @admin.register(WebAuthnChallenge)
-class WebAuthnChallengeAdmin(EnhancedModelAdmin):
+class WebAuthnChallengeAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['user', 'challenge_type', 'created_at', 'expires_at', 'consumed']
     list_filter = ['challenge_type', 'consumed']
     search_fields = ['user__email', 'challenge']
@@ -248,7 +247,7 @@ class WebAuthnChallengeAdmin(EnhancedModelAdmin):
 
 
 @admin.register(DataExportJob)
-class DataExportJobAdmin(EnhancedModelAdmin):
+class DataExportJobAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['user', 'status', 'requested_at', 'completed_at', 'expires_at']
     list_filter = ['status']
     search_fields = ['user__email']
@@ -257,7 +256,7 @@ class DataExportJobAdmin(EnhancedModelAdmin):
 
 
 @admin.register(AccountDeletionRequest)
-class AccountDeletionRequestAdmin(EnhancedModelAdmin):
+class AccountDeletionRequestAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['user', 'status', 'requested_at', 'scheduled_for', 'processed_at']
     list_filter = ['status']
     search_fields = ['user__email']
@@ -271,7 +270,7 @@ class AccountDeletionRequestAdmin(EnhancedModelAdmin):
 
 if BEHAVIOR_MODELS_AVAILABLE:
     @admin.register(UserBehaviorProfile)
-    class UserBehaviorProfileAdmin(EnhancedModelAdmin):
+    class UserBehaviorProfileAdmin(ImportExportEnhancedModelAdmin):
         """User behavior profile admin for ML personalization."""
         
         list_display = ['user', 'engagement_score', 'loyalty_score', 'total_orders', 'total_spent', 'last_active']
@@ -295,7 +294,7 @@ if BEHAVIOR_MODELS_AVAILABLE:
         )
 
     @admin.register(UserPreferences)
-    class UserPreferencesAdmin(EnhancedModelAdmin):
+    class UserPreferencesAdmin(ImportExportEnhancedModelAdmin):
         """User preferences admin."""
         
         list_display = ['user', 'language', 'currency', 'theme', 'email_notifications', 'allow_tracking']
@@ -315,7 +314,7 @@ if BEHAVIOR_MODELS_AVAILABLE:
         )
 
     @admin.register(UserSession)
-    class UserSessionAdmin(EnhancedModelAdmin):
+    class UserSessionAdmin(ImportExportEnhancedModelAdmin):
         """User session admin for analytics."""
         
         list_display = ['session_key_short', 'user', 'device_type', 'browser', 'country', 'page_views', 'started_at', 'duration']
@@ -331,7 +330,7 @@ if BEHAVIOR_MODELS_AVAILABLE:
         session_key_short.short_description = 'Session'
 
     @admin.register(UserInteraction)
-    class UserInteractionAdmin(EnhancedModelAdmin):
+    class UserInteractionAdmin(ImportExportEnhancedModelAdmin):
         """User interaction admin for ML training data."""
         
         list_display = ['interaction_type', 'user', 'product', 'category', 'created_at']

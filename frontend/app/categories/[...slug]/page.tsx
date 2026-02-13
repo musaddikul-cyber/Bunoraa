@@ -13,7 +13,7 @@ import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildBreadcrumbList, buildItemList } from "@/lib/seo";
+import { buildBreadcrumbList, buildCollectionPage, buildItemList } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -24,6 +24,12 @@ type Category = {
   description?: string | null;
   meta_title?: string | null;
   meta_description?: string | null;
+  children?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    product_count?: number | null;
+  }>;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -125,6 +131,7 @@ export default async function CategoryPage({
     getFilters(slugPath, resolvedSearchParams).catch(() => null),
     getCategoryFacets(slugPath).catch(() => []),
   ]);
+  const childCategories = category.children || [];
 
   const rawData = productsResponse.data as
     | ProductListItem[]
@@ -153,6 +160,12 @@ export default async function CategoryPage({
             : 1,
         }
       : undefined);
+  const totalCount = pagination?.count ?? products.length;
+  const showFilters = totalCount > 1;
+  const showPagination =
+    (pagination?.total_pages ? pagination.total_pages > 1 : totalCount > products.length) &&
+    products.length > 0;
+  const showRecentlyViewed = totalCount > 1;
 
   const baseParams = new URLSearchParams();
   Object.entries(resolvedSearchParams).forEach(([key, value]) => {
@@ -176,6 +189,7 @@ export default async function CategoryPage({
     { name: "Categories", url: "/categories/" },
     { name: category.name, url: categoryUrl },
   ]);
+  const itemListId = `${categoryUrl}#itemlist`;
   const productList = buildItemList(
     products.slice(0, 50).map((product) => ({
       name: product.name,
@@ -183,8 +197,15 @@ export default async function CategoryPage({
       image: (product.primary_image as string | undefined) || undefined,
       description: product.short_description || undefined,
     })),
-    `${category.name} products`
+    `${category.name} products`,
+    itemListId
   );
+  const collectionPage = buildCollectionPage({
+    name: category.meta_title || category.name,
+    description: category.meta_description || category.description || undefined,
+    url: categoryUrl,
+    itemListId,
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -200,57 +221,73 @@ export default async function CategoryPage({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <FilterDrawer
-              filters={filterData}
-              facets={facets}
-              className="lg:hidden"
-              filterParams={filterParams}
-            />
+            {showFilters ? (
+              <FilterDrawer
+                filters={filterData}
+                facets={facets}
+                categories={childCategories}
+                productCount={totalCount}
+                className="lg:hidden"
+                filterParams={filterParams}
+              />
+            ) : null}
             <SortMenu />
             <ViewToggle />
           </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
-          <aside className="hidden lg:block">
-            <FilterPanel filters={filterData} facets={facets} filterParams={filterParams} />
-          </aside>
+        <div className={showFilters ? "grid gap-8 lg:grid-cols-[260px_1fr]" : "grid gap-8"}>
+          {showFilters ? (
+            <aside className="hidden lg:block">
+              <FilterPanel
+                filters={filterData}
+                facets={facets}
+                categories={childCategories}
+                productCount={totalCount}
+                filterParams={filterParams}
+              />
+            </aside>
+          ) : null}
           <div className="space-y-6">
             <AppliedFilters />
             <ProductGrid products={products} view={view} />
 
-            <div className="mt-10 flex items-center justify-between">
-              {pagination?.previous ? (
-                <Button asChild variant="ghost" size="sm">
-                  <Link href={pageLink(page - 1)}>Previous</Link>
-                </Button>
-              ) : (
-                <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
-                  Previous
+            {showPagination ? (
+              <div className="mt-10 flex items-center justify-between">
+                {pagination?.previous ? (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={pageLink(page - 1)}>Previous</Link>
+                  </Button>
+                ) : (
+                  <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
+                    Previous
+                  </span>
+                )}
+                <span className="text-sm text-foreground/60">
+                  Page {page}
+                  {pagination?.total_pages ? ` of ${pagination.total_pages}` : ""}
                 </span>
-              )}
-              <span className="text-sm text-foreground/60">
-                Page {page}
-                {pagination?.total_pages ? ` of ${pagination.total_pages}` : ""}
-              </span>
-              {pagination?.next ? (
-                <Button asChild variant="ghost" size="sm">
-                  <Link href={pageLink(page + 1)}>Next</Link>
-                </Button>
-              ) : (
-                <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
-                  Next
-                </span>
-              )}
-            </div>
+                {pagination?.next ? (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={pageLink(page + 1)}>Next</Link>
+                  </Button>
+                ) : (
+                  <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
+                    Next
+                  </span>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-12">
-          <RecentlyViewedSection />
-        </div>
+        {showRecentlyViewed ? (
+          <div className="mt-12">
+            <RecentlyViewedSection />
+          </div>
+        ) : null}
       </div>
-      <JsonLd data={[breadcrumbs, productList]} />
+      <JsonLd data={[collectionPage, breadcrumbs, productList]} />
     </div>
   );
 }

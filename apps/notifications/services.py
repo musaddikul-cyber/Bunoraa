@@ -621,7 +621,7 @@ class EmailService:
         try:
             user_prefs = getattr(user, 'preferences', None)
             if user_prefs and user_prefs.language:
-                language = user_prefs.language
+                language = user_prefs.language.code if hasattr(user_prefs.language, 'code') else str(user_prefs.language)
         except Exception:
             pass
 
@@ -634,12 +634,28 @@ class EmailService:
             'unsubscribe_url': EmailService._build_unsubscribe_url(user),
         }
 
-        template = NotificationTemplate.objects.filter(
-            notification_type=notification_type,
-            channel=NotificationChannel.EMAIL,
-            language=language,
-            is_active=True,
-        ).first()
+        from apps.i18n.services import LanguageService
+        from apps.i18n.tasks import auto_translate_notification_template
+
+        language_codes = LanguageService.get_fallback_chain(language)
+        template = None
+        matched_language = None
+        for lang_code in language_codes:
+            template = NotificationTemplate.objects.filter(
+                notification_type=notification_type,
+                channel=NotificationChannel.EMAIL,
+                language=lang_code,
+                is_active=True,
+            ).first()
+            if template:
+                matched_language = lang_code
+                break
+
+        if template and matched_language and matched_language != language:
+            try:
+                auto_translate_notification_template.delay(notification_type, language, matched_language)
+            except Exception:
+                pass
 
         if template:
             subject = Template(template.subject or context.get('title', '')).render(Context(context))

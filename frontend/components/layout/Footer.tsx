@@ -160,12 +160,30 @@ export async function Footer() {
   const socialLinks = contactSocialLinks.length ? contactSocialLinks : siteSocialLinks;
   const copyrightText =
     pickText(siteSettings?.copyright_text) || `${brandName}. All rights reserved.`;
+  const fallbackCompanyLinks = [
+    { label: "About Bunoraa", href: "/about/" },
+    { label: "FAQ", href: "/faq/" },
+  ];
+  const companyLinks = pages.length
+    ? pages.map((page) => ({ label: page.title, href: `/pages/${page.slug}/` }))
+    : fallbackCompanyLinks;
+  const supportLinks = [
+    { label: "Contact", href: "/contact/" },
+    { label: "FAQ", href: "/faq/" },
+    { label: "Shipping", href: "/pages/shipping/" },
+    { label: "Returns", href: "/pages/returns/" },
+  ];
+  const mergedCompanyLinks = Array.from(
+    new Map(
+      [...companyLinks, ...supportLinks].map((item) => [item.href, item])
+    ).values()
+  );
 
   return (
     <footer id="footer" className="border-t border-border bg-card">
       <div className="mx-auto w-full max-w-7xl px-6 py-12">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-7">
-          <div className="space-y-4 sm:col-span-2 lg:col-span-1 xl:col-span-2">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="space-y-4 sm:col-span-2 lg:col-span-2">
             <div>
               <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
                 {brandName}
@@ -226,6 +244,9 @@ export async function Footer() {
                 </li>
               )}
               <li>
+                <Link href="/products/">All products</Link>
+              </li>
+              <li>
                 <Link href="/bundles/">Bundles</Link>
               </li>
               <li>
@@ -238,42 +259,13 @@ export async function Footer() {
           </div>
 
           <div>
-            <p className="text-sm font-semibold">Company</p>
+            <p className="text-sm font-semibold">Company & Support</p>
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
-              {pages.length ? (
-                pages.map((page) => (
-                  <li key={page.id}>
-                    <Link href={`/pages/${page.slug}/`}>{page.title}</Link>
-                  </li>
-                ))
-              ) : (
-                <>
-                  <li>
-                    <Link href="/about/">About Bunoraa</Link>
-                  </li>
-                  <li>
-                    <Link href="/faq/">FAQ</Link>
-                  </li>
-                </>
-              )}
-            </ul>
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold">Support</p>
-            <ul className="mt-3 space-y-2 text-sm text-foreground/70">
-              <li>
-                <Link href="/contact/">Contact</Link>
-              </li>
-              <li>
-                <Link href="/faq/">FAQ</Link>
-              </li>
-              <li>
-                <Link href="/pages/shipping/">Shipping</Link>
-              </li>
-              <li>
-                <Link href="/pages/returns/">Returns</Link>
-              </li>
+              {mergedCompanyLinks.map((item) => (
+                <li key={item.href}>
+                  <Link href={item.href}>{item.label}</Link>
+                </li>
+              ))}
             </ul>
           </div>
 

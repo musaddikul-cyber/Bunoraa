@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildBreadcrumbList, buildItemList } from "@/lib/seo";
+import { buildBreadcrumbList, buildCollectionPage, buildItemList } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -49,6 +49,7 @@ export default async function CollectionDetailPage({
     { name: "Collections", url: "/collections/" },
     { name: collection.name, url: collectionUrl },
   ]);
+  const itemListId = `${collectionUrl}#itemlist`;
   const productList = buildItemList(
     products.slice(0, 50).map((product) => ({
       name: product.name,
@@ -56,8 +57,15 @@ export default async function CollectionDetailPage({
       image: (product.primary_image as string | undefined) || undefined,
       description: product.short_description || undefined,
     })),
-    `${collection.name} products`
+    `${collection.name} products`,
+    itemListId
   );
+  const collectionPage = buildCollectionPage({
+    name: collection.name,
+    description: collection.description || undefined,
+    url: collectionUrl,
+    itemListId,
+  });
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -77,7 +85,7 @@ export default async function CollectionDetailPage({
 
         <ProductGrid products={products} />
       </div>
-      <JsonLd data={[breadcrumbs, productList]} />
+      <JsonLd data={[collectionPage, breadcrumbs, productList]} />
     </div>
   );
 }

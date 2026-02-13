@@ -1,3 +1,5 @@
+import type { ProductDetail } from "@/lib/types";
+
 type UrlLike = string | null | undefined;
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://bunoraa.com").replace(
@@ -44,11 +46,13 @@ export function buildItemList(
     image?: string | null;
     description?: string | null;
   }>,
-  listName?: string
+  listName?: string,
+  listId?: string
 ) {
   return cleanObject({
     "@context": "https://schema.org",
     "@type": "ItemList",
+    "@id": listId ? absoluteUrl(listId) : undefined,
     name: listName,
     itemListElement: items.map((item, index) =>
       cleanObject({
@@ -63,3 +67,96 @@ export function buildItemList(
   });
 }
 
+export function buildCollectionPage({
+  name,
+  description,
+  url,
+  itemListId,
+}: {
+  name: string;
+  description?: string | null;
+  url: string;
+  itemListId?: string;
+}) {
+  return cleanObject({
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name,
+    description,
+    url: absoluteUrl(url),
+    mainEntity: itemListId ? { "@id": absoluteUrl(itemListId) } : undefined,
+  });
+}
+
+export function buildSearchResultsPage({
+  name,
+  description,
+  url,
+  itemListId,
+}: {
+  name: string;
+  description?: string | null;
+  url: string;
+  itemListId?: string;
+}) {
+  return cleanObject({
+    "@context": "https://schema.org",
+    "@type": "SearchResultsPage",
+    name,
+    description,
+    url: absoluteUrl(url),
+    mainEntity: itemListId ? { "@id": absoluteUrl(itemListId) } : undefined,
+  });
+}
+
+export function buildProductSchema(product: ProductDetail) {
+  const url = absoluteUrl(`/products/${product.slug}/`);
+  const images = [
+    product.primary_image || undefined,
+    ...(product.images?.map((image) => image.image) || []),
+  ].filter(Boolean) as string[];
+
+  const price =
+    product.current_price ||
+    product.sale_price ||
+    product.price ||
+    undefined;
+  const offers =
+    price && product.currency
+      ? cleanObject({
+          "@type": "Offer",
+          price,
+          priceCurrency: product.currency,
+          availability: product.is_in_stock
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock",
+          url,
+        })
+      : undefined;
+
+  const aggregateRating =
+    typeof product.average_rating === "number" && product.reviews_count
+      ? cleanObject({
+          "@type": "AggregateRating",
+          ratingValue: product.average_rating,
+          reviewCount: product.reviews_count,
+        })
+      : undefined;
+
+  return cleanObject({
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.meta_title || product.name,
+    description:
+      product.meta_description ||
+      product.short_description ||
+      product.description ||
+      undefined,
+    sku: product.sku || undefined,
+    image: images.length ? images.map((image) => absoluteUrl(image)) : undefined,
+    url,
+    category: product.primary_category?.name,
+    offers,
+    aggregateRating,
+  });
+}

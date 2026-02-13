@@ -3,7 +3,7 @@ Reviews admin configuration
 """
 from django.contrib import admin
 from .models import Review, ReviewImage, ReviewVote, ReviewReply
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 
 class ReviewImageInline(admin.TabularInline):
@@ -19,7 +19,7 @@ class ReviewReplyInline(admin.StackedInline):
 
 
 @admin.register(Review)
-class ReviewAdmin(EnhancedModelAdmin):
+class ReviewAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
         'product', 'user', 'rating', 'status',
         'is_verified_purchase', 'helpful_count', 'created_at'
@@ -70,14 +70,14 @@ class ReviewAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ReviewImage)
-class ReviewImageAdmin(EnhancedModelAdmin):
+class ReviewImageAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['review', 'image', 'caption', 'sort_order']
     list_filter = ['created_at']
     search_fields = ['review__product__name', 'caption']
 
 
 @admin.register(ReviewVote)
-class ReviewVoteAdmin(EnhancedModelAdmin):
+class ReviewVoteAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['review', 'user', 'is_helpful', 'created_at']
     list_filter = ['is_helpful', 'created_at']
     search_fields = ['review__product__name', 'user__email']
@@ -85,7 +85,7 @@ class ReviewVoteAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ReviewReply)
-class ReviewReplyAdmin(EnhancedModelAdmin):
+class ReviewReplyAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['review', 'replied_by', 'created_at']
     list_filter = ['created_at']
     search_fields = ['review__product__name', 'content']

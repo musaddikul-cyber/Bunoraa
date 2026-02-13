@@ -80,6 +80,10 @@ Django
 
 django-admin-list-filter-dropdown
 
+django-admin-interface
+
+django-colorfield
+
 django-allauth
 
 django-browser-reload
@@ -108,13 +112,25 @@ django-htmx
 
 django_hugeicons_stroke
 
+django-import-export
+
 django-js-asset
 
 django-mptt
 
+django-otp
+
 django-phonenumber-field
 
+django-simple-history
+
 django-rangefilter
+
+django-two-factor-auth
+
+django-axes
+
+django-formtools
 
 django-ratelimit
 
@@ -277,6 +293,8 @@ pydyf
 pyflakes
 
 pyotp
+
+qrcode
 
 Pygments
 

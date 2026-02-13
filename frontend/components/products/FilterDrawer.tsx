@@ -3,21 +3,34 @@
 import * as React from "react";
 import type { ProductFilterResponse } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
-import { FilterPanel, CategoryFacet } from "@/components/products/FilterPanel";
+import {
+  FilterPanel,
+  CategoryFacet,
+  CategoryFilterItem,
+} from "@/components/products/FilterPanel";
 import { cn } from "@/lib/utils";
 
 export function FilterDrawer({
   filters,
   facets,
+  categories,
+  productCount,
   className,
   filterParams,
 }: {
   filters: ProductFilterResponse | null;
   facets?: CategoryFacet[];
+  categories?: CategoryFilterItem[];
+  productCount?: number;
   className?: string;
   filterParams?: Record<string, string>;
 }) {
   const [open, setOpen] = React.useState(false);
+  const shouldHideFilters = typeof productCount === "number" && productCount <= 1;
+
+  if (shouldHideFilters) {
+    return null;
+  }
 
   return (
     <div className={cn("relative", className)}>
@@ -36,7 +49,13 @@ export function FilterDrawer({
               </Button>
             </div>
             <div className="mt-6">
-              <FilterPanel filters={filters} facets={facets} filterParams={filterParams} />
+              <FilterPanel
+                filters={filters}
+                facets={facets}
+                categories={categories}
+                productCount={productCount}
+                filterParams={filterParams}
+              />
             </div>
           </div>
         </div>

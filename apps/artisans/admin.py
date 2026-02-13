@@ -3,10 +3,10 @@ Admin configuration for the artisans app.
 """
 from django.contrib import admin
 from .models import Artisan
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 @admin.register(Artisan)
-class ArtisanAdmin(EnhancedModelAdmin):
+class ArtisanAdmin(ImportExportEnhancedModelAdmin):
     """
     Admin interface for the Artisan model.
     """

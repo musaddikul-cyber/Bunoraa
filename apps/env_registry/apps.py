@@ -33,6 +33,8 @@ class EnvRegistryConfig(AppConfig):
                     return
                 if "env_registry_envvariable" not in table_names:
                     return
+                if "env_registry_historicalenvvariable" not in table_names:
+                    return
 
                 from .schema_loader import sync_from_schema
 

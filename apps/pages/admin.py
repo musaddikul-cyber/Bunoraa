@@ -6,11 +6,11 @@ from django.db import models
 from django.forms import URLInput
 from django.utils.html import format_html
 from .models import Page, FAQ, ContactMessage, SiteSettings, Subscriber, SocialLink
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 
 @admin.register(Page)
-class PageAdmin(EnhancedModelAdmin):
+class PageAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['title', 'slug', 'template', 'is_published', 'show_in_header', 'show_in_footer', 'menu_order']
     list_filter = ['is_published', 'template', 'show_in_header', 'show_in_footer']
     search_fields = ['title', 'content']
@@ -35,7 +35,7 @@ class PageAdmin(EnhancedModelAdmin):
 
 
 @admin.register(FAQ)
-class FAQAdmin(EnhancedModelAdmin):
+class FAQAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['question', 'category', 'sort_order', 'is_active']
     list_filter = ['category', 'is_active']
     search_fields = ['question', 'answer']
@@ -44,7 +44,7 @@ class FAQAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ContactMessage)
-class ContactMessageAdmin(EnhancedModelAdmin):
+class ContactMessageAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['name', 'email', 'subject', 'status', 'created_at']
     list_filter = ['status', 'created_at']
     search_fields = ['name', 'email', 'subject', 'message']
@@ -64,7 +64,7 @@ class ContactMessageAdmin(EnhancedModelAdmin):
 
 
 @admin.register(SiteSettings)
-class SiteSettingsAdmin(EnhancedModelAdmin):
+class SiteSettingsAdmin(ImportExportEnhancedModelAdmin):
     fieldsets = (
         ('Basic Info', {
             'fields': ('site_name', 'site_tagline', 'site_description')
@@ -122,7 +122,7 @@ class SocialLinkInline(admin.TabularInline):
 
 
 @admin.register(Subscriber)
-class SubscriberAdmin(EnhancedModelAdmin):
+class SubscriberAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['email', 'name', 'is_active', 'is_verified', 'source', 'subscribed_at']
     list_filter = ['is_active', 'is_verified', 'source', 'subscribed_at']
     search_fields = ['email', 'name']

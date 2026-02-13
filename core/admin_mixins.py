@@ -18,6 +18,14 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import FieldDoesNotExist
+
+try:
+    from import_export.admin import ImportExportModelAdmin
+    from import_export.resources import ModelResource
+except Exception:  # pragma: no cover - optional dependency
+    ImportExportModelAdmin = admin.ModelAdmin  # type: ignore[assignment]
+    ModelResource = object  # type: ignore[misc,assignment]
 
 
 # =============================================================================
@@ -88,7 +96,8 @@ class ExportCSVMixin:
                 if isinstance(value, str) and '<' in value:
                     import re
                     value = re.sub('<[^<]+?>', '', value)
-                
+
+                value = sanitize_export_value(value)
                 row.append(value)
             writer.writerow(row)
         
@@ -413,13 +422,41 @@ class AutoListFilterMixin:
         for item in filters:
             if isinstance(item, str):
                 existing.add(item)
-            elif hasattr(item, "parameter_name"):
+                continue
+            if isinstance(item, tuple) and item:
+                field = item[0]
+                if isinstance(field, str):
+                    existing.add(field)
+                if len(item) > 1 and hasattr(item[1], "parameter_name"):
+                    existing.add(getattr(item[1], "parameter_name"))
+                continue
+            if hasattr(item, "parameter_name"):
                 existing.add(getattr(item, "parameter_name"))
 
         # Date range filter
-        has_date_filter = any(
-            isinstance(item, type) and issubclass(item, DateRangeFilter) for item in filters
-        )
+        try:
+            from rangefilter.filters import DateRangeFilter as RangeDateFilter
+        except Exception:
+            RangeDateFilter = None
+
+        def _has_date_filter(items):
+            for item in items:
+                if isinstance(item, tuple) and len(item) > 1:
+                    _, filt = item[0], item[1]
+                    if isinstance(filt, type):
+                        if issubclass(filt, DateRangeFilter):
+                            return True
+                        if RangeDateFilter and issubclass(filt, RangeDateFilter):
+                            return True
+                    continue
+                if isinstance(item, type):
+                    if issubclass(item, DateRangeFilter):
+                        return True
+                    if RangeDateFilter and issubclass(item, RangeDateFilter):
+                        return True
+            return False
+
+        has_date_filter = _has_date_filter(filters)
         if not has_date_filter:
             date_field = None
             for field_name in self.auto_date_fields:
@@ -427,11 +464,14 @@ class AutoListFilterMixin:
                     date_field = field_name
                     break
             if date_field:
-                class _AutoDateRangeFilter(DateRangeFilter):
-                    pass
+                if RangeDateFilter:
+                    filters.append((date_field, RangeDateFilter))
+                else:
+                    class _AutoDateRangeFilter(DateRangeFilter):
+                        pass
 
-                _AutoDateRangeFilter.date_field = date_field  # type: ignore[attr-defined]
-                filters.append(_AutoDateRangeFilter)
+                    _AutoDateRangeFilter.date_field = date_field  # type: ignore[attr-defined]
+                    filters.append(_AutoDateRangeFilter)
 
         # Boolean filters
         for field_name in self.auto_boolean_filters:
@@ -442,7 +482,37 @@ class AutoListFilterMixin:
         if self.auto_status_filter not in existing and self._has_field(self.auto_status_filter):
             filters.append(self.auto_status_filter)
 
-        return filters
+        return self._apply_dropdown_filters(filters)
+
+    def _apply_dropdown_filters(self, filters):
+        """Replace list filters with dropdown versions when available."""
+        try:
+            from django_admin_listfilter_dropdown.filters import (
+                DropdownFilter,
+                RelatedDropdownFilter,
+                ChoiceDropdownFilter,
+            )
+        except Exception:
+            return filters
+
+        transformed = []
+        for item in filters:
+            if not isinstance(item, str):
+                transformed.append(item)
+                continue
+            try:
+                field = self.model._meta.get_field(item)
+            except FieldDoesNotExist:
+                transformed.append(item)
+                continue
+
+            if field.choices:
+                transformed.append((item, ChoiceDropdownFilter))
+            elif getattr(field, "many_to_one", False) or getattr(field, "one_to_one", False) or getattr(field, "many_to_many", False):
+                transformed.append((item, RelatedDropdownFilter))
+            else:
+                transformed.append((item, DropdownFilter))
+        return transformed
 
     def get_list_select_related(self, request):
         base = super().get_list_select_related(request)  # type: ignore[misc]
@@ -524,6 +594,9 @@ class EnhancedModelAdmin(
     
     # Default actions
     actions = ['export_as_csv', 'export_as_json']
+
+    # Optional prefetch list to improve list performance
+    list_prefetch_related: tuple[str, ...] | list[str] = ()
     
     def get_actions(self, request):
         """Get actions and add export + seed actions."""
@@ -557,6 +630,16 @@ class EnhancedModelAdmin(
                     actions[action_name] = (action, action_name, action.short_description)
         
         return actions
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        prefetch = getattr(self, "list_prefetch_related", None)
+        if prefetch:
+            try:
+                qs = qs.prefetch_related(*prefetch)
+            except Exception:
+                pass
+        return qs
 
     # -------------------------------------------------------------------------
     # Seed actions (auto-enabled for models with JSON seed specs)
@@ -739,13 +822,13 @@ class EnhancedModelAdmin(
                     writer.writeheader()
                     for row in records:
                         flat = {}
-                    for key, value in row.items():
-                        if isinstance(value, list):
-                            flat[key] = ",".join(str(v) for v in value)
-                        elif isinstance(value, dict):
-                            flat[key] = json.dumps(value, ensure_ascii=False)
-                        else:
-                            flat[key] = value
+                        for key, value in row.items():
+                            if isinstance(value, list):
+                                flat[key] = ",".join(str(v) for v in value)
+                            elif isinstance(value, dict):
+                                flat[key] = json.dumps(value, ensure_ascii=False)
+                            else:
+                                flat[key] = value
                         writer.writerow(flat)
                     content = output.getvalue().encode("utf-8")
                     name = f"{spec.name.replace('.', '_')}.csv"
@@ -899,3 +982,71 @@ def truncate_text(text, max_length=50):
     if len(text) <= max_length:
         return text
     return text[:max_length - 3] + '...'
+
+
+# =============================================================================
+# IMPORT/EXPORT SUPPORT
+# =============================================================================
+
+SENSITIVE_FIELD_KEYWORDS = (
+    "password",
+    "secret",
+    "token",
+    "api_key",
+    "private_key",
+    "access_key",
+    "refresh",
+    "signature",
+    "otp",
+    "salt",
+    "hash",
+)
+
+FORMULA_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _is_sensitive_field(name: str) -> bool:
+    lower = name.lower()
+    return any(keyword in lower for keyword in SENSITIVE_FIELD_KEYWORDS)
+
+
+def sanitize_export_value(value):
+    """Prevent spreadsheet formula injection by prefixing risky values."""
+    if isinstance(value, str):
+        if value.startswith(FORMULA_INJECTION_PREFIXES):
+            return "'" + value
+    return value
+
+
+class SafeModelResource(ModelResource):
+    """Import-export resource with sensitive field exclusion and safe CSV export."""
+
+    @classmethod
+    def for_model(cls, model):
+        exclude = []
+        for field in model._meta.get_fields():
+            name = getattr(field, "name", None) or getattr(field, "attname", None)
+            if not name:
+                continue
+            if _is_sensitive_field(name):
+                exclude.append(name)
+
+        class Meta:
+            model = model
+            exclude = tuple(sorted(set(exclude)))
+
+        return type(f"{model.__name__}SafeResource", (cls,), {"Meta": Meta})
+
+    def export_field(self, field, obj):
+        value = super().export_field(field, obj)
+        return sanitize_export_value(value)
+
+
+class ImportExportEnhancedModelAdmin(ImportExportModelAdmin, EnhancedModelAdmin):
+    """Enhanced admin with import/export support."""
+
+    def get_resource_class(self):
+        try:
+            return SafeModelResource.for_model(self.model)
+        except Exception:
+            return SafeModelResource

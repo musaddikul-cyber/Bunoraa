@@ -82,6 +82,23 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == 'list':
             return CategoryListSerializer
         return CategorySerializer
+
+    def get_object(self):
+        slug = self.kwargs.get(self.lookup_field)
+        if not slug:
+            return super().get_object()
+
+        # Support slug paths if they ever arrive (e.g., "parent/child").
+        if "/" in slug:
+            category = CategoryService.get_category_by_path(slug)
+        else:
+            category = CategoryService.get_category_by_slug(slug)
+
+        if not category:
+            return super().get_object()
+
+        self.check_object_permissions(self.request, category)
+        return category
     
     def list(self, request, *args, **kwargs):
         """Return categories, optionally filtered by parent_id."""

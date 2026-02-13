@@ -54,11 +54,11 @@ export function MiniCart({
   const { cartQuery, cartSummaryQuery, removeItem, updateItem } = useCart();
 
   if (cartQuery.isLoading) {
-    return <div className="text-sm text-foreground/60">Loading cart...</div>;
+    return null;
   }
 
   if (cartQuery.isError || !cartQuery.data) {
-    return <div className="text-sm text-foreground/60">Cart unavailable.</div>;
+    return null;
   }
 
   const cart = cartQuery.data;
@@ -113,6 +113,31 @@ export function MiniCart({
     Boolean(totalLabel) &&
     (totalValue !== subtotalValue || hasAdjustments);
 
+  if (cart.items.length === 0) {
+    return (
+      <Card variant="bordered" className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Cart</h3>
+          {onClose ? (
+            <button
+              type="button"
+              className="text-sm text-foreground/60 hover:text-foreground"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          ) : null}
+        </div>
+        <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+          <p className="text-sm font-semibold text-foreground">Your cart is empty.</p>
+          <p className="mt-1 text-xs text-foreground/60">
+            Add items to see them here.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card variant="bordered" className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -133,73 +158,73 @@ export function MiniCart({
         ) : null}
       </div>
 
-      <div className="space-y-3">
-        {cart.items.length === 0 ? (
-          <p className="text-sm text-foreground/60">Your cart is empty.</p>
-        ) : (
-          cart.items.map((item) => (
-            <div key={item.id} className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium">{item.product_name}</p>
-                <p className="text-xs text-foreground/60">
-                  {formatMoney(item.unit_price, currency)}
-                </p>
+      {cart.items.length === 0 ? null : (
+        <>
+          <div className="space-y-3">
+            {cart.items.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">{item.product_name}</p>
+                  <p className="text-xs text-foreground/60">
+                    {formatMoney(item.unit_price, currency)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      updateItem.mutate({
+                        itemId: item.id,
+                        quantity: Math.max(1, item.quantity - 1),
+                      })
+                    }
+                  >
+                    -
+                  </Button>
+                  <span className="text-sm">{item.quantity}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      updateItem.mutate({
+                        itemId: item.id,
+                        quantity: item.quantity + 1,
+                      })
+                    }
+                  >
+                    +
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeItem.mutate(item.id)}
+                  >
+                    Remove
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    updateItem.mutate({
-                      itemId: item.id,
-                      quantity: Math.max(1, item.quantity - 1),
-                    })
-                  }
-                >
-                  -
-                </Button>
-                <span className="text-sm">{item.quantity}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    updateItem.mutate({
-                      itemId: item.id,
-                      quantity: item.quantity + 1,
-                    })
-                  }
-                >
-                  +
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeItem.mutate(item.id)}
-                >
-                  Remove
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="space-y-2 border-t border-border pt-3 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-foreground/70">Subtotal</span>
-          <span className="font-semibold">{subtotalLabel}</span>
-        </div>
-        {showEstimatedTotal ? (
-          <div className="flex items-center justify-between">
-            <span className="text-foreground/70">Estimated total</span>
-            <span className="font-semibold">{totalLabel}</span>
+            ))}
           </div>
-        ) : null}
-      </div>
 
-      <Button asChild variant="primary-gradient">
-        <Link href="/cart/">View cart</Link>
-      </Button>
+          <div className="space-y-2 border-t border-border pt-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-foreground/70">Subtotal</span>
+              <span className="font-semibold">{subtotalLabel}</span>
+            </div>
+            {showEstimatedTotal ? (
+              <div className="flex items-center justify-between">
+                <span className="text-foreground/70">Estimated total</span>
+                <span className="font-semibold">{totalLabel}</span>
+              </div>
+            ) : null}
+          </div>
+
+          <Button asChild variant="primary-gradient">
+            <Link href="/cart/">View cart</Link>
+          </Button>
+        </>
+      )}
     </Card>
   );
 }

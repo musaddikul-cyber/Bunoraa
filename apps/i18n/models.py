@@ -817,6 +817,14 @@ class Translation(models.Model):
         blank=True,
         help_text="Plural translations: {0: 'zero', 1: 'one', 2: 'two', 'few': '...', 'many': '...', 'other': '...'}"
     )
+
+    # Source tracking
+    source_language = models.CharField(max_length=10, default='en', blank=True)
+    source_text_hash = models.CharField(max_length=64, blank=True)
+    provider = models.CharField(max_length=50, blank=True)
+    translated_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    needs_retranslation = models.BooleanField(default=False)
     
     # Status
     status = models.CharField(
@@ -895,6 +903,14 @@ class ContentTranslation(models.Model):
     # Translation
     original_text = models.TextField(blank=True)
     translated_text = models.TextField()
+
+    # Source tracking
+    source_language = models.CharField(max_length=10, default='en', blank=True)
+    source_text_hash = models.CharField(max_length=64, blank=True)
+    provider = models.CharField(max_length=50, blank=True)
+    translated_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    needs_retranslation = models.BooleanField(default=False)
     
     # Status
     is_approved = models.BooleanField(default=False)
@@ -929,6 +945,97 @@ class ContentTranslation(models.Model):
     
     def __str__(self):
         return f"{self.content_type}.{self.content_id}.{self.field_name} ({self.language.code})"
+
+
+# =============================================================================
+# Translation Job & Glossary
+# =============================================================================
+
+class TranslationJob(models.Model):
+    """Track translation jobs for observability and retries."""
+
+    STATUS_PENDING = 'pending'
+    STATUS_PROCESSING = 'processing'
+    STATUS_SUCCESS = 'success'
+    STATUS_FAILED = 'failed'
+    STATUS_SKIPPED = 'skipped'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_PROCESSING, 'Processing'),
+        (STATUS_SUCCESS, 'Success'),
+        (STATUS_FAILED, 'Failed'),
+        (STATUS_SKIPPED, 'Skipped'),
+    ]
+
+    TYPE_CONTENT = 'content'
+    TYPE_KEY = 'key'
+    TYPE_TEMPLATE = 'template'
+    TYPE_CHOICES = [
+        (TYPE_CONTENT, 'Content'),
+        (TYPE_KEY, 'Translation Key'),
+        (TYPE_TEMPLATE, 'Template'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_CONTENT)
+
+    content_type = models.CharField(max_length=50, blank=True)
+    content_id = models.CharField(max_length=100, blank=True)
+    field_name = models.CharField(max_length=100, blank=True)
+    translation_key = models.CharField(max_length=255, blank=True)
+
+    language = models.ForeignKey(
+        Language,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='translation_jobs'
+    )
+    source_language = models.CharField(max_length=10, default='en', blank=True)
+    source_text_hash = models.CharField(max_length=64, blank=True)
+    provider = models.CharField(max_length=50, blank=True)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    latency_ms = models.PositiveIntegerField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['job_type', 'status']),
+            models.Index(fields=['content_type', 'content_id']),
+            models.Index(fields=['translation_key']),
+        ]
+
+    def __str__(self):
+        return f"{self.job_type} - {self.status}"
+
+
+class TranslationGlossary(models.Model):
+    """Glossary terms to preserve or replace during translation."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    term = models.CharField(max_length=255, unique=True)
+    replacement = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+    case_sensitive = models.BooleanField(default=False)
+    priority = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-priority', 'term']
+        verbose_name = 'Translation Glossary'
+        verbose_name_plural = 'Translation Glossary'
+
+    def __str__(self):
+        return self.term
 
 
 # =============================================================================
@@ -1046,6 +1153,11 @@ class I18nSettings(models.Model):
         on_delete=models.PROTECT,
         related_name='+'
     )
+    source_language = models.CharField(
+        max_length=10,
+        default='en',
+        help_text="Source language code for machine translation"
+    )
     fallback_language = models.ForeignKey(
         Language,
         on_delete=models.SET_NULL,
@@ -1116,7 +1228,7 @@ class I18nSettings(models.Model):
     )
     
     # Machine translation
-    enable_machine_translation = models.BooleanField(default=False)
+    enable_machine_translation = models.BooleanField(default=True)
     translation_provider = models.CharField(
         max_length=50,
         choices=[
@@ -1124,6 +1236,7 @@ class I18nSettings(models.Model):
             ('deepl', 'DeepL'),
             ('azure', 'Azure Translator'),
             ('aws', 'Amazon Translate'),
+            ('libretranslate', 'LibreTranslate (Self-hosted)'),
         ],
         blank=True
     )
@@ -1196,6 +1309,9 @@ class I18nSettings(models.Model):
             settings = cls.objects.create(
                 default_language=language,
                 default_currency=currency,
-                default_timezone=timezone_obj
+                default_timezone=timezone_obj,
+                source_language='en',
+                translation_provider='libretranslate',
+                enable_machine_translation=True,
             )
         return settings

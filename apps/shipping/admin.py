@@ -2,7 +2,7 @@
 Shipping Admin Configuration
 """
 from django.contrib import admin
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 from .models import (
     ShippingZone, ShippingCarrier, ShippingMethod, ShippingRate,
     ShippingRestriction, Shipment, ShipmentEvent, ShippingSettings
@@ -10,7 +10,7 @@ from .models import (
 
 
 @admin.register(ShippingZone)
-class ShippingZoneAdmin(EnhancedModelAdmin):
+class ShippingZoneAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['name', 'is_active', 'is_default', 'priority', 'country_count', 'created_at']
     list_filter = ['is_active', 'is_default']
     search_fields = ['name', 'description']
@@ -35,7 +35,7 @@ class ShippingZoneAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ShippingCarrier)
-class ShippingCarrierAdmin(EnhancedModelAdmin):
+class ShippingCarrierAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['name', 'code', 'is_active', 'api_enabled', 'supports_tracking']
     list_filter = ['is_active', 'api_enabled', 'supports_tracking', 'supports_label_generation']
     search_fields = ['name', 'code']
@@ -61,7 +61,7 @@ class ShippingCarrierAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ShippingMethod)
-class ShippingMethodAdmin(EnhancedModelAdmin):
+class ShippingMethodAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['name', 'code', 'carrier', 'delivery_estimate', 'is_active', 'is_express', 'sort_order']
     list_filter = ['is_active', 'is_express', 'carrier']
     search_fields = ['name', 'code']
@@ -94,7 +94,7 @@ class ShippingRateInline(admin.TabularInline):
 
 
 @admin.register(ShippingRate)
-class ShippingRateAdmin(EnhancedModelAdmin):
+class ShippingRateAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['zone', 'method', 'rate_type', 'base_rate', 'currency', 'free_shipping_threshold', 'is_active']
     list_filter = ['zone', 'method', 'rate_type', 'is_active']
     search_fields = ['zone__name', 'method__name']
@@ -121,7 +121,7 @@ class ShippingRateAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ShippingRestriction)
-class ShippingRestrictionAdmin(EnhancedModelAdmin):
+class ShippingRestrictionAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['restriction_type', 'zone', 'method', 'action', 'is_active']
     list_filter = ['restriction_type', 'action', 'is_active']
     search_fields = ['message']
@@ -136,7 +136,7 @@ class ShipmentEventInline(admin.TabularInline):
 
 
 @admin.register(Shipment)
-class ShipmentAdmin(EnhancedModelAdmin):
+class ShipmentAdmin(ImportExportEnhancedModelAdmin):
     list_display = ['id', 'order', 'carrier', 'tracking_number', 'status', 'shipped_at', 'delivered_at']
     list_filter = ['status', 'carrier']
     search_fields = ['tracking_number', 'order__order_number']
@@ -175,7 +175,7 @@ class ShipmentAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ShippingSettings)
-class ShippingSettingsAdmin(EnhancedModelAdmin):
+class ShippingSettingsAdmin(ImportExportEnhancedModelAdmin):
     fieldsets = (
         ('Origin Address', {
             'fields': ('origin_address_line1', 'origin_address_line2', 'origin_city',

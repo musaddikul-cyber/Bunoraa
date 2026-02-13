@@ -15,6 +15,7 @@ from django.utils import timezone
 from django.views.decorators.cache import cache_page
 from django.views.decorators.http import require_GET
 from apps.analytics.services import DashboardService 
+import time
 
 
 def get_date_range(period='30d'):
@@ -387,36 +388,53 @@ def user_activity_api(request):
 @require_GET
 def system_health_api(request):
     """API endpoint for system health status."""
+    health = check_system_health()
+    overall = 'healthy' if all(s.get('status') == 'healthy' for s in health.values()) else 'degraded'
+    return JsonResponse({
+        'status': overall,
+        'services': health,
+        'timestamp': timezone.now().isoformat(),
+    })
+
+
+def check_system_health():
+    """Check core services health for admin utilities and APIs."""
     from django.core.cache import cache
     from django.db import connection
-    
-    health = {
-        'database': False,
-        'cache': False,
-        'storage': False,
-    }
-    
-    # Check database
+    from django.core.files.storage import default_storage
+
+    health = {}
+
+    # Database
     try:
+        start = time.perf_counter()
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
-        health['database'] = True
-    except Exception:
-        pass
-    
-    # Check cache
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        health['database'] = {'status': 'healthy', 'latency_ms': elapsed_ms}
+    except Exception as exc:
+        health['database'] = {'status': 'down', 'error': str(exc)}
+
+    # Cache
     try:
+        start = time.perf_counter()
         cache.set('health_check', 'ok', 10)
-        if cache.get('health_check') == 'ok':
-            health['cache'] = True
-    except Exception:
-        pass
-    
-    # Check storage
+        cache_ok = cache.get('health_check') == 'ok'
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        health['cache'] = {
+            'status': 'healthy' if cache_ok else 'down',
+            'latency_ms': elapsed_ms,
+        }
+    except Exception as exc:
+        health['cache'] = {'status': 'down', 'error': str(exc)}
+
+    # Storage
     try:
-        from django.core.files.storage import default_storage
-        health['storage'] = default_storage.exists('') or True
-    except Exception:
-        pass
-    
-    return JsonResponse(health)
+        start = time.perf_counter()
+        _ = default_storage.exists('') or True
+        elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+        health['storage'] = {'status': 'healthy', 'latency_ms': elapsed_ms}
+    except Exception as exc:
+        health['storage'] = {'status': 'down', 'error': str(exc)}
+
+    return health

@@ -8,11 +8,12 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
 
-from core.admin_mixins import EnhancedModelAdmin
+from core.admin_mixins import ImportExportEnhancedModelAdmin
 from .models import (
     Language, Currency, ExchangeRate, ExchangeRateHistory,
     Timezone, Country, Division, District, Upazila,
     TranslationNamespace, TranslationKey, Translation, ContentTranslation,
+    TranslationJob, TranslationGlossary,
     UserLocalePreference, I18nSettings
 )
 
@@ -22,7 +23,7 @@ from .models import (
 # =============================================================================
 
 @admin.register(Language)
-class LanguageAdmin(EnhancedModelAdmin):
+class LanguageAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'name', 'code', 'native_name', 'flag_display', 
         'is_active', 'is_default', 'is_rtl', 'translation_progress_display', 'sort_order'
@@ -69,7 +70,7 @@ class LanguageAdmin(EnhancedModelAdmin):
 # =============================================================================
 
 @admin.register(Currency)
-class CurrencyAdmin(EnhancedModelAdmin):
+class CurrencyAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'code', 'name', 'symbol_display', 'rate_display',
         'is_active', 'is_default', 'sort_order'
@@ -127,7 +128,7 @@ class ExchangeRateHistoryInline(admin.TabularInline):
 
 
 @admin.register(ExchangeRate)
-class ExchangeRateAdmin(EnhancedModelAdmin):
+class ExchangeRateAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'from_currency', 'to_currency', 'rate_display', 
         'spread_display', 'source', 'is_active', 'valid_from'
@@ -163,7 +164,7 @@ class ExchangeRateAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ExchangeRateHistory)
-class ExchangeRateHistoryAdmin(EnhancedModelAdmin):
+class ExchangeRateHistoryAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'from_currency', 'to_currency', 'date', 
         'rate', 'ohlc_display', 'source'
@@ -192,7 +193,7 @@ class ExchangeRateHistoryAdmin(EnhancedModelAdmin):
 # =============================================================================
 
 @admin.register(Timezone)
-class TimezoneAdmin(EnhancedModelAdmin):
+class TimezoneAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'display_name', 'name', 'offset_display', 
         'is_common', 'is_active', 'current_time'
@@ -230,7 +231,7 @@ class DivisionInline(admin.TabularInline):
 
 
 @admin.register(Country)
-class CountryAdmin(EnhancedModelAdmin):
+class CountryAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'name', 'code',
         'phone_code_display', 'default_currency', 
@@ -283,7 +284,7 @@ class DistrictInline(admin.TabularInline):
 
 
 @admin.register(Division)
-class DivisionAdmin(EnhancedModelAdmin):
+class DivisionAdmin(ImportExportEnhancedModelAdmin):
     list_display = ('name', 'native_name', 'code', 'country', 'district_count', 'is_active', 'sort_order')
     list_filter = ('is_active', 'country')
     search_fields = ('name', 'native_name', 'code')
@@ -304,7 +305,7 @@ class UpazilaInline(admin.TabularInline):
 
 
 @admin.register(District)
-class DistrictAdmin(EnhancedModelAdmin):
+class DistrictAdmin(ImportExportEnhancedModelAdmin):
     list_display = ('name', 'native_name', 'code', 'division', 'upazila_count', 'is_active', 'sort_order')
     list_filter = ('is_active', 'division__country', 'division')
     search_fields = ('name', 'native_name', 'code')
@@ -318,7 +319,7 @@ class DistrictAdmin(EnhancedModelAdmin):
 
 
 @admin.register(Upazila)
-class UpazilaAdmin(EnhancedModelAdmin):
+class UpazilaAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'name', 'native_name', 'code', 'district', 
         'is_active', 'sort_order'
@@ -341,8 +342,8 @@ class TranslationInline(admin.TabularInline):
 
 
 @admin.register(TranslationNamespace)
-class TranslationNamespaceAdmin(EnhancedModelAdmin):
-    list_display = ('name', 'description', 'key_count')
+class TranslationNamespaceAdmin(ImportExportEnhancedModelAdmin):
+    list_display = ('name', 'description', 'key_count', 'coverage_display')
     search_fields = ('name', 'description')
     ordering = ('name',)
     
@@ -350,9 +351,30 @@ class TranslationNamespaceAdmin(EnhancedModelAdmin):
         return obj.keys.count()
     key_count.short_description = _('Keys')
 
+    def coverage_display(self, obj):
+        from .services import LanguageService
+        default_lang = LanguageService.get_default_language()
+        if not default_lang:
+            return '-'
+        total = obj.keys.count()
+        if total == 0:
+            return '-'
+        approved = Translation.objects.filter(
+            key__namespace=obj,
+            language=default_lang,
+            status='approved'
+        ).count()
+        percent = (approved / total) * 100 if total else 0
+        color = 'green' if percent >= 80 else 'orange' if percent >= 50 else 'red'
+        return format_html(
+            '<span style="color: {};">{:.1f}%</span>',
+            color, percent
+        )
+    coverage_display.short_description = _('Default Coverage')
+
 
 @admin.register(TranslationKey)
-class TranslationKeyAdmin(EnhancedModelAdmin):
+class TranslationKeyAdmin(ImportExportEnhancedModelAdmin):
     list_display = ('key', 'namespace', 'context', 'translation_count', 'created_at')
     list_filter = ('namespace',)
     search_fields = ('key', 'context', 'source_text')
@@ -370,10 +392,10 @@ class TranslationKeyAdmin(EnhancedModelAdmin):
 
 
 @admin.register(Translation)
-class TranslationAdmin(EnhancedModelAdmin):
+class TranslationAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'key', 'language', 'status', 'status_badge',
-        'is_machine_translated', 'translated_by', 'created_at'
+        'is_machine_translated', 'provider', 'needs_retranslation', 'created_at'
     )
     list_filter = ('status', 'language', 'is_machine_translated', 'key__namespace')
     search_fields = ('key__key', 'translated_text')
@@ -387,6 +409,10 @@ class TranslationAdmin(EnhancedModelAdmin):
         }),
         (_('Translation'), {
             'fields': ('translated_text', 'plural_forms')
+        }),
+        (_('Source'), {
+            'fields': ('source_language', 'source_text_hash', 'provider', 'translated_at', 'error_message', 'needs_retranslation'),
+            'classes': ('collapse',)
         }),
         (_('Status'), {
             'fields': ('status', 'is_machine_translated', 'translated_by', 'reviewed_by')
@@ -409,10 +435,10 @@ class TranslationAdmin(EnhancedModelAdmin):
 
 
 @admin.register(ContentTranslation)
-class ContentTranslationAdmin(EnhancedModelAdmin):
+class ContentTranslationAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'content_type', 'content_id', 'field_name', 
-        'language', 'is_approved', 'is_machine_translated', 'updated_at'
+        'language', 'is_approved', 'is_machine_translated', 'provider', 'needs_retranslation', 'updated_at'
     )
     list_filter = ('content_type', 'language', 'is_approved', 'is_machine_translated')
     search_fields = ('content_id', 'original_text', 'translated_text')
@@ -427,6 +453,10 @@ class ContentTranslationAdmin(EnhancedModelAdmin):
         (_('Content'), {
             'fields': ('original_text', 'translated_text')
         }),
+        (_('Source'), {
+            'fields': ('source_language', 'source_text_hash', 'provider', 'translated_at', 'error_message', 'needs_retranslation'),
+            'classes': ('collapse',)
+        }),
         (_('Status'), {
             'fields': ('is_approved', 'is_machine_translated', 'translated_by')
         }),
@@ -434,11 +464,35 @@ class ContentTranslationAdmin(EnhancedModelAdmin):
 
 
 # =============================================================================
+# Translation Jobs & Glossary Admin
+# =============================================================================
+
+@admin.register(TranslationJob)
+class TranslationJobAdmin(ImportExportEnhancedModelAdmin):
+    list_display = (
+        'job_type', 'status', 'language', 'provider',
+        'content_type', 'content_id', 'field_name', 'translation_key',
+        'attempts', 'latency_ms', 'created_at'
+    )
+    list_filter = ('job_type', 'status', 'provider')
+    search_fields = ('content_id', 'field_name', 'translation_key', 'last_error')
+    ordering = ('-created_at',)
+
+
+@admin.register(TranslationGlossary)
+class TranslationGlossaryAdmin(ImportExportEnhancedModelAdmin):
+    list_display = ('term', 'replacement', 'is_active', 'case_sensitive', 'priority')
+    list_filter = ('is_active', 'case_sensitive')
+    search_fields = ('term', 'replacement', 'notes')
+    ordering = ('-priority', 'term')
+
+
+# =============================================================================
 # User Preference Admin
 # =============================================================================
 
 @admin.register(UserLocalePreference)
-class UserLocalePreferenceAdmin(EnhancedModelAdmin):
+class UserLocalePreferenceAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'user', 'language', 'currency', 'timezone', 
         'country', 'updated_at'
@@ -472,7 +526,7 @@ class UserLocalePreferenceAdmin(EnhancedModelAdmin):
 # =============================================================================
 
 @admin.register(I18nSettings)
-class I18nSettingsAdmin(EnhancedModelAdmin):
+class I18nSettingsAdmin(ImportExportEnhancedModelAdmin):
     list_display = (
         'default_language', 'default_currency', 'default_timezone',
         'auto_update_exchange_rates', 'last_exchange_rate_update'
@@ -480,7 +534,7 @@ class I18nSettingsAdmin(EnhancedModelAdmin):
     
     fieldsets = (
         (_('Language Settings'), {
-            'fields': ('default_language', 'fallback_language', 'auto_detect_language', 'show_language_selector')
+            'fields': ('default_language', 'fallback_language', 'source_language', 'auto_detect_language', 'show_language_selector')
         }),
         (_('Currency Settings'), {
             'fields': ('default_currency', 'auto_detect_currency', 'show_currency_selector',

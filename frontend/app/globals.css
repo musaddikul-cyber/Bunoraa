@@ -38,6 +38,7 @@
     --color-card: var(--card);
     --color-card-elevated: var(--card);
     --header-offset: 5.5rem;
+    --mobile-header-offset: var(--header-offset);
   }
 
   .light {

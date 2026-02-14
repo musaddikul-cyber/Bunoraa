@@ -26,6 +26,12 @@ const STORAGE_KEY = "bunoraa-preorder-draft-v2";
 const stepOrder = ["category", "customize", "details", "review"] as const;
 
 type StepKey = (typeof stepOrder)[number];
+type EstimatePayload = {
+  category_id: string;
+  quantity: number;
+  options?: Record<string, unknown>;
+  is_rush_order?: boolean;
+};
 
 type PreorderDraft = {
   category_id: string;
@@ -149,6 +155,7 @@ export default function PreorderCreateStepPage() {
   const categoryQuery = usePreorderCategory(categorySlug);
   const templatesQuery = usePreorderTemplates(categorySlug);
   const estimateMutation = usePreorderEstimate();
+  const requestEstimate = estimateMutation.mutate;
   const createPreorder = useCreatePreorder();
 
   const [designFiles, setDesignFiles] = React.useState<File[]>([]);
@@ -156,6 +163,7 @@ export default function PreorderCreateStepPage() {
   const [optionFiles, setOptionFiles] = React.useState<Record<string, File[]>>({});
   const [includeShipping, setIncludeShipping] = React.useState(false);
   const [estimate, setEstimate] = React.useState<typeof estimateMutation.data | null>(null);
+  const lastEstimateKeyRef = React.useRef<string>("");
 
   const selectedCategory =
     categoryQuery.data ||
@@ -163,7 +171,7 @@ export default function PreorderCreateStepPage() {
     null;
   const templates = templatesQuery.data || [];
 
-  const estimatePayload = React.useMemo(() => {
+  const estimatePayload = React.useMemo<EstimatePayload | null>(() => {
     if (!selectedCategory || !watched) return null;
     return {
       category_id: selectedCategory.id,
@@ -172,6 +180,18 @@ export default function PreorderCreateStepPage() {
       is_rush_order: watched.is_rush_order || false,
     };
   }, [selectedCategory, watched]);
+  const estimateKey = React.useMemo(
+    () => (estimatePayload ? JSON.stringify(estimatePayload) : ""),
+    [estimatePayload]
+  );
+  const stableEstimatePayload = React.useMemo<EstimatePayload | null>(() => {
+    if (!estimateKey) return null;
+    try {
+      return JSON.parse(estimateKey) as EstimatePayload;
+    } catch {
+      return null;
+    }
+  }, [estimateKey]);
 
   React.useEffect(() => {
     const initialCategory = searchParams.get("category");
@@ -203,12 +223,24 @@ export default function PreorderCreateStepPage() {
   }, [watched]);
 
   React.useEffect(() => {
-    if (!estimatePayload) return;
-    estimateMutation.mutate(estimatePayload, {
-      onSuccess: (data) => setEstimate(data),
-      onError: () => setEstimate(null),
-    });
-  }, [estimatePayload, estimateMutation]);
+    if (!estimateKey || !stableEstimatePayload) {
+      setEstimate(null);
+      lastEstimateKeyRef.current = "";
+      return;
+    }
+
+    const handle = window.setTimeout(() => {
+      if (lastEstimateKeyRef.current === estimateKey) return;
+      lastEstimateKeyRef.current = estimateKey;
+
+      requestEstimate(stableEstimatePayload, {
+        onSuccess: (data) => setEstimate(data),
+        onError: () => setEstimate(null),
+      });
+    }, 250);
+
+    return () => window.clearTimeout(handle);
+  }, [estimateKey, stableEstimatePayload, requestEstimate]);
 
   const goToStep = (next: StepKey) => {
     const nextIndex = stepOrder.indexOf(next);
@@ -403,6 +435,7 @@ export default function PreorderCreateStepPage() {
               rows={4}
               className={commonClass}
               placeholder={option.placeholder || ""}
+              enterKeyHint="next"
               {...form.register(`options.${option.id}` as const)}
             />
             {error?.message ? (
@@ -423,6 +456,8 @@ export default function PreorderCreateStepPage() {
             <input
               type="number"
               className={commonClass}
+              inputMode="numeric"
+              enterKeyHint="next"
               {...form.register(`options.${option.id}` as const)}
             />
             {error?.message ? (
@@ -442,6 +477,7 @@ export default function PreorderCreateStepPage() {
             ) : null}
             <select
               className={commonClass}
+              autoComplete="off"
               {...form.register(`options.${option.id}` as const)}
             >
               <option value="">Select {option.name}</option>
@@ -470,6 +506,7 @@ export default function PreorderCreateStepPage() {
             <select
               className={commonClass}
               multiple
+              autoComplete="off"
               value={
                 (form.getValues(`options.${option.id}` as const) as string[]) ||
                 []
@@ -544,6 +581,7 @@ export default function PreorderCreateStepPage() {
             <input
               type="date"
               className={commonClass}
+              autoComplete="off"
               {...form.register(`options.${option.id}` as const)}
             />
             {error?.message ? (
@@ -584,6 +622,7 @@ export default function PreorderCreateStepPage() {
             <input
               className={commonClass}
               placeholder={option.placeholder || ""}
+              enterKeyHint="next"
               {...form.register(`options.${option.id}` as const)}
             />
             {error?.message ? (
@@ -594,46 +633,55 @@ export default function PreorderCreateStepPage() {
     }
   };
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <div className="mb-8 space-y-2">
+    <div className="min-h-screen bg-background pb-24 text-foreground sm:pb-10">
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+        <div className="mb-5 space-y-2 sm:mb-8">
           <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">
             Custom preorder
           </p>
-          <h1 className="text-3xl font-semibold">Create a preorder request</h1>
+          <h1 className="text-2xl font-semibold sm:text-3xl">
+            Create a preorder request
+          </h1>
           <p className="text-sm text-foreground/60">
             Share your requirements and we will send a quote with production
             timeline.
           </p>
         </div>
 
-        <div className="mb-6 flex items-center gap-3 overflow-x-auto pb-2 text-xs uppercase tracking-[0.2em] text-foreground/60">
-          {stepOrder.map((step, index) => (
-            <div
-              key={step}
-              className={cn(
-                "rounded-full border px-4 py-1",
-                index === stepIndex
-                  ? "border-primary text-primary"
-                  : "border-border"
-              )}
-            >
-              {index + 1}. {step}
-            </div>
-          ))}
+        <div
+          className="sticky z-20 -mx-4 mb-5 border-y border-border/70 bg-background/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:mb-6 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-0"
+          style={{ top: "var(--mobile-header-offset, 4.6rem)" }}
+        >
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-[11px] uppercase tracking-[0.16em] text-foreground/60 sm:gap-3 sm:text-xs sm:tracking-[0.2em]">
+            {stepOrder.map((step, index) => (
+              <div
+                key={step}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-2 sm:px-4 sm:py-1",
+                  index === stepIndex
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border"
+                )}
+              >
+                {index + 1}. {step}
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <Card variant="bordered" className="space-y-6">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr] lg:gap-6">
+          <Card variant="bordered" className="space-y-6 p-4 sm:p-5">
             {currentStep === "category" ? (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold">Choose a category</h2>
+                  <h2 className="text-lg font-semibold sm:text-xl">
+                    Choose a category
+                  </h2>
                   <p className="text-sm text-foreground/60">
                     Select the closest match to customize your preorder.
                   </p>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-2 md:gap-4">
                   {categoriesQuery.data?.map((category) => {
                     const selected = selectedCategoryId === category.id;
                     return (
@@ -641,7 +689,7 @@ export default function PreorderCreateStepPage() {
                         key={category.id}
                         type="button"
                         className={cn(
-                          "rounded-2xl border p-4 text-left transition",
+                          "rounded-2xl border p-3 text-left transition sm:p-4",
                           selected
                             ? "border-primary bg-primary/10"
                             : "border-border bg-card hover:bg-muted/40"
@@ -653,7 +701,7 @@ export default function PreorderCreateStepPage() {
                         }}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="space-y-1">
                             <p className="text-sm font-semibold">
                               {category.name}
                             </p>
@@ -662,7 +710,7 @@ export default function PreorderCreateStepPage() {
                             </p>
                           </div>
                           {category.image ? (
-                            <div className="relative h-14 w-14 overflow-hidden rounded-xl bg-muted">
+                            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-muted sm:h-14 sm:w-14">
                               <Image
                                 src={category.image}
                                 alt={category.name}
@@ -753,7 +801,7 @@ export default function PreorderCreateStepPage() {
             {currentStep === "customize" ? (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold">
+                  <h2 className="text-lg font-semibold sm:text-xl">
                     Customization details
                   </h2>
                   <p className="text-sm text-foreground/60">
@@ -765,6 +813,8 @@ export default function PreorderCreateStepPage() {
                     Title
                     <input
                       className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                      autoComplete="organization-title"
+                      enterKeyHint="next"
                       {...form.register("title")}
                     />
                     {form.formState.errors.title?.message ? (
@@ -779,7 +829,9 @@ export default function PreorderCreateStepPage() {
                       type="number"
                       min={selectedCategory?.min_quantity || 1}
                       max={selectedCategory?.max_quantity || undefined}
-                      className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                      className="no-spin mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                      inputMode="numeric"
+                      enterKeyHint="next"
                       {...form.register("quantity", { valueAsNumber: true })}
                     />
                     {form.formState.errors.quantity?.message ? (
@@ -794,6 +846,7 @@ export default function PreorderCreateStepPage() {
                   <textarea
                     rows={4}
                     className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                    enterKeyHint="next"
                     {...form.register("description")}
                   />
                   {form.formState.errors.description?.message ? (
@@ -818,7 +871,9 @@ export default function PreorderCreateStepPage() {
             {currentStep === "details" ? (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold">Contact and delivery</h2>
+                  <h2 className="text-lg font-semibold sm:text-xl">
+                    Contact and delivery
+                  </h2>
                   <p className="text-sm text-foreground/60">
                     We will use this info to send your quote and timeline.
                   </p>
@@ -828,6 +883,8 @@ export default function PreorderCreateStepPage() {
                     Full name
                     <input
                       className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                      autoComplete="name"
+                      enterKeyHint="next"
                       {...form.register("full_name")}
                     />
                     {form.formState.errors.full_name?.message ? (
@@ -841,6 +898,9 @@ export default function PreorderCreateStepPage() {
                     <input
                       type="email"
                       className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                      autoComplete="email"
+                      inputMode="email"
+                      enterKeyHint="next"
                       {...form.register("email")}
                     />
                     {form.formState.errors.email?.message ? (
@@ -853,6 +913,9 @@ export default function PreorderCreateStepPage() {
                     Phone
                     <input
                       className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                      autoComplete="tel"
+                      inputMode="tel"
+                      enterKeyHint="next"
                       {...form.register("phone")}
                     />
                   </label>
@@ -876,6 +939,7 @@ export default function PreorderCreateStepPage() {
                   <input
                     type="date"
                     className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                    autoComplete="off"
                     {...form.register("requested_delivery_date")}
                   />
                 </label>
@@ -895,6 +959,8 @@ export default function PreorderCreateStepPage() {
                       Shipping first name
                       <input
                         className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        autoComplete="shipping given-name"
+                        enterKeyHint="next"
                         {...form.register("shipping_first_name")}
                       />
                     </label>
@@ -902,6 +968,8 @@ export default function PreorderCreateStepPage() {
                       Shipping last name
                       <input
                         className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        autoComplete="shipping family-name"
+                        enterKeyHint="next"
                         {...form.register("shipping_last_name")}
                       />
                     </label>
@@ -909,6 +977,8 @@ export default function PreorderCreateStepPage() {
                       Address line 1
                       <input
                         className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        autoComplete="shipping address-line1"
+                        enterKeyHint="next"
                         {...form.register("shipping_address_line_1")}
                       />
                     </label>
@@ -916,6 +986,8 @@ export default function PreorderCreateStepPage() {
                       Address line 2
                       <input
                         className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        autoComplete="shipping address-line2"
+                        enterKeyHint="next"
                         {...form.register("shipping_address_line_2")}
                       />
                     </label>
@@ -923,6 +995,8 @@ export default function PreorderCreateStepPage() {
                       City
                       <input
                         className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        autoComplete="shipping address-level2"
+                        enterKeyHint="next"
                         {...form.register("shipping_city")}
                       />
                     </label>
@@ -930,6 +1004,8 @@ export default function PreorderCreateStepPage() {
                       State / Province
                       <input
                         className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        autoComplete="shipping address-level1"
+                        enterKeyHint="next"
                         {...form.register("shipping_state")}
                       />
                     </label>
@@ -937,6 +1013,9 @@ export default function PreorderCreateStepPage() {
                       Postal code
                       <input
                         className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        autoComplete="shipping postal-code"
+                        inputMode="numeric"
+                        enterKeyHint="next"
                         {...form.register("shipping_postal_code")}
                       />
                     </label>
@@ -944,6 +1023,8 @@ export default function PreorderCreateStepPage() {
                       Country
                       <input
                         className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                        autoComplete="shipping country-name"
+                        enterKeyHint="done"
                         {...form.register("shipping_country")}
                       />
                     </label>
@@ -966,6 +1047,7 @@ export default function PreorderCreateStepPage() {
                         <textarea
                           rows={3}
                           className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                          enterKeyHint="done"
                           {...form.register("gift_message")}
                         />
                       </label>
@@ -978,6 +1060,7 @@ export default function PreorderCreateStepPage() {
                   <textarea
                     rows={3}
                     className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                    enterKeyHint="done"
                     {...form.register("special_instructions")}
                   />
                 </label>
@@ -986,6 +1069,7 @@ export default function PreorderCreateStepPage() {
                   <textarea
                     rows={3}
                     className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                    enterKeyHint="done"
                     {...form.register("customer_notes")}
                   />
                 </label>
@@ -1024,7 +1108,9 @@ export default function PreorderCreateStepPage() {
             {currentStep === "review" ? (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold">Review and submit</h2>
+                  <h2 className="text-lg font-semibold sm:text-xl">
+                    Review and submit
+                  </h2>
                   <p className="text-sm text-foreground/60">
                     Confirm your details before sending the preorder request.
                   </p>
@@ -1072,25 +1158,38 @@ export default function PreorderCreateStepPage() {
               </div>
             ) : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Button variant="secondary" onClick={handleBack} disabled={stepIndex === 0}>
-                Back
-              </Button>
-              {currentStep !== "review" ? (
-                <Button onClick={handleContinue}>Continue</Button>
-              ) : (
+            <div className="pt-1 sm:pt-0">
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <Button
-                  variant="primary-gradient"
-                  onClick={handleSubmit}
-                  disabled={createPreorder.isPending}
+                  className="w-full sm:w-auto"
+                  variant="secondary"
+                  onClick={handleBack}
+                  disabled={stepIndex === 0}
                 >
-                  {createPreorder.isPending ? "Submitting..." : "Submit preorder"}
+                  Back
                 </Button>
-              )}
+                {currentStep !== "review" ? (
+                  <Button className="w-full sm:w-auto" onClick={handleContinue}>
+                    Continue
+                  </Button>
+                ) : (
+                  <Button
+                    className="w-full sm:w-auto"
+                    variant="primary-gradient"
+                    onClick={handleSubmit}
+                    disabled={createPreorder.isPending}
+                  >
+                    {createPreorder.isPending ? "Submitting..." : "Submit preorder"}
+                  </Button>
+                )}
+              </div>
             </div>
           </Card>
 
-          <Card variant="glass" className="space-y-4">
+          <Card
+            variant="glass"
+            className="h-fit space-y-4 p-4 sm:p-5 lg:sticky lg:top-24"
+          >
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">
                 Summary

@@ -84,19 +84,27 @@ export function LocaleSwitcher({ className }: { className?: string }) {
     }`,
   }));
 
+  const currencySymbolsByCode = currencies.reduce<Record<string, string>>((acc, option) => {
+    const code = normalizeCurrencyCode(option.code);
+    if (!code) return acc;
+    const symbol = String(option.native_symbol || option.symbol || "").trim();
+    if (symbol) acc[code] = symbol;
+    return acc;
+  }, {});
+
   const currencyOptions = currencies
     .map((option) => {
       const code = normalizeCurrencyCode(option.code);
+      const symbol = code ? currencySymbolsByCode[code] || "" : "";
       return code
         ? {
             value: code,
-            label: `${code}${option.symbol ? ` ${option.symbol}` : ""}`,
+            label: symbol ? `${code}\u00A0\u00A0\u00A0${symbol}` : code,
           }
         : null;
     })
     .filter(
-      (option): option is { value: string; label: string } =>
-        Boolean(option?.value)
+      (option): option is { value: string; label: string } => Boolean(option?.value)
     );
   const resolvedCurrencyOptions =
     normalizedCurrency &&
@@ -108,17 +116,17 @@ export function LocaleSwitcher({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center",
+        "flex w-auto flex-col gap-2 sm:flex-row sm:items-center",
         className
       )}
     >
-      <label className="flex w-full items-center gap-2 text-xs text-foreground/70 sm:w-auto">
+      <label className="flex w-auto items-center gap-2 text-sm font-medium text-foreground/80">
         <span className="whitespace-nowrap">Language</span>
         <select
           value={language}
           onChange={(event) => setLocale({ language: event.target.value })}
           disabled={isBusy || languageOptions.length === 0}
-          className="h-8 min-h-0 w-full rounded-lg border border-border bg-card px-2 text-xs leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-36 sm:text-sm"
+          className="h-10 min-h-0 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-32 sm:text-sm"
         >
           {languageOptions.length === 0 ? (
             <option value="">
@@ -133,13 +141,13 @@ export function LocaleSwitcher({ className }: { className?: string }) {
           )}
         </select>
       </label>
-      <label className="flex w-full items-center gap-2 text-xs text-foreground/70 sm:w-auto">
+      <label className="flex w-auto items-center gap-2 text-sm font-medium text-foreground/80">
         <span className="whitespace-nowrap">Currency</span>
         <select
           value={currency}
           onChange={(event) => setLocale({ currency: event.target.value })}
           disabled={isBusy || resolvedCurrencyOptions.length === 0}
-          className="h-8 min-h-0 w-full rounded-lg border border-border bg-card px-2 text-xs leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-36 sm:text-sm"
+          className="h-10 min-h-0 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-32 sm:text-sm"
         >
           {resolvedCurrencyOptions.length === 0 ? (
             <option value="">

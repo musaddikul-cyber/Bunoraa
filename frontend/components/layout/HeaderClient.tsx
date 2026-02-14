@@ -10,6 +10,30 @@ import { useWishlist } from "@/components/wishlist/useWishlist";
 import { useNotifications } from "@/components/notifications/useNotifications";
 import { useToast } from "@/components/ui/ToastProvider";
 
+function resolveBackendAdminUrl() {
+  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
+  if (!apiBase) return "/admin/";
+
+  const stripApiSuffix = (value: string) =>
+    value.replace(/\/api(?:\/v\d+)?\/?$/i, "");
+
+  if (apiBase.startsWith("/")) {
+    const basePath = stripApiSuffix(apiBase.replace(/\/+$/, ""));
+    return `${basePath || ""}/admin/`;
+  }
+
+  try {
+    const parsed = new URL(apiBase);
+    const cleanPath = stripApiSuffix(parsed.pathname.replace(/\/+$/, ""));
+    parsed.pathname = `${cleanPath || ""}/admin/`;
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "/admin/";
+  }
+}
+
 function HeartIcon() {
   return (
     <svg
@@ -81,6 +105,8 @@ export function HeaderClient() {
     0;
   const unreadCount = unreadCountQuery.data?.count ?? 0;
   const hasUnreadNotifications = unreadCount > 0;
+  const hasProfileAvatar = Boolean(profileQuery.data?.avatar);
+  const adminPanelHref = React.useMemo(() => resolveBackendAdminUrl(), []);
 
   React.useEffect(() => {
     setMounted(true);
@@ -153,25 +179,25 @@ export function HeaderClient() {
       <div className="relative" ref={menuRef}>
         <button
           type="button"
-          className={iconButtonClass}
+          className={`${iconButtonClass} ${hasProfileAvatar ? "overflow-hidden p-0" : ""}`}
           onClick={() => setMenuOpen((prev) => !prev)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-label="Account menu"
         >
           {mounted && hasToken ? (
-            <span className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-semibold uppercase text-foreground/70">
-              {profileQuery.data?.avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={profileQuery.data.avatar}
-                  alt={profileQuery.data?.first_name || "Profile"}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                profileQuery.data?.first_name?.[0] || "U"
-              )}
-            </span>
+            hasProfileAvatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profileQuery.data?.avatar || ""}
+                alt={profileQuery.data?.first_name || "Profile"}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <span className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-semibold uppercase text-foreground/70">
+                {profileQuery.data?.first_name?.[0] || "U"}
+              </span>
+            )
           ) : (
             <UserIcon />
           )}
@@ -242,7 +268,7 @@ export function HeaderClient() {
               </Link>
               {profileQuery.data?.is_superuser || profileQuery.data?.is_staff ? (
                 <Link
-                  href="/admin/"
+                  href={adminPanelHref}
                   className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   role="menuitem"
                   onClick={() => setMenuOpen(false)}

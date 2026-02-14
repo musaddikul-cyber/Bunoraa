@@ -453,13 +453,17 @@ export async function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-foreground/60">
-            &copy; {new Date().getFullYear()} {copyrightText}
-          </p>
-          <div className="flex w-full flex-col gap-3 text-sm text-foreground/70 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-            <ThemeSwitcher />
-            <LocaleSwitcher />
+        <div className="mt-10 border-t border-border pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-center text-xs leading-relaxed text-foreground/60 sm:text-left">
+              &copy; {new Date().getFullYear()} {copyrightText}
+            </p>
+            <div className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 shadow-soft sm:w-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+              <div className="flex w-full flex-wrap items-start justify-center gap-2 text-sm text-foreground/70 sm:w-auto sm:items-center sm:justify-end sm:gap-3">
+                <ThemeSwitcher className="shrink-0" />
+                <LocaleSwitcher className="shrink-0" />
+              </div>
+            </div>
           </div>
         </div>
       </div>

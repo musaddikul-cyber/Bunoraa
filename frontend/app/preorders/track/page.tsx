@@ -58,10 +58,10 @@ export default function PreorderTrackPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-      <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-        <Card variant="bordered" className="space-y-4">
-          <h1 className="text-2xl font-semibold">Track preorder</h1>
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <Card variant="bordered" className="space-y-4 p-4 sm:p-5">
+          <h1 className="text-xl font-semibold sm:text-2xl">Track preorder</h1>
           <p className="text-sm text-foreground/70">
             Enter your preorder number and the email used during submission.
           </p>
@@ -71,6 +71,9 @@ export default function PreorderTrackPage() {
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
                 placeholder="PRE-2026-0001"
+                autoCapitalize="characters"
+                autoComplete="off"
+                enterKeyHint="next"
                 value={form.preorder_number}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, preorder_number: event.target.value }))
@@ -83,6 +86,9 @@ export default function PreorderTrackPage() {
                 type="email"
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
                 placeholder="you@example.com"
+                autoComplete="email"
+                inputMode="email"
+                enterKeyHint="done"
                 value={form.email}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, email: event.target.value }))
@@ -95,7 +101,7 @@ export default function PreorderTrackPage() {
           </form>
         </Card>
 
-        <Card variant="bordered" className="space-y-4">
+        <Card variant="bordered" className="space-y-4 p-4 sm:p-5">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">
               Status

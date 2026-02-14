@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SearchBar } from "@/components/search/SearchBar";
+import { useAuthContext } from "@/components/providers/AuthProvider";
 import type { MenuPage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +18,17 @@ export function MobileNav({
   menuPages: MenuPage[];
 }) {
   const pathname = usePathname();
+  const { hasToken, profileQuery } = useAuthContext();
   const [open, setOpen] = React.useState(false);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const wasOpenRef = React.useRef(false);
+
+  const accountLabel =
+    profileQuery.data?.full_name ||
+    profileQuery.data?.first_name ||
+    profileQuery.data?.email ||
+    "";
 
   const normalizePath = React.useCallback((value: string) => {
     if (value.length > 1 && value.endsWith("/")) {
@@ -215,20 +223,53 @@ export function MobileNav({
                 <p className="text-xs uppercase tracking-[0.2em] text-foreground/70">
                   Account
                 </p>
-                <Link
-                  className={navLinkClass("/account/login/")}
-                  href="/account/login/"
-                  onClick={closeNav}
-                >
-                  Sign in
-                </Link>
-                <Link
-                  className={navLinkClass("/orders/")}
-                  href="/orders/"
-                  onClick={closeNav}
-                >
-                  Orders
-                </Link>
+                {hasToken ? (
+                  <>
+                    {accountLabel ? (
+                      <p className="rounded-xl border border-dashed border-border px-3 py-2 text-xs text-foreground/70">
+                        Signed in as <span className="font-semibold text-foreground">{accountLabel}</span>
+                      </p>
+                    ) : null}
+                    <Link
+                      className={navLinkClass("/account/dashboard/")}
+                      href="/account/dashboard/"
+                      onClick={closeNav}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      className={navLinkClass("/account/profile/")}
+                      href="/account/profile/"
+                      onClick={closeNav}
+                    >
+                      Profile
+                    </Link>
+                    <Link
+                      className={navLinkClass("/account/orders/")}
+                      href="/account/orders/"
+                      onClick={closeNav}
+                    >
+                      Orders
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      className={navLinkClass("/account/login/")}
+                      href="/account/login/"
+                      onClick={closeNav}
+                    >
+                      Sign in
+                    </Link>
+                    <Link
+                      className={navLinkClass("/account/register/")}
+                      href="/account/register/"
+                      onClick={closeNav}
+                    >
+                      Register
+                    </Link>
+                  </>
+                )}
                 <Link
                   className={navLinkClass("/wishlist/")}
                   href="/wishlist/"

@@ -32,12 +32,12 @@ export default async function PreorderCategoryPage({
   const category = await getCategory(slug);
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card variant="bordered" className="space-y-4">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <Card variant="bordered" className="space-y-4 p-4 sm:p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2">
-              <h1 className="text-2xl font-semibold">{category.name}</h1>
+              <h1 className="text-xl font-semibold sm:text-2xl">{category.name}</h1>
               <p className="text-sm text-foreground/70">
                 {category.description}
               </p>
@@ -56,7 +56,7 @@ export default async function PreorderCategoryPage({
               </div>
             </div>
             {category.image ? (
-              <div className="relative h-20 w-20 overflow-hidden rounded-2xl bg-muted">
+              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-muted sm:h-20 sm:w-20">
                 <Image
                   src={category.image}
                   alt={category.name}
@@ -66,18 +66,18 @@ export default async function PreorderCategoryPage({
               </div>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Button asChild variant="primary-gradient">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+            <Button asChild variant="primary-gradient" className="w-full sm:w-auto">
               <Link href={`/preorders/create/1/?category=${category.slug}`}>
                 Start preorder
               </Link>
             </Button>
-            <Button asChild variant="secondary">
+            <Button asChild variant="secondary" className="w-full sm:w-auto">
               <Link href="/preorders/">Back to categories</Link>
             </Button>
           </div>
         </Card>
-        <Card variant="glass" className="space-y-3">
+        <Card variant="glass" className="space-y-3 p-4 sm:p-5">
           <h2 className="text-lg font-semibold">Requirements</h2>
           <ul className="space-y-2 text-sm text-foreground/70">
             <li>Minimum quantity: {category.min_quantity || 1}</li>
@@ -96,9 +96,9 @@ export default async function PreorderCategoryPage({
       </div>
 
       {category.options?.length ? (
-        <div className="mt-10 space-y-4">
+        <div className="mt-8 space-y-4 sm:mt-10">
           <h2 className="text-xl font-semibold">Available options</h2>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
             {category.options.map((option: PreorderOption) => (
               <Card key={option.id} variant="bordered" className="p-4">
                 <p className="text-sm font-semibold">{option.name}</p>
@@ -107,7 +107,7 @@ export default async function PreorderCategoryPage({
                 </p>
                 <p className="mt-2 text-xs text-foreground/60">
                   Type: {option.option_type}
-                  {option.is_required ? " • Required" : ""}
+                  {option.is_required ? " - Required" : ""}
                 </p>
               </Card>
             ))}

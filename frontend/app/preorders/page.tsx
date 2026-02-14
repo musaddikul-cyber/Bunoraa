@@ -20,13 +20,13 @@ export default async function PreordersLandingPage() {
   const categories = await getCategories();
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
-      <div className="mb-10 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="mb-8 grid gap-4 sm:gap-6 lg:mb-10 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4">
           <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">
             Preorders
           </p>
-          <h1 className="text-3xl font-semibold sm:text-4xl">
+          <h1 className="text-2xl font-semibold sm:text-4xl">
             Start a custom preorder
           </h1>
           <p className="text-sm text-foreground/60">
@@ -34,16 +34,16 @@ export default async function PreordersLandingPage() {
             dedicated quote. We will guide you through approvals, payments, and
             delivery.
           </p>
-          <div className="flex flex-wrap gap-3">
-            <Button asChild variant="primary-gradient">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+            <Button asChild className="w-full sm:w-auto" variant="primary-gradient">
               <Link href="/preorders/create/1/">Start preorder</Link>
             </Button>
-            <Button asChild variant="secondary">
+            <Button asChild className="w-full sm:w-auto" variant="secondary">
               <Link href="/preorders/track/">Track preorder</Link>
             </Button>
           </div>
         </div>
-        <Card variant="modern-gradient" className="space-y-3">
+        <Card variant="modern-gradient" className="space-y-3 p-4 sm:p-5">
           <h2 className="text-lg font-semibold">How it works</h2>
           <ul className="space-y-2 text-sm text-foreground/70">
             <li>Share details, options, and reference files.</li>
@@ -53,7 +53,7 @@ export default async function PreordersLandingPage() {
           </ul>
         </Card>
       </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {categories.map((category) => (
           <Card key={category.id} variant="bordered" className="p-4">
             <div className="flex items-start justify-between gap-3">
@@ -88,7 +88,7 @@ export default async function PreordersLandingPage() {
               ) : null}
             </div>
             <div className="mt-4">
-              <Button asChild variant="secondary" size="sm">
+              <Button asChild variant="secondary" size="sm" className="w-full sm:w-auto">
                 <Link href={`/preorders/category/${category.slug}/`}>View details</Link>
               </Button>
             </div>

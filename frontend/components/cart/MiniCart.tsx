@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useCart } from "@/components/cart/useCart";
+import { cn } from "@/lib/utils";
 
 function formatMoney(amount: string | number, currency: string) {
   if (typeof amount === "string") {
@@ -47,9 +48,11 @@ function parseMoney(value: string | number | null | undefined) {
 export function MiniCart({
   title = "Mini cart",
   onClose,
+  className,
 }: {
   title?: string;
   onClose?: () => void;
+  className?: string;
 }) {
   const { cartQuery, cartSummaryQuery, removeItem, updateItem } = useCart();
 
@@ -112,10 +115,11 @@ export function MiniCart({
   const showEstimatedTotal =
     Boolean(totalLabel) &&
     (totalValue !== subtotalValue || hasAdjustments);
+  const isMutating = updateItem.isPending || removeItem.isPending;
 
   if (cart.items.length === 0) {
     return (
-      <Card variant="bordered" className="flex flex-col gap-4">
+      <Card variant="bordered" className={cn("flex h-full min-h-0 flex-col gap-4", className)}>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Cart</h3>
           {onClose ? (
@@ -128,18 +132,21 @@ export function MiniCart({
             </button>
           ) : null}
         </div>
-        <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-6 text-center">
+        <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-7 text-center">
           <p className="text-sm font-semibold text-foreground">Your cart is empty.</p>
           <p className="mt-1 text-xs text-foreground/60">
             Add items to see them here.
           </p>
         </div>
+        <Button asChild variant="secondary">
+          <Link href="/products/">Continue shopping</Link>
+        </Button>
       </Card>
     );
   }
 
   return (
-    <Card variant="bordered" className="flex flex-col gap-4">
+    <Card variant="bordered" className={cn("flex h-full min-h-0 flex-col gap-4", className)}>
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">{title}</h3>
@@ -160,48 +167,72 @@ export function MiniCart({
 
       {cart.items.length === 0 ? null : (
         <>
-          <div className="space-y-3">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
             {cart.items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium">{item.product_name}</p>
-                  <p className="text-xs text-foreground/60">
-                    {formatMoney(item.unit_price, currency)}
+              <div
+                key={item.id}
+                className="rounded-xl border border-border/70 bg-card/70 p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 text-sm font-medium leading-5">
+                      {item.product_name}
+                    </p>
+                    {item.variant_name ? (
+                      <p className="truncate text-[11px] text-foreground/60">
+                        {item.variant_name}
+                      </p>
+                    ) : null}
+                    <p className="text-xs text-foreground/60">
+                      {formatMoney(item.unit_price, currency)}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold">
+                    {formatMoney(item.total, currency)}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      updateItem.mutate({
-                        itemId: item.id,
-                        quantity: Math.max(1, item.quantity - 1),
-                      })
-                    }
-                  >
-                    -
-                  </Button>
-                  <span className="text-sm">{item.quantity}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      updateItem.mutate({
-                        itemId: item.id,
-                        quantity: item.quantity + 1,
-                      })
-                    }
-                  >
-                    +
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-base hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() =>
+                        updateItem.mutate({
+                          itemId: item.id,
+                          quantity: Math.max(1, item.quantity - 1),
+                        })
+                      }
+                      aria-label="Decrease quantity"
+                      disabled={isMutating}
+                    >
+                      -
+                    </button>
+                    <span className="inline-flex min-w-[2rem] items-center justify-center text-sm font-semibold">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-base hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() =>
+                        updateItem.mutate({
+                          itemId: item.id,
+                          quantity: item.quantity + 1,
+                        })
+                      }
+                      aria-label="Increase quantity"
+                      disabled={isMutating}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-foreground/70 underline-offset-4 hover:text-foreground hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={() => removeItem.mutate(item.id)}
+                    disabled={isMutating}
                   >
                     Remove
-                  </Button>
+                  </button>
                 </div>
               </div>
             ))}
@@ -220,9 +251,14 @@ export function MiniCart({
             ) : null}
           </div>
 
-          <Button asChild variant="primary-gradient">
-            <Link href="/cart/">View cart</Link>
-          </Button>
+          <div className="grid gap-2">
+            <Button asChild variant="secondary">
+              <Link href="/cart/">View cart</Link>
+            </Button>
+            <Button asChild variant="primary-gradient">
+              <Link href="/checkout/">Checkout</Link>
+            </Button>
+          </div>
         </>
       )}
     </Card>

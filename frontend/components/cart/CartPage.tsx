@@ -212,9 +212,12 @@ function CartItemRow({
   }, [quantity, commitQuantity]);
 
   return (
-    <Card variant="bordered" className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-4">
-        <div className="h-20 w-20 overflow-hidden rounded-xl bg-muted">
+    <Card
+      variant="bordered"
+      className="flex flex-col gap-4 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
+    >
+      <div className="flex items-start gap-3 sm:items-center sm:gap-4">
+        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-muted">
           {item.product_image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -224,10 +227,10 @@ function CartItemRow({
             />
           ) : null}
         </div>
-        <div>
+        <div className="min-w-0">
           <Link
             href={`/products/${item.product_slug}/`}
-            className="text-sm font-semibold hover:underline"
+            className="line-clamp-2 text-sm font-semibold leading-5 hover:underline"
           >
             {item.product_name}
           </Link>
@@ -240,83 +243,96 @@ function CartItemRow({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <div className="text-sm text-foreground/70">
-          {formatMoney(item.unit_price, currency)}
+      <div className="flex flex-1 flex-col gap-3 sm:items-end">
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-[auto_auto] sm:gap-4">
+          <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+            <p className="text-[10px] uppercase tracking-[0.15em] text-foreground/50 sm:hidden">
+              Unit price
+            </p>
+            <p className="text-sm text-foreground/70">
+              {formatMoney(item.unit_price, currency)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-right sm:min-w-[120px] sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+            <p className="text-[10px] uppercase tracking-[0.15em] text-foreground/50 sm:hidden">
+              Line total
+            </p>
+            <p className="text-sm font-semibold">{formatMoney(item.total, currency)}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className={cn(
-              "h-9 w-9 rounded-full border border-border text-sm",
-              "hover:bg-muted"
-            )}
-            onClick={() => {
-              manualEditRef.current = false;
-              if (item.quantity <= 1) {
-                onRemove(item.id);
-                return;
-              }
-              const next = item.quantity - 1;
-              setQuantity(next);
-              onUpdate(item.id, next);
-            }}
-            disabled={isUpdating || isRemoving}
-            aria-label="Decrease quantity"
-          >
-            -
-          </button>
-          <input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            className="no-spin h-9 w-16 rounded-xl border border-border bg-transparent px-2 text-center text-sm"
-            value={quantity}
-            onChange={(event) => {
-              const raw = event.target.value;
-              if (raw === "") {
-                setQuantity(1);
-                return;
-              }
-              const value = Number(raw);
-              manualEditRef.current = true;
-              setQuantity(Number.isFinite(value) ? value : 1);
-            }}
-            onBlur={() => commitQuantity(quantity)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.currentTarget.blur();
-              }
-            }}
-            disabled={isUpdating || isRemoving}
-            aria-label="Quantity"
-          />
-          <button
-            type="button"
-            className={cn(
-              "h-9 w-9 rounded-full border border-border text-sm",
-              "hover:bg-muted"
-            )}
-            onClick={() => {
-              manualEditRef.current = false;
-              const next = item.quantity + 1;
-              setQuantity(next);
-              onUpdate(item.id, next);
-            }}
-            disabled={isUpdating || isRemoving}
-            aria-label="Increase quantity"
-          >
-            +
-          </button>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className={cn(
+                "h-10 w-10 rounded-full border border-border text-base sm:h-9 sm:w-9 sm:text-sm",
+                "hover:bg-muted"
+              )}
+              onClick={() => {
+                manualEditRef.current = false;
+                if (item.quantity <= 1) {
+                  onRemove(item.id);
+                  return;
+                }
+                const next = item.quantity - 1;
+                setQuantity(next);
+                onUpdate(item.id, next);
+              }}
+              disabled={isUpdating || isRemoving}
+              aria-label="Decrease quantity"
+            >
+              -
+            </button>
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="no-spin h-10 w-14 rounded-xl border border-border bg-transparent px-2 text-center text-sm sm:h-9 sm:w-16"
+              value={quantity}
+              onChange={(event) => {
+                const raw = event.target.value;
+                if (raw === "") {
+                  setQuantity(1);
+                  return;
+                }
+                const value = Number(raw);
+                manualEditRef.current = true;
+                setQuantity(Number.isFinite(value) ? value : 1);
+              }}
+              onBlur={() => commitQuantity(quantity)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur();
+                }
+              }}
+              disabled={isUpdating || isRemoving}
+              aria-label="Quantity"
+            />
+            <button
+              type="button"
+              className={cn(
+                "h-10 w-10 rounded-full border border-border text-base sm:h-9 sm:w-9 sm:text-sm",
+                "hover:bg-muted"
+              )}
+              onClick={() => {
+                manualEditRef.current = false;
+                const next = item.quantity + 1;
+                setQuantity(next);
+                onUpdate(item.id, next);
+              }}
+              disabled={isUpdating || isRemoving}
+              aria-label="Increase quantity"
+            >
+              +
+            </button>
+          </div>
         </div>
-        <div className="min-w-[100px] text-right text-sm font-semibold">
-          {formatMoney(item.total, currency)}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
           <Button
             variant="ghost"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() => onMoveToWishlist(item)}
             disabled={isUpdating || isRemoving}
           >
@@ -325,6 +341,7 @@ function CartItemRow({
           <Button
             variant="ghost"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() => onRemove(item.id)}
             disabled={isUpdating || isRemoving}
           >
@@ -665,25 +682,25 @@ export function CartPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-10">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">
               Bunoraa cart
             </p>
-            <h1 className="mt-2 text-3xl font-semibold">Shopping cart</h1>
+            <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Shopping cart</h1>
             <p className="text-sm text-foreground/70">
               {itemCount} item{itemCount === 1 ? "" : "s"} in your cart.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <Button
               asChild
               variant="ghost"
-              className="border border-border bg-card text-foreground hover:bg-muted"
+              className="w-full border border-border bg-card text-foreground hover:bg-muted sm:w-auto"
             >
               <Link href="/products/">Continue shopping</Link>
             </Button>
-            <Button variant="secondary" onClick={handleClearCart}>
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={handleClearCart}>
               Clear cart
             </Button>
           </div>
@@ -817,8 +834,13 @@ export function CartPage() {
                   placeholder="Enter coupon code"
                   className="h-11 rounded-xl border border-border bg-transparent px-3 text-sm"
                 />
-                <div className="flex items-center gap-2">
-                  <Button type="submit" size="sm" variant="secondary">
+                <div className="grid gap-2 sm:flex sm:items-center">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                  >
                     Apply
                   </Button>
                   {cart.coupon_code ? (
@@ -826,6 +848,7 @@ export function CartPage() {
                       type="button"
                       size="sm"
                       variant="ghost"
+                      className="w-full sm:w-auto"
                       onClick={handleRemoveCoupon}
                     >
                       Remove
@@ -885,7 +908,7 @@ export function CartPage() {
                   </label>
                 </div>
               ) : null}
-              <Button size="sm" variant="secondary" onClick={handleGiftSave}>
+              <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={handleGiftSave}>
                 Save gift options
               </Button>
               {giftResponse?.formatted_gift_wrap_cost ? (
@@ -951,7 +974,7 @@ export function CartPage() {
                           }))
                         }
                       >
-                        ▲
+                        ^
                       </button>
                       <button
                         type="button"
@@ -964,7 +987,7 @@ export function CartPage() {
                           }))
                         }
                       >
-                        ▼
+                        v
                       </button>
                     </div>
                   </div>
@@ -981,12 +1004,22 @@ export function CartPage() {
                   }
                   className="h-10 rounded-xl border border-border bg-transparent px-3 text-sm"
                 />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={handleShareCart}>
+                <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={handleShareCart}
+                  >
                     Create link
                   </Button>
                   {shareResult?.share_url ? (
-                    <Button size="sm" variant="ghost" onClick={handleCopyShare}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full sm:w-auto"
+                      onClick={handleCopyShare}
+                    >
                       Copy link
                     </Button>
                   ) : null}
@@ -1001,15 +1034,20 @@ export function CartPage() {
 
             <Card variant="bordered" className="space-y-2">
               <h3 className="text-base font-semibold">Cart health</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="secondary" onClick={handleValidateCart}>
+              <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  onClick={handleValidateCart}
+                >
                   Validate cart
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={handleLockPrices}
-                  className="border border-border bg-card text-foreground hover:bg-muted"
+                  className="w-full border border-border bg-card text-foreground hover:bg-muted sm:w-auto"
                 >
                   Lock prices for 24h
                 </Button>
@@ -1020,9 +1058,9 @@ export function CartPage() {
 
         {relatedQuery.data && relatedQuery.data.length > 0 ? (
           <div className="mt-12">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-2xl font-semibold">Recommended for you</h2>
-              <Button asChild variant="ghost">
+              <Button asChild variant="ghost" className="w-full sm:w-auto">
                 <Link href="/products/">View all</Link>
               </Button>
             </div>
@@ -1048,15 +1086,16 @@ export function CartPage() {
                       {formatMoney(getProductPrice(product), product.currency)}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       size="sm"
                       variant="secondary"
+                      className="w-full"
                       onClick={() => handleAddRecommended(product)}
                     >
                       Add to cart
                     </Button>
-                    <Button asChild size="sm" variant="ghost">
+                    <Button asChild size="sm" variant="ghost" className="w-full">
                       <Link href={`/products/${product.slug}/`}>View</Link>
                     </Button>
                   </div>

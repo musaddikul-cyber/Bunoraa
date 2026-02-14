@@ -54,12 +54,12 @@ export function CartDrawer({
       />
       <aside
         className={cn(
-          "absolute right-0 top-0 h-full w-full max-w-sm transform bg-background p-6 shadow-xl transition-transform",
+          "absolute right-0 top-0 flex h-[100dvh] w-full max-w-[420px] transform flex-col bg-background px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] shadow-xl transition-transform sm:p-6",
           isOpen ? "translate-x-0" : "translate-x-full"
         )}
         onClick={(event) => event.stopPropagation()}
       >
-        <MiniCart title="Your cart" onClose={onClose} />
+        <MiniCart title="Your cart" onClose={onClose} className="h-full min-h-0" />
       </aside>
     </div>
   );

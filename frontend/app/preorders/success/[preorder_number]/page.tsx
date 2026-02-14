@@ -9,12 +9,14 @@ export default async function PreorderSuccessPage({
 }) {
   const { preorder_number } = await params;
   return (
-    <div className="mx-auto w-full max-w-lg px-4 sm:px-6 py-20">
-      <Card variant="bordered" className="space-y-4 p-6 text-center">
+    <div className="mx-auto w-full max-w-lg px-4 py-12 sm:px-6 sm:py-20">
+      <Card variant="bordered" className="space-y-4 p-5 text-center sm:p-6">
         <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">
           Preorder submitted
         </p>
-        <h1 className="text-2xl font-semibold">We received your request</h1>
+        <h1 className="text-xl font-semibold sm:text-2xl">
+          We received your request
+        </h1>
         <p className="text-sm text-foreground/70">
           Your preorder number is <strong>{preorder_number}</strong>.
         </p>

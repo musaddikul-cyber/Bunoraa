@@ -134,22 +134,24 @@ export default function PreorderDetailPage() {
       description="Sign in to view preorder details."
       nextHref={preorderNumber ? `/preorders/order/${preorderNumber}/` : undefined}
     >
-      <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
         {preorderQuery.isLoading ? (
           <Card variant="bordered" className="p-6 text-sm text-foreground/70">
             Loading preorder...
           </Card>
         ) : preorder ? (
-          <div className="space-y-6">
-            <Card variant="bordered" className="space-y-3">
+          <div className="space-y-4 sm:space-y-6">
+            <Card variant="bordered" className="space-y-3 p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">
                     Preorder
                   </p>
-                  <h1 className="text-2xl font-semibold">#{preorder.preorder_number}</h1>
+                  <h1 className="break-all text-xl font-semibold sm:text-2xl">
+                    #{preorder.preorder_number}
+                  </h1>
                 </div>
-                <div className="rounded-full bg-muted px-3 py-1 text-xs">
+                <div className="rounded-full bg-muted px-3 py-1 text-xs capitalize">
                   {preorder.status_display || preorder.status}
                 </div>
               </div>
@@ -175,9 +177,9 @@ export default function PreorderDetailPage() {
               </div>
             </Card>
 
-            <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-              <div className="space-y-6">
-                <Card variant="bordered" className="space-y-4">
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.6fr_1fr]">
+              <div className="space-y-4 sm:space-y-6">
+                <Card variant="bordered" className="space-y-4 p-4 sm:p-5">
                   <h2 className="text-lg font-semibold">Overview</h2>
                   <div className="grid gap-4 text-sm text-foreground/70 sm:grid-cols-2">
                     <div>
@@ -191,7 +193,7 @@ export default function PreorderDetailPage() {
                         Contact
                       </p>
                       <p>{preorder.full_name}</p>
-                      <p>{preorder.email}</p>
+                      <p className="break-all">{preorder.email}</p>
                       {preorder.phone ? <p>{preorder.phone}</p> : null}
                     </div>
                   </div>
@@ -212,7 +214,7 @@ export default function PreorderDetailPage() {
                 </Card>
 
                 {preorder.option_values?.length ? (
-                  <Card variant="bordered" className="space-y-4">
+                  <Card variant="bordered" className="space-y-4 p-4 sm:p-5">
                     <h2 className="text-lg font-semibold">Customization</h2>
                     <div className="grid gap-3 text-sm text-foreground/70 sm:grid-cols-2">
                       {preorder.option_values.map((option) => (
@@ -229,13 +231,14 @@ export default function PreorderDetailPage() {
                   </Card>
                 ) : null}
 
-                <Card variant="bordered" className="space-y-4">
+                <Card variant="bordered" className="space-y-4 p-4 sm:p-5">
                   <h2 className="text-lg font-semibold">Files</h2>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-sm font-semibold">Design files</p>
                         <Button
+                          className="w-full sm:w-auto"
                           size="sm"
                           variant="secondary"
                           onClick={() => handleUpload("design")}
@@ -259,7 +262,7 @@ export default function PreorderDetailPage() {
                             <a
                               key={design.id}
                               href={design.file || "#"}
-                              className="block text-primary"
+                              className="block break-all text-primary"
                               target="_blank"
                               rel="noreferrer"
                             >
@@ -272,9 +275,10 @@ export default function PreorderDetailPage() {
                       </div>
                     </div>
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-sm font-semibold">Reference files</p>
                         <Button
+                          className="w-full sm:w-auto"
                           size="sm"
                           variant="secondary"
                           onClick={() => handleUpload("reference")}
@@ -298,7 +302,7 @@ export default function PreorderDetailPage() {
                             <a
                               key={ref.id}
                               href={ref.file || "#"}
-                              className="block text-primary"
+                              className="block break-all text-primary"
                               target="_blank"
                               rel="noreferrer"
                             >
@@ -313,7 +317,7 @@ export default function PreorderDetailPage() {
                   </div>
                 </Card>
 
-                <Card variant="bordered" className="space-y-4">
+                <Card variant="bordered" className="space-y-4 p-4 sm:p-5">
                   <h2 className="text-lg font-semibold">Messages</h2>
                   <div className="space-y-3">
                     {preorder.messages?.length ? (
@@ -342,17 +346,21 @@ export default function PreorderDetailPage() {
                     <input
                       className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
                       placeholder="Subject (optional)"
+                      autoComplete="off"
+                      enterKeyHint="next"
                       value={messageSubject}
                       onChange={(event) => setMessageSubject(event.target.value)}
                     />
                     <textarea
                       className="min-h-[120px] w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
                       placeholder="Write your message"
+                      enterKeyHint="send"
                       value={messageBody}
                       onChange={(event) => setMessageBody(event.target.value)}
                     />
                     <div>
                       <Button
+                        className="w-full sm:w-auto"
                         variant="primary-gradient"
                         onClick={handleSendMessage}
                         disabled={actions.sendMessage.isPending}
@@ -364,8 +372,8 @@ export default function PreorderDetailPage() {
                 </Card>
               </div>
 
-              <div className="space-y-6">
-                <Card variant="bordered" className="space-y-3">
+              <div className="space-y-4 sm:space-y-6 lg:sticky lg:top-24 lg:self-start">
+                <Card variant="bordered" className="space-y-3 p-4 sm:p-5">
                   <h2 className="text-lg font-semibold">Payment snapshot</h2>
                   <div className="space-y-2 text-sm text-foreground/70">
                     <p>
@@ -387,7 +395,7 @@ export default function PreorderDetailPage() {
                 </Card>
 
                 {statusHistory.length ? (
-                  <Card variant="bordered" className="space-y-3">
+                  <Card variant="bordered" className="space-y-3 p-4 sm:p-5">
                     <h2 className="text-lg font-semibold">Status timeline</h2>
                     <div className="space-y-3 text-sm text-foreground/70">
                       {statusHistory.map((entry) => (
@@ -407,11 +415,11 @@ export default function PreorderDetailPage() {
                   </Card>
                 ) : null}
 
-                <Card variant="bordered" className="space-y-3">
+                <Card variant="bordered" className="space-y-3 p-4 sm:p-5">
                   <h2 className="text-lg font-semibold">Shipping</h2>
                   <div className="text-sm text-foreground/70">
                     <p>{preorder.shipping_method || "Standard"}</p>
-                    <p className="mt-2">
+                    <p className="mt-2 break-words">
                       {joinAddress(
                         preorder.shipping_address_line_1,
                         preorder.shipping_address_line_2,
@@ -429,7 +437,7 @@ export default function PreorderDetailPage() {
                         href={preorder.tracking_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-1 inline-block text-primary"
+                        className="mt-1 inline-block break-all text-primary"
                       >
                         Track shipment
                       </a>
@@ -438,7 +446,7 @@ export default function PreorderDetailPage() {
                 </Card>
 
                 {preorder.quotes?.length ? (
-                  <Card variant="bordered" className="space-y-4">
+                  <Card variant="bordered" className="space-y-4 p-4 sm:p-5">
                     <h2 className="text-lg font-semibold">Quotes</h2>
                     <div className="space-y-4">
                       {preorder.quotes.map((quote) => (
@@ -469,8 +477,9 @@ export default function PreorderDetailPage() {
                                   }))
                                 }
                               />
-                              <div className="flex flex-wrap gap-2">
+                              <div className="grid gap-2 sm:flex sm:flex-wrap">
                                 <Button
+                                  className="w-full sm:w-auto"
                                   size="sm"
                                   variant="primary-gradient"
                                   onClick={() => handleAcceptQuote(quote)}
@@ -479,6 +488,7 @@ export default function PreorderDetailPage() {
                                   Accept quote
                                 </Button>
                                 <Button
+                                  className="w-full sm:w-auto"
                                   size="sm"
                                   variant="secondary"
                                   onClick={() => handleRejectQuote(quote)}
@@ -496,11 +506,11 @@ export default function PreorderDetailPage() {
                 ) : null}
 
                 {preorder.payments?.length ? (
-                  <Card variant="bordered" className="space-y-3">
+                  <Card variant="bordered" className="space-y-3 p-4 sm:p-5">
                     <h2 className="text-lg font-semibold">Payments</h2>
                     <div className="space-y-2 text-sm text-foreground/70">
                       {preorder.payments.map((payment) => (
-                        <div key={payment.id} className="flex items-center justify-between">
+                        <div key={payment.id} className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium">{payment.payment_type}</p>
                             <p className="text-xs text-foreground/60">
@@ -519,16 +529,16 @@ export default function PreorderDetailPage() {
                   </Card>
                 ) : null}
 
-                <Card variant="bordered" className="space-y-3">
+                <Card variant="bordered" className="space-y-3 p-4 sm:p-5">
                   <h2 className="text-lg font-semibold">Need help?</h2>
                   <p className="text-sm text-foreground/70">
                     Track your preorder publicly or start a new request.
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild size="sm" variant="secondary">
+                  <div className="grid gap-2 sm:flex sm:flex-wrap">
+                    <Button asChild className="w-full sm:w-auto" size="sm" variant="secondary">
                       <Link href="/preorders/track/">Track preorder</Link>
                     </Button>
-                    <Button asChild size="sm" variant="secondary">
+                    <Button asChild className="w-full sm:w-auto" size="sm" variant="secondary">
                       <Link href="/preorders/create/1/">Start another preorder</Link>
                     </Button>
                   </div>

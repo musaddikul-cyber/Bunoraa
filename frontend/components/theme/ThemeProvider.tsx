@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
 
 export type ThemeName =
   | "light"
@@ -91,16 +92,21 @@ export function useTheme() {
   return ctx;
 }
 
-export function ThemeSwitcher() {
+export function ThemeSwitcher({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
 
   return (
-    <label className="flex w-full items-center gap-2 text-xs text-foreground/70 sm:w-auto">
+    <label
+      className={cn(
+        "flex w-auto items-center gap-2 text-sm font-medium text-foreground/80",
+        className
+      )}
+    >
       <span className="whitespace-nowrap">Theme</span>
       <select
         value={theme}
         onChange={(event) => setTheme(event.target.value as ThemeName)}
-        className="h-8 min-h-0 w-full rounded-lg border border-border bg-card px-2 text-xs leading-tight text-foreground sm:h-9 sm:w-36 sm:text-sm"
+        className="h-10 min-h-0 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground sm:h-9 sm:w-32 sm:text-sm"
       >
         {THEME_CLASSES.map((option) => (
           <option key={option} value={option}>

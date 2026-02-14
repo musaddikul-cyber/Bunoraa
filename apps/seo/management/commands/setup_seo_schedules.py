@@ -29,7 +29,7 @@ class Command(BaseCommand):
         # Prerender daily at 02:00 UTC (optional)
         try:
             from django.conf import settings
-            if not getattr(settings, 'PRERENDER_ENABLED', True):
+            if not getattr(settings, 'PRERENDER_ENABLED', False):
                 updated = PeriodicTask.objects.filter(name='seo-prerender-daily').update(enabled=False)
                 msg = 'Disabled prerender schedule (PRERENDER_ENABLED is false)'
                 if updated:

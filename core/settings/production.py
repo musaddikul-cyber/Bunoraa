@@ -19,6 +19,10 @@ SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'api.bunoraa.com')
 DEBUG = False
 ENVIRONMENT = 'production'
 
+# Explicitly disable prerendering in production regardless of environment vars.
+PRERENDER_ENABLED = False
+PRERENDER_PATHS = []
+
 # Ensure SECRET_KEY is set
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY must be set in production environment")

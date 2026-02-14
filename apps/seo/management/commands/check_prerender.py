@@ -9,7 +9,7 @@ class Command(BaseCommand):
     help = 'Check prerender cache files and verify they are served to bots with X-PreRendered header and low TTFB'
 
     def handle(self, *args, **options):
-        if not getattr(settings, 'PRERENDER_ENABLED', True):
+        if not getattr(settings, 'PRERENDER_ENABLED', False):
             self.stdout.write(self.style.WARNING('PRERENDER_ENABLED is false; skipping prerender check.'))
             return
         cache_dir = os.path.join(settings.BASE_DIR, getattr(settings, 'PRERENDER_CACHE_DIR', 'prerender_cache'))

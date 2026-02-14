@@ -91,6 +91,17 @@ function formatMoney(amount: string | number, currency: string) {
   }
 }
 
+function parseMoney(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/[^0-9.,-]/.test(trimmed)) return null;
+  const normalized = trimmed.replace(/,/g, "");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function getProductImage(product: ProductListItem) {
   const primary = product.primary_image as unknown as
     | string
@@ -406,28 +417,28 @@ export function CartPage() {
   const currency = summary?.currency_code || cart?.currency || "";
   const itemCount = cart?.item_count ?? 0;
 
-  const formattedSubtotal =
-    summary?.formatted_subtotal ??
-    (cart ? formatMoney(cart.subtotal, currency) : formatMoney(0, currency));
-  const formattedDiscount =
-    summary?.formatted_discount ??
-    (cart ? formatMoney(cart.discount_amount, currency) : formatMoney(0, currency));
-  const formattedShipping =
-    summary?.formatted_shipping ??
-    (summary?.shipping_cost
-      ? formatMoney(summary.shipping_cost, currency)
-      : formatMoney(0, currency));
-  const formattedTax =
-    summary?.formatted_tax ??
-    (summary?.tax_amount ? formatMoney(summary.tax_amount, currency) : formatMoney(0, currency));
-  const formattedGiftWrap =
-    summary?.formatted_gift_wrap ??
-    (summary?.gift_wrap_cost
-      ? formatMoney(summary.gift_wrap_cost, currency)
-      : formatMoney(0, currency));
-  const formattedTotal =
-    summary?.formatted_total ??
-    (cart ? formatMoney(cart.total, currency) : formatMoney(0, currency));
+  const subtotalValue = parseMoney(cart?.subtotal) ?? parseMoney(summary?.subtotal) ?? 0;
+  const discountValue =
+    parseMoney(cart?.discount_amount) ?? parseMoney(summary?.discount_amount) ?? 0;
+  const shippingValue = parseMoney(summary?.shipping_cost) ?? 0;
+  const taxValue = parseMoney(summary?.tax_amount) ?? 0;
+  const giftWrapValue =
+    parseMoney(summary?.gift_wrap_cost) ??
+    parseMoney(summary?.gift_wrap_amount) ??
+    0;
+  const derivedTotalValue = Math.max(
+    0,
+    subtotalValue - discountValue + shippingValue + taxValue + giftWrapValue
+  );
+  const fallbackSummaryTotal = parseMoney(summary?.total) ?? 0;
+  const totalValue = cart ? derivedTotalValue : fallbackSummaryTotal || derivedTotalValue;
+
+  const formattedSubtotal = formatMoney(subtotalValue, currency);
+  const formattedDiscount = formatMoney(discountValue, currency);
+  const formattedShipping = formatMoney(shippingValue, currency);
+  const formattedTax = formatMoney(taxValue, currency);
+  const formattedGiftWrap = formatMoney(giftWrapValue, currency);
+  const formattedTotal = formatMoney(totalValue, currency);
 
   const showShipping = Boolean(summary);
   const showTax = summary?.tax_amount !== undefined && Number(summary.tax_amount) > 0;

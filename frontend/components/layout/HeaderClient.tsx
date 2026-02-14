@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCart } from "@/components/cart/useCart";
@@ -89,6 +90,7 @@ function UserIcon() {
 }
 
 export function HeaderClient() {
+  const pathname = usePathname();
   const [mounted, setMounted] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -140,6 +142,11 @@ export function HeaderClient() {
       document.removeEventListener("keydown", handleKey);
     };
   }, [menuOpen]);
+
+  React.useEffect(() => {
+    setOpen(false);
+    setMenuOpen(false);
+  }, [pathname]);
 
   const iconButtonClass =
     "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-10 sm:w-10";

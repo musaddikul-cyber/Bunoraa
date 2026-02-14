@@ -55,6 +55,7 @@ export function MiniCart({
   className?: string;
 }) {
   const { cartQuery, cartSummaryQuery, removeItem, updateItem } = useCart();
+  const handleClose = () => onClose?.();
 
   if (cartQuery.isLoading) {
     return null;
@@ -139,7 +140,9 @@ export function MiniCart({
           </p>
         </div>
         <Button asChild variant="secondary">
-          <Link href="/products/">Continue shopping</Link>
+          <Link href="/products/" onClick={handleClose}>
+            Continue shopping
+          </Link>
         </Button>
       </Card>
     );
@@ -253,10 +256,14 @@ export function MiniCart({
 
           <div className="grid gap-2">
             <Button asChild variant="secondary">
-              <Link href="/cart/">View cart</Link>
+              <Link href="/cart/" onClick={handleClose}>
+                View cart
+              </Link>
             </Button>
             <Button asChild variant="primary-gradient">
-              <Link href="/checkout/">Checkout</Link>
+              <Link href="/checkout/" onClick={handleClose}>
+                Checkout
+              </Link>
             </Button>
           </div>
         </>

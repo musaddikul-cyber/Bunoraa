@@ -125,7 +125,7 @@ def submit_sitemaps_to_engines(self):
 def prerender_top_task(self, categories=10, products=20, include_static=True):
     """Call management command to prerender top pages."""
     from django.conf import settings
-    if not getattr(settings, 'PRERENDER_ENABLED', True):
+    if not getattr(settings, 'PRERENDER_ENABLED', False):
         return {'prerendered': False, 'reason': 'PRERENDER_ENABLED is false'}
     from django.core.management import call_command
     args = [f'--categories={categories}', f'--products={products}']

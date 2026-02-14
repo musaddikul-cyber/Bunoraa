@@ -142,7 +142,7 @@ export function HeaderClient() {
   }, [menuOpen]);
 
   const iconButtonClass =
-    "relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-10 sm:w-10";
+    "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-10 sm:w-10";
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">
@@ -176,7 +176,7 @@ export function HeaderClient() {
           </span>
         ) : null}
       </button>
-      <div className="relative" ref={menuRef}>
+      <div className="relative flex items-center" ref={menuRef}>
         <button
           type="button"
           className={`${iconButtonClass} ${hasProfileAvatar ? "overflow-hidden p-0" : ""}`}
@@ -211,7 +211,7 @@ export function HeaderClient() {
         {menuOpen ? (
           mounted && hasToken ? (
             <div
-              className="absolute right-0 top-full z-50 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-lg"
+              className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-lg"
               role="menu"
             >
               <div className="border-b border-border px-3 py-2">
@@ -290,7 +290,7 @@ export function HeaderClient() {
             </div>
           ) : (
             <div
-              className="absolute right-0 top-full z-50 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-lg"
+              className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-lg"
               role="menu"
             >
               <div className="border-b border-border px-3 py-2">

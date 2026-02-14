@@ -10,6 +10,8 @@ import {
   parseFilters,
   toggleMultiValue,
   updateParamValue,
+  getAppliedFilters,
+  clearAllFilters,
 } from "@/lib/productFilters";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
@@ -33,10 +35,10 @@ export type CategoryFilterItem = {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold">{title}</h3>
+    <section className="space-y-3 rounded-xl border border-border/70 bg-card/40 p-3 sm:p-4">
+      <h3 className="text-sm font-semibold sm:text-base">{title}</h3>
       <div className="space-y-2">{children}</div>
-    </div>
+    </section>
   );
 }
 
@@ -94,6 +96,8 @@ export function FilterPanel({
     return Number.isFinite(parsed) ? parsed : fallback;
   };
   const current = parseFilters(searchParams);
+  const appliedFilters = getAppliedFilters(current);
+  const hasAppliedFilters = appliedFilters.length > 0;
   const minRange = Math.max(0, parseNumber(activeFilters?.price_range?.min, 0));
   const maxRange = Math.max(
     minRange,
@@ -206,13 +210,31 @@ export function FilterPanel({
 
   return (
     <div className={cn("space-y-6", className)}>
+      <div className="flex items-center justify-between rounded-xl border border-border/70 bg-card/40 px-3 py-2.5 text-sm">
+        <span className="font-medium text-foreground/80">
+          {typeof productCount === "number" ? `${productCount} products` : "Filters"}
+        </span>
+        {hasAppliedFilters ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="min-h-8 px-2.5 text-xs sm:text-sm"
+            onClick={() => {
+              const params = clearAllFilters(searchParams);
+              router.push(`?${params.toString()}`);
+            }}
+          >
+            Clear all
+          </Button>
+        ) : null}
+      </div>
       {visibleCategories.length ? (
         <Section title="Subcategories">
           <div className="flex flex-wrap gap-2">
             {visibleCategories.map((category) => (
               <Link
                 key={category.id}
-                className="rounded-full border border-border px-3 py-1 text-xs text-foreground/70 transition hover:border-primary/40 hover:text-foreground"
+                className="inline-flex min-h-9 items-center rounded-full border border-border px-3.5 py-1.5 text-sm text-foreground/70 transition hover:border-primary/40 hover:text-foreground"
                 href={`/categories/${category.slug}/${categorySuffix}`}
               >
                 {category.name}
@@ -226,10 +248,10 @@ export function FilterPanel({
       ) : null}
       <Section title="Price range">
         <div className="space-y-3">
-          <div className="relative h-4">
-            <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-muted" />
+          <div className="relative h-5">
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-muted" />
             <div
-              className="pointer-events-none absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-primary/30"
+              className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-primary/30"
               style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}
             />
             <input
@@ -249,7 +271,7 @@ export function FilterPanel({
               onTouchEnd={applyPrice}
               aria-label="Minimum price"
               className={cn(
-                "range-slider range-slider-min absolute inset-0 h-4 w-full cursor-pointer bg-transparent",
+                "range-slider range-slider-min absolute inset-0 h-5 w-full cursor-pointer bg-transparent",
                 minZ
               )}
             />
@@ -270,7 +292,7 @@ export function FilterPanel({
               onTouchEnd={applyPrice}
               aria-label="Maximum price"
               className={cn(
-                "range-slider range-slider-max absolute inset-0 h-4 w-full cursor-pointer bg-transparent",
+                "range-slider range-slider-max absolute inset-0 h-5 w-full cursor-pointer bg-transparent",
                 maxZ
               )}
             />
@@ -283,7 +305,7 @@ export function FilterPanel({
       </Section>
 
       <Section title="Availability">
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-9 items-center gap-2 text-sm">
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-border text-primary"
@@ -300,7 +322,7 @@ export function FilterPanel({
           In stock only
         </label>
         {activeFilters?.has_on_sale ? (
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex min-h-9 items-center gap-2 text-sm">
             <input
               type="checkbox"
               className="h-4 w-4 rounded border-border text-primary"
@@ -317,7 +339,7 @@ export function FilterPanel({
             On sale
           </label>
         ) : null}
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex min-h-9 items-center gap-2 text-sm">
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-border text-primary"
@@ -337,7 +359,7 @@ export function FilterPanel({
 
       <Section title="Rating">
         {[4, 3, 2].map((rating) => (
-          <label key={rating} className="flex items-center gap-2 text-sm">
+          <label key={rating} className="flex min-h-9 items-center gap-2 text-sm">
             <input
               type="radio"
               name="min_rating"
@@ -375,7 +397,7 @@ export function FilterPanel({
                   key={tag.slug}
                   type="button"
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs",
+                    "inline-flex min-h-9 items-center rounded-full border px-3.5 py-1.5 text-sm",
                     isSelected
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-foreground/70"
@@ -404,7 +426,7 @@ export function FilterPanel({
                   key={item.value}
                   type="button"
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs",
+                    "inline-flex min-h-9 items-center rounded-full border px-3.5 py-1.5 text-sm",
                     isSelected
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-foreground/70"

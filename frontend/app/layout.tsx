@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { unstable_noStore as noStore } from "next/cache";
+import { Suspense } from "react";
 import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
@@ -96,7 +97,9 @@ export default function RootLayout({
           Skip to main content
         </a>
         <Providers>
-          <PageViewTracker />
+          <Suspense fallback={null}>
+            <PageViewTracker />
+          </Suspense>
           <Header />
           <main id="main-content" className="min-h-[70vh]">
             {children}

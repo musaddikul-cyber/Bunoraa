@@ -209,30 +209,46 @@ export default async function CategoryPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-12">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+        <div className="mb-6 space-y-4 sm:mb-8">
           <div>
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-foreground/60">
+              <Link href="/" className="hover:text-foreground">
+                Home
+              </Link>
+              <span aria-hidden="true">/</span>
+              <Link href="/categories/" className="hover:text-foreground">
+                Categories
+              </Link>
+              <span aria-hidden="true">/</span>
+              <span className="text-foreground/80">{category.name}</span>
+            </div>
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
               Category
             </p>
-            <h1 className="text-3xl font-semibold">{category.name}</h1>
-            <p className="mt-2 text-foreground/70">
+            <h1 className="text-2xl font-semibold sm:text-3xl">{category.name}</h1>
+            <p className="mt-2 max-w-3xl text-sm text-foreground/70 sm:text-base">
               {category.meta_description || "Explore products in this category."}
             </p>
+            <p className="mt-2 text-sm text-foreground/60">
+              {totalCount} product{totalCount === 1 ? "" : "s"} available
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {showFilters ? (
-              <FilterDrawer
-                filters={filterData}
-                facets={facets}
-                categories={childCategories}
-                productCount={totalCount}
-                className="lg:hidden"
-                filterParams={filterParams}
-              />
-            ) : null}
-            <SortMenu />
-            <ViewToggle />
+          <div className="sticky top-[calc(var(--header-offset,4.75rem)+0.25rem)] z-20 rounded-2xl border border-border/70 bg-background/95 p-3 shadow-soft backdrop-blur supports-[backdrop-filter]:bg-background/88 lg:static lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+            <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3 lg:justify-end">
+              {showFilters ? (
+                <FilterDrawer
+                  filters={filterData}
+                  facets={facets}
+                  categories={childCategories}
+                  productCount={totalCount}
+                  className="lg:hidden"
+                  filterParams={filterParams}
+                />
+              ) : null}
+              <SortMenu className="w-full sm:w-auto" />
+              <ViewToggle className="w-full sm:w-auto" />
+            </div>
           </div>
         </div>
 
@@ -253,26 +269,26 @@ export default async function CategoryPage({
             <ProductGrid products={products} view={view} />
 
             {showPagination ? (
-              <div className="mt-10 flex items-center justify-between">
-                {pagination?.previous ? (
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href={pageLink(page - 1)}>Previous</Link>
-                  </Button>
-                ) : (
-                  <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
-                    Previous
-                  </span>
-                )}
-                <span className="text-sm text-foreground/60">
+              <div className="mt-8 grid grid-cols-2 items-center gap-2 rounded-xl border border-border/70 bg-card/30 p-3 sm:mt-10 sm:flex sm:justify-between sm:p-4">
+                <span className="order-1 col-span-2 text-center text-sm text-foreground/60 sm:order-none sm:col-span-1">
                   Page {page}
                   {pagination?.total_pages ? ` of ${pagination.total_pages}` : ""}
                 </span>
+                {pagination?.previous ? (
+                  <Button asChild variant="ghost" size="sm" className="order-2 w-full sm:order-none sm:w-auto">
+                    <Link href={pageLink(page - 1)}>Previous</Link>
+                  </Button>
+                ) : (
+                  <span className="order-2 rounded-xl px-4 py-2 text-center text-sm text-foreground/40 sm:order-none">
+                    Previous
+                  </span>
+                )}
                 {pagination?.next ? (
-                  <Button asChild variant="ghost" size="sm">
+                  <Button asChild variant="ghost" size="sm" className="order-3 w-full sm:order-none sm:w-auto">
                     <Link href={pageLink(page + 1)}>Next</Link>
                   </Button>
                 ) : (
-                  <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
+                  <span className="order-3 rounded-xl px-4 py-2 text-center text-sm text-foreground/40 sm:order-none">
                     Next
                   </span>
                 )}

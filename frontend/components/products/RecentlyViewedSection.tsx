@@ -97,10 +97,10 @@ export function RecentlyViewedSection({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold">Recently viewed</h3>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <h3 className="text-lg font-semibold sm:text-xl">Recently viewed</h3>
+      <div className="grid grid-flow-col auto-cols-[78%] gap-3 overflow-x-auto pb-1 snap-x snap-mandatory sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
         {visibleItems.map((item) => (
-          <Card key={item.id} variant="bordered" className="flex flex-col gap-3">
+          <Card key={item.id} variant="bordered" className="snap-start flex flex-col gap-3">
             <div className="aspect-[4/5] overflow-hidden rounded-xl bg-muted">
               {item.primary_image ? (
                 // eslint-disable-next-line @next/next/no-img-element

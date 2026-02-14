@@ -72,7 +72,7 @@ class TrackEventSerializer(serializers.Serializer):
     """Serializer for tracking events."""
     event_type = serializers.ChoiceField(choices=[
         'page_view', 'product_view', 'search', 'cart_add', 
-        'cart_remove', 'checkout_start'
+        'cart_remove', 'checkout_start', 'checkout_complete'
     ])
     product_id = serializers.UUIDField(required=False)
     query = serializers.CharField(required=False)

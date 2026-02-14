@@ -272,85 +272,25 @@ def update_exchange_rates():
 @shared_task
 def aggregate_daily_analytics():
     """
-    Aggregate daily analytics data.
+    Aggregate daily analytics data into DailyStat.
     """
     logger.info("Aggregating daily analytics...")
-    
+
     try:
-        from apps.analytics.models import (
-            PageView, ProductView, SearchQuery, CartEvent, DailyStat
-        )
-        from apps.orders.models import Order
-        from apps.accounts.models import User
-        
+        from apps.analytics.services import ReportService
+
         yesterday = timezone.now().date() - timedelta(days=1)
-        
-        # Calculate metrics
-        page_views = PageView.objects.filter(
-            created_at__date=yesterday
-        ).count()
-        
-        unique_visitors = PageView.objects.filter(
-            created_at__date=yesterday
-        ).values('session_key').distinct().count()
-        
-        product_views = ProductView.objects.filter(
-            created_at__date=yesterday
-        ).count()
-        
-        cart_events = CartEvent.objects.filter(
-            created_at__date=yesterday
-        )
-        
-        cart_additions = cart_events.filter(event_type='add').count()
-        checkout_starts = cart_events.filter(event_type='checkout_start').count()
-        checkout_completions = cart_events.filter(event_type='checkout_complete').count()
-        
-        orders = Order.objects.filter(created_at__date=yesterday)
-        orders_count = orders.count()
-        orders_revenue = sum(o.total for o in orders) if orders.exists() else 0
-        avg_order_value = orders_revenue / orders_count if orders_count > 0 else 0
-        
-        new_users = User.objects.filter(
-            created_at__date=yesterday
-        ).count()
-        
-        # Calculate conversion rate
-        conversion_rate = (checkout_completions / unique_visitors * 100) if unique_visitors > 0 else 0
-        
-        # Calculate cart abandonment
-        abandonment_rate = 0
-        if checkout_starts > 0:
-            abandonment_rate = ((checkout_starts - checkout_completions) / checkout_starts * 100)
-        
-        # Create or update daily stat
-        DailyStat.objects.update_or_create(
-            date=yesterday,
-            defaults={
-                'page_views': page_views,
-                'unique_visitors': unique_visitors,
-                'product_views': product_views,
-                'products_added_to_cart': cart_additions,
-                'orders_count': orders_count,
-                'orders_revenue': orders_revenue,
-                'average_order_value': avg_order_value,
-                'checkout_starts': checkout_starts,
-                'checkout_completions': checkout_completions,
-                'conversion_rate': conversion_rate,
-                'cart_abandonment_rate': abandonment_rate,
-                'new_registrations': new_users,
-            }
-        )
-        
-        logger.info(f"Daily analytics aggregated for {yesterday}")
-        
+        stat = ReportService.generate_daily_stats(yesterday)
+        logger.info("Daily analytics aggregated for %s", yesterday)
+
         return {
-            'status': 'success',
-            'date': str(yesterday),
-            'page_views': page_views,
-            'orders': orders_count,
+            "status": "success",
+            "date": str(yesterday),
+            "page_views": stat.page_views,
+            "orders": stat.orders_count,
+            "revenue": float(stat.orders_revenue or 0),
         }
-        
+
     except Exception as e:
         logger.error(f"Analytics aggregation failed: {e}")
         return {'status': 'error', 'message': str(e)}

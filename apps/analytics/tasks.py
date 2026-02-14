@@ -18,35 +18,26 @@ def generate_daily_report():
     logger.info("Generating daily analytics report...")
     
     try:
-        from apps.analytics.models import DailyStat
-        from apps.orders.models import Order
-        from apps.accounts.models import User
-        
+        from apps.analytics.services import ReportService
+
         yesterday = timezone.now().date() - timedelta(days=1)
-        
-        # Get or create daily stat
-        stat, created = DailyStat.objects.get_or_create(date=yesterday)
-        
-        if created:
-            logger.info(f"Created daily stat for {yesterday}")
-        
-        # Calculate additional metrics
-        orders = Order.objects.filter(created_at__date=yesterday)
-        new_users = User.objects.filter(created_at__date=yesterday)
-        
+        stat = ReportService.generate_daily_stats(yesterday)
+
         report = {
-            'date': str(yesterday),
-            'page_views': stat.page_views,
-            'unique_visitors': stat.unique_visitors,
-            'orders': stat.orders_count,
-            'revenue': float(stat.orders_revenue or 0),
-            'new_users': new_users.count(),
-            'conversion_rate': float(stat.conversion_rate or 0),
+            "date": str(yesterday),
+            "page_views": stat.page_views,
+            "unique_visitors": stat.unique_visitors,
+            "new_visitors": stat.new_visitors,
+            "returning_visitors": stat.returning_visitors,
+            "orders": stat.orders_count,
+            "revenue": float(stat.orders_revenue or 0),
+            "new_users": stat.new_registrations,
+            "conversion_rate": float(stat.conversion_rate or 0),
         }
-        
-        logger.info(f"Daily report generated: {report}")
+
+        logger.info("Daily report generated: %s", report)
         return report
-        
+
     except Exception as e:
         logger.error(f"Failed to generate daily report: {e}")
         return {'error': str(e)}

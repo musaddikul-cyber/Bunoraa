@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 import { CompareTray } from "@/components/products/CompareTray";
+import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, absoluteUrl, cleanObject } from "@/lib/seo";
 import Script from "next/script";
@@ -53,6 +54,7 @@ export default function RootLayout({
     <html lang="en" className="system" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <Providers>
+          <PageViewTracker />
           <Header />
           <main className="min-h-[70vh]">{children}</main>
           <Footer />

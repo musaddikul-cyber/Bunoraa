@@ -40,6 +40,7 @@ from .serializers import (
 from apps.notifications.api.serializers import BackInStockNotificationSerializer 
 from apps.notifications.models import BackInStockNotification
 from apps.i18n.services import CurrencyService, CurrencyConversionService
+from apps.analytics.services import AnalyticsService
 
 
 # =============================================================================
@@ -261,6 +262,33 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         if not qs.query.order_by:
             qs = qs.order_by('-created_at')
         return qs
+
+    def list(self, request, *args, **kwargs):
+        """
+        List products and track search queries when query params are used.
+        """
+        response = super().list(request, *args, **kwargs)
+
+        query = (request.query_params.get('q') or request.query_params.get('search') or '').strip()
+        if query:
+            results_count = 0
+            payload = getattr(response, 'data', None)
+            if isinstance(payload, dict):
+                count_value = payload.get('count')
+                if isinstance(count_value, int):
+                    results_count = count_value
+                elif isinstance(payload.get('results'), list):
+                    results_count = len(payload.get('results') or [])
+            elif isinstance(payload, list):
+                results_count = len(payload)
+
+            try:
+                AnalyticsService.track_search(query, results_count, request)
+            except Exception:
+                # Analytics should never break catalog browsing.
+                pass
+
+        return response
     
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -270,6 +298,11 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
             user=request.user if request.user.is_authenticated else None,
             session_key=request.session.session_key if hasattr(request, 'session') else None
         )
+        try:
+            AnalyticsService.track_product_view(instance, request, source='product_detail')
+        except Exception:
+            # Keep product detail fast/fault-tolerant even if analytics fails.
+            pass
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
     
@@ -677,6 +710,13 @@ class SearchAPIView(APIView):
         # Search categories
         categories = CategoryService.search_categories(query, limit=5)
         categories_data = CategoryListSerializer(categories, many=True, context={'request': request}).data
+
+        try:
+            total_results = len(products_data) + len(categories_data)
+            AnalyticsService.track_search(query, total_results, request)
+        except Exception:
+            # Search should continue even if analytics persistence fails.
+            pass
         
         return Response({
             'products': products_data,

@@ -190,7 +190,14 @@ class TrackingViewSet(viewsets.ViewSet):
         
         try:
             if event_type == 'page_view':
-                AnalyticsService.track_page_view(request)
+                metadata = serializer.validated_data.get('metadata', {})
+                AnalyticsService.track_page_view(
+                    request,
+                    time_on_page=metadata.get('time_on_page', 0),
+                    page_path=metadata.get('page_path'),
+                    query_string=metadata.get('query_string'),
+                    referrer=metadata.get('referrer'),
+                )
             
             elif event_type == 'product_view':
                 product_id = serializer.validated_data.get('product_id')
@@ -234,6 +241,15 @@ class TrackingViewSet(viewsets.ViewSet):
                 from ..models import CartEvent
                 AnalyticsService.track_cart_event(
                     CartEvent.EVENT_CHECKOUT_START,
+                    request,
+                    cart_value=metadata.get('cart_value', 0)
+                )
+
+            elif event_type == 'checkout_complete':
+                metadata = serializer.validated_data.get('metadata', {})
+                from ..models import CartEvent
+                AnalyticsService.track_cart_event(
+                    CartEvent.EVENT_CHECKOUT_COMPLETE,
                     request,
                     cart_value=metadata.get('cart_value', 0)
                 )
@@ -387,4 +403,3 @@ class PublicAnalyticsViewSet(viewsets.ViewSet):
                 'data': {'error': str(e)},
                 'meta': {}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-

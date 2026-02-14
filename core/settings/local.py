@@ -90,6 +90,7 @@ try:
     DEBUG_TOOLBAR_CONFIG = {
         'SHOW_TOOLBAR_CALLBACK': lambda request: DEBUG,
         'RESULTS_CACHE_SIZE': 100,
+        'IS_RUNNING_TESTS': False,
     }
 except ImportError:
     pass

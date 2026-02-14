@@ -74,6 +74,22 @@ class CartViewSet(viewsets.ViewSet):
             session_key = request.session.session_key
         
         return CartService.get_or_create_cart(user=user, session_key=session_key)
+
+    def _track_cart_event(self, request, event_type, product=None, quantity=1, cart_value=0):
+        """Best-effort analytics tracking for cart funnel events."""
+        try:
+            from apps.analytics.services import AnalyticsService
+
+            AnalyticsService.track_cart_event(
+                event_type=event_type,
+                request=request,
+                product=product,
+                quantity=quantity,
+                cart_value=cart_value,
+            )
+        except Exception:
+            # Analytics failures must not break cart operations.
+            pass
     
     def list(self, request):
         """Get current cart."""
@@ -85,7 +101,8 @@ class CartViewSet(viewsets.ViewSet):
     def add(self, request):
         """Add item to cart."""
         from apps.catalog.models import Product, ProductVariant
-        
+        from apps.analytics.models import CartEvent
+
         serializer = AddToCartSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -106,6 +123,14 @@ class CartViewSet(viewsets.ViewSet):
                 product=product,
                 quantity=serializer.validated_data['quantity'],
                 variant=variant
+            )
+            cart.refresh_from_db()
+            self._track_cart_event(
+                request=request,
+                event_type=CartEvent.EVENT_ADD,
+                product=product,
+                quantity=serializer.validated_data['quantity'],
+                cart_value=cart.total,
             )
             
             return Response({
@@ -128,6 +153,8 @@ class CartViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='update/(?P<item_id>[^/.]+)')
     def update_item(self, request, item_id=None):
         """Update cart item quantity."""
+        from apps.analytics.models import CartEvent
+
         serializer = UpdateCartItemSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(
@@ -141,10 +168,21 @@ class CartViewSet(viewsets.ViewSet):
 
         try:
             cart = self._get_cart(request)
+            existing_item = cart.items.select_related('product').filter(pk=item_id).first()
             CartService.update_item_quantity(
                 cart=cart,
                 item_id=item_id,
                 quantity=serializer.validated_data['quantity']
+            )
+            cart.refresh_from_db()
+            quantity = serializer.validated_data['quantity']
+            event_type = CartEvent.EVENT_UPDATE if quantity > 0 else CartEvent.EVENT_REMOVE
+            self._track_cart_event(
+                request=request,
+                event_type=event_type,
+                product=existing_item.product if existing_item else None,
+                quantity=max(quantity, 0),
+                cart_value=cart.total,
             )
 
             return Response({
@@ -181,10 +219,21 @@ class CartViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='remove/(?P<item_id>[^/.]+)')
     def remove_item(self, request, item_id=None):
         """Remove item from cart."""
+        from apps.analytics.models import CartEvent
+
         cart = self._get_cart(request)
+        existing_item = cart.items.select_related('product').filter(pk=item_id).first()
         removed = CartService.remove_item(cart, item_id)
         
         if removed:
+            cart.refresh_from_db()
+            self._track_cart_event(
+                request=request,
+                event_type=CartEvent.EVENT_REMOVE,
+                product=existing_item.product if existing_item else None,
+                quantity=existing_item.quantity if existing_item else 1,
+                cart_value=cart.total,
+            )
             return Response({
                 'success': True,
                 'message': 'Item removed',
@@ -196,8 +245,20 @@ class CartViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def clear(self, request):
         """Clear all items from cart."""
+        from apps.analytics.models import CartEvent
+
         cart = self._get_cart(request)
+        items = list(cart.items.select_related('product').all())
         CartService.clear_cart(cart)
+        cart.refresh_from_db()
+        for item in items:
+            self._track_cart_event(
+                request=request,
+                event_type=CartEvent.EVENT_REMOVE,
+                product=item.product,
+                quantity=item.quantity,
+                cart_value=cart.total,
+            )
         
         return Response({
             'success': True,
@@ -672,9 +733,27 @@ class CheckoutViewSet(viewsets.ViewSet):
     """ViewSet for checkout operations."""
     
     permission_classes = [permissions.AllowAny]
+
+    def _track_cart_event(self, request, event_type, product=None, quantity=1, cart_value=0):
+        """Best-effort analytics tracking for checkout funnel events."""
+        try:
+            from apps.analytics.services import AnalyticsService
+
+            AnalyticsService.track_cart_event(
+                event_type=event_type,
+                request=request,
+                product=product,
+                quantity=quantity,
+                cart_value=cart_value,
+            )
+        except Exception:
+            # Checkout should not fail due to analytics.
+            pass
     
     def _get_checkout_session(self, request):
         """Get or create checkout session."""
+        from apps.analytics.models import CartEvent
+
         user = request.user if request.user.is_authenticated else None
         session_key = request.session.session_key
         
@@ -686,13 +765,23 @@ class CheckoutViewSet(viewsets.ViewSet):
         
         if not cart or not cart.items.exists():
             return None
-        
-        return CheckoutService.get_or_create_session(
+        existing_session = CheckoutService.get_active_session(cart, user=user, session_key=session_key)
+
+        checkout_session = CheckoutService.get_or_create_session(
             cart=cart,
             user=user,
             session_key=session_key,
             request=request
         )
+
+        if existing_session is None:
+            self._track_cart_event(
+                request=request,
+                event_type=CartEvent.EVENT_CHECKOUT_START,
+                cart_value=cart.total,
+            )
+
+        return checkout_session
     
     def list(self, request):
         """Get current checkout session."""
@@ -971,6 +1060,8 @@ class CheckoutViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def complete(self, request):
         """Complete checkout and place order."""
+        from apps.analytics.models import CartEvent
+
         checkout_session = self._get_checkout_session(request)
         
         if not checkout_session:
@@ -999,6 +1090,11 @@ class CheckoutViewSet(viewsets.ViewSet):
                 checkout_session.save(update_fields=['order_notes'])
 
             order = CheckoutService.complete_checkout(checkout_session)
+            self._track_cart_event(
+                request=request,
+                event_type=CartEvent.EVENT_CHECKOUT_COMPLETE,
+                cart_value=order.total,
+            )
 
             payment_redirect_url = None
             payment_instructions = None

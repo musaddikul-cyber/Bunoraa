@@ -340,7 +340,14 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 return Response(serializer.data)
             
             logger.debug(f"[Chat] No active conversation found for user {user.id}")
-            return Response({'detail': 'No active conversation'}, status=status.HTTP_404_NOT_FOUND)
+            # No active conversation is a valid state, so return 200 instead of 404.
+            return Response(
+                {
+                    'conversation': None,
+                    'detail': 'No active conversation',
+                },
+                status=status.HTTP_200_OK,
+            )
         except Exception as e:
             logger.exception(f"[Chat] Error in active(): {e}")
             return Response(

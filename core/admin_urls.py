@@ -2,15 +2,15 @@
 Admin URLs for Bunoraa Dashboard and Utilities
 """
 from django.urls import path
-from django.views.generic import RedirectView
 from . import admin_dashboard
 from . import admin_utilities
 
+from django.views.generic import RedirectView
 admin_redirect = RedirectView.as_view(url='/admin/', permanent=False)
 
 urlpatterns = [
     # Dashboard
-    path('', admin_redirect, name='admin_dashboard'),
+    path('', admin_dashboard.admin_dashboard, name='admin_dashboard'),
     path('api/stats/', admin_dashboard.dashboard_stats_api, name='dashboard_stats_api'),
     path('api/revenue/', admin_dashboard.revenue_chart_api, name='dashboard_revenue_api'),
     path('api/top-products/', admin_dashboard.top_products_api, name='dashboard_top_products_api'),

@@ -1,8 +1,6 @@
 """
 Analytics middleware for tracking page views
 """
-from django.conf import settings
-
 
 class AnalyticsMiddleware:
     """Middleware to track page views."""
@@ -20,16 +18,18 @@ class AnalyticsMiddleware:
     
     def __call__(self, request):
         response = self.get_response(request)
-        
-        # Track page view for successful GET requests
+
+        is_ajax = request.headers.get('X-Requested-With', '') == 'XMLHttpRequest'
+
+        # Track page view for successful non-AJAX GET requests.
         if (
-            request.method == 'GET' 
+            request.method == 'GET'
             and response.status_code == 200
             and not self._is_excluded(request.path)
-            and not request.is_ajax() if hasattr(request, 'is_ajax') else 'XMLHttpRequest' not in request.headers.get('X-Requested-With', '')
+            and not is_ajax
         ):
             self._track_page_view(request)
-        
+
         return response
     
     def _is_excluded(self, path):

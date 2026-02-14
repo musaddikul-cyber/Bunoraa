@@ -1,9 +1,9 @@
 """
 Signal handlers for Analytics app.
-Tracks user interactions and page views for analytics.
+Tracks user interactions and logs operational events.
 """
 import logging
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
 
@@ -21,37 +21,18 @@ def on_page_view_created(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender='analytics.ProductView')
 def on_product_view_created(sender, instance, created, **kwargs):
-    """Track product view for recommendation engine."""
+    """Track product view events."""
     if created:
-        try:
-            # Increment product view count
-            product = instance.product
-            if product:
-                from apps.products.models import Product
-                Product.objects.filter(pk=product.pk).update(
-                    view_count=product.view_count + 1
-                )
-        except Exception as e:
-            logger.warning(f"Failed to update product view count: {e}")
+        # Product counters are updated in AnalyticsService.track_product_view;
+        # this signal only logs to avoid duplicate increments.
+        logger.debug("Product view recorded for product_id=%s", instance.product_id)
 
 
 @receiver(post_save, sender='analytics.SearchQuery')
 def on_search_query_created(sender, instance, created, **kwargs):
-    """Track search queries for analytics and suggestions."""
+    """Track search queries for analytics."""
     if created:
-        logger.debug(f"Search query recorded: {instance.query}")
-        
-        # Update search trends if needed
-        try:
-            from .models import SearchTrend
-            trend, _ = SearchTrend.objects.get_or_create(
-                query=instance.query.lower().strip(),
-                defaults={'count': 0}
-            )
-            trend.count += 1
-            trend.save(update_fields=['count'])
-        except Exception:
-            pass  # SearchTrend may not exist
+        logger.debug("Search query recorded: %s", instance.query)
 
 
 @receiver(post_save, sender='analytics.CartEvent')

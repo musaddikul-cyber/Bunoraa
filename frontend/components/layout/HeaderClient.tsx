@@ -45,6 +45,24 @@ function CartIcon() {
   );
 }
 
+function UserIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M4 20a8 8 0 0 1 16 0" />
+    </svg>
+  );
+}
+
 export function HeaderClient() {
   const [mounted, setMounted] = React.useState(false);
   const [open, setOpen] = React.useState(false);
@@ -122,18 +140,15 @@ export function HeaderClient() {
           </span>
         ) : null}
       </button>
-      {!mounted ? (
-        <Link href="/account/login/" className="text-sm">
-          Sign in
-        </Link>
-      ) : hasToken ? (
-        <div className="relative" ref={menuRef}>
-          <button
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none"
-            onClick={() => setMenuOpen((prev) => !prev)}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-          >
+      <div className="relative" ref={menuRef}>
+        <button
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none"
+          onClick={() => setMenuOpen((prev) => !prev)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label="Account menu"
+        >
+          {mounted && hasToken ? (
             <span className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-semibold uppercase text-foreground/70">
               {profileQuery.data?.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -143,11 +158,15 @@ export function HeaderClient() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                (profileQuery.data?.first_name?.[0] || "U")
+                profileQuery.data?.first_name?.[0] || "U"
               )}
             </span>
-          </button>
-          {menuOpen ? (
+          ) : (
+            <UserIcon />
+          )}
+        </button>
+        {menuOpen ? (
+          mounted && hasToken ? (
             <div
               className="absolute right-0 top-full z-50 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-lg"
               role="menu"
@@ -213,13 +232,52 @@ export function HeaderClient() {
                 Logout
               </button>
             </div>
-          ) : null}
-        </div>
-      ) : (
-        <Link href="/account/login/" className="text-sm">
-          Sign in
-        </Link>
-      )}
+          ) : (
+            <div
+              className="absolute right-0 top-full z-50 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-lg"
+              role="menu"
+            >
+              <div className="border-b border-border px-3 py-2">
+                <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Account</p>
+                <p className="text-sm font-semibold">Welcome</p>
+              </div>
+              <Link
+                href="/account/login/"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/account/register/"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                Create account
+              </Link>
+              <div className="my-1 border-t border-border" role="separator" />
+              <Link
+                href="/faq/"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                FAQ
+              </Link>
+              <Link
+                href="/contact/"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                Contact support
+              </Link>
+            </div>
+          )
+        ) : null}
+      </div>
       <CartDrawer isOpen={open} onClose={() => setOpen(false)} />
     </div>
   );

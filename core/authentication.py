@@ -32,7 +32,7 @@ class OptionalJWTAuthentication(JWTAuthentication):
             validated_token = self.get_validated_token(raw_token)
         except (InvalidToken, TokenError) as exc:
             # Ignore invalid tokens so AllowAny/ReadOnly endpoints can proceed.
-            logger.info("Ignoring invalid JWT token: %s", exc)
+            logger.debug("Ignoring invalid JWT token: %s", exc)
             return None
 
         return self.get_user(validated_token), validated_token

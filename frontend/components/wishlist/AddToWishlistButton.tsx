@@ -12,12 +12,14 @@ type AddToWishlistButtonProps = {
   productId: string;
   variantId?: string | null;
   label?: string;
+  hideIconOnMobile?: boolean;
 } & Omit<ButtonProps, "onClick">;
 
 export function AddToWishlistButton({
   productId,
   variantId,
   label = "Add to wishlist",
+  hideIconOnMobile = false,
   variant = "secondary",
   size = "sm",
   className,
@@ -44,6 +46,7 @@ export function AddToWishlistButton({
 
   const handleClick = async () => {
     if (!hasToken) {
+      push("Sign in to manage your wishlist.", "info");
       router.push(`/account/login/?next=${encodeURIComponent(pathname || "/")}`);
       return;
     }
@@ -57,6 +60,7 @@ export function AddToWishlistButton({
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
+        push("Sign in to manage your wishlist.", "info");
         router.push(`/account/login/?next=${encodeURIComponent(pathname || "/")}`);
         return;
       }
@@ -83,6 +87,7 @@ export function AddToWishlistButton({
         viewBox="0 0 24 24"
         className={cn(
           "h-5 w-5 transition",
+          hideIconOnMobile && "hidden sm:block",
           isInWishlist
             ? "fill-error-500 text-error-500"
             : "fill-transparent text-foreground/70 group-hover/wishlist:fill-error-500 group-hover/wishlist:text-error-500"

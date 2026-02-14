@@ -1,6 +1,7 @@
 {
   "items": [
     {
+      "category": "custom-embroidery",
       "option": "Material",
       "value": "cotton",
       "display_name": "Cotton",
@@ -9,6 +10,7 @@
       "is_active": true
     },
     {
+      "category": "custom-embroidery",
       "option": "Material",
       "value": "linen",
       "display_name": "Linen",
@@ -17,6 +19,7 @@
       "is_active": true
     },
     {
+      "category": "custom-embroidery",
       "option": "Size",
       "value": "small",
       "display_name": "Small",
@@ -25,6 +28,7 @@
       "is_active": true
     },
     {
+      "category": "custom-embroidery",
       "option": "Size",
       "value": "medium",
       "display_name": "Medium",
@@ -33,6 +37,7 @@
       "is_active": true
     },
     {
+      "category": "custom-embroidery",
       "option": "Size",
       "value": "large",
       "display_name": "Large",

@@ -37,7 +37,7 @@ export default async function CollectionsPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-6xl px-6 py-12">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-12">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
@@ -79,7 +79,7 @@ export default async function CollectionsPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-border bg-card/40 px-6 py-10 text-center">
+          <div className="rounded-2xl border border-dashed border-border bg-card/40 px-4 sm:px-6 py-10 text-center">
             <h2 className="text-lg font-semibold">Collections are coming soon</h2>
             <p className="mt-2 text-sm text-foreground/70">
               We are curating new product collections. Check back soon or browse all products.

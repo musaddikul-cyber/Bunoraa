@@ -53,7 +53,7 @@ export function SearchBar() {
     <div className="relative w-full max-w-md">
       <form onSubmit={onSubmit}>
         <input
-          className="h-9 w-full min-h-0 rounded-full border border-border bg-card px-3 py-1 text-sm"
+          className="h-11 w-full min-h-0 rounded-full border border-border bg-card px-3 py-1 text-sm sm:h-9"
           placeholder="Search products"
           value={query}
           onChange={(event) => setQuery(event.target.value)}

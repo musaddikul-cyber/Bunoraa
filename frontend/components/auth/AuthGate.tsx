@@ -30,7 +30,7 @@ export function AuthGate({
   if (!mounted) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-3xl px-6 py-20">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 py-20">
           <Card variant="bordered" className="space-y-3">
             <div className="h-5 w-40 animate-pulse rounded bg-muted" />
             <div className="h-4 w-64 animate-pulse rounded bg-muted" />
@@ -44,7 +44,7 @@ export function AuthGate({
   if (!hasToken) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-3xl px-6 py-20">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 py-20">
           <Card variant="bordered" className="space-y-4">
             <h1 className="text-2xl font-semibold">{title}</h1>
             <p className="text-sm text-foreground/70">{description}</p>

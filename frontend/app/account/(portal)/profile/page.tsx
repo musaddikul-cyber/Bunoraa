@@ -81,21 +81,27 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
             Account
           </p>
           <h1 className="text-2xl font-semibold">Profile</h1>
         </div>
-        <Button variant="ghost" onClick={logout}>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-9 shrink-0 border-amber-500/40 bg-amber-500/10 px-3 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+          onClick={logout}
+        >
           Sign out
         </Button>
       </div>
 
       <Card variant="bordered" className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <div className="h-16 w-16 overflow-hidden rounded-full bg-muted">
               {profile?.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -110,9 +116,9 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm text-foreground/60">Email</p>
-              <p className="font-semibold">{profile?.email || "-"}</p>
+              <p className="break-all text-sm font-medium">{profile?.email || "-"}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-foreground/60">
                 <span>
                   {profile?.is_verified ? "Verified account" : "Email not verified"}
@@ -129,21 +135,23 @@ export default function ProfilePage() {
                 ) : null}
               </div>
               {verificationMessage ? (
-                <p className="text-xs text-foreground/60">{verificationMessage}</p>
+                <p className="break-words text-xs text-foreground/60">{verificationMessage}</p>
               ) : null}
             </div>
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarChange}
-            />
-            <span className="rounded-lg border border-border bg-card px-3 py-2 text-sm">
-              {avatarUploading ? "Uploading..." : "Change photo"}
-            </span>
-          </label>
+          <div className="flex w-full flex-col gap-2 sm:w-auto">
+            <label className="inline-flex w-full cursor-pointer items-center gap-2 text-sm sm:w-auto">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+              <span className="w-full rounded-lg border border-border bg-card px-3 py-2 text-center text-sm sm:w-auto">
+                {avatarUploading ? "Uploading..." : "Change photo"}
+              </span>
+            </label>
+          </div>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
@@ -198,7 +206,7 @@ export default function ProfilePage() {
             Subscribe to newsletter
           </label>
 
-          <Button type="submit" disabled={updateProfile.isPending}>
+          <Button type="submit" className="w-full sm:w-auto" disabled={updateProfile.isPending}>
             {updateProfile.isPending ? "Saving..." : "Save changes"}
           </Button>
         </form>

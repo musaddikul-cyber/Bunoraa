@@ -19,7 +19,7 @@ export default function SubscriptionReactivatePage() {
 
   return (
     <AuthGate>
-      <div className="mx-auto w-full max-w-md px-6 py-12">
+      <div className="mx-auto w-full max-w-md px-4 sm:px-6 py-12">
         <Card variant="bordered" className="p-6 text-sm text-foreground/70">
           Reactivating subscription...
         </Card>

@@ -34,7 +34,7 @@ export default function SubscriptionPlanPage() {
 
   return (
     <AuthGate title="Subscribe" description="Sign in to subscribe to a plan.">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
         {planQuery.isLoading ? (
           <Card variant="bordered" className="p-6 text-sm text-foreground/70">
             Loading plan...

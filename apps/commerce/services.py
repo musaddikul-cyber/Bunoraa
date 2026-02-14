@@ -58,22 +58,49 @@ class CartService:
     def get_or_create_cart(cls, user=None, session_key=None) -> Cart:
         """Get or create a cart for user or session."""
         if user and user.is_authenticated:
-            cart, created = Cart.objects.get_or_create(user=user)
+            carts = Cart.objects.filter(user=user).order_by('-updated_at', '-created_at')
+            cart = carts.first()
+            if not cart:
+                cart = Cart.objects.create(user=user)
+            elif carts.count() > 1:
+                duplicates = carts.exclude(pk=cart.pk)
+                logger.warning(
+                    "Found %s duplicate carts for user_id=%s; merging into cart_id=%s",
+                    duplicates.count(),
+                    getattr(user, "id", None),
+                    cart.id,
+                )
+                for duplicate in duplicates:
+                    cart.merge_from_session(duplicate)
             
             # Merge session cart if exists
             if session_key:
-                try:
-                    session_cart = Cart.objects.get(session_key=session_key, user__isnull=True)
+                session_carts = Cart.objects.filter(
+                    session_key=session_key,
+                    user__isnull=True,
+                ).order_by('-updated_at', '-created_at')
+                for session_cart in session_carts:
                     cart.merge_from_session(session_cart)
-                except Cart.DoesNotExist:
-                    pass
             
             return cart
         elif session_key:
-            cart, created = Cart.objects.get_or_create(
+            carts = Cart.objects.filter(
                 session_key=session_key,
-                user__isnull=True
-            )
+                user__isnull=True,
+            ).order_by('-updated_at', '-created_at')
+            cart = carts.first()
+            if not cart:
+                cart = Cart.objects.create(session_key=session_key)
+            elif carts.count() > 1:
+                duplicates = carts.exclude(pk=cart.pk)
+                logger.warning(
+                    "Found %s duplicate guest carts for session_key=%s; merging into cart_id=%s",
+                    duplicates.count(),
+                    session_key,
+                    cart.id,
+                )
+                for duplicate in duplicates:
+                    cart.merge_from_session(duplicate)
             return cart
         else:
             raise CartException("Either user or session_key is required.")
@@ -82,15 +109,12 @@ class CartService:
     def get_cart(cls, user=None, session_key=None) -> Optional[Cart]:
         """Get existing cart without creating."""
         if user and user.is_authenticated:
-            try:
-                return Cart.objects.get(user=user)
-            except Cart.DoesNotExist:
-                return None
+            return Cart.objects.filter(user=user).order_by('-updated_at', '-created_at').first()
         elif session_key:
-            try:
-                return Cart.objects.get(session_key=session_key, user__isnull=True)
-            except Cart.DoesNotExist:
-                return None
+            return Cart.objects.filter(
+                session_key=session_key,
+                user__isnull=True,
+            ).order_by('-updated_at', '-created_at').first()
         return None
     
     @classmethod
@@ -758,7 +782,20 @@ class EnhancedCartService:
     def get_or_create_cart(cls, user=None, session_key=None, merge_session=True) -> Cart:
         """Get or create cart with session merging."""
         if user and user.is_authenticated:
-            cart, created = Cart.objects.get_or_create(user=user)
+            carts = Cart.objects.filter(user=user).order_by('-updated_at', '-created_at')
+            cart = carts.first()
+            if not cart:
+                cart = Cart.objects.create(user=user)
+            elif carts.count() > 1:
+                duplicates = carts.exclude(pk=cart.pk)
+                logger.warning(
+                    "EnhancedCartService: found %s duplicate carts for user_id=%s; merging into cart_id=%s",
+                    duplicates.count(),
+                    getattr(user, "id", None),
+                    cart.id,
+                )
+                for duplicate in duplicates:
+                    cart.merge_from_session(duplicate)
             
             # Merge session cart if exists and requested
             if merge_session and session_key:
@@ -770,10 +807,23 @@ class EnhancedCartService:
             return cart
         
         elif session_key:
-            cart, created = Cart.objects.get_or_create(
+            carts = Cart.objects.filter(
                 session_key=session_key,
-                user__isnull=True
-            )
+                user__isnull=True,
+            ).order_by('-updated_at', '-created_at')
+            cart = carts.first()
+            if not cart:
+                cart = Cart.objects.create(session_key=session_key)
+            elif carts.count() > 1:
+                duplicates = carts.exclude(pk=cart.pk)
+                logger.warning(
+                    "EnhancedCartService: found %s duplicate guest carts for session_key=%s; merging into cart_id=%s",
+                    duplicates.count(),
+                    session_key,
+                    cart.id,
+                )
+                for duplicate in duplicates:
+                    cart.merge_from_session(duplicate)
             CartAnalytics.objects.get_or_create(cart=cart)
             return cart
         
@@ -782,8 +832,12 @@ class EnhancedCartService:
     @classmethod
     def _merge_session_cart(cls, user_cart: Cart, session_key: str):
         """Merge session cart into user cart."""
-        try:
-            session_cart = Cart.objects.get(session_key=session_key, user__isnull=True)
+        session_cart = (
+            Cart.objects.filter(session_key=session_key, user__isnull=True)
+            .order_by('-updated_at', '-created_at')
+            .first()
+        )
+        if session_cart:
             user_cart.merge_from_session(session_cart)
             
             # Also merge saved for later items
@@ -791,9 +845,6 @@ class EnhancedCartService:
                 session_key=session_key,
                 user__isnull=True
             ).update(user=user_cart.user, session_key=None)
-            
-        except Cart.DoesNotExist:
-            pass
     
     @classmethod
     @transaction.atomic

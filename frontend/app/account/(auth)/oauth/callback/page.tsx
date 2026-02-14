@@ -39,7 +39,7 @@ export default function OAuthCallbackPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-md px-6 py-20">
+      <div className="mx-auto w-full max-w-md px-4 sm:px-6 py-20">
         <Card variant="bordered" className="space-y-4 text-center">
           <h1 className="text-xl font-semibold">Signing you in...</h1>
           <p className="text-sm text-foreground/70">

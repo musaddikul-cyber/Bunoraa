@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { unstable_noStore as noStore } from "next/cache";
 import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
@@ -14,6 +14,12 @@ import Script from "next/script";
 export const metadata: Metadata = {
   title: "Bunoraa",
   description: "Bunoraa e-commerce storefront",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 // export const dynamic = "force-dynamic";

@@ -28,7 +28,7 @@ export default function CheckoutSuccessPage() {
   return (
     <AuthGate nextHref="/checkout">
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-4xl px-6 py-16">
+        <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-16">
           <Card variant="bordered" className="space-y-6">
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">

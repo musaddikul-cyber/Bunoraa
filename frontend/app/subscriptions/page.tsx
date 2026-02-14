@@ -17,7 +17,7 @@ export default async function SubscriptionsLandingPage() {
   const plans = await getPlans();
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-12">
+    <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-12">
       <div className="mb-8">
         <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
           Subscriptions

@@ -34,7 +34,7 @@ export default function OrderTrackPage() {
 
   return (
     <AuthGate title="Track order" description="Sign in to track your order.">
-      <div className="mx-auto w-full max-w-3xl px-6 py-12">
+      <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 py-12">
         <div className="mb-6">
           <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
             Order tracking

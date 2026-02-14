@@ -338,6 +338,7 @@ class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializ
     """Lightweight serializer for quick view modal."""
     primary_image = serializers.SerializerMethodField()
     current_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    is_on_sale = serializers.BooleanField(read_only=True)
     is_in_stock = serializers.SerializerMethodField()
     badges = serializers.SerializerMethodField()
     
@@ -346,6 +347,7 @@ class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializ
         fields = (
             'id', 'name', 'slug', 'sku', 'short_description',
             'price', 'sale_price', 'current_price', 'currency',
+            'is_on_sale', 'is_bestseller', 'is_new_arrival',
             'is_in_stock', 'primary_image', 'badges',
             'average_rating', 'reviews_count'
         )

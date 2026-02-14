@@ -38,7 +38,7 @@ export default async function FaqPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
         <div className="mb-8">
           <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
             FAQ

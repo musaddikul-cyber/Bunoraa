@@ -56,7 +56,7 @@ export function HeroBannerSlider({
 }) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const total = banners.length;
-  const defaultHeight = "420px";
+  const defaultHeight = "clamp(220px, 52vh, 420px)";
 
   React.useEffect(() => {
     if (total <= 1) return;
@@ -134,7 +134,6 @@ export function HeroBannerSlider({
                 {banner.image_mobile ? (
                   <source media="(max-width: 640px)" srcSet={banner.image_mobile} />
                 ) : null}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={banner.image}
                   alt={banner.title}
@@ -144,19 +143,19 @@ export function HeroBannerSlider({
               </picture>
               <div
                 className={cn(
-                  "absolute inset-0 flex flex-col justify-end p-6 transition-opacity",
+                  "absolute inset-0 flex flex-col justify-end p-4 transition-opacity sm:p-6",
                   overlayColor
                     ? ""
                     : "bg-gradient-to-t from-black/60 via-black/10 to-transparent"
                 )}
                 style={{ ...overlayStyle, ...textStyle }}
               >
-                <h2 className="text-2xl font-semibold">{banner.title}</h2>
+                <h2 className="text-xl font-semibold leading-tight sm:text-2xl">{banner.title}</h2>
                 {banner.subtitle ? (
-                  <p className="mt-2 text-sm opacity-90">{banner.subtitle}</p>
+                  <p className="mt-2 text-xs opacity-90 sm:text-sm">{banner.subtitle}</p>
                 ) : null}
                 {banner.link_text ? (
-                  <span className="mt-4 inline-flex w-fit items-center rounded-full border border-current/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em]">
+                  <span className="mt-4 inline-flex min-h-11 w-fit items-center rounded-full border border-current/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] sm:min-h-0">
                     {banner.link_text}
                   </span>
                 ) : null}

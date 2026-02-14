@@ -30,7 +30,7 @@ export default async function AboutPage() {
     url: absoluteUrl("/about/"),
   });
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-12">
+    <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-12">
       <h1 className="text-3xl font-semibold">{page.title}</h1>
       <div
         className="prose prose-slate mt-6 max-w-none"

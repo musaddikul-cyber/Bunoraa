@@ -36,7 +36,7 @@ export default function OrderDetailPage() {
 
   return (
     <AuthGate title="Order detail" description="Sign in to view order details.">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
         {!rawId ? (
           <Card variant="bordered" className="p-6 text-sm text-foreground/70">
             Missing order identifier.

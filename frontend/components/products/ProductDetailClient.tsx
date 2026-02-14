@@ -55,7 +55,7 @@ function DetailRow({
 }) {
   if (value === null || value === undefined || value === "") return null;
   return (
-    <div className="flex items-center justify-between gap-4 text-sm">
+    <div className="flex items-center justify-between gap-4 text-[13px]">
       <span className="text-foreground/60">{label}</span>
       <span className="text-right">{value}</span>
     </div>
@@ -683,6 +683,16 @@ export function ProductDetailClient({
     }
   };
 
+  const handleCopySku = async () => {
+    if (!product.sku) return;
+    try {
+      await navigator.clipboard.writeText(product.sku);
+      push("SKU copied.", "success");
+    } catch {
+      push("Could not copy SKU.", "error");
+    }
+  };
+
   const stockLabel = !inStock ? "Out of stock" : isLowStock ? "Low stock" : "In stock";
   const stockHint = stockQty !== null ? `${stockQty} available` : null;
   const dimensions = [product.length, product.width, product.height]
@@ -708,7 +718,7 @@ export function ProductDetailClient({
             <h1 className="text-3xl font-semibold sm:text-4xl">
               {product.name}
             </h1>
-            <p className="mt-3 text-foreground/70">
+            <p className="mt-3 text-[13px] text-justify text-foreground/70">
               {product.short_description}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -758,7 +768,7 @@ export function ProductDetailClient({
             {inStock ? (
               <div className="space-y-2">
                 <label className="text-xs text-foreground/60">Quantity</label>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                   <div className="inline-flex items-center rounded-xl border border-border bg-card">
                     <button
                       type="button"
@@ -789,15 +799,25 @@ export function ProductDetailClient({
                       +
                     </button>
                   </div>
-                  <AddToCartButton
-                    productId={product.id}
-                    variantId={variantId}
-                    quantity={quantity}
-                    size="sm"
-                    variant="primary"
-                    disabled={!inStock}
-                    label={inStock ? "Add to cart" : "Out of stock"}
-                  />
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
+                    <AddToCartButton
+                      productId={product.id}
+                      variantId={variantId}
+                      quantity={quantity}
+                      size="sm"
+                      variant="primary"
+                      className="h-11 w-full sm:h-8 sm:w-auto"
+                      disabled={!inStock}
+                      label={inStock ? "Add to cart" : "Out of stock"}
+                    />
+                    <AddToWishlistButton
+                      productId={product.id}
+                      variantId={variantId}
+                      size="sm"
+                      hideIconOnMobile
+                      className="h-11 w-full justify-center gap-2 sm:hidden"
+                    />
+                  </div>
                 </div>
                 {maxQty !== null ? (
                   <p className="text-xs text-foreground/60">
@@ -807,23 +827,27 @@ export function ProductDetailClient({
               </div>
             ) : null}
 
-            <div className="flex flex-nowrap items-center gap-3 overflow-x-auto pb-1 sm:overflow-visible">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center sm:gap-3">
               <AddToWishlistButton
                 productId={product.id}
                 variantId={variantId}
                 size="sm"
-                className="gap-2"
+                hideIconOnMobile
+                className={cn(
+                  "h-11 w-full justify-center gap-2 sm:h-8 sm:w-auto",
+                  inStock && "hidden sm:inline-flex"
+                )}
               />
               <Button
                 size="sm"
                 variant={isInCompare ? "primary" : "secondary"}
                 onClick={() => toggleCompare(compareItemFromProduct(product))}
-                className="gap-2"
+                className="h-11 w-full justify-center gap-2 sm:h-8 sm:w-auto"
               >
                 <svg
                   aria-hidden="true"
                   viewBox="0 0 24 24"
-                  className="h-4 w-4"
+                  className="hidden h-4 w-4 sm:block"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.8"
@@ -835,11 +859,16 @@ export function ProductDetailClient({
                 </svg>
                 {isInCompare ? "Compare" : "Add to compare"}
               </Button>
-              <Button size="sm" variant="secondary" onClick={handleShare}>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleShare}
+                className="h-11 w-full justify-center gap-2 sm:h-8 sm:w-auto"
+              >
                 <svg
                   aria-hidden="true"
                   viewBox="0 0 24 24"
-                  className="h-5 w-5"
+                  className="hidden h-5 w-5 sm:block"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.8"
@@ -861,10 +890,17 @@ export function ProductDetailClient({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold">Details</h2>
               {product.sku ? (
-                <span className="text-xs text-foreground/60">SKU {product.sku}</span>
+                <button
+                  type="button"
+                  onClick={handleCopySku}
+                  className="rounded-md px-2 py-1 text-xs text-foreground/60 transition hover:bg-muted hover:text-foreground"
+                  title="Click to copy SKU"
+                >
+                  SKU {product.sku}
+                </button>
               ) : null}
             </div>
-            <p className="text-sm text-foreground/70">
+            <p className="text-justify text-[13px] text-foreground/70">
               {product.description || "Product details will appear here."}
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -915,7 +951,7 @@ export function ProductDetailClient({
             {product.attributes?.length ? (
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold">Attributes</h3>
-                <div className="grid gap-2 text-sm">
+                <div className="grid gap-2 text-[13px]">
                   {product.attributes.map((attr) => (
                     <div key={attr.id} className="flex justify-between">
                       <span className="text-foreground/60">{attr.attribute.name}</span>
@@ -926,7 +962,7 @@ export function ProductDetailClient({
               </div>
             ) : null}
             {product.shipping_material?.notes ? (
-              <p className="text-xs text-foreground/60">
+              <p className="text-justify text-xs text-foreground/60">
                 {product.shipping_material.notes}
               </p>
             ) : null}
@@ -983,7 +1019,10 @@ export function ProductDetailClient({
         </div>
       ) : null}
 
-      <RecentlyViewedSection />
+      <RecentlyViewedSection
+        excludeProductId={product.id}
+        excludeProductSlug={product.slug}
+      />
     </div>
   );
 }

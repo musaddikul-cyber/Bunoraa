@@ -11,7 +11,7 @@ export default function OrdersPage() {
   return (
     <AuthGate title="Orders" description="Sign in to view your orders.">
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-4xl px-6 py-16">
+        <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-16">
           <div className="mb-8">
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
               Orders

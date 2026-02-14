@@ -188,6 +188,12 @@ class PreOrderOption(models.Model):
         verbose_name = _('pre-order option')
         verbose_name_plural = _('pre-order options')
         ordering = ['category', 'order', 'name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['category', 'name'],
+                name='preorders_option_category_name_uniq',
+            ),
+        ]
     
     def __str__(self):
         return f"{self.category.name} - {self.name}"
@@ -233,6 +239,12 @@ class PreOrderOptionChoice(models.Model):
         verbose_name = _('option choice')
         verbose_name_plural = _('option choices')
         ordering = ['option', 'order', 'display_name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['option', 'value'],
+                name='preorders_optionchoice_option_value_uniq',
+            ),
+        ]
     
     def __str__(self):
         return f"{self.option.name} - {self.display_name}"

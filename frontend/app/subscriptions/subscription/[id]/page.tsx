@@ -36,7 +36,7 @@ export default function SubscriptionDetailPage() {
 
   return (
     <AuthGate title="Subscription" description="Sign in to manage your subscription.">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
         {subscriptionQuery.isLoading ? (
           <Card variant="bordered" className="p-6 text-sm text-foreground/70">
             Loading subscription...

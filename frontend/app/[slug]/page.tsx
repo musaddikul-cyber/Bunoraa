@@ -55,7 +55,7 @@ export default async function PageDetail({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
         <h1 className="text-3xl font-semibold">{page.title}</h1>
         <div
           className="prose prose-stone mt-6 max-w-none"

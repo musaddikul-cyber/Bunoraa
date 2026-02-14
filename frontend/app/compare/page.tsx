@@ -44,7 +44,7 @@ export default function ComparePage() {
   if (!items.length) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-4xl px-6 py-12">
+        <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
           <Card variant="bordered" className="space-y-4 text-center">
             <h1 className="text-2xl font-semibold">Compare products</h1>
             <p className="text-sm text-foreground/70">
@@ -61,7 +61,7 @@ export default function ComparePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-6xl px-6 py-12">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-12">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">

@@ -33,7 +33,7 @@ export default async function PagesIndex() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
         <h1 className="text-3xl font-semibold">Pages</h1>
         <div className="mt-6 space-y-4">
           {pages.map((page) => (

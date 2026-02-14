@@ -181,7 +181,7 @@ export async function Footer() {
 
   return (
     <footer id="footer" className="border-t border-border bg-card">
-      <div className="mx-auto w-full max-w-7xl px-6 py-12">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-6">
           <div className="space-y-4 sm:col-span-2 lg:col-span-2">
             <div>

@@ -459,7 +459,7 @@ export function CheckoutPage() {
   if (isLoading) {
     return (
       <AuthGate nextHref="/checkout">
-        <div className="mx-auto w-full max-w-6xl px-6 py-16">
+        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-16">
           <Card variant="bordered" className="space-y-4">
             <div className="h-6 w-48 rounded bg-muted animate-pulse" />
             <div className="h-4 w-full rounded bg-muted animate-pulse" />
@@ -475,7 +475,7 @@ export function CheckoutPage() {
     if (error instanceof ApiError && error.status === 400) {
       return (
         <AuthGate nextHref="/checkout">
-          <div className="mx-auto w-full max-w-5xl px-6 py-16">
+          <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-16">
             <Card variant="bordered" className="space-y-3 text-center">
               <h1 className="text-2xl font-semibold">Your cart is empty</h1>
               <p className="text-sm text-foreground/60">
@@ -491,7 +491,7 @@ export function CheckoutPage() {
     }
     return (
       <AuthGate nextHref="/checkout">
-        <div className="mx-auto w-full max-w-5xl px-6 py-16">
+        <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-16">
           <Card variant="bordered" className="space-y-3 text-center">
             <h1 className="text-2xl font-semibold">Checkout unavailable</h1>
             <p className="text-sm text-foreground/60">
@@ -509,7 +509,7 @@ export function CheckoutPage() {
   if (cartEmpty) {
     return (
       <AuthGate nextHref="/checkout">
-        <div className="mx-auto w-full max-w-5xl px-6 py-16">
+        <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-16">
           <Card variant="bordered" className="space-y-3 text-center">
             <h1 className="text-2xl font-semibold">Your cart is empty</h1>
             <p className="text-sm text-foreground/60">

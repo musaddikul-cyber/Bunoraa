@@ -101,61 +101,63 @@ export function ChatWidget() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <>
       {!open ? (
-        <button
-          className="rounded-full bg-primary px-4 py-2 text-sm text-white shadow-lg"
-          onClick={() => setOpen(true)}
-        >
-          Chat
-        </button>
-      ) : null}
-      <div
-        className={cn(
-          "mt-3 w-80 rounded-2xl border border-border bg-card p-4 shadow-xl",
-          open ? "block" : "hidden"
-        )}
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold">Support chat</div>
+        <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
           <button
-            type="button"
-            className="rounded-full border border-border bg-background/80 px-2.5 py-1 text-xs text-foreground/70 shadow-sm transition hover:bg-muted hover:text-foreground"
-            onClick={() => setOpen(false)}
-            aria-label="Close chat"
+            className="rounded-full bg-primary px-4 py-2 text-sm text-white shadow-lg"
+            onClick={() => setOpen(true)}
           >
-            Close
+            Chat
           </button>
         </div>
-        <div className="max-h-64 space-y-2 overflow-y-auto text-sm">
-          {messages.length === 0 ? (
-            <p className="text-foreground/60">Start a conversation.</p>
-          ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "rounded-lg px-3 py-2",
-                  msg.is_from_customer ? "bg-primary text-white" : "bg-muted"
-                )}
+      ) : null}
+
+      {open ? (
+        <div className="fixed inset-x-3 bottom-3 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6">
+          <div className="flex w-full max-h-[calc(100dvh-1.5rem)] min-h-[18rem] flex-col rounded-2xl border border-border bg-card p-4 shadow-xl sm:w-80 sm:max-h-[34rem]">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-semibold">Support chat</div>
+              <button
+                type="button"
+                className="rounded-full border border-border bg-background/80 px-2.5 py-1 text-xs text-foreground/70 shadow-sm transition hover:bg-muted hover:text-foreground"
+                onClick={() => setOpen(false)}
+                aria-label="Close chat"
               >
-                {msg.content}
-              </div>
-            ))
-          )}
+                Close
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 text-sm">
+              {messages.length === 0 ? (
+                <p className="text-foreground/60">Start a conversation.</p>
+              ) : (
+                messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={cn(
+                      "rounded-lg px-3 py-2",
+                      msg.is_from_customer ? "bg-primary text-white" : "bg-muted"
+                    )}
+                  >
+                    {msg.content}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <input
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Type a message"
+              />
+              <button className="text-sm text-primary" onClick={handleSend}>
+                Send
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="mt-3 flex gap-2">
-          <input
-            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Type a message"
-          />
-          <button className="text-sm text-primary" onClick={handleSend}>
-            Send
-          </button>
-        </div>
-      </div>
-    </div>
+      ) : null}
+    </>
   );
 }

@@ -53,7 +53,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-md px-6 py-20">
+      <div className="mx-auto w-full max-w-md px-4 sm:px-6 py-20">
         <Card variant="bordered" className="space-y-6">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">

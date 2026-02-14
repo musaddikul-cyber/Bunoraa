@@ -21,7 +21,7 @@ export default function OrderInvoicePage() {
 
   return (
     <AuthGate title="Invoice" description="Sign in to view invoices.">
-      <div className="mx-auto w-full max-w-3xl px-6 py-12">
+      <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 py-12">
         {!rawId ? (
           <Card variant="bordered" className="p-6 text-sm text-foreground/70">
             Missing order identifier.

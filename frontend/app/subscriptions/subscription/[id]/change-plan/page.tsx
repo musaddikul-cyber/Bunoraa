@@ -36,7 +36,7 @@ export default function ChangePlanPage() {
 
   return (
     <AuthGate title="Change plan" description="Sign in to update your subscription.">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
         <Card variant="bordered" className="space-y-4 p-6">
           <h1 className="text-2xl font-semibold">Select a new plan</h1>
           {plansQuery.isLoading ? (

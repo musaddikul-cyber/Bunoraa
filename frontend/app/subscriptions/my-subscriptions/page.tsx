@@ -18,7 +18,7 @@ export default function MySubscriptionsPage() {
 
   return (
     <AuthGate title="Subscriptions" description="Sign in to manage subscriptions.">
-      <div className="mx-auto w-full max-w-4xl px-6 py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 py-12">
         <div className="mb-6">
           <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
             Subscriptions

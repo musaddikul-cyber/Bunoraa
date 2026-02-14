@@ -9,7 +9,7 @@ export default async function PreorderSuccessPage({
 }) {
   const { preorder_number } = await params;
   return (
-    <div className="mx-auto w-full max-w-lg px-6 py-20">
+    <div className="mx-auto w-full max-w-lg px-4 sm:px-6 py-20">
       <Card variant="bordered" className="space-y-4 p-6 text-center">
         <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">
           Preorder submitted

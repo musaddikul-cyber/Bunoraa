@@ -64,6 +64,32 @@ function buildUrl(path: string, params?: ApiFetchOptions["params"]) {
   return url;
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  if (typeof window === "undefined") return null;
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = `${base64}${"=".repeat((4 - (base64.length % 4)) % 4)}`;
+    const decoded = window.atob(padded);
+    const payload = JSON.parse(decoded);
+    if (payload && typeof payload === "object") {
+      return payload as Record<string, unknown>;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function isAccessTokenExpired(token: string, skewSeconds = 15) {
+  const payload = decodeJwtPayload(token);
+  const exp = payload?.exp;
+  if (typeof exp !== "number") return false;
+  const now = Math.floor(Date.now() / 1000);
+  return exp <= now + skewSeconds;
+}
+
 function getAccessToken() {
   if (typeof window === "undefined") return null;
   return (
@@ -220,7 +246,16 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   } = options;
 
   const url = buildUrl(path, params);
-  const token = skipAuth ? null : getAccessToken();
+  let token = skipAuth ? null : getAccessToken();
+  if (!skipAuth && token && typeof window !== "undefined" && isAccessTokenExpired(token)) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+    } else {
+      clearTokens();
+      token = null;
+    }
+  }
   const csrfToken = getCookie("csrftoken");
   const localeHeaders = getLocaleHeaders();
   const isFormData =

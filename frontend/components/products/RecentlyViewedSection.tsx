@@ -9,7 +9,13 @@ import { getRecentlyViewed, setRecentlyViewed } from "@/lib/recentlyViewed";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import type { ProductDetail } from "@/lib/types";
 
-export function RecentlyViewedSection() {
+export function RecentlyViewedSection({
+  excludeProductId,
+  excludeProductSlug,
+}: {
+  excludeProductId?: string | null;
+  excludeProductSlug?: string | null;
+} = {}) {
   const [items, setItems] = React.useState<ReturnType<typeof getRecentlyViewed>>([]);
   const { locale } = useLocale();
   const lastCurrencyRef = React.useRef<string | undefined>(undefined);
@@ -81,13 +87,19 @@ export function RecentlyViewedSection() {
     };
   }, [locale.currency]);
 
-  if (!items.length) return null;
+  const visibleItems = items.filter((item) => {
+    if (excludeProductId && item.id === excludeProductId) return false;
+    if (excludeProductSlug && item.slug === excludeProductSlug) return false;
+    return true;
+  });
+
+  if (!visibleItems.length) return null;
 
   return (
     <div className="space-y-4">
       <h3 className="text-xl font-semibold">Recently viewed</h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <Card key={item.id} variant="bordered" className="flex flex-col gap-3">
             <div className="aspect-[4/5] overflow-hidden rounded-xl bg-muted">
               {item.primary_image ? (

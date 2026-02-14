@@ -3,7 +3,6 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type {
   Collection,
-  ContactSettings,
   PreorderCategory,
   ProductListItem,
   SiteSettings,
@@ -13,6 +12,7 @@ import type {
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ProductGrid } from "@/components/products/ProductGrid";
+import { QuickViewTriggerButton } from "@/components/products/QuickViewTriggerButton";
 import { SearchBar } from "@/components/search/SearchBar";
 import { HeroBannerSlider, type HeroBanner } from "@/components/promotions/HeroBannerSlider";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
@@ -152,18 +152,6 @@ async function getSiteSettings(headers: Record<string, string>) {
   }
 }
 
-async function getContactSettings(headers: Record<string, string>) {
-  try {
-    const response = await apiFetch<ContactSettings>("/contacts/settings/", {
-      headers,
-      next: { revalidate },
-    });
-    return response.data;
-  } catch {
-    return null;
-  }
-}
-
 async function getPreorderCategories(headers: Record<string, string>) {
   try {
     const response = await apiFetch<PreorderCategory[]>("/preorders/categories/", {
@@ -232,7 +220,6 @@ export default async function Home() {
   const [
     homepageData,
     siteSettings,
-    contactSettings,
     preorderCategories,
     subscriptionPlans,
     faqs,
@@ -242,7 +229,6 @@ export default async function Home() {
   ] = await Promise.all([
     getHomepageData(localeHeaders),
     getSiteSettings(localeHeaders),
-    getContactSettings(localeHeaders),
     getPreorderCategories(localeHeaders),
     getSubscriptionPlans(localeHeaders),
     getFaqs(localeHeaders),
@@ -367,6 +353,14 @@ export default async function Home() {
     ...(collections.length ? [collectionsList] : []),
   ];
 
+  const sectionWrapperClass = "mx-auto w-full max-w-7xl px-4 sm:px-6";
+  const compactActionClass = "min-h-11 px-4 sm:min-h-8 sm:px-4";
+  const primaryHeroCtaClass = "min-h-11 w-full justify-center sm:min-h-10 sm:w-auto";
+  const sectionHeaderClass = "flex items-end justify-between gap-3 sm:items-center";
+  const sectionTitleClass = "text-xl font-semibold leading-tight sm:text-2xl";
+  const sectionDescriptionClass = "mt-1 text-xs text-foreground/60 sm:mt-2 sm:text-sm";
+  const sectionActionClass = "min-h-10 shrink-0 whitespace-nowrap px-3 sm:min-h-8 sm:px-4";
+
   return (
     <div className="bg-background text-foreground">
       <section className="relative overflow-hidden motion-safe:animate-fade-in">
@@ -378,30 +372,30 @@ export default async function Home() {
           aria-hidden="true"
           className="pointer-events-none absolute bottom-0 left-0 h-72 w-72 rounded-full bg-accent/15 blur-3xl"
         />
-        <div className="mx-auto w-full max-w-7xl px-6 py-16 lg:py-24">
-          <div className="grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className={`${sectionWrapperClass} py-10 sm:py-14 lg:py-24`}>
+          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-10">
             <div className="space-y-8">
               <div className="space-y-4">
                 <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
                   {brandName}
                 </p>
-                <h1 className="text-4xl font-semibold sm:text-5xl lg:text-6xl">
+                <h1 className="text-3xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
                   <span className="text-gradient text-gradient-primary font-display">
                     {heroTitle}
                   </span>
                 </h1>
-                <p className="max-w-2xl text-lg text-foreground/60">
+                <p className="max-w-2xl text-base text-foreground/60 sm:text-lg">
                   {heroDescription}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <Button asChild variant="primary">
+              <div className="grid gap-3 sm:flex sm:flex-wrap">
+                <Button asChild variant="primary" className={primaryHeroCtaClass}>
                   <Link href="/products/">Shop products</Link>
                 </Button>
-                <Button asChild variant="secondary">
+                <Button asChild variant="secondary" className={primaryHeroCtaClass}>
                   <Link href="/preorders/">Start a preorder</Link>
                 </Button>
-                <Button asChild variant="secondary">
+                <Button asChild variant="secondary" className={primaryHeroCtaClass}>
                   <Link href="/collections/">Browse collections</Link>
                 </Button>
               </div>
@@ -419,14 +413,14 @@ export default async function Home() {
                   <Link
                     key={category.id}
                     href={`/categories/${category.slug}/`}
-                    className="rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
+                    className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
                   >
                     {category.name}
                   </Link>
                 ))}
                 <Link
                   href="/categories/"
-                  className="rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
+                  className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
                 >
                   All categories
                 </Link>
@@ -442,7 +436,7 @@ export default async function Home() {
                     </p>
                     <h2 className="text-xl font-semibold">Live commerce overview</h2>
                   </div>
-                  <Button asChild variant="secondary" size="sm">
+                  <Button asChild variant="secondary" size="sm" className={compactActionClass}>
                     <Link href="/products/">View catalog</Link>
                   </Button>
                 </div>
@@ -454,7 +448,12 @@ export default async function Home() {
                       </dt>
                       <dd className="mt-2 text-2xl font-semibold">{stat.value}</dd>
                       <p className="mt-1 text-xs text-foreground/55">{stat.description}</p>
-                      <Button asChild size="sm" variant="secondary" className="mt-3">
+                      <Button
+                        asChild
+                        size="sm"
+                        variant="secondary"
+                        className={`mt-3 ${compactActionClass}`}
+                      >
                         <Link href={stat.href}>Explore</Link>
                       </Button>
                     </div>
@@ -485,21 +484,20 @@ export default async function Home() {
         </div>
       </section>
       {heroBanners.length ? (
-        <section className="mx-auto w-full max-w-7xl px-6 py-10">
+        <section className={`${sectionWrapperClass} py-8 sm:py-10`}>
           <HeroBannerSlider banners={heroBanners} className="mx-auto" />
         </section>
       ) : null}
       {secondaryBanners.length ? (
-        <section className="mx-auto w-full max-w-7xl px-6 pb-12">
+        <section className={`${sectionWrapperClass} pb-12`}>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {secondaryBanners.map((banner) => {
               const content = (
-                <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
+                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-card sm:aspect-[16/10]">
                   <picture>
                     {banner.image_mobile ? (
                       <source media="(max-width: 640px)" srcSet={banner.image_mobile} />
                     ) : null}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={banner.image}
                       alt={banner.title}
@@ -531,17 +529,22 @@ export default async function Home() {
           </div>
         </section>
       ) : null}
-      <section className="mx-auto w-full max-w-7xl space-y-12 px-6 py-12" id="highlights">
+      <section className={`${sectionWrapperClass} space-y-12 py-12`} id="highlights">
         {productSections.map((section) => (
           <div key={section.id} className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
+            <div className={sectionHeaderClass}>
+              <div className="min-w-0">
                 <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
                   {section.title}
                 </p>
-                <p className="mt-2 text-sm text-foreground/60">{section.description}</p>
+                <p className={sectionDescriptionClass}>{section.description}</p>
               </div>
-              <Button asChild variant="secondary" size="sm">
+              <Button
+                asChild
+                variant="secondary"
+                size="sm"
+                className={sectionActionClass}
+              >
                 <Link href={section.href}>View all</Link>
               </Button>
             </div>
@@ -549,13 +552,18 @@ export default async function Home() {
           </div>
         ))}
       </section>
-      <section className="mx-auto w-full max-w-7xl px-6 py-12" id="categories">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
+      <section className={`${sectionWrapperClass} py-12`} id="categories">
+        <div className={sectionHeaderClass}>
+          <div className="min-w-0">
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Categories</p>
-            <h2 className="text-2xl font-semibold">Shop by category</h2>
+            <h2 className={sectionTitleClass}>Shop by category</h2>
           </div>
-          <Button asChild variant="secondary" size="sm">
+          <Button
+            asChild
+            variant="secondary"
+            size="sm"
+            className={sectionActionClass}
+          >
             <Link href="/categories/">Browse all</Link>
           </Button>
         </div>
@@ -574,7 +582,7 @@ export default async function Home() {
                 <p className="text-sm text-foreground/60">
                   Curated pieces selected for quality and delivery readiness.
                 </p>
-                <Button asChild size="sm" variant="secondary">
+                <Button asChild size="sm" variant="secondary" className={compactActionClass}>
                   <Link href={`/categories/${category.slug}/`}>Shop category</Link>
                 </Button>
               </Card>
@@ -586,19 +594,19 @@ export default async function Home() {
           )}
         </div>
       </section>
-      <section className="mx-auto w-full max-w-7xl px-6 py-12" id="marketplace">
+      <section className={`${sectionWrapperClass} py-12`} id="marketplace">
         <div className="grid gap-6 lg:grid-cols-2">
           {compactShowcase.map((block) => (
             <Card key={block.title} variant="bordered" className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{block.title}</h3>
-                <Button asChild size="sm" variant="secondary">
+                <h3 className="text-base font-semibold sm:text-lg">{block.title}</h3>
+                <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
                   <Link href={block.href}>View all</Link>
                 </Button>
               </div>
               <div className="space-y-3">
                 {block.items.map((product) => (
-                  <div key={product.id} className="flex items-center gap-4">
+                  <div key={product.id} className="flex min-w-0 items-center gap-3 sm:gap-4">
                     <div className="h-14 w-14 overflow-hidden rounded-xl bg-muted">
                       {getImage(product) ? (
                         <img
@@ -608,17 +616,22 @@ export default async function Home() {
                         />
                       ) : null}
                     </div>
-                    <div className="flex-1">
-                      <Link href={`/products/${product.slug}/`} className="text-sm font-semibold">
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={`/products/${product.slug}/`}
+                        className="block truncate text-sm font-semibold"
+                      >
                         {product.name}
                       </Link>
-                      <p className="text-xs text-foreground/55">
+                      <p className="truncate text-xs text-foreground/55">
                         {getPrice(product)} {getCurrency(product)}
                       </p>
                     </div>
-                    <Button asChild size="sm" variant="secondary">
-                      <Link href={`/products/${product.slug}/`}>View</Link>
-                    </Button>
+                    <QuickViewTriggerButton
+                      slug={product.slug}
+                      className={compactActionClass}
+                      label="View"
+                    />
                   </div>
                 ))}
                 {!block.items.length ? (
@@ -629,16 +642,16 @@ export default async function Home() {
           ))}
         </div>
       </section>
-      <section className="mx-auto w-full max-w-7xl px-6 py-12" id="collections">
+      <section className={`${sectionWrapperClass} py-12`} id="collections">
         <div className="grid gap-6 lg:grid-cols-2">
           <Card variant="bordered" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className={sectionHeaderClass}>
+              <div className="min-w-0">
                 <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Collections</p>
-                <h2 className="text-2xl font-semibold">Curated themes</h2>
+                <h2 className={sectionTitleClass}>Curated themes</h2>
               </div>
-              <Button asChild size="sm" variant="secondary">
-                <Link href="/collections/">All collections</Link>
+              <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
+                <Link href="/collections/">Browse all</Link>
               </Button>
             </div>
             <div className="space-y-3">
@@ -646,9 +659,9 @@ export default async function Home() {
                 <Link
                   key={collection.id}
                   href={`/collections/${collection.slug}/`}
-                  className="flex items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
+                  className="flex min-w-0 items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
                 >
-                  <span className="font-semibold">{collection.name}</span>
+                  <span className="min-w-0 truncate pr-3 font-semibold">{collection.name}</span>
                   <span className="text-xs text-foreground/55">Explore</span>
                 </Link>
               ))}
@@ -659,13 +672,13 @@ export default async function Home() {
           </Card>
 
           <Card variant="bordered" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className={sectionHeaderClass}>
+              <div className="min-w-0">
                 <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Bundles</p>
-                <h2 className="text-2xl font-semibold">Ready-to-ship sets</h2>
+                <h2 className={sectionTitleClass}>Ready-to-ship sets</h2>
               </div>
-              <Button asChild size="sm" variant="secondary">
-                <Link href="/bundles/">Browse bundles</Link>
+              <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
+                <Link href="/bundles/">Browse all</Link>
               </Button>
             </div>
             <div className="space-y-3">
@@ -673,10 +686,10 @@ export default async function Home() {
                 <Link
                   key={bundle.id}
                   href={`/bundles/${bundle.slug}/`}
-                  className="flex items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
+                  className="flex min-w-0 items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
                 >
-                  <div>
-                    <p className="font-semibold">{bundle.name}</p>
+                  <div className="min-w-0 pr-3">
+                    <p className="truncate font-semibold">{bundle.name}</p>
                     {bundle.item_count ? (
                       <p className="text-xs text-foreground/55">{bundle.item_count} items</p>
                     ) : null}
@@ -693,16 +706,16 @@ export default async function Home() {
           </Card>
         </div>
       </section>
-      <section className="mx-auto w-full max-w-7xl px-6 py-12" id="preorders">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
+      <section className={`${sectionWrapperClass} py-12`} id="preorders">
+        <div className={sectionHeaderClass}>
+          <div className="min-w-0">
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Preorders</p>
-            <h2 className="text-2xl font-semibold">Made-to-order programs</h2>
-            <p className="mt-2 text-sm text-foreground/60">
+            <h2 className={sectionTitleClass}>Made-to-order programs</h2>
+            <p className={sectionDescriptionClass}>
               Launch custom production runs with transparent timelines.
             </p>
           </div>
-          <Button asChild variant="secondary" size="sm">
+          <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
             <Link href="/preorders/">Manage preorders</Link>
           </Button>
         </div>
@@ -718,7 +731,7 @@ export default async function Home() {
               <div className="text-xs text-foreground/55">
                 {category.base_price ? `Starting at ${category.base_price}` : "Pricing by quote"}
               </div>
-              <Button asChild size="sm" variant="secondary">
+              <Button asChild size="sm" variant="secondary" className={compactActionClass}>
                 <Link href={`/preorders/category/${category.slug}/`}>Explore</Link>
               </Button>
             </Card>
@@ -732,13 +745,13 @@ export default async function Home() {
         </div>
       </section>
       {subscriptionPlans.length ? (
-        <section className="mx-auto w-full max-w-7xl px-6 py-12" id="subscriptions">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
+        <section className={`${sectionWrapperClass} py-12`} id="subscriptions">
+          <div className={sectionHeaderClass}>
+            <div className="min-w-0">
               <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Subscriptions</p>
-              <h2 className="text-2xl font-semibold">Recurring delivery plans</h2>
+              <h2 className={sectionTitleClass}>Recurring delivery plans</h2>
             </div>
-            <Button asChild variant="secondary" size="sm">
+            <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
               <Link href="/subscriptions/">See all plans</Link>
             </Button>
           </div>
@@ -752,7 +765,7 @@ export default async function Home() {
                 <p className="text-base font-semibold">
                   {plan.price_amount} {plan.currency} / {plan.interval}
                 </p>
-                <Button asChild size="sm" variant="secondary">
+                <Button asChild size="sm" variant="secondary" className={compactActionClass}>
                   <Link href={`/subscriptions/plans/${plan.id}/`}>View plan</Link>
                 </Button>
               </Card>
@@ -761,13 +774,13 @@ export default async function Home() {
         </section>
       ) : null}
       {faqs.length ? (
-        <section className="mx-auto w-full max-w-7xl px-6 py-12" id="faq">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
+        <section className={`${sectionWrapperClass} py-12`} id="faq">
+          <div className={sectionHeaderClass}>
+            <div className="min-w-0">
               <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">FAQ</p>
-              <h2 className="text-2xl font-semibold">Answers at a glance</h2>
+              <h2 className={sectionTitleClass}>Answers at a glance</h2>
             </div>
-            <Button asChild variant="secondary" size="sm">
+            <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
               <Link href="/faq/">Visit FAQ</Link>
             </Button>
           </div>
@@ -781,8 +794,11 @@ export default async function Home() {
           </div>
         </section>
       ) : null}
-      <section className="mx-auto w-full max-w-7xl px-6 pb-16" id="cta">
-        <Card variant="modern-gradient" className="flex flex-col gap-6 p-8 md:flex-row md:items-center md:justify-between">
+      <section className={`${sectionWrapperClass} pb-16`} id="cta">
+        <Card
+          variant="modern-gradient"
+          className="flex flex-col gap-6 p-5 sm:p-6 md:flex-row md:items-center md:justify-between md:p-8"
+        >
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Ready to start</p>
             <h2 className="text-2xl font-semibold">Build your next collection with Bunoraa</h2>
@@ -790,11 +806,11 @@ export default async function Home() {
               Launch curated catalogs, manage preorders, and delight customers with a polished experience.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <Button asChild variant="primary">
+          <div className="grid gap-3 sm:flex sm:flex-wrap">
+            <Button asChild variant="primary" className={primaryHeroCtaClass}>
               <Link href="/products/">Shop now</Link>
             </Button>
-            <Button asChild variant="secondary">
+            <Button asChild variant="secondary" className={primaryHeroCtaClass}>
               <Link href="/contact/">Talk to us</Link>
             </Button>
           </div>

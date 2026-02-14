@@ -22,7 +22,7 @@ export function ProductGrid({
 
   if (isLoading) {
     return (
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, index) => (
           <ProductCardSkeleton key={index} />
         ))}
@@ -32,7 +32,7 @@ export function ProductGrid({
 
   if (!products.length) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-card/40 px-6 py-10 text-center">
+      <div className="rounded-2xl border border-dashed border-border bg-card/40 px-4 sm:px-6 py-10 text-center">
         <h3 className="text-lg font-semibold text-foreground">No products found</h3>
         <p className="mt-2 text-sm text-foreground/70">{emptyMessage}</p>
         <p className="mt-3 text-xs text-foreground/50">
@@ -46,7 +46,7 @@ export function ProductGrid({
     <>
       <div
         className={cn(
-          "grid gap-6",
+          "grid gap-4 sm:gap-6",
           view === "list"
             ? "grid-cols-1"
             : "sm:grid-cols-2 lg:grid-cols-3"

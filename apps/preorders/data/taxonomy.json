@@ -1,0 +1,120 @@
+{
+  "version": "2026-02-14",
+  "categories": [
+    {
+      "name": "Custom Embroidery",
+      "slug": "custom-embroidery",
+      "description": "Custom embroidery orders for apparel and decor.",
+      "icon": "needle",
+      "base_price": "500.00",
+      "deposit_percentage": 30,
+      "min_production_days": 7,
+      "max_production_days": 30,
+      "requires_design": true,
+      "requires_approval": true,
+      "allow_rush_order": true,
+      "rush_order_fee_percentage": 25,
+      "min_quantity": 1,
+      "max_quantity": 200,
+      "is_active": true,
+      "order": 1
+    }
+  ],
+  "options": [
+    {
+      "category": "custom-embroidery",
+      "name": "Material",
+      "description": "Choose base material.",
+      "option_type": "select",
+      "is_required": true,
+      "price_modifier": "0.00",
+      "order": 1,
+      "is_active": true
+    },
+    {
+      "category": "custom-embroidery",
+      "name": "Size",
+      "description": "Select size.",
+      "option_type": "select",
+      "is_required": true,
+      "price_modifier": "0.00",
+      "order": 2,
+      "is_active": true
+    },
+    {
+      "category": "custom-embroidery",
+      "name": "Notes",
+      "description": "Add special instructions.",
+      "option_type": "textarea",
+      "is_required": false,
+      "price_modifier": "0.00",
+      "order": 3,
+      "is_active": true
+    }
+  ],
+  "option_choices": [
+    {
+      "category": "custom-embroidery",
+      "option": "Material",
+      "value": "cotton",
+      "display_name": "Cotton",
+      "price_modifier": "0.00",
+      "order": 1,
+      "is_active": true
+    },
+    {
+      "category": "custom-embroidery",
+      "option": "Material",
+      "value": "linen",
+      "display_name": "Linen",
+      "price_modifier": "100.00",
+      "order": 2,
+      "is_active": true
+    },
+    {
+      "category": "custom-embroidery",
+      "option": "Size",
+      "value": "small",
+      "display_name": "Small",
+      "price_modifier": "0.00",
+      "order": 1,
+      "is_active": true
+    },
+    {
+      "category": "custom-embroidery",
+      "option": "Size",
+      "value": "medium",
+      "display_name": "Medium",
+      "price_modifier": "50.00",
+      "order": 2,
+      "is_active": true
+    },
+    {
+      "category": "custom-embroidery",
+      "option": "Size",
+      "value": "large",
+      "display_name": "Large",
+      "price_modifier": "100.00",
+      "order": 3,
+      "is_active": true
+    }
+  ],
+  "templates": [
+    {
+      "name": "Custom Embroidery - Basic",
+      "slug": "custom-embroidery-basic",
+      "description": "A standard custom embroidery order.",
+      "category": "custom-embroidery",
+      "default_quantity": 1,
+      "base_price": "500.00",
+      "estimated_days": 14,
+      "default_options": {
+        "Material": "cotton",
+        "Size": "medium"
+      },
+      "is_active": true,
+      "is_featured": true,
+      "order": 1
+    }
+  ]
+}

@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { apiFetch } from "@/lib/api";
 import { setTokens } from "@/lib/auth";
 
-export default function OAuthCallbackPage() {
+function OAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = React.useState<string | null>(null);
@@ -56,5 +57,28 @@ export default function OAuthCallbackPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function OAuthCallbackFallback() {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto w-full max-w-md px-4 sm:px-6 py-20">
+        <Card variant="bordered" className="space-y-4 text-center">
+          <h1 className="text-xl font-semibold">Signing you in...</h1>
+          <p className="text-sm text-foreground/70">
+            We are completing your Google login.
+          </p>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense fallback={<OAuthCallbackFallback />}>
+      <OAuthCallbackContent />
+    </Suspense>
   );
 }

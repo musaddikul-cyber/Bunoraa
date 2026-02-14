@@ -7,6 +7,7 @@ import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCart } from "@/components/cart/useCart";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import { useWishlist } from "@/components/wishlist/useWishlist";
+import { useNotifications } from "@/components/notifications/useNotifications";
 import { useToast } from "@/components/ui/ToastProvider";
 
 function HeartIcon() {
@@ -72,11 +73,14 @@ export function HeaderClient() {
   const { cartQuery } = useCart();
   const { hasToken, profileQuery, logout } = useAuthContext();
   const { wishlistQuery } = useWishlist({ enabled: mounted && hasToken });
+  const { unreadCountQuery } = useNotifications();
   const count = cartQuery.data?.item_count ?? 0;
   const wishlistCount =
     wishlistQuery.data?.meta?.pagination?.count ??
     wishlistQuery.data?.data?.length ??
     0;
+  const unreadCount = unreadCountQuery.data?.count ?? 0;
+  const hasUnreadNotifications = unreadCount > 0;
 
   React.useEffect(() => {
     setMounted(true);
@@ -111,38 +115,45 @@ export function HeaderClient() {
     };
   }, [menuOpen]);
 
+  const iconButtonClass =
+    "relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-10 sm:w-10";
+
   return (
     <div className="flex items-center gap-2 sm:gap-3">
-      <NotificationBell />
+      <div className="hidden sm:block">
+        <NotificationBell className={iconButtonClass} count={unreadCount} />
+      </div>
       <Link
         href="/wishlist/"
-        className="relative hidden h-9 w-9 items-center justify-center rounded-full text-sm leading-none sm:inline-flex"
+        className={`hidden sm:inline-flex ${iconButtonClass}`}
         aria-label="Wishlist"
       >
         <HeartIcon />
         <span className="sr-only">Wishlist</span>
         {wishlistCount > 0 ? (
-          <span className="absolute -right-2 -top-2 rounded-full bg-accent px-2 py-0.5 text-xs text-white">
+          <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-white">
             {wishlistCount}
           </span>
         ) : null}
       </Link>
       <button
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none"
+        type="button"
+        className={iconButtonClass}
         onClick={() => setOpen((prev) => !prev)}
         aria-label="Cart"
       >
         <CartIcon />
         <span className="sr-only">Cart</span>
         {count > 0 ? (
-          <span className="absolute right-0 -top-1 rounded-full bg-primary px-2 py-0.5 text-xs text-white">
+          <span className="absolute -right-1 -top-1 rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold text-white">
             {count}
           </span>
         ) : null}
       </button>
       <div className="relative" ref={menuRef}>
         <button
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none"
+          type="button"
+          className={iconButtonClass}
           onClick={() => setMenuOpen((prev) => !prev)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
@@ -164,6 +175,12 @@ export function HeaderClient() {
           ) : (
             <UserIcon />
           )}
+          {hasToken && hasUnreadNotifications ? (
+            <span
+              className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-accent ring-2 ring-card"
+              aria-hidden="true"
+            />
+          ) : null}
         </button>
         {menuOpen ? (
           mounted && hasToken ? (
@@ -188,7 +205,7 @@ export function HeaderClient() {
               </div>
               <Link
                 href="/account/dashboard/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
               >
@@ -196,7 +213,7 @@ export function HeaderClient() {
               </Link>
               <Link
                 href="/account/profile/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
               >
@@ -204,16 +221,29 @@ export function HeaderClient() {
               </Link>
               <Link
                 href="/account/orders/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
               >
                 Orders
               </Link>
+              <Link
+                href="/notifications/"
+                className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:hidden"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                <span className="truncate">Notifications</span>
+                {unreadCount > 0 ? (
+                  <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80">
+                    {unreadCount}
+                  </span>
+                ) : null}
+              </Link>
               {profileQuery.data?.is_superuser || profileQuery.data?.is_staff ? (
                 <Link
                   href="/admin/"
-                  className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                  className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   role="menuitem"
                   onClick={() => setMenuOpen(false)}
                 >
@@ -221,7 +251,7 @@ export function HeaderClient() {
                 </Link>
               ) : null}
               <button
-                className="mt-1 w-full truncate rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
+                className="mt-1 w-full truncate rounded-lg px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 onClick={() => {
                   setMenuOpen(false);
                   logout();
@@ -243,7 +273,7 @@ export function HeaderClient() {
               </div>
               <Link
                 href="/account/login/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
               >
@@ -251,7 +281,7 @@ export function HeaderClient() {
               </Link>
               <Link
                 href="/account/register/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
               >
@@ -260,7 +290,7 @@ export function HeaderClient() {
               <div className="my-1 border-t border-border" role="separator" />
               <Link
                 href="/faq/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
               >
@@ -268,7 +298,7 @@ export function HeaderClient() {
               </Link>
               <Link
                 href="/contact/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted"
+                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
               >

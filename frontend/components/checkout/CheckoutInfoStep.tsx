@@ -158,6 +158,7 @@ export function CheckoutInfoStep({
           <input
             className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
             type="email"
+            autoComplete="email"
             {...form.register("email")}
             aria-invalid={Boolean(form.formState.errors.email)}
             aria-describedby={form.formState.errors.email ? "email-error" : undefined}
@@ -170,6 +171,7 @@ export function CheckoutInfoStep({
             First name
             <input
               className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              autoComplete="shipping given-name"
               {...form.register("shipping_first_name")}
               aria-invalid={Boolean(form.formState.errors.shipping_first_name)}
               aria-describedby={
@@ -184,6 +186,7 @@ export function CheckoutInfoStep({
             Last name
             <input
               className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+              autoComplete="shipping family-name"
               {...form.register("shipping_last_name")}
               aria-invalid={Boolean(form.formState.errors.shipping_last_name)}
               aria-describedby={
@@ -200,6 +203,9 @@ export function CheckoutInfoStep({
           Phone
           <input
             className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+            type="tel"
+            autoComplete="shipping tel"
+            inputMode="tel"
             {...form.register("shipping_phone")}
             aria-invalid={Boolean(form.formState.errors.shipping_phone)}
             aria-describedby={
@@ -286,6 +292,7 @@ export function CheckoutInfoStep({
               Address line 1
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="shipping address-line1"
                 {...form.register("shipping_address_line_1")}
                 aria-invalid={Boolean(form.formState.errors.shipping_address_line_1)}
                 aria-describedby={
@@ -301,6 +308,7 @@ export function CheckoutInfoStep({
               Address line 2 (optional)
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="shipping address-line2"
                 {...form.register("shipping_address_line_2")}
               />
             </label>
@@ -310,6 +318,7 @@ export function CheckoutInfoStep({
                 City
                 <input
                   className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                  autoComplete="shipping address-level2"
                   {...form.register("shipping_city")}
                   aria-invalid={Boolean(form.formState.errors.shipping_city)}
                   aria-describedby={
@@ -324,6 +333,7 @@ export function CheckoutInfoStep({
                 State / Province
                 <input
                   className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                  autoComplete="shipping address-level1"
                   {...form.register("shipping_state")}
                 />
               </label>
@@ -334,6 +344,8 @@ export function CheckoutInfoStep({
                 Postal code
                 <input
                   className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                  autoComplete="shipping postal-code"
+                  inputMode="text"
                   {...form.register("shipping_postal_code")}
                   aria-invalid={Boolean(form.formState.errors.shipping_postal_code)}
                   aria-describedby={
@@ -348,6 +360,7 @@ export function CheckoutInfoStep({
                 Country
                 <select
                   className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                  autoComplete="shipping country-name"
                   {...form.register("shipping_country")}
                   aria-invalid={Boolean(form.formState.errors.shipping_country)}
                   aria-describedby={

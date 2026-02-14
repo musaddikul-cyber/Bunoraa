@@ -117,7 +117,7 @@ export function MobileNav({
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 h-screen supports-[height:100dvh]:h-[100dvh]"
+          className="fixed inset-0 z-50 h-[100svh] supports-[height:100dvh]:h-[100dvh]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="mobile-navigation-title"
@@ -125,10 +125,10 @@ export function MobileNav({
             if (event.target === event.currentTarget) closeNav();
           }}
         >
-          <div className="absolute inset-0 bg-black/55" onClick={closeNav} />
+          <div className="absolute inset-0 bg-foreground/35 backdrop-blur-[1px]" onClick={closeNav} />
           <aside
             id="mobile-navigation-panel"
-            className="absolute inset-y-0 left-0 flex h-screen min-h-screen w-full max-w-sm flex-col border-r border-border bg-background p-5 text-foreground shadow-2xl supports-[height:100dvh]:h-[100dvh]"
+            className="absolute inset-y-0 left-0 flex h-[100svh] min-h-[100svh] w-full max-w-[22rem] flex-col border-r border-border bg-background px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] text-foreground shadow-2xl supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:min-h-[100dvh]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between">

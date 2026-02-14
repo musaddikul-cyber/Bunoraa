@@ -37,6 +37,7 @@
     --color-border-muted: var(--border);
     --color-card: var(--card);
     --color-card-elevated: var(--card);
+    --header-offset: 5.5rem;
   }
 
   .light {
@@ -116,6 +117,8 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    scroll-padding-top: var(--header-offset);
   }
 
   *,
@@ -140,6 +143,37 @@
   textarea,
   button {
     font: inherit;
+    touch-action: manipulation;
+  }
+
+  a,
+  [role="button"],
+  summary {
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--primary) / 0.6);
+    outline-offset: 2px;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: 0.75rem;
+    top: -4rem;
+    z-index: 100;
+    border-radius: 0.75rem;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.625rem 0.875rem;
+    transition: top 0.2s ease;
+  }
+
+  .skip-link:focus-visible {
+    top: 0.75rem;
   }
 
   .range-slider {
@@ -203,6 +237,23 @@
   [type="reset"] {
     min-height: 40px;
     min-width: 40px;
+  }
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --header-offset: 4.75rem;
+  }
+}
+
+@media (pointer: coarse) {
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  summary {
+    min-height: 44px;
+    min-width: 44px;
   }
 }
 

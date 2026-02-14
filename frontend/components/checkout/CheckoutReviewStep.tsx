@@ -221,11 +221,12 @@ export function CheckoutReviewStep({
           <textarea
             rows={3}
             className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+            autoComplete="off"
             {...form.register("order_notes")}
           />
         </label>
 
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" {...form.register("terms_accepted")} />
           I agree to the terms and conditions.
         </label>
@@ -236,11 +237,12 @@ export function CheckoutReviewStep({
         ) : null}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-          <Button type="button" variant="secondary" onClick={onBack}>
+          <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={onBack}>
             Back
           </Button>
           <Button
             type="submit"
+            className="w-full sm:w-auto sm:min-w-[220px]"
             disabled={isSubmitting || hasBlockingIssues || Boolean(isValidating)}
           >
             {isSubmitting ? "Placing order..." : "Place order"}

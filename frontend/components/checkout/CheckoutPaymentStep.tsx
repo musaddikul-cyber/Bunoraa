@@ -207,7 +207,7 @@ export function CheckoutPaymentStep({
                   <label
                     key={gateway.code}
                     className={cn(
-                      "flex cursor-pointer items-start justify-between gap-4 rounded-xl border px-4 py-3 text-sm",
+                      "flex cursor-pointer flex-col gap-3 rounded-xl border px-4 py-3 text-sm sm:flex-row sm:items-start sm:justify-between",
                       isSelected
                         ? "border-primary bg-primary/10"
                         : "border-border bg-card hover:bg-muted"
@@ -216,6 +216,7 @@ export function CheckoutPaymentStep({
                     <div className="flex items-start gap-3">
                       <input
                         type="radio"
+                        className="mt-1 h-4 w-4"
                         value={gateway.code}
                         {...paymentField}
                         onChange={(event) => {
@@ -237,7 +238,7 @@ export function CheckoutPaymentStep({
                         ) : null}
                       </div>
                     </div>
-                    <div className="text-right text-xs text-foreground/60">
+                    <div className="self-end text-right text-xs text-foreground/60 sm:self-auto">
                       {gateway.fee_amount_converted !== null &&
                       gateway.fee_amount_converted !== undefined ? (
                         <p>
@@ -286,7 +287,7 @@ export function CheckoutPaymentStep({
         ) : null}
 
         <div className="border-t border-border pt-6">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -308,6 +309,7 @@ export function CheckoutPaymentStep({
               First name
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="billing given-name"
                 {...form.register("billing_first_name")}
                 aria-invalid={Boolean(form.formState.errors.billing_first_name)}
                 aria-describedby={
@@ -322,6 +324,7 @@ export function CheckoutPaymentStep({
               Last name
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="billing family-name"
                 {...form.register("billing_last_name")}
                 aria-invalid={Boolean(form.formState.errors.billing_last_name)}
                 aria-describedby={
@@ -336,6 +339,7 @@ export function CheckoutPaymentStep({
               Address line 1
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="billing address-line1"
                 {...form.register("billing_address_line_1")}
                 aria-invalid={Boolean(form.formState.errors.billing_address_line_1)}
                 aria-describedby={
@@ -350,6 +354,7 @@ export function CheckoutPaymentStep({
               Address line 2 (optional)
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="billing address-line2"
                 {...form.register("billing_address_line_2")}
               />
             </label>
@@ -357,6 +362,7 @@ export function CheckoutPaymentStep({
               City
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="billing address-level2"
                 {...form.register("billing_city")}
                 aria-invalid={Boolean(form.formState.errors.billing_city)}
                 aria-describedby={
@@ -371,6 +377,7 @@ export function CheckoutPaymentStep({
               State / Province
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="billing address-level1"
                 {...form.register("billing_state")}
               />
             </label>
@@ -378,6 +385,8 @@ export function CheckoutPaymentStep({
               Postal code
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="billing postal-code"
+                inputMode="text"
                 {...form.register("billing_postal_code")}
                 aria-invalid={Boolean(form.formState.errors.billing_postal_code)}
                 aria-describedby={
@@ -392,6 +401,7 @@ export function CheckoutPaymentStep({
               Country
               <select
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                autoComplete="billing country-name"
                 {...form.register("billing_country")}
                 aria-invalid={Boolean(form.formState.errors.billing_country)}
                 aria-describedby={
@@ -414,10 +424,14 @@ export function CheckoutPaymentStep({
         ) : null}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-          <Button type="button" variant="secondary" onClick={onBack}>
+          <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={onBack}>
             Back
           </Button>
-          <Button type="submit" disabled={isSubmitting || !gatewaysAvailable}>
+          <Button
+            type="submit"
+            className="w-full sm:w-auto sm:min-w-[220px]"
+            disabled={isSubmitting || !gatewaysAvailable}
+          >
             {isSubmitting ? "Saving..." : "Continue to review"}
           </Button>
         </div>

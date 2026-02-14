@@ -40,7 +40,7 @@ export async function Header() {
   const categories = categoryResult.status === "fulfilled" ? categoryResult.value : [];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/88">
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-6">
           <MobileNav categories={categories} menuPages={menuPages} />

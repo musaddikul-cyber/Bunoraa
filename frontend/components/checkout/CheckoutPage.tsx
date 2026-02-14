@@ -531,19 +531,21 @@ export function CheckoutPage() {
       description="Please sign in to continue with checkout."
     >
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-12">
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:py-12">
           <div className="mb-8">
             <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">
               Checkout
             </p>
-            <h1 className="text-3xl font-semibold">Secure checkout</h1>
+            <h1 className="text-2xl font-semibold sm:text-3xl">Secure checkout</h1>
             <p className="mt-2 max-w-2xl text-sm text-foreground/60">
               Complete your order in a few quick steps. Your information is
               protected with encrypted connections.
             </p>
           </div>
 
-          <CheckoutSteps current={currentStep} onStepClick={goToStep} />
+          <div className="sticky top-[calc(var(--header-offset)+0.25rem)] z-20 -mx-4 mb-5 border-y border-border/70 bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0">
+            <CheckoutSteps current={currentStep} onStepClick={goToStep} />
+          </div>
 
           <div className="grid gap-6 lg:gap-8 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-6">

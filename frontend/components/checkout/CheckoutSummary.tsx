@@ -109,6 +109,12 @@ export function CheckoutSummary({
     return formatMoney(value, currencyCode);
   };
 
+  const shippingLocation =
+    cartSummary?.shipping_estimate_label || cartSummary?.shipping_zone || null;
+  const shippingLabel = shippingLocation
+    ? `Shipping (${shippingLocation})`
+    : "Shipping";
+
   const summaryContent = (
     <div className="space-y-6">
       <div className="hidden lg:block">
@@ -138,10 +144,10 @@ export function CheckoutSummary({
                   <div className="h-full w-full bg-muted" />
                 )}
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">{item.product_name}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{item.product_name}</p>
                 {item.variant_name ? (
-                  <p className="text-xs text-foreground/60">{item.variant_name}</p>
+                  <p className="truncate text-xs text-foreground/60">{item.variant_name}</p>
                 ) : null}
                 <p className="text-xs text-foreground/60">
                   Qty {item.quantity}
@@ -171,19 +177,12 @@ export function CheckoutSummary({
           </div>
         ) : null}
         <div className="flex items-center justify-between">
-          <span className="text-foreground/70">Shipping</span>
+          <span className="text-foreground/70">{shippingLabel}</span>
           <span>{lineValue(cartSummary?.shipping_cost, cartSummary?.formatted_shipping)}</span>
         </div>
         {cartSummary?.pickup_location_name ? (
           <p className="text-xs text-foreground/60">
             Store pickup — {cartSummary.pickup_location_name}
-          </p>
-        ) : null}
-        {cartSummary?.shipping_estimate && !cartSummary?.shipping_selected ? (
-          <p className="text-xs text-foreground/60">
-            Estimated shipping{cartSummary.shipping_estimate_label
-              ? ` to ${cartSummary.shipping_estimate_label}`
-              : ""}.
           </p>
         ) : null}
         <div className="flex items-center justify-between">
@@ -253,6 +252,7 @@ export function CheckoutSummary({
             type="button"
             size="sm"
             variant="secondary"
+            className="w-full sm:w-auto"
             onClick={handleApplyCoupon}
             disabled={isApplyingCoupon}
           >

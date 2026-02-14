@@ -247,7 +247,7 @@ export function CheckoutShippingStep({
                 <label
                   key={rate.rate_id || rate.id}
                   className={cn(
-                    "flex cursor-pointer items-center justify-between rounded-xl border px-4 py-3 text-sm",
+                    "flex cursor-pointer flex-col gap-3 rounded-xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between",
                     selectedRateId === (rate.rate_id || rate.id)
                       ? "border-primary bg-primary/10"
                       : "border-border bg-card hover:bg-muted"
@@ -256,6 +256,7 @@ export function CheckoutShippingStep({
                   <div className="flex items-start gap-3">
                     <input
                       type="radio"
+                      className="mt-1 h-4 w-4"
                       name="shipping_rate"
                       checked={selectedRateId === (rate.rate_id || rate.id)}
                       onChange={() =>
@@ -277,7 +278,7 @@ export function CheckoutShippingStep({
                       ) : null}
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="self-end text-right sm:self-auto">
                     <p className="font-semibold">{rate.rate_display}</p>
                     {rate.is_express ? (
                       <span className="text-xs uppercase tracking-wide text-primary">
@@ -316,6 +317,7 @@ export function CheckoutShippingStep({
                 >
                   <input
                     type="radio"
+                    className="mt-1 h-4 w-4"
                     name="pickup_location"
                     checked={selectedPickupId === location.id}
                     onChange={() => setSelectedPickupId(location.id)}
@@ -390,6 +392,7 @@ export function CheckoutShippingStep({
           <textarea
             rows={3}
             className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+            autoComplete="shipping street-address"
             value={deliveryInstructions}
             onChange={(event) => setDeliveryInstructions(event.target.value)}
           />
@@ -399,10 +402,15 @@ export function CheckoutShippingStep({
       {error ? <p className="text-sm text-rose-500">{error}</p> : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-        <Button type="button" variant="secondary" onClick={onBack}>
+        <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={onBack}>
           Back
         </Button>
-        <Button type="button" onClick={handleSubmit} disabled={isSubmitting}>
+        <Button
+          type="button"
+          className="w-full sm:w-auto sm:min-w-[220px]"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+        >
           {isSubmitting ? "Saving..." : "Continue to payment"}
         </Button>
       </div>

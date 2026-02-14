@@ -19,29 +19,32 @@ export function CheckoutSteps({
   const currentIndex = steps.findIndex((step) => step.key === current);
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-start gap-4 overflow-x-auto pb-2 scrollbar-hide md:justify-center">
+    <div className="mb-1 lg:mb-6">
+      <ol className="flex items-center justify-start gap-2 overflow-x-auto pb-1 scrollbar-hide md:justify-center">
         {steps.map((step, index) => {
           const isComplete = index < currentIndex;
           const isActive = index === currentIndex;
           const isClickable = Boolean(onStepClick && index <= currentIndex);
           return (
-            <div key={step.key} className="flex items-center">
-              <div
+            <li key={step.key} className="shrink-0">
+              <button
+                type="button"
                 className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold sm:h-10 sm:w-10 sm:text-sm",
+                  "inline-flex min-h-11 items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium sm:min-h-10 sm:text-sm",
                   isComplete
-                    ? "bg-emerald-600 text-white"
+                    ? "border-emerald-600 bg-emerald-600 text-white"
                     : isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground/50",
-                  isClickable && "cursor-pointer"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-muted text-foreground/70",
+                  isClickable && "cursor-pointer",
+                  !isClickable && "cursor-default"
                 )}
+                disabled={!isClickable}
+                aria-current={isActive ? "step" : undefined}
+                aria-label={`Step ${step.number}: ${step.label}`}
                 onClick={() => {
                   if (isClickable) onStepClick?.(step.key);
                 }}
-                role={isClickable ? "button" : undefined}
-                tabIndex={isClickable ? 0 : undefined}
                 onKeyDown={(event) => {
                   if (!isClickable) return;
                   if (event.key === "Enter" || event.key === " ") {
@@ -50,52 +53,39 @@ export function CheckoutSteps({
                   }
                 }}
               >
-                {isComplete ? (
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                ) : (
-                  step.number
-                )}
-              </div>
-              <span
-                className={cn(
-                  "ml-2 text-xs font-medium sm:text-sm",
-                  isActive ? "text-foreground" : "text-foreground/50",
-                  isClickable && "cursor-pointer hover:text-foreground"
-                )}
-                onClick={() => {
-                  if (isClickable) onStepClick?.(step.key);
-                }}
-                role={isClickable ? "button" : undefined}
-                tabIndex={isClickable ? 0 : undefined}
-                onKeyDown={(event) => {
-                  if (!isClickable) return;
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onStepClick?.(step.key);
-                  }
-                }}
-              >
-                {step.label}
-              </span>
-              {index < steps.length - 1 ? (
-                <div className="mx-3 h-0.5 w-6 bg-border sm:w-10 md:w-16" />
-              ) : null}
-            </div>
+                <span
+                  className={cn(
+                    "inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold",
+                    isComplete || isActive
+                      ? "bg-white/20 text-current"
+                      : "bg-background text-foreground/70"
+                  )}
+                >
+                  {isComplete ? (
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  ) : (
+                    step.number
+                  )}
+                </span>
+                <span className="whitespace-nowrap">{step.label}</span>
+              </button>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </div>
   );
 }

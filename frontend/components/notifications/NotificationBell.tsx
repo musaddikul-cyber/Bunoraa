@@ -1,16 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useNotifications } from "@/components/notifications/useNotifications";
+import { cn } from "@/lib/utils";
 
-export function NotificationBell() {
-  const { unreadCountQuery } = useNotifications();
-  const count = unreadCountQuery.data?.count || 0;
-
+export function NotificationBell({
+  className,
+  count = 0,
+}: {
+  className?: string;
+  count?: number;
+}) {
   return (
     <Link
       href="/notifications/"
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-sm leading-none"
+      className={cn(
+        "relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-10 sm:w-10",
+        className
+      )}
       aria-label="Notifications"
     >
       <svg

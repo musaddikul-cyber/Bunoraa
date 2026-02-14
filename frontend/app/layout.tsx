@@ -11,9 +11,41 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, absoluteUrl, cleanObject } from "@/lib/seo";
 import Script from "next/script";
 
+const SITE_NAME = "Bunoraa";
+const SITE_DESCRIPTION = "Bunoraa e-commerce storefront";
+const metadataBase = new URL(
+  SITE_URL.startsWith("http://") || SITE_URL.startsWith("https://")
+    ? SITE_URL
+    : `https://${SITE_URL}`
+);
+
 export const metadata: Metadata = {
-  title: "Bunoraa",
-  description: "Bunoraa e-commerce storefront",
+  metadataBase,
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  manifest: "/site.webmanifest",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
+  other: {
+    "apple-mobile-web-app-title": SITE_NAME,
+  },
 };
 
 export const viewport: Viewport = {
@@ -36,7 +68,7 @@ export default function RootLayout({
   const organizationSchema = cleanObject({
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "Bunoraa",
+    name: SITE_NAME,
     url: SITE_URL,
     logo: absoluteUrl("/favicon.ico"),
   });
@@ -44,7 +76,8 @@ export default function RootLayout({
   const websiteSchema = cleanObject({
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "Bunoraa",
+    name: SITE_NAME,
+    alternateName: "bunoraa.com",
     url: SITE_URL,
     potentialAction: {
       "@type": "SearchAction",
@@ -59,10 +92,15 @@ export default function RootLayout({
   return (
     <html lang="en" className="system" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <Providers>
           <PageViewTracker />
           <Header />
-          <main className="min-h-[70vh]">{children}</main>
+          <main id="main-content" className="min-h-[70vh]">
+            {children}
+          </main>
           <Footer />
           <CompareTray />
           <ChatWidget />

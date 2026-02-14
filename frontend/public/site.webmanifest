@@ -1,0 +1,17 @@
+{
+  "name": "Bunoraa",
+  "short_name": "Bunoraa",
+  "description": "Bunoraa e-commerce storefront",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#9c3d1e",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

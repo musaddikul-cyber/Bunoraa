@@ -34,7 +34,7 @@ export function ProductCard({
     <Card
       variant="bordered"
       className={cn(
-        "group flex flex-col gap-4",
+        "group flex flex-col gap-3 p-4 sm:gap-4 sm:p-5",
         variant === "list" ? "sm:flex-row sm:items-center" : ""
       )}
     >
@@ -44,30 +44,37 @@ export function ProductCard({
           variant === "list" ? "h-40 w-full sm:h-40 sm:w-56" : "aspect-[4/5]"
         )}
       >
+        <Link
+          href={`/products/${product.slug}/`}
+          className="absolute inset-0 z-0"
+          aria-label={`View ${product.name}`}
+        />
         <WishlistIconButton
           productId={product.id}
           variant="ghost"
           size="lg"
           color="fixed-black"
-          className="absolute right-2 top-2 pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100"
+          className="absolute right-2 top-2 z-20 opacity-100 transition sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100"
         />
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={image}
             alt={product.name}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : null}
-        <div className="absolute left-3 top-3">
+        <div className="absolute left-2 top-2 z-10 sm:left-3 sm:top-3">
           <ProductBadges product={product} omitOnSale />
         </div>
         {showQuickView ? (
-          <div className="absolute bottom-3 left-3 pointer-events-none opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100">
+          <div className="absolute bottom-2 left-2 right-2 z-20 opacity-100 transition sm:bottom-3 sm:left-3 sm:right-auto sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100">
             <Button
               size="sm"
               variant="secondary"
-              className="bg-background/80 backdrop-blur"
+              className="w-full bg-background/90 backdrop-blur sm:w-auto"
               onClick={() => onQuickView?.(product.slug)}
             >
               Quick view
@@ -78,10 +85,13 @@ export function ProductCard({
 
       <div className="flex flex-1 flex-col gap-2">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-foreground/60">
             {product.primary_category_name || "Featured"}
           </p>
-          <Link href={`/products/${product.slug}/`} className="text-lg font-semibold">
+          <Link
+            href={`/products/${product.slug}/`}
+            className="block text-base font-semibold leading-snug sm:text-lg"
+          >
             {product.name}
           </Link>
         </div>
@@ -92,20 +102,22 @@ export function ProductCard({
           currentPrice={product.current_price}
           currency={product.currency}
         />
-        <div className="mt-auto flex flex-wrap gap-2">
+        <div className="mt-auto grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center">
           <AddToCartButton
             productId={product.id}
             size="sm"
             variant="secondary"
+            className="w-full justify-center sm:flex-1"
             label={product.is_in_stock ? "Add to cart" : "Out of stock"}
             disabled={!product.is_in_stock}
           />
           <Button
             size="sm"
             variant={isInCompare ? "primary" : "secondary"}
+            className="w-full justify-center sm:w-auto sm:min-w-[110px]"
             onClick={() => toggleCompare(compareItemFromProduct(product))}
           >
-            {isInCompare ? "Compare" : "Add to compare"}
+            {isInCompare ? "Compared" : "Compare"}
           </Button>
         </div>
       </div>

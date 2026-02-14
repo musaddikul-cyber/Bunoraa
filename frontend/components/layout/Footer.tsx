@@ -178,11 +178,205 @@ export async function Footer() {
       [...companyLinks, ...supportLinks].map((item) => [item.href, item])
     ).values()
   );
+  const shopLinks = categories.length
+    ? categories.map((category) => ({
+        key: category.id,
+        label: category.name,
+        href: `/categories/${category.slug}/`,
+      }))
+    : [
+        { key: "browse-categories", label: "Browse categories", href: "/categories/" },
+        { key: "all-products", label: "All products", href: "/products/" },
+      ];
+
+  const collectionLinks = [
+    ...(collections.length
+      ? collections.slice(0, 4).map((collection) => ({
+          key: collection.id,
+          label: collection.name,
+          href: `/collections/${collection.slug}/`,
+        }))
+      : [{ key: "all-collections", label: "All collections", href: "/collections/" }]),
+    { key: "collections-all-products", label: "All products", href: "/products/" },
+    { key: "collections-bundles", label: "Bundles", href: "/bundles/" },
+    { key: "collections-artisans", label: "Artisans", href: "/artisans/" },
+    { key: "collections-preorders", label: "Preorders", href: "/preorders/" },
+  ];
+
+  const contactItems = [
+    ...emailItems.map((item) => ({
+      key: `email-${item.label}`,
+      label: item.label,
+      value: item.value,
+      href: `mailto:${item.value}`,
+    })),
+    ...(phone
+      ? [
+          {
+            key: "phone",
+            label: "Phone",
+            value: phone,
+            href: `tel:${phone}`,
+          },
+        ]
+      : []),
+    ...(address
+      ? [
+          {
+            key: "address",
+            label: "",
+            value: address,
+            href: "",
+          },
+        ]
+      : []),
+  ];
+
+  const footerAccordionClass =
+    "group rounded-xl border border-border bg-background/40";
+  const footerSummaryClass =
+    "flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground/90 [&::-webkit-details-marker]:hidden";
+  const footerListClass = "space-y-2 border-t border-border px-4 pb-4 pt-3 text-sm text-foreground/70";
 
   return (
     <footer id="footer" className="border-t border-border bg-card">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-12">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="space-y-8 lg:hidden">
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
+                {brandName}
+              </p>
+              <p className="mt-2 text-sm text-foreground/70">{brandDescription}</p>
+            </div>
+            <FooterNewsletter />
+            {socialLinks.length ? (
+              <div>
+                <p className="text-sm font-semibold">Follow along</p>
+                <ul className="mt-3 flex flex-wrap gap-3 text-sm text-foreground/70">
+                  {socialLinks.map((link) => (
+                    <li key={link.url}>
+                      <Link className="hover:text-foreground" href={link.url}>
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-3">
+            <details className={footerAccordionClass} name="footer-sections" open>
+              <summary className={footerSummaryClass}>
+                <span>Shop</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4 shrink-0 text-foreground/60 transition group-open:rotate-180"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 7.5l5 5 5-5" />
+                </svg>
+              </summary>
+              <ul className={footerListClass}>
+                {shopLinks.map((item) => (
+                  <li key={item.key}>
+                    <Link href={item.href}>{item.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </details>
+
+            <details className={footerAccordionClass} name="footer-sections">
+              <summary className={footerSummaryClass}>
+                <span>Collections</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4 shrink-0 text-foreground/60 transition group-open:rotate-180"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 7.5l5 5 5-5" />
+                </svg>
+              </summary>
+              <ul className={footerListClass}>
+                {collectionLinks.map((item) => (
+                  <li key={item.key}>
+                    <Link href={item.href}>{item.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </details>
+
+            <details className={footerAccordionClass} name="footer-sections">
+              <summary className={footerSummaryClass}>
+                <span>Company & Support</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4 shrink-0 text-foreground/60 transition group-open:rotate-180"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 7.5l5 5 5-5" />
+                </svg>
+              </summary>
+              <ul className={footerListClass}>
+                {mergedCompanyLinks.map((item) => (
+                  <li key={item.href}>
+                    <Link href={item.href}>{item.label}</Link>
+                  </li>
+                ))}
+              </ul>
+            </details>
+
+            <details className={footerAccordionClass} name="footer-sections">
+              <summary className={footerSummaryClass}>
+                <span>Contact & Location</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4 shrink-0 text-foreground/60 transition group-open:rotate-180"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 7.5l5 5 5-5" />
+                </svg>
+              </summary>
+              <ul className={footerListClass}>
+                {contactItems.map((item) => (
+                  <li key={item.key}>
+                    {item.label ? (
+                      <>
+                        <span className="text-foreground/60">{item.label}:</span>{" "}
+                        {item.href ? <Link href={item.href}>{item.value}</Link> : item.value}
+                      </>
+                    ) : (
+                      item.value
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        </div>
+
+        <div className="hidden gap-8 sm:grid-cols-2 lg:grid lg:grid-cols-6">
           <div className="space-y-4 sm:col-span-2 lg:col-span-2">
             <div>
               <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
@@ -210,51 +404,22 @@ export async function Footer() {
           <div>
             <p className="text-sm font-semibold">Shop</p>
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
-              {categories.length ? (
-                categories.map((category) => (
-                  <li key={category.id}>
-                    <Link href={`/categories/${category.slug}/`}>{category.name}</Link>
-                  </li>
-                ))
-              ) : (
-                <>
-                  <li>
-                    <Link href="/categories/">Browse categories</Link>
-                  </li>
-                  <li>
-                    <Link href="/products/">All products</Link>
-                  </li>
-                </>
-              )}
+              {shopLinks.map((item) => (
+                <li key={item.key}>
+                  <Link href={item.href}>{item.label}</Link>
+                </li>
+              ))}
             </ul>
           </div>
 
           <div>
             <p className="text-sm font-semibold">Collections</p>
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
-              {collections.length ? (
-                collections.slice(0, 4).map((collection) => (
-                  <li key={collection.id}>
-                    <Link href={`/collections/${collection.slug}/`}>{collection.name}</Link>
-                  </li>
-                ))
-              ) : (
-                <li>
-                  <Link href="/collections/">All collections</Link>
+              {collectionLinks.map((item) => (
+                <li key={item.key}>
+                  <Link href={item.href}>{item.label}</Link>
                 </li>
-              )}
-              <li>
-                <Link href="/products/">All products</Link>
-              </li>
-              <li>
-                <Link href="/bundles/">Bundles</Link>
-              </li>
-              <li>
-                <Link href="/artisans/">Artisans</Link>
-              </li>
-              <li>
-                <Link href="/preorders/">Preorders</Link>
-              </li>
+              ))}
             </ul>
           </div>
 
@@ -272,19 +437,18 @@ export async function Footer() {
           <div>
             <p className="text-sm font-semibold">Contact & Location</p>
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
-              {emailItems.map((item) => (
-                <li key={item.label}>
-                  <span className="text-foreground/60">{item.label}:</span>{" "}
-                  <Link href={`mailto:${item.value}`}>{item.value}</Link>
+              {contactItems.map((item) => (
+                <li key={item.key}>
+                  {item.label ? (
+                    <>
+                      <span className="text-foreground/60">{item.label}:</span>{" "}
+                      {item.href ? <Link href={item.href}>{item.value}</Link> : item.value}
+                    </>
+                  ) : (
+                    item.value
+                  )}
                 </li>
               ))}
-              {phone ? (
-                <li>
-                  <span className="text-foreground/60">Phone:</span>{" "}
-                  <Link href={`tel:${phone}`}>{phone}</Link>
-                </li>
-              ) : null}
-              {address ? <li>{address}</li> : null}
             </ul>
           </div>
         </div>

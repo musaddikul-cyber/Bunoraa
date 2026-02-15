@@ -33,6 +33,50 @@ type GiftOptionsInput = {
 const cartKey = ["cart"] as const;
 const cartSummaryKey = ["cart", "summary"] as const;
 
+function extractCartFromResponse(response: unknown): Cart | null {
+  if (!response || typeof response !== "object") return null;
+
+  const root = response as Record<string, unknown>;
+  if (root.cart && typeof root.cart === "object") {
+    return root.cart as Cart;
+  }
+
+  const payload = root.data;
+  if (payload && typeof payload === "object") {
+    const payloadObj = payload as Record<string, unknown>;
+    if (payloadObj.cart && typeof payloadObj.cart === "object") {
+      return payloadObj.cart as Cart;
+    }
+  }
+
+  return null;
+}
+
+function mergeSummaryWithCart(previous: CartSummary | undefined, cart: Cart): CartSummary {
+  const base: CartSummary = previous ?? {
+    id: cart.id,
+    item_count: cart.item_count,
+    subtotal: cart.subtotal,
+    discount_amount: cart.discount_amount,
+    total: cart.total,
+    coupon_code: cart.coupon_code ?? null,
+    currency: cart.currency,
+    currency_code: cart.currency,
+  };
+
+  return {
+    ...base,
+    id: base.id || cart.id,
+    item_count: cart.item_count,
+    subtotal: cart.subtotal,
+    discount_amount: cart.discount_amount,
+    total: cart.total,
+    coupon_code: cart.coupon_code ?? null,
+    currency: base.currency || cart.currency,
+    currency_code: base.currency_code || cart.currency,
+  };
+}
+
 function parseMoney(value: string | number | null | undefined) {
   if (value === null || value === undefined) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -216,7 +260,14 @@ export function useCart() {
         allowGuest: true,
       });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      const nextCart = extractCartFromResponse(response);
+      if (nextCart) {
+        queryClient.setQueryData<Cart>(cartKey, nextCart);
+        queryClient.setQueryData<CartSummary>(cartSummaryKey, (previous) =>
+          mergeSummaryWithCart(previous, nextCart)
+        );
+      }
       queryClient.invalidateQueries({ queryKey: cartKey });
       queryClient.invalidateQueries({ queryKey: cartSummaryKey });
     },
@@ -239,7 +290,14 @@ export function useCart() {
         allowGuest: true,
       });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      const nextCart = extractCartFromResponse(response);
+      if (nextCart) {
+        queryClient.setQueryData<Cart>(cartKey, nextCart);
+        queryClient.setQueryData<CartSummary>(cartSummaryKey, (previous) =>
+          mergeSummaryWithCart(previous, nextCart)
+        );
+      }
       queryClient.invalidateQueries({ queryKey: cartKey });
       queryClient.invalidateQueries({ queryKey: cartSummaryKey });
     },

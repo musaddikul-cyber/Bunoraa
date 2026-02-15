@@ -20,6 +20,50 @@ type GatewayParams = {
   amount?: string | number | null;
 };
 
+function extractCartFromResponse(response: unknown): Cart | null {
+  if (!response || typeof response !== "object") return null;
+
+  const root = response as Record<string, unknown>;
+  if (root.cart && typeof root.cart === "object") {
+    return root.cart as Cart;
+  }
+
+  const payload = root.data;
+  if (payload && typeof payload === "object") {
+    const payloadObj = payload as Record<string, unknown>;
+    if (payloadObj.cart && typeof payloadObj.cart === "object") {
+      return payloadObj.cart as Cart;
+    }
+  }
+
+  return null;
+}
+
+function mergeSummaryWithCart(previous: CartSummary | undefined, cart: Cart): CartSummary {
+  const base: CartSummary = previous ?? {
+    id: cart.id,
+    item_count: cart.item_count,
+    subtotal: cart.subtotal,
+    discount_amount: cart.discount_amount,
+    total: cart.total,
+    coupon_code: cart.coupon_code ?? null,
+    currency: cart.currency,
+    currency_code: cart.currency,
+  };
+
+  return {
+    ...base,
+    id: base.id || cart.id,
+    item_count: cart.item_count,
+    subtotal: cart.subtotal,
+    discount_amount: cart.discount_amount,
+    total: cart.total,
+    coupon_code: cart.coupon_code ?? null,
+    currency: base.currency || cart.currency,
+    currency_code: base.currency_code || cart.currency,
+  };
+}
+
 async function fetchCheckoutSession() {
   const response = await apiFetch<CheckoutSession>("/commerce/checkout/", {
     suppressErrorStatus: [400],
@@ -247,9 +291,17 @@ export function useCheckoutData(options?: {
         suppressErrorStatus: [400],
       });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      const nextCart = extractCartFromResponse(response);
+      if (nextCart) {
+        queryClient.setQueryData<Cart>(["cart"], nextCart);
+        queryClient.setQueryData<CartSummary>(["cart", "summary"], (previous) =>
+          mergeSummaryWithCart(previous, nextCart)
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ["cart"] });
       queryClient.invalidateQueries({ queryKey: ["cart", "summary"] });
+      queryClient.invalidateQueries({ queryKey: ["checkout", "session"] });
     },
   });
 
@@ -260,9 +312,17 @@ export function useCheckoutData(options?: {
         allowGuest: true,
       });
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
+      const nextCart = extractCartFromResponse(response);
+      if (nextCart) {
+        queryClient.setQueryData<Cart>(["cart"], nextCart);
+        queryClient.setQueryData<CartSummary>(["cart", "summary"], (previous) =>
+          mergeSummaryWithCart(previous, nextCart)
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ["cart"] });
       queryClient.invalidateQueries({ queryKey: ["cart", "summary"] });
+      queryClient.invalidateQueries({ queryKey: ["checkout", "session"] });
     },
   });
 

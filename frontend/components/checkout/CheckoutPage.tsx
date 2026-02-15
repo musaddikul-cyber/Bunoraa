@@ -95,8 +95,11 @@ export function CheckoutPage() {
   const [autoSavingInfo, setAutoSavingInfo] = React.useState(false);
   const [autoSavingShipping, setAutoSavingShipping] = React.useState(false);
   const [autoSavingPayment, setAutoSavingPayment] = React.useState(false);
+  const [isRedirectingAfterOrder, setIsRedirectingAfterOrder] = React.useState(false);
 
   const cartEmpty = !cart || cart.item_count === 0;
+  const isOrderTransitioning =
+    completeCheckout.isPending || completeCheckout.isSuccess || isRedirectingAfterOrder;
   const isLoading =
     checkoutQuery.isLoading || cartQuery.isLoading || cartSummaryQuery.isLoading;
 
@@ -478,6 +481,7 @@ export function CheckoutPage() {
       const payload = result && typeof result === "object" && "data" in result
         ? (result as { data?: Record<string, unknown> }).data
         : null;
+      setIsRedirectingAfterOrder(true);
       const redirectUrl = payload?.payment_redirect_url || payload?.redirect_url;
       if (typeof redirectUrl === "string" && redirectUrl.trim()) {
         window.location.href = redirectUrl;
@@ -489,17 +493,33 @@ export function CheckoutPage() {
         const params = new URLSearchParams();
         if (orderId) params.set("order_id", orderId);
         if (orderNumber) params.set("order_number", orderNumber);
-        router.push(`/checkout/success?${params.toString()}`);
+        router.replace(`/checkout/success?${params.toString()}`);
       } else {
-        router.push("/orders/");
+        router.replace("/orders/");
       }
     } catch (error) {
+      setIsRedirectingAfterOrder(false);
       push(
         error instanceof Error ? error.message : "Could not place the order.",
         "error"
       );
     }
   };
+
+  if (isOrderTransitioning) {
+    return (
+      <AuthGate nextHref="/checkout">
+        <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-16">
+          <Card variant="bordered" className="space-y-3 text-center">
+            <h1 className="text-2xl font-semibold">Processing your order</h1>
+            <p className="text-sm text-foreground/60">
+              Please wait while we finalize your order and redirect you.
+            </p>
+          </Card>
+        </div>
+      </AuthGate>
+    );
+  }
 
   if (isLoading) {
     return (

@@ -435,14 +435,16 @@ export function CartPage() {
   const [resetCounter, setResetCounter] = React.useState(0);
   const [resetItemId, setResetItemId] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    if (cartQuery.data?.coupon_code) {
-      setCouponCode(cartQuery.data.coupon_code);
-    }
-  }, [cartQuery.data?.coupon_code]);
-
   const cart = cartQuery.data;
   const summary = cartSummaryQuery.data;
+  const appliedCouponCode = cart?.coupon_code || summary?.coupon_code || "";
+
+  React.useEffect(() => {
+    if (appliedCouponCode) {
+      setCouponCode(appliedCouponCode);
+    }
+  }, [appliedCouponCode]);
+
   const currency = summary?.currency_code || cart?.currency || "";
   const itemCount = cart?.item_count ?? 0;
 
@@ -538,6 +540,10 @@ export function CartPage() {
 
   const handleApplyCoupon = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (appliedCouponCode) {
+      push(`Coupon ${appliedCouponCode} is already applied.`, "info");
+      return;
+    }
     if (!couponCode.trim()) {
       push("Enter a coupon code.", "error");
       return;
@@ -817,7 +823,7 @@ export function CartPage() {
                   <span className="text-foreground/70">Subtotal</span>
                   <span>{formattedSubtotal}</span>
                 </div>
-                {cart?.coupon_code || summary?.coupon_code ? (
+                {appliedCouponCode ? (
                   <div className="flex items-center justify-between text-success-500">
                     <span>Discount</span>
                     <span>-{formattedDiscount}</span>
@@ -873,18 +879,34 @@ export function CartPage() {
                   value={couponCode}
                   onChange={(event) => setCouponCode(event.target.value)}
                   placeholder="Enter coupon code"
-                  className="h-11 rounded-xl border border-border bg-transparent px-3 text-sm"
+                  readOnly={Boolean(appliedCouponCode)}
+                  className={cn(
+                    "h-11 rounded-xl border border-border bg-transparent px-3 text-sm",
+                    appliedCouponCode && "cursor-not-allowed opacity-70"
+                  )}
                 />
                 <div className="grid gap-2 sm:flex sm:items-center">
-                  <Button
-                    type="submit"
-                    size="sm"
-                    variant="secondary"
-                    className="w-full sm:w-auto"
-                  >
-                    Apply
-                  </Button>
-                  {cart.coupon_code ? (
+                  {appliedCouponCode ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="w-full cursor-default border-primary/35 bg-primary/10 text-primary hover:bg-primary/10 disabled:opacity-100 sm:w-auto"
+                      disabled
+                    >
+                      Applied
+                    </Button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="secondary"
+                      className="w-full sm:w-auto"
+                    >
+                      Apply
+                    </Button>
+                  )}
+                  {appliedCouponCode ? (
                     <Button
                       type="button"
                       size="sm"
@@ -897,9 +919,9 @@ export function CartPage() {
                   ) : null}
                 </div>
               </form>
-              {cart.coupon_code ? (
+              {appliedCouponCode ? (
                 <p className="text-xs text-foreground/60">
-                  Applied coupon: {cart.coupon_code}
+                  Applied coupon: {appliedCouponCode}
                 </p>
               ) : null}
             </Card>

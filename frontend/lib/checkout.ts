@@ -22,6 +22,7 @@ export function formatMoney(
       return new Intl.NumberFormat(undefined, {
         style: "currency",
         currency,
+        currencyDisplay: "narrowSymbol",
         maximumFractionDigits: 2,
       }).format(numeric);
     } catch {

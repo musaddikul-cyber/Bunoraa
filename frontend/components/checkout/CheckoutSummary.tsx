@@ -38,6 +38,8 @@ export function CheckoutSummary({
 }: CheckoutSummaryProps) {
   const { push } = useToast();
   const currencyCode = cartSummary?.currency_code || cartSummary?.currency || "";
+  const appliedCouponCode =
+    cartSummary?.coupon_code || cart?.coupon_code || checkoutSession?.coupon_code || "";
 
   const [couponCode, setCouponCode] = React.useState("");
   const [giftOptions, setGiftOptions] = React.useState({
@@ -47,8 +49,8 @@ export function CheckoutSummary({
   });
 
   React.useEffect(() => {
-    setCouponCode(cartSummary?.coupon_code || "");
-  }, [cartSummary?.coupon_code]);
+    setCouponCode(appliedCouponCode || "");
+  }, [appliedCouponCode]);
 
   React.useEffect(() => {
     setGiftOptions({
@@ -63,6 +65,10 @@ export function CheckoutSummary({
   ]);
 
   const handleApplyCoupon = async () => {
+    if (appliedCouponCode) {
+      push(`Coupon ${appliedCouponCode} is already applied.`, "info");
+      return;
+    }
     const code = couponCode.trim();
     if (!code) {
       push("Enter a coupon code.", "error");
@@ -168,7 +174,7 @@ export function CheckoutSummary({
           <span className="text-foreground/70">Subtotal</span>
           <span>{lineValue(cartSummary?.subtotal, cartSummary?.formatted_subtotal)}</span>
         </div>
-        {cartSummary?.coupon_code || checkoutSession?.coupon_code ? (
+        {appliedCouponCode ? (
           <div className="flex items-center justify-between">
             <span className="text-foreground/70">Discount</span>
             <span>
@@ -230,7 +236,7 @@ export function CheckoutSummary({
       <div className="space-y-3 border-t border-border pt-4">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold">Coupon</p>
-          {cartSummary?.coupon_code ? (
+          {appliedCouponCode ? (
             <button
               type="button"
               className="text-xs font-semibold text-primary"
@@ -243,21 +249,37 @@ export function CheckoutSummary({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
-            className="h-10 flex-1 rounded-lg border border-border bg-card px-3 text-sm"
+            className={cn(
+              "h-10 flex-1 rounded-lg border border-border bg-card px-3 text-sm",
+              appliedCouponCode && "cursor-not-allowed opacity-70"
+            )}
             placeholder="Enter coupon code"
             value={couponCode}
             onChange={(event) => setCouponCode(event.target.value)}
+            readOnly={Boolean(appliedCouponCode)}
           />
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="w-full sm:w-auto"
-            onClick={handleApplyCoupon}
-            disabled={isApplyingCoupon}
-          >
-            {isApplyingCoupon ? "Applying..." : "Apply"}
-          </Button>
+          {appliedCouponCode ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="w-full cursor-default border-primary/35 bg-primary/10 text-primary hover:bg-primary/10 disabled:opacity-100 sm:w-auto"
+              disabled
+            >
+              Applied
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={handleApplyCoupon}
+              disabled={isApplyingCoupon}
+            >
+              {isApplyingCoupon ? "Applying..." : "Apply"}
+            </Button>
+          )}
         </div>
       </div>
 

@@ -392,6 +392,37 @@ def build_checkout_cart_summary(request, cart, checkout_session):
         summary['gift_wrap_label'] = gift_wrap_label
         summary['gift_wrap_enabled'] = gift_wrap_enabled
 
+        # Keep payment fee display formatting consistent with other monetary lines.
+        payment_fee_display = Decimal('0')
+        payment_fee_label = ''
+        if checkout_session:
+            payment_fee_label = getattr(checkout_session, 'payment_fee_label', '') or ''
+            try:
+                payment_fee_raw = Decimal(str(getattr(checkout_session, 'payment_fee_amount', 0) or 0))
+            except Exception:
+                payment_fee_raw = Decimal('0')
+
+            # Fallback to gateway fee calculation when snapshot is missing.
+            if payment_fee_raw <= 0 and getattr(checkout_session, 'payment_method', None):
+                try:
+                    gateway = PaymentGateway.objects.filter(
+                        code=checkout_session.payment_method,
+                        is_active=True,
+                    ).first()
+                    if gateway:
+                        payment_fee_raw = Decimal(
+                            str(gateway.calculate_fee(get_checkout_base_total(cart, checkout_session)) or 0)
+                        )
+                        payment_fee_label = payment_fee_label or gateway.name or gateway.code
+                except Exception:
+                    payment_fee_raw = Decimal('0')
+
+            payment_fee_display = convert_amount(payment_fee_raw)
+
+        summary['payment_fee_amount'] = str(payment_fee_display)
+        summary['payment_fee_label'] = payment_fee_label
+        summary['formatted_payment_fee'] = currency.format_amount(payment_fee_display)
+
         for item in summary.get('items', []):
             try:
                 item_unit = Decimal(str(item.get('unit_price') or '0'))

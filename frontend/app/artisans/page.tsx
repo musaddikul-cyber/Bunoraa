@@ -1,11 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { Artisan } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildItemList } from "@/lib/seo";
+import { buildItemList, buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 600;
+export const metadata: Metadata = buildPageMetadata({
+  title: "Artisans",
+  description: "Meet Bunoraa artisans and explore products from each maker.",
+  path: "/artisans/",
+});
 
 async function tryGetArtisans() {
   try {

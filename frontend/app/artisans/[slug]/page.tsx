@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { apiFetch } from "@/lib/api";
 import type { Artisan, ProductListItem } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { WishlistIconButton } from "@/components/wishlist/WishlistIconButton";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { absoluteUrl, buildBreadcrumbList, buildItemList, cleanObject } from "@/lib/seo";
+import { absoluteUrl, buildBreadcrumbList, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -30,6 +31,22 @@ async function tryGetArtisanProducts(slug: string) {
   } catch {
     return [] as ProductListItem[];
   }
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const artisan = await tryGetArtisan(slug);
+  return buildPageMetadata({
+    title: artisan?.name ? `${artisan.name} | Artisan` : "Artisan Profile",
+    description:
+      artisan?.bio || "Meet Bunoraa artisans and explore their curated products.",
+    path: `/artisans/${slug}/`,
+    images: [artisan?.avatar],
+  });
 }
 
 export default async function ArtisanDetailPage({

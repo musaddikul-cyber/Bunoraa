@@ -182,7 +182,7 @@ export default function OrderDetailPage() {
                           </p>
                         </div>
                         <div className="text-right text-sm">
-                          {formatAmount(item.line_total || item.unit_price)}
+                          {formatAmount(item.unit_price)}
                         </div>
                       </div>
                     ))}

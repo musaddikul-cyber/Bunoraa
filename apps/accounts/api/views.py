@@ -42,6 +42,7 @@ from .serializers import (
     DataExportJobSerializer,
     AccountDeletionStatusSerializer,
 )
+from .commerce_merge import merge_guest_commerce_state
 
 User = get_user_model()
 
@@ -276,6 +277,7 @@ class SocialTokenView(APIView):
             str(access['jti']),
             str(refresh['jti'])
         )
+        merge_guest_commerce_state(request, request.user)
         return Response({
             'success': True,
             'message': 'Social login successful.',
@@ -700,7 +702,7 @@ class MfaVerifyView(APIView):
 
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token
-        expires_at = datetime.fromtimestamp(refresh['exp'], tz=timezone.utc)
+        expires_at = datetime.fromtimestamp(refresh['exp'], tz=dt_timezone.utc)
         OutstandingToken.objects.get_or_create(
             jti=str(refresh['jti']),
             user=user,
@@ -708,6 +710,7 @@ class MfaVerifyView(APIView):
             expires_at=expires_at,
         )
         AuthSessionService.create_session(user, request, str(access['jti']), str(refresh['jti']))
+        merge_guest_commerce_state(request, user)
 
         return Response({
             'success': True,
@@ -1007,7 +1010,7 @@ class WebAuthnLoginVerifyView(APIView):
 
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token
-        expires_at = datetime.fromtimestamp(refresh['exp'], tz=timezone.utc)
+        expires_at = datetime.fromtimestamp(refresh['exp'], tz=dt_timezone.utc)
         OutstandingToken.objects.get_or_create(
             jti=str(refresh['jti']),
             user=user,
@@ -1015,6 +1018,7 @@ class WebAuthnLoginVerifyView(APIView):
             expires_at=expires_at,
         )
         AuthSessionService.create_session(user, request, str(access['jti']), str(refresh['jti']))
+        merge_guest_commerce_state(request, user)
         return Response({
             'success': True,
             'message': 'Passkey login successful.',

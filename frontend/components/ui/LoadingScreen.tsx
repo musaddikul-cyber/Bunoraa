@@ -1,3 +1,6 @@
+ "use client";
+
+import * as React from "react";
 import { cn } from "@/lib/utils";
 
 type LoadingScreenProps = {
@@ -13,6 +16,31 @@ export function LoadingScreen({
   fullScreen = false,
   className,
 }: LoadingScreenProps) {
+  const [progress, setProgress] = React.useState(6);
+
+  React.useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    if (media.matches) {
+      const reducedTimer = window.setInterval(() => {
+        setProgress((prev) => (prev >= 94 ? prev : Math.min(94, prev + 6)));
+      }, 900);
+      return () => window.clearInterval(reducedTimer);
+    }
+
+    const start = window.performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const next = 6 + (94 - 6) * (1 - Math.exp(-elapsed / 2200));
+      setProgress(Math.min(94, next));
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
   return (
     <div
       role="status"
@@ -36,8 +64,23 @@ export function LoadingScreen({
         <p className="max-w-md text-sm text-foreground/70 sm:text-base">
           {subtitle}
         </p>
-        <div className="mt-2 h-1 w-40 overflow-hidden rounded-full bg-muted">
-          <div className="h-full w-1/2 animate-shimmer bg-gradient-to-r from-transparent via-primary/40 to-transparent motion-reduce:animate-none" />
+        <div className="mt-2 w-44 space-y-1.5">
+          <div
+            role="progressbar"
+            aria-label="Loading progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progress)}
+            className="h-1.5 overflow-hidden rounded-full bg-muted"
+          >
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-primary via-accent to-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-[11px] font-medium tracking-[0.08em] text-foreground/55">
+            {Math.round(progress)}%
+          </p>
         </div>
       </div>
     </div>

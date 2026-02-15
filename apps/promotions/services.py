@@ -13,7 +13,7 @@ class CouponService:
     """Service for coupon operations."""
     
     @staticmethod
-    def validate_coupon(code, user=None, subtotal=Decimal('0')):
+    def validate_coupon(code, user=None, subtotal=Decimal('0'), subtotal_currency=None):
         """
         Validate a coupon code.
         
@@ -30,12 +30,16 @@ class CouponService:
         except Coupon.DoesNotExist:
             return None, False, "Invalid coupon code"
         
-        is_valid, message = coupon.can_use(user=user, subtotal=subtotal)
+        is_valid, message = coupon.can_use(
+            user=user,
+            subtotal=subtotal,
+            subtotal_currency=subtotal_currency,
+        )
         
         return coupon, is_valid, message
     
     @staticmethod
-    def apply_coupon(coupon, subtotal, cart_items=None):
+    def apply_coupon(coupon, subtotal, cart_items=None, subtotal_currency=None):
         """
         Apply coupon to cart.
         
@@ -70,9 +74,12 @@ class CouponService:
             if applicable_subtotal == 0:
                 return Decimal('0')
             
-            return coupon.calculate_discount(applicable_subtotal)
+            return coupon.calculate_discount(
+                applicable_subtotal,
+                subtotal_currency=subtotal_currency,
+            )
         
-        return coupon.calculate_discount(subtotal)
+        return coupon.calculate_discount(subtotal, subtotal_currency=subtotal_currency)
     
     @staticmethod
     def get_available_coupons(user=None):

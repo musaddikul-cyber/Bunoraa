@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { apiFetch } from "@/lib/api";
@@ -6,8 +7,15 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { formatMoney } from "@/lib/checkout";
 import { asArray } from "@/lib/array";
+import { buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 600;
+export const metadata: Metadata = buildPageMetadata({
+  title: "Custom Preorders",
+  description:
+    "Start a Bunoraa preorder for custom production, timelines, approvals, and delivery.",
+  path: "/preorders/",
+});
 
 async function getCategories() {
   const response = await apiFetch<PreorderCategory[]>("/preorders/categories/", {

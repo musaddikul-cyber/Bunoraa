@@ -199,7 +199,6 @@ export function useCheckoutData(options?: {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
       queryClient.invalidateQueries({ queryKey: ["cart", "summary"] });
-      queryClient.invalidateQueries({ queryKey: ["checkout", "session"] });
     },
   });
 
@@ -218,6 +217,7 @@ export function useCheckoutData(options?: {
       const response = await apiFetch<CheckoutValidation>("/commerce/cart/validate/", {
         method: "POST",
         allowGuest: true,
+        suppressErrorStatus: [400],
       });
       return response.data;
     },

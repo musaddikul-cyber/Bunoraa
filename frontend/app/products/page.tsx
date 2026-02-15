@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { ProductListItem, ProductFilterResponse } from "@/lib/types";
@@ -11,11 +12,67 @@ import { Button } from "@/components/ui/Button";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildCollectionPage, buildItemList } from "@/lib/seo";
+import { buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 300;
 
 type SearchParams = Record<string, string | string[] | undefined>;
+
+function firstValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function hasIndexBustingFilters(searchParams: SearchParams): boolean {
+  return Object.entries(searchParams).some(([key, value]) => {
+    if (key === "page" || key === "view") return false;
+    if (Array.isArray(value)) return value.some((entry) => entry.trim() !== "");
+    return Boolean(value && value.trim() !== "");
+  });
+}
+
+function parsePageNumber(searchParams: SearchParams): number {
+  const rawPage = firstValue(searchParams.page);
+  const page = Number(rawPage || 1);
+  return Number.isFinite(page) && page > 1 ? Math.floor(page) : 1;
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}): Promise<Metadata> {
+  const resolved = await searchParams;
+  const page = parsePageNumber(resolved);
+  const hasFilters = hasIndexBustingFilters(resolved);
+  const base = buildPageMetadata({
+    title: "Shop Products",
+    description: "Browse all Bunoraa products, new arrivals, and best-value picks.",
+    path: page > 1 && !hasFilters ? `/products/?page=${page}` : "/products/",
+  });
+
+  if (!hasFilters) {
+    return base;
+  }
+
+  return {
+    ...base,
+    alternates: {
+      canonical: "/products/",
+    },
+    robots: {
+      index: false,
+      follow: true,
+      googleBot: {
+        index: false,
+        follow: true,
+        "max-snippet": -1,
+        "max-image-preview": "large",
+        "max-video-preview": -1,
+      },
+    },
+  };
+}
 
 async function getProducts(searchParams: SearchParams) {
   const params: Record<string, string | number | boolean | Array<string | number | boolean> | undefined> = {};

@@ -1,10 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { SubscriptionPlan } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 600;
+export const metadata: Metadata = buildPageMetadata({
+  title: "Subscription Plans",
+  description: "Explore Bunoraa subscription plans and recurring delivery options.",
+  path: "/subscriptions/",
+});
 
 async function getPlans() {
   const response = await apiFetch<SubscriptionPlan[]>("/subscriptions/plans/", {

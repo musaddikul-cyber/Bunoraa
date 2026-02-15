@@ -34,15 +34,94 @@ function formatMoney(amount: string | number, currency: string) {
   }
 }
 
+const localizedDigitMap: Record<string, string> = {
+  "٠": "0",
+  "١": "1",
+  "٢": "2",
+  "٣": "3",
+  "٤": "4",
+  "٥": "5",
+  "٦": "6",
+  "٧": "7",
+  "٨": "8",
+  "٩": "9",
+  "۰": "0",
+  "۱": "1",
+  "۲": "2",
+  "۳": "3",
+  "۴": "4",
+  "۵": "5",
+  "۶": "6",
+  "۷": "7",
+  "۸": "8",
+  "۹": "9",
+  "০": "0",
+  "১": "1",
+  "২": "2",
+  "৩": "3",
+  "৪": "4",
+  "৫": "5",
+  "৬": "6",
+  "৭": "7",
+  "৮": "8",
+  "৯": "9",
+};
+
+function normalizeLocalizedDigits(value: string) {
+  return value.replace(/[٠-٩۰-۹০-৯]/g, (digit) => localizedDigitMap[digit] || digit);
+}
+
 function parseMoney(value: string | number | null | undefined) {
   if (value === null || value === undefined) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  if (/[^0-9.,-]/.test(trimmed)) return null;
-  const normalized = trimmed.replace(/,/g, "");
+
+  let normalized = normalizeLocalizedDigits(trimmed)
+    .replace(/[\u00A0\u202F\s]/g, "")
+    .replace(/[−–—]/g, "-")
+    .replace(/[^\d,.-]/g, "");
+
+  if (!normalized || normalized === "-" || normalized === "." || normalized === ",") {
+    return null;
+  }
+
+  const hasDot = normalized.includes(".");
+  const hasComma = normalized.includes(",");
+  if (hasDot && hasComma) {
+    if (normalized.lastIndexOf(",") > normalized.lastIndexOf(".")) {
+      normalized = normalized.replace(/\./g, "").replace(/,/g, ".");
+    } else {
+      normalized = normalized.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    const commaCount = (normalized.match(/,/g) || []).length;
+    if (commaCount === 1) {
+      const [intPart, fractionPart = ""] = normalized.split(",");
+      if (fractionPart.length > 0 && fractionPart.length <= 2) {
+        normalized = `${intPart}.${fractionPart}`;
+      } else {
+        normalized = `${intPart}${fractionPart}`;
+      }
+    } else {
+      normalized = normalized.replace(/,/g, "");
+    }
+  } else if (hasDot) {
+    const dotCount = (normalized.match(/\./g) || []).length;
+    if (dotCount > 1) {
+      const lastDotIndex = normalized.lastIndexOf(".");
+      normalized =
+        normalized.slice(0, lastDotIndex).replace(/\./g, "") +
+        normalized.slice(lastDotIndex);
+    }
+  }
+
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isApproximatelyEqual(a: number, b: number, tolerance = 0.01) {
+  return Math.abs(a - b) <= tolerance;
 }
 
 export function MiniCart({
@@ -78,8 +157,12 @@ export function MiniCart({
   const apiSubtotal = parseMoney(summary?.subtotal ?? cart.subtotal);
   const preferDerivedSubtotal = derivedSubtotal > 0 && (apiSubtotal === null || apiSubtotal === 0);
   const subtotalValue = preferDerivedSubtotal ? derivedSubtotal : apiSubtotal ?? derivedSubtotal ?? 0;
+  const formattedSubtotalValue = parseMoney(summary?.formatted_subtotal);
   const subtotalLabel =
-    summary?.formatted_subtotal && !preferDerivedSubtotal
+    summary?.formatted_subtotal &&
+    !preferDerivedSubtotal &&
+    formattedSubtotalValue !== null &&
+    isApproximatelyEqual(formattedSubtotalValue, subtotalValue)
       ? summary.formatted_subtotal
       : formatMoney(subtotalValue, currency);
 
@@ -103,8 +186,13 @@ export function MiniCart({
       ? computedTotal
       : subtotalValue;
 
+  const formattedTotalValue = parseMoney(summary?.formatted_total);
   const totalLabel =
-    summary?.formatted_total || formatMoney(totalValue, currency);
+    summary?.formatted_total &&
+    formattedTotalValue !== null &&
+    isApproximatelyEqual(formattedTotalValue, totalValue)
+      ? summary.formatted_total
+      : formatMoney(totalValue, currency);
 
   const hasAdjustments =
     summary?.shipping_cost !== undefined ||

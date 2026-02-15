@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { apiFetch, ApiError } from "@/lib/api";
@@ -6,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { formatMoney } from "@/lib/checkout";
 import { notFound } from "next/navigation";
+import { buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -21,6 +23,23 @@ async function getCategory(slug: string) {
     }
     throw error;
   }
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const category = await getCategory(slug);
+  return buildPageMetadata({
+    title: `${category.name} Preorders`,
+    description:
+      category.description ||
+      `Configure custom preorders for ${category.name} at Bunoraa.`,
+    path: `/preorders/category/${category.slug}/`,
+    images: [category.image],
+  });
 }
 
 export default async function PreorderCategoryPage({

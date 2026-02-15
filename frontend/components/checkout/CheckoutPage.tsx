@@ -89,8 +89,10 @@ export function CheckoutPage() {
   const [shippingRatesError, setShippingRatesError] = React.useState<string | null>(null);
   const lastRatesKey = React.useRef<string>("");
   const lastValidationKey = React.useRef<string>("");
+  const lastAutoInfoKey = React.useRef<string>("");
   const lastAutoShippingKey = React.useRef<string>("");
   const lastAutoPaymentKey = React.useRef<string>("");
+  const [autoSavingInfo, setAutoSavingInfo] = React.useState(false);
   const [autoSavingShipping, setAutoSavingShipping] = React.useState(false);
   const [autoSavingPayment, setAutoSavingPayment] = React.useState(false);
 
@@ -214,6 +216,8 @@ export function CheckoutPage() {
 
   React.useEffect(() => {
     if (currentStep !== "review") return;
+    if (completeCheckout.isPending || completeCheckout.isSuccess) return;
+    if (cartEmpty) return;
     if (!validationKey) return;
     if (validateCart.isPending) return;
     if (validationKey === lastValidationKey.current) return;
@@ -222,7 +226,7 @@ export function CheckoutPage() {
       onSuccess: (data) => setValidation(data),
       onError: () => setValidation(null),
     });
-  }, [currentStep, validationKey, validateCart]);
+  }, [cartEmpty, completeCheckout.isPending, completeCheckout.isSuccess, currentStep, validationKey, validateCart]);
 
   const handleAutoSaveShipping = React.useCallback(
     (payload: {
@@ -239,6 +243,41 @@ export function CheckoutPage() {
       });
     },
     [selectShippingMethod]
+  );
+
+  const handleAutoSaveInfoSelection = React.useCallback(
+    (values: CheckoutInfoFormValues) => {
+      if (!values.saved_shipping_address_id) return;
+      if (updateShippingInfo.isPending) return;
+
+      const key = JSON.stringify({
+        saved_shipping_address_id: values.saved_shipping_address_id,
+        email: values.email,
+        shipping_first_name: values.shipping_first_name,
+        shipping_last_name: values.shipping_last_name,
+        shipping_phone: values.shipping_phone,
+        shipping_address_line_1: values.shipping_address_line_1,
+        shipping_city: values.shipping_city,
+        shipping_state: values.shipping_state,
+        shipping_postal_code: values.shipping_postal_code,
+        shipping_country: values.shipping_country,
+      });
+      if (key === lastAutoInfoKey.current) return;
+      lastAutoInfoKey.current = key;
+      setAutoSavingInfo(true);
+      updateShippingInfo.mutate(values, {
+        onError: (error) => {
+          push(
+            error instanceof Error
+              ? error.message
+              : "Could not save selected address.",
+            "error"
+          );
+        },
+        onSettled: () => setAutoSavingInfo(false),
+      });
+    },
+    [push, updateShippingInfo]
   );
 
   const handleAutoSavePayment = React.useCallback(
@@ -286,6 +325,7 @@ export function CheckoutPage() {
       shipping_postal_code: checkoutSession?.shipping_postal_code || "",
       shipping_country:
         resolveCountryName(checkoutSession?.shipping_country) || fallbackCountry,
+      saved_shipping_address_id: checkoutSession?.saved_shipping_address_id || null,
       save_address: false,
     }),
     [
@@ -299,6 +339,7 @@ export function CheckoutPage() {
       checkoutSession?.shipping_state,
       checkoutSession?.shipping_postal_code,
       checkoutSession?.shipping_country,
+      checkoutSession?.saved_shipping_address_id,
       profile?.email,
       profile?.first_name,
       profile?.last_name,
@@ -420,6 +461,10 @@ export function CheckoutPage() {
 
   const handleReviewSubmit = async (values: { terms_accepted: boolean; order_notes?: string }) => {
     try {
+      if (cartEmpty) {
+        push("Your cart is empty.", "error");
+        return;
+      }
       let validationResult = validation;
       if (!validationResult) {
         validationResult = await validateCart.mutateAsync();
@@ -559,9 +604,12 @@ export function CheckoutPage() {
                   defaultValues={infoDefaults}
                   countries={countries}
                   savedAddresses={addressesQuery.data || []}
+                  defaultSelectedAddressId={checkoutSession?.saved_shipping_address_id || null}
                   allowSaveAddress={Boolean(hasToken)}
                   onSubmit={handleInfoSubmit}
+                  onSavedAddressSelectionChange={handleAutoSaveInfoSelection}
                   isSubmitting={updateShippingInfo.isPending}
+                  isAutoSavingSelection={autoSavingInfo}
                 />
               ) : null}
 

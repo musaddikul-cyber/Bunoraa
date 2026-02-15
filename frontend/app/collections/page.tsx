@@ -1,12 +1,18 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { Collection } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildCollectionPage, buildItemList } from "@/lib/seo";
+import { buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 600;
+export const metadata: Metadata = buildPageMetadata({
+  title: "Curated Collections",
+  description: "Discover curated Bunoraa collections built around themes and use cases.",
+  path: "/collections/",
+});
 
 async function getCollections() {
   const response = await apiFetch<Collection[]>("/catalog/collections/", {

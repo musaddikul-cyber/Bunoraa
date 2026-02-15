@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/products/ProductDetailClient";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildBreadcrumbList, buildProductSchema } from "@/lib/seo";
+import { buildBreadcrumbList, buildPageMetadata, buildProductSchema } from "@/lib/seo";
 
 export const revalidate = 900;
 
@@ -39,10 +39,16 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProduct(slug);
-  return {
+  return buildPageMetadata({
     title: product.meta_title || product.name,
-    description: product.meta_description || product.short_description || "",
-  };
+    description:
+      product.meta_description ||
+      product.short_description ||
+      product.description ||
+      "Explore product details on Bunoraa.",
+    path: `/products/${product.slug}/`,
+    images: [product.primary_image],
+  });
 }
 
 export default async function ProductDetailPage({

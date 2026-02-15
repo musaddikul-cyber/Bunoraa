@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { CartItem, ProductListItem } from "@/lib/types";
@@ -175,6 +174,11 @@ function CartItemRow({
   const [quantity, setQuantity] = React.useState<number>(item.quantity);
   const manualEditRef = React.useRef(false);
   const debounceRef = React.useRef<number | null>(null);
+  const quantityRef = React.useRef<number>(item.quantity);
+
+  React.useEffect(() => {
+    quantityRef.current = quantity;
+  }, [quantity]);
 
   React.useEffect(() => {
     setQuantity(item.quantity);
@@ -206,6 +210,32 @@ function CartItemRow({
     },
     [item.id, item.quantity, onUpdate]
   );
+
+  React.useEffect(() => {
+    const flushPendingQuantity = () => {
+      if (!manualEditRef.current) return;
+      commitQuantity(quantityRef.current);
+    };
+
+    const handlePageHide = () => {
+      flushPendingQuantity();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushPendingQuantity();
+      }
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      flushPendingQuantity();
+    };
+  }, [commitQuantity]);
   
   React.useEffect(() => {
     if (!manualEditRef.current) return;
@@ -276,7 +306,7 @@ function CartItemRow({
             <button
               type="button"
               className={cn(
-                "h-10 w-10 rounded-full border border-border text-base sm:h-9 sm:w-9 sm:text-sm",
+                "h-10 w-10 rounded-full border border-border text-base sm:text-sm",
                 "hover:bg-muted"
               )}
               onClick={() => {
@@ -299,11 +329,12 @@ function CartItemRow({
               min={1}
               inputMode="numeric"
               pattern="[0-9]*"
-              className="no-spin h-10 w-14 rounded-xl border border-border bg-transparent px-2 text-center text-sm sm:h-9 sm:w-16"
+              className="no-spin h-10 w-14 rounded-xl border border-border bg-transparent px-2 text-center text-sm sm:w-16"
               value={quantity}
               onChange={(event) => {
                 const raw = event.target.value;
                 if (raw === "") {
+                  manualEditRef.current = true;
                   setQuantity(1);
                   return;
                 }
@@ -323,7 +354,7 @@ function CartItemRow({
             <button
               type="button"
               className={cn(
-                "h-10 w-10 rounded-full border border-border text-base sm:h-9 sm:w-9 sm:text-sm",
+                "h-10 w-10 rounded-full border border-border text-base sm:text-sm",
                 "hover:bg-muted"
               )}
               onClick={() => {
@@ -365,8 +396,6 @@ function CartItemRow({
 }
 
 export function CartPage() {
-  const router = useRouter();
-  const pathname = usePathname();
   const { push } = useToast();
   const { hasToken } = useAuthContext();
   const {
@@ -384,7 +413,7 @@ export function CartPage() {
     lockPrices,
     shareCart,
   } = useCart();
-  const { addItem: addWishlistItem } = useWishlist({ enabled: hasToken });
+  const { addItem: addWishlistItem } = useWishlist();
 
   const [couponCode, setCouponCode] = React.useState("");
   const [giftState, setGiftState] = React.useState({
@@ -490,17 +519,18 @@ export function CartPage() {
   };
 
   const handleMoveToWishlist = async (item: CartItem) => {
-    if (!hasToken) {
-      router.push(`/account/login/?next=${encodeURIComponent(pathname || "/")}`);
-      return;
-    }
     try {
       await addWishlistItem.mutateAsync({
         productId: item.product_id,
         variantId: item.variant_id,
       });
       await handleRemoveItem(item.id, { silent: true });
-      push("Moved to wishlist.", "success");
+      push(
+        hasToken
+          ? "Moved to wishlist."
+          : "Saved to wishlist. Sign in to sync across devices.",
+        "success"
+      );
     } catch (error) {
       push(getApiErrorMessage(error, "Could not move item to wishlist."), "error");
     }

@@ -51,7 +51,7 @@ export async function Header() {
             </Link>
             <nav className="hidden items-center gap-4 text-sm lg:flex">
               <div className="w-48">
-                <SearchBar />
+                <SearchBar hideSubmitButtonOnDesktop />
               </div>
               <Link
                 className="group relative inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary transition duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary hover:text-white hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"

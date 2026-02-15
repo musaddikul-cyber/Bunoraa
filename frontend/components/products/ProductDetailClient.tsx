@@ -806,7 +806,7 @@ export function ProductDetailClient({
                       quantity={quantity}
                       size="sm"
                       variant="primary"
-                      className="h-11 w-full sm:h-8 sm:w-auto"
+                      className="h-11 w-full sm:h-10 sm:w-auto"
                       disabled={!inStock}
                       label={inStock ? "Add to cart" : "Out of stock"}
                     />
@@ -834,7 +834,7 @@ export function ProductDetailClient({
                 size="sm"
                 hideIconOnMobile
                 className={cn(
-                  "h-11 w-full justify-center gap-2 sm:h-8 sm:w-auto",
+                  "h-11 w-full justify-center gap-2 sm:h-10 sm:w-auto",
                   inStock && "hidden sm:inline-flex"
                 )}
               />
@@ -842,7 +842,7 @@ export function ProductDetailClient({
                 size="sm"
                 variant={isInCompare ? "primary" : "secondary"}
                 onClick={() => toggleCompare(compareItemFromProduct(product))}
-                className="h-11 w-full justify-center gap-2 sm:h-8 sm:w-auto"
+                className="h-11 w-full justify-center gap-2 sm:h-10 sm:w-auto"
               >
                 <svg
                   aria-hidden="true"
@@ -863,7 +863,7 @@ export function ProductDetailClient({
                 size="sm"
                 variant="secondary"
                 onClick={handleShare}
-                className="h-11 w-full justify-center gap-2 sm:h-8 sm:w-auto"
+                className="h-11 w-full justify-center gap-2 sm:h-10 sm:w-auto"
               >
                 <svg
                   aria-hidden="true"

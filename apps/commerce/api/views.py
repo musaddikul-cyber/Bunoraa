@@ -21,6 +21,7 @@ from ..services import (
     WishlistService,
     CheckoutService,
     EnhancedCartService,
+    EnhancedWishlistService,
     CartException,
     InsufficientStockException,
 )
@@ -539,11 +540,34 @@ class CartViewSet(viewsets.ViewSet):
 class WishlistViewSet(viewsets.ViewSet):
     """ViewSet for wishlist operations."""
     
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
+
+    def _get_wishlist(self, request):
+        """Get wishlist for authenticated user or guest session."""
+        user = request.user if request.user.is_authenticated else None
+        session_key = request.session.session_key
+        if not session_key and not user:
+            request.session.create()
+            session_key = request.session.session_key
+
+        return EnhancedWishlistService.get_or_create_wishlist(
+            user=user,
+            session_key=session_key,
+        )
+
+    def _serialize_wishlist_state(self, wishlist, wishlist_type):
+        payload = {
+            'id': str(wishlist.id),
+            'item_count': wishlist.item_count,
+            'wishlist_type': wishlist_type,
+        }
+        if wishlist_type == 'user' and hasattr(wishlist, 'total_value'):
+            payload['total_value'] = str(wishlist.total_value)
+        return payload
     
     def list(self, request):
-        """Get current user's wishlist."""
-        wishlist = WishlistService.get_or_create_wishlist(request.user)
+        """Get current wishlist (user or guest session)."""
+        wishlist, _wishlist_type = self._get_wishlist(request)
         items = (
             wishlist.items.select_related('product', 'variant')
             .prefetch_related('product__images')
@@ -560,7 +584,7 @@ class WishlistViewSet(viewsets.ViewSet):
         item_serializer = WishlistItemSerializer(paginated_items, many=True, context={'request': request})
         return paginator.get_paginated_response(item_serializer.data)
     
-    def create(self, request): # Added create method
+    def create(self, request):
         """Add item to wishlist (maps to POST /wishlist/)."""
         from apps.catalog.models import Product, ProductVariant
         
@@ -578,8 +602,8 @@ class WishlistViewSet(viewsets.ViewSet):
             if serializer.validated_data.get('variant_id'):
                 variant = ProductVariant.objects.get(id=serializer.validated_data['variant_id'])
             
-            wishlist = WishlistService.get_or_create_wishlist(request.user)
-            item = WishlistService.add_item(
+            wishlist, wishlist_type = self._get_wishlist(request)
+            item, created = EnhancedWishlistService.add_item(
                 wishlist=wishlist,
                 product=product,
                 variant=variant,
@@ -588,33 +612,36 @@ class WishlistViewSet(viewsets.ViewSet):
             
             return Response({
                 'success': True,
-                'message': f'{product.name} added to wishlist',
+                'message': (
+                    f'{product.name} added to wishlist'
+                    if created
+                    else f'{product.name} is already in wishlist'
+                ),
                 'item': WishlistItemSerializer(item, context={'request': request}).data,
-                'wishlist': WishlistSerializer(wishlist, context={'request': request}).data
-            }, status=status.HTTP_201_CREATED)
+                'wishlist': self._serialize_wishlist_state(wishlist, wishlist_type),
+            }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
             
         except Product.DoesNotExist:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
-        # Removed the broad 'except Exception as e' to allow DRF's validation errors to propagate
+        except ProductVariant.DoesNotExist:
+            return Response({'error': 'Variant not found'}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=False, methods=['post'])
     def add(self, request):
-        """Add item to wishlist (alternative method, can be removed if create is sufficient)."""
-        # This method duplicates the create logic. It can be kept for backward compatibility
-        # or removed if all clients can switch to POST /wishlist/.
+        """Backward-compatible alias for POST /wishlist/."""
         return self.create(request)
     
     @action(detail=False, methods=['post'], url_path='remove/(?P<item_id>[^/.]+)')
     def remove_item(self, request, item_id=None):
         """Remove item from wishlist."""
-        wishlist = WishlistService.get_or_create_wishlist(request.user)
-        removed = WishlistService.remove_item(wishlist, item_id)
+        wishlist, wishlist_type = self._get_wishlist(request)
+        removed = EnhancedWishlistService.remove_item(wishlist, item_id)
         
         if removed:
             return Response({
                 'success': True,
                 'message': 'Item removed',
-                'wishlist': WishlistSerializer(wishlist, context={'request': request}).data
+                'wishlist': self._serialize_wishlist_state(wishlist, wishlist_type),
             })
         
         return Response({'error': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -623,34 +650,36 @@ class WishlistViewSet(viewsets.ViewSet):
     def move_to_cart(self, request, item_id=None):
         """Move wishlist item to cart."""
         try:
-            wishlist = WishlistService.get_or_create_wishlist(request.user)
-            item = wishlist.items.get(id=item_id)
-            
-            if not request.session.session_key:
-                request.session.create()
-            
+            wishlist, wishlist_type = self._get_wishlist(request)
+            user = request.user if request.user.is_authenticated else None
             cart = CartService.get_or_create_cart(
-                user=request.user,
+                user=user,
                 session_key=request.session.session_key
             )
             
-            cart_item = WishlistService.move_to_cart(item, cart)
+            cart_item = EnhancedWishlistService.move_to_cart(wishlist, item_id, cart)
+            if not cart_item:
+                return Response({'error': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
             
             return Response({
                 'success': True,
                 'message': 'Item moved to cart',
-                'wishlist': WishlistSerializer(wishlist, context={'request': request}).data,
+                'wishlist': self._serialize_wishlist_state(wishlist, wishlist_type),
                 'cart': CartSerializer(cart, context={'request': request}).data
             })
-            
-        except WishlistItem.DoesNotExist:
-            return Response({'error': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['post'])
     def share(self, request):
         """Create shareable wishlist link."""
+        if not request.user or not request.user.is_authenticated:
+            return Response({
+                'success': False,
+                'message': 'Authentication required.',
+                'data': None,
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
         serializer = CreateWishlistShareSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -669,8 +698,8 @@ class WishlistViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def price_drops(self, request):
         """Get items with price drops."""
-        wishlist = WishlistService.get_or_create_wishlist(request.user)
-        items = WishlistService.get_items_with_price_drops(wishlist)
+        wishlist, _wishlist_type = self._get_wishlist(request)
+        items = EnhancedWishlistService.get_items_with_price_drops(wishlist)
         
         return Response({
             'items': WishlistItemSerializer(items, many=True, context={'request': request}).data
@@ -679,33 +708,33 @@ class WishlistViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def toggle(self, request):
         """Toggle product in wishlist."""
-        from apps.catalog.models import Product
+        from apps.catalog.models import Product, ProductVariant
         
         product_id = request.data.get('product_id')
+        variant_id = request.data.get('variant_id')
         
         try:
-            product = Product.objects.get(id=product_id)
-            wishlist = WishlistService.get_or_create_wishlist(request.user)
-            
-            existing = wishlist.items.filter(product=product).first()
-            
-            if existing:
-                WishlistService.remove_item(wishlist, existing.id)
-                return Response({
-                    'success': True,
-                    'in_wishlist': False,
-                    'message': 'Removed from wishlist'
-                })
-            else:
-                WishlistService.add_item(wishlist, product)
-                return Response({
-                    'success': True,
-                    'in_wishlist': True,
-                    'message': 'Added to wishlist'
-                })
-                
+            product = Product.objects.get(id=product_id, is_active=True, is_deleted=False)
+            variant = None
+            if variant_id:
+                variant = ProductVariant.objects.get(id=variant_id)
+
+            wishlist, _wishlist_type = self._get_wishlist(request)
+            in_wishlist, was_added = EnhancedWishlistService.toggle_item(
+                wishlist=wishlist,
+                product=product,
+                variant=variant,
+            )
+
+            return Response({
+                'success': True,
+                'in_wishlist': in_wishlist,
+                'message': 'Added to wishlist' if was_added else 'Removed from wishlist'
+            })
         except Product.DoesNotExist:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        except ProductVariant.DoesNotExist:
+            return Response({'error': 'Variant not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class SharedWishlistView(APIView):
@@ -814,11 +843,35 @@ class CheckoutViewSet(viewsets.ViewSet):
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
+        saved_address_selection_provided = 'saved_shipping_address_id' in request.data
+        selected_saved_address_id = data.pop('saved_shipping_address_id', None)
+        selected_saved_address = None
         save_address = data.pop('save_address', False)
         address_saved = False
         address_save_error = None
+        if saved_address_selection_provided and selected_saved_address_id:
+            if not request.user or not request.user.is_authenticated:
+                return Response({
+                    'success': False,
+                    'message': 'Sign in to use a saved address.',
+                    'error': 'Sign in to use a saved address.',
+                }, status=status.HTTP_400_BAD_REQUEST)
+            selected_saved_address = request.user.addresses.filter(
+                id=selected_saved_address_id,
+                is_deleted=False,
+            ).first()
+            if not selected_saved_address:
+                return Response({
+                    'success': False,
+                    'message': 'Saved address not found.',
+                    'error': 'Saved address not found.',
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         CheckoutService.update_shipping_info(checkout_session, data)
+
+        if saved_address_selection_provided:
+            checkout_session.saved_shipping_address = selected_saved_address
+            checkout_session.save(update_fields=['saved_shipping_address'])
 
         if save_address and request.user and request.user.is_authenticated:
             full_name = f"{data.get('shipping_first_name', '').strip()} {data.get('shipping_last_name', '').strip()}".strip()

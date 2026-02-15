@@ -265,7 +265,14 @@ def build_checkout_cart_summary(request, cart, checkout_session):
         base_total = taxable_amount + base_shipping + base_gift_wrap + base_tax
 
         session_currency_code = getattr(checkout_session, 'currency', None) if checkout_session else None
-        use_session_snapshot = bool(session_currency_code and currency and session_currency_code == currency.code)
+        # Snapshot totals are only reliable after an explicit shipping selection.
+        # For pre-selection estimates, always prefer freshly computed values.
+        use_session_snapshot = bool(
+            session_currency_code
+            and currency
+            and session_currency_code == currency.code
+            and shipping_selected
+        )
 
         def convert_amount(amount: Decimal) -> Decimal:
             if currency and currency.code != from_code:
@@ -295,27 +302,27 @@ def build_checkout_cart_summary(request, cart, checkout_session):
         converted_tax = convert_amount(base_tax)
         converted_total = convert_amount(base_total)
 
-        if use_session_snapshot and currency and currency.code != from_code and checkout_session:
-            decisions = []
-            for snapshot_value, base_value, converted_value in [
-                (getattr(checkout_session, 'subtotal', None), base_subtotal, converted_subtotal),
-                (getattr(checkout_session, 'shipping_cost', None), base_shipping, converted_shipping),
-                (getattr(checkout_session, 'total', None), base_total, converted_total),
-            ]:
-                snapshot_decimal = to_decimal(snapshot_value)
-                if snapshot_decimal is None:
-                    continue
-                if is_close(snapshot_decimal, converted_value):
-                    decisions.append(True)
-                    continue
-                if is_close(snapshot_decimal, base_value):
-                    decisions.append(False)
-                    continue
-                decisions.append(abs(snapshot_decimal - converted_value) < abs(snapshot_decimal - base_value))
-            if not decisions:
+        if use_session_snapshot and checkout_session:
+            expected_total = (
+                converted_subtotal
+                - converted_discount
+                + converted_shipping
+                + converted_gift_wrap
+                + converted_tax
+            )
+            snapshot_total = to_decimal(getattr(checkout_session, 'total', None))
+            snapshot_subtotal = to_decimal(getattr(checkout_session, 'subtotal', None))
+            snapshot_shipping = to_decimal(getattr(checkout_session, 'shipping_cost', None))
+            snapshot_tax = to_decimal(getattr(checkout_session, 'tax_amount', None))
+
+            if snapshot_total is None or not is_close(snapshot_total, expected_total):
                 use_session_snapshot = False
-            else:
-                use_session_snapshot = decisions.count(True) >= decisions.count(False)
+            elif snapshot_subtotal is not None and not is_close(snapshot_subtotal, converted_subtotal):
+                use_session_snapshot = False
+            elif snapshot_shipping is not None and not is_close(snapshot_shipping, converted_shipping):
+                use_session_snapshot = False
+            elif snapshot_tax is not None and not is_close(snapshot_tax, converted_tax):
+                use_session_snapshot = False
 
         if use_session_snapshot:
             def session_or_convert(value, fallback):

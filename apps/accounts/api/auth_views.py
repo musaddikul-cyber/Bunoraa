@@ -1,6 +1,9 @@
 """
 Custom authentication views with MFA support.
 """
+import logging
+from datetime import datetime, timezone as dt_timezone
+
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import status
@@ -9,10 +12,11 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
-from django.utils import timezone
-from datetime import datetime
 
 from apps.accounts.services import MfaService, AuthSessionService
+from .commerce_merge import merge_guest_commerce_state
+
+logger = logging.getLogger(__name__)
 
 
 class MfaTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -54,16 +58,24 @@ class MfaTokenObtainPairView(TokenObtainPairView):
         access = data.get('access')
         refresh = data.get('refresh')
         if access and refresh:
+            refresh_obj = RefreshToken(refresh)
+            access_obj = AccessToken(access)
+
             try:
-                refresh_obj = RefreshToken(refresh)
-                access_obj = AccessToken(access)
-                expires_at = datetime.fromtimestamp(refresh_obj['exp'], tz=timezone.utc)
+                expires_at = datetime.fromtimestamp(refresh_obj['exp'], tz=dt_timezone.utc)
                 OutstandingToken.objects.get_or_create(
                     jti=str(refresh_obj['jti']),
                     user=serializer.user,
                     token=str(refresh_obj),
                     expires_at=expires_at,
                 )
+            except Exception:
+                logger.exception(
+                    "Failed to persist outstanding token for user_id=%s",
+                    getattr(serializer.user, 'id', None),
+                )
+
+            try:
                 AuthSessionService.create_session(
                     serializer.user,
                     request,
@@ -71,7 +83,12 @@ class MfaTokenObtainPairView(TokenObtainPairView):
                     str(refresh_obj['jti'])
                 )
             except Exception:
-                pass
+                logger.exception(
+                    "Failed to persist auth session for user_id=%s",
+                    getattr(serializer.user, 'id', None),
+                )
+
+            merge_guest_commerce_state(request, serializer.user)
 
         return Response({
             'success': True,

@@ -1,4 +1,5 @@
 import type { ProductDetail } from "@/lib/types";
+import type { Metadata } from "next";
 
 type UrlLike = string | null | undefined;
 
@@ -6,6 +7,8 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://bunoraa.co
   /\/$/,
   ""
 );
+export const SITE_NAME = "Bunoraa";
+export const DEFAULT_OG_IMAGE_PATH = "/opengraph-image";
 
 export function absoluteUrl(path: UrlLike): string {
   if (!path) return SITE_URL;
@@ -15,8 +18,88 @@ export function absoluteUrl(path: UrlLike): string {
   return `${SITE_URL}${path}`;
 }
 
+function normalizePath(path: string): string {
+  if (!path) return "/";
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    try {
+      const url = new URL(path);
+      return `${url.pathname}${url.search}` || "/";
+    } catch {
+      return "/";
+    }
+  }
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+export function buildPageMetadata({
+  title,
+  description,
+  path,
+  images,
+  type = "website",
+}: {
+  title: string;
+  description: string;
+  path: string;
+  images?: Array<string | null | undefined>;
+  type?: "website" | "article";
+}): Metadata {
+  const canonicalPath = normalizePath(path);
+  const canonicalUrl = absoluteUrl(canonicalPath);
+  const imageUrls = (images || []).filter(Boolean).map((image) => absoluteUrl(image as string));
+  const shareImages = imageUrls.length ? imageUrls : [absoluteUrl(DEFAULT_OG_IMAGE_PATH)];
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      type,
+      url: canonicalUrl,
+      siteName: SITE_NAME,
+      title,
+      description,
+      images: shareImages,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: shareImages,
+    },
+  };
+}
+
+export function buildNoIndexMetadata({
+  title,
+  description,
+  path,
+}: {
+  title: string;
+  description: string;
+  path: string;
+}): Metadata {
+  return {
+    ...buildPageMetadata({ title, description, path }),
+    robots: {
+      index: false,
+      follow: false,
+      googleBot: {
+        index: false,
+        follow: false,
+        noimageindex: true,
+        "max-snippet": 0,
+        "max-image-preview": "none",
+        "max-video-preview": 0,
+      },
+    },
+  };
+}
+
 export function cleanObject<T extends Record<string, unknown>>(obj: T): T {
-  const entries = Object.entries(obj).filter(([_, value]) => {
+  const entries = Object.entries(obj).filter(([, value]) => {
     if (value === null || value === undefined || value === "") return false;
     if (Array.isArray(value)) return value.length > 0;
     return true;

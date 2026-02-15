@@ -31,7 +31,7 @@ export function SortMenu({ className }: { className?: string } = {}) {
           const params = updateParamValue(searchParams, "ordering", event.target.value);
           router.push(`?${params.toString()}`);
         }}
-        className="h-10 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground sm:h-9 sm:w-[12.5rem]"
+        className="h-10 min-h-10 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground sm:w-[12.5rem]"
       >
         {orderingOptions.map((option) => (
           <option key={option.value} value={option.value}>

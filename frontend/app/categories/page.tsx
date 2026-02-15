@@ -1,10 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildCollectionPage, buildItemList } from "@/lib/seo";
+import { buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 300;
+export const metadata: Metadata = buildPageMetadata({
+  title: "Product Categories",
+  description: "Explore Bunoraa categories to find products by type and style.",
+  path: "/categories/",
+});
 
 type Category = {
   id: string;

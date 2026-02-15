@@ -98,7 +98,7 @@ export function HeaderClient() {
   const { push } = useToast();
   const { cartQuery } = useCart();
   const { hasToken, profileQuery, logout } = useAuthContext();
-  const { wishlistQuery } = useWishlist({ enabled: mounted && hasToken });
+  const { wishlistQuery } = useWishlist({ enabled: mounted });
   const { unreadCountQuery } = useNotifications();
   const count = cartQuery.data?.item_count ?? 0;
   const wishlistCount =
@@ -149,7 +149,7 @@ export function HeaderClient() {
   }, [pathname]);
 
   const iconButtonClass =
-    "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-10 sm:w-10";
+    "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">

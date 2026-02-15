@@ -30,6 +30,16 @@ const ThemeContext = React.createContext<ThemeContextValue | undefined>(
   undefined
 );
 
+function readStoredTheme(): ThemeName {
+  if (typeof window === "undefined") return "system";
+  try {
+    const stored = window.localStorage.getItem(THEME_KEY) as ThemeName | null;
+    return stored && THEME_CLASSES.includes(stored) ? stored : "system";
+  } catch {
+    return "system";
+  }
+}
+
 function applyTheme(theme: ThemeName) {
   const root = document.documentElement;
   root.classList.remove(...THEME_CLASSES);
@@ -53,16 +63,22 @@ function applyTheme(theme: ThemeName) {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<ThemeName>("system");
+  const [initialized, setInitialized] = React.useState(false);
 
   React.useEffect(() => {
-    const stored = window.localStorage.getItem(THEME_KEY) as ThemeName | null;
-    const initial = stored && THEME_CLASSES.includes(stored) ? stored : "system";
+    const initial = readStoredTheme();
     setThemeState(initial);
     applyTheme(initial);
+    setInitialized(true);
   }, []);
 
   React.useEffect(() => {
-    window.localStorage.setItem(THEME_KEY, theme);
+    if (!initialized) return;
+    try {
+      window.localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // Ignore localStorage write failures.
+    }
     applyTheme(theme);
 
     if (theme !== "system") return;
@@ -71,7 +87,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const listener = () => applyTheme("system");
     media.addEventListener("change", listener);
     return () => media.removeEventListener("change", listener);
-  }, [theme]);
+  }, [theme, initialized]);
 
   const setTheme = React.useCallback((next: ThemeName) => {
     setThemeState(next);
@@ -106,7 +122,7 @@ export function ThemeSwitcher({ className }: { className?: string }) {
       <select
         value={theme}
         onChange={(event) => setTheme(event.target.value as ThemeName)}
-        className="h-10 min-h-0 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground sm:h-9 sm:w-32 sm:text-sm"
+        className="h-10 min-h-10 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground sm:w-32 sm:text-sm"
       >
         {THEME_CLASSES.map((option) => (
           <option key={option} value={option}>

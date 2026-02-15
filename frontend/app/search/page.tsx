@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { ProductListItem, ProductFilterResponse } from "@/lib/types";
@@ -12,7 +13,7 @@ import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSecti
 import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildItemList, buildSearchResultsPage } from "@/lib/seo";
+import { buildItemList, buildNoIndexMetadata, buildSearchResultsPage } from "@/lib/seo";
 
 export const revalidate = 60;
 
@@ -73,6 +74,22 @@ async function getCategoryFacets(slug: string) {
     { headers: await getServerLocaleHeaders(), next: { revalidate } }
   );
   return response.data;
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}): Promise<Metadata> {
+  const resolved = await searchParams;
+  const query = typeof resolved.q === "string" ? resolved.q.trim() : "";
+  return buildNoIndexMetadata({
+    title: query ? `Search results for "${query}"` : "Search",
+    description: query
+      ? `Search results for "${query}" on Bunoraa.`
+      : "Search Bunoraa products.",
+    path: "/search/",
+  });
 }
 
 export default async function SearchPage({

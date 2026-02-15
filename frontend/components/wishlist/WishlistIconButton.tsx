@@ -1,10 +1,7 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
 import { useWishlist } from "@/components/wishlist/useWishlist";
-import { useAuthContext } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
-import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export function WishlistIconButton({
@@ -22,10 +19,7 @@ export function WishlistIconButton({
   size?: "sm" | "md" | "lg";
   color?: "default" | "fixed-black";
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { hasToken } = useAuthContext();
-  const { wishlistQuery, addItem, removeItem } = useWishlist({ enabled: hasToken });
+  const { wishlistQuery, addItem, removeItem } = useWishlist();
   const { push } = useToast();
 
   const wishlistItems = wishlistQuery.data?.data ?? [];
@@ -42,10 +36,6 @@ export function WishlistIconButton({
   };
 
   const handleClick = async () => {
-    if (!hasToken) {
-      router.push(`/account/login/?next=${encodeURIComponent(pathname || "/")}`);
-      return;
-    }
     try {
       if (isInWishlist && existingItem) {
         const response = await removeItem.mutateAsync(existingItem.id);
@@ -54,19 +44,15 @@ export function WishlistIconButton({
         const response = await addItem.mutateAsync({ productId, variantId });
         push(resolveMessage(response, "Added to wishlist."), "success");
       }
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        router.push(`/account/login/?next=${encodeURIComponent(pathname || "/")}`);
-        return;
-      }
+    } catch {
       push("Could not update wishlist.", "error");
     }
   };
 
   const sizeClasses = {
-    sm: "h-8 w-8",
-    md: "h-9 w-9",
-    lg: "h-10 w-10",
+    sm: "h-9 w-9",
+    md: "h-10 w-10",
+    lg: "h-11 w-11",
   };
 
   const iconClasses = {

@@ -39,10 +39,19 @@ async function fetchProfile() {
 export function useAuth() {
   const queryClient = useQueryClient();
   const [hasToken, setHasToken] = React.useState(false);
+  const lastKnownTokenState = React.useRef(Boolean(getAccessToken()));
 
   const syncHasToken = React.useCallback(() => {
-    setHasToken(Boolean(getAccessToken()));
-  }, []);
+    const nextHasToken = Boolean(getAccessToken());
+    setHasToken(nextHasToken);
+
+    if (lastKnownTokenState.current !== nextHasToken) {
+      lastKnownTokenState.current = nextHasToken;
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+    }
+  }, [queryClient]);
 
   React.useEffect(() => {
     syncHasToken();
@@ -84,7 +93,6 @@ export function useAuth() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
       syncHasToken();
     },
   });
@@ -111,7 +119,6 @@ export function useAuth() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
       syncHasToken();
     },
   });

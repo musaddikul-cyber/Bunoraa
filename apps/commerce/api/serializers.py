@@ -278,6 +278,10 @@ class CheckoutSessionSerializer(serializers.ModelSerializer):
     
     cart_summary = serializers.SerializerMethodField()
     pickup_location = serializers.SerializerMethodField()
+    saved_shipping_address_id = serializers.UUIDField(
+        read_only=True,
+        allow_null=True
+    )
     
     class Meta:
         model = CheckoutSession
@@ -286,7 +290,7 @@ class CheckoutSessionSerializer(serializers.ModelSerializer):
             'shipping_first_name', 'shipping_last_name', 'shipping_company',
             'shipping_email', 'shipping_phone', 'shipping_address_line_1',
             'shipping_address_line_2', 'shipping_city', 'shipping_state',
-            'shipping_postal_code', 'shipping_country',
+            'shipping_postal_code', 'shipping_country', 'saved_shipping_address_id',
             'billing_first_name', 'billing_last_name', 'billing_company',
             'billing_address_line_1', 'billing_address_line_2', 'billing_city',
             'billing_state', 'billing_postal_code', 'billing_country',
@@ -342,6 +346,7 @@ class CheckoutShippingInfoSerializer(serializers.Serializer):
     shipping_state = serializers.CharField(max_length=100, required=False, allow_blank=True)
     shipping_postal_code = serializers.CharField(max_length=20)
     shipping_country = serializers.CharField(max_length=100, default='Bangladesh')
+    saved_shipping_address_id = serializers.UUIDField(required=False, allow_null=True)
     save_address = serializers.BooleanField(required=False, default=False)
 
 

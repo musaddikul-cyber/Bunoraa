@@ -74,7 +74,10 @@ class Cart(models.Model):
             return Decimal('0.00')
         
         try:
-            return self.coupon.calculate_discount(self.subtotal)
+            return self.coupon.calculate_discount(
+                self.subtotal,
+                subtotal_currency=self.currency,
+            )
         except Exception:
             return Decimal('0.00')
     
@@ -1137,19 +1140,73 @@ class SessionWishlist(models.Model):
     
     def merge_into_user_wishlist(self, user_wishlist):
         """Merge session wishlist into user's wishlist."""
-        for item in self.items.all():
-            WishlistItem.objects.get_or_create(
+        for item in self.items.select_related('product', 'variant'):
+            wishlist_item, created = WishlistItem.objects.get_or_create(
                 wishlist=user_wishlist,
                 product=item.product,
                 variant=item.variant,
                 defaults={
                     'notes': item.notes,
                     'price_at_add': item.price_at_add,
+                    'lowest_price_seen': item.lowest_price_seen,
+                    'priority': item.priority,
+                    'desired_quantity': item.desired_quantity,
                     'notify_on_sale': item.notify_on_sale,
                     'notify_on_restock': item.notify_on_restock,
                     'notify_on_price_drop': item.notify_on_price_drop,
+                    'target_price': item.target_price,
                 }
             )
+
+            if created:
+                try:
+                    item.product.increment_wishlist(1)
+                except Exception:
+                    pass
+                continue
+
+            update_fields = []
+
+            if item.notes and not wishlist_item.notes:
+                wishlist_item.notes = item.notes
+                update_fields.append('notes')
+
+            if item.priority and item.priority > wishlist_item.priority:
+                wishlist_item.priority = item.priority
+                update_fields.append('priority')
+
+            if item.desired_quantity and item.desired_quantity > wishlist_item.desired_quantity:
+                wishlist_item.desired_quantity = item.desired_quantity
+                update_fields.append('desired_quantity')
+
+            if wishlist_item.price_at_add is None and item.price_at_add is not None:
+                wishlist_item.price_at_add = item.price_at_add
+                update_fields.append('price_at_add')
+
+            if item.lowest_price_seen is not None:
+                current_low = wishlist_item.lowest_price_seen
+                if current_low is None or item.lowest_price_seen < current_low:
+                    wishlist_item.lowest_price_seen = item.lowest_price_seen
+                    update_fields.append('lowest_price_seen')
+
+            if item.target_price is not None and wishlist_item.target_price is None:
+                wishlist_item.target_price = item.target_price
+                update_fields.append('target_price')
+
+            if item.notify_on_sale and not wishlist_item.notify_on_sale:
+                wishlist_item.notify_on_sale = True
+                update_fields.append('notify_on_sale')
+
+            if item.notify_on_restock and not wishlist_item.notify_on_restock:
+                wishlist_item.notify_on_restock = True
+                update_fields.append('notify_on_restock')
+
+            if item.notify_on_price_drop and not wishlist_item.notify_on_price_drop:
+                wishlist_item.notify_on_price_drop = True
+                update_fields.append('notify_on_price_drop')
+
+            if update_fields:
+                wishlist_item.save(update_fields=update_fields)
         self.delete()
 
 

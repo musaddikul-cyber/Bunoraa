@@ -11,6 +11,48 @@ from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
+def normalize_currency_code(value):
+    """Normalize to a 3-letter ISO currency code with BDT fallback."""
+    if hasattr(value, "code"):
+        value = getattr(value, "code", None)
+    code = str(value or "").strip().upper()
+    if len(code) != 3:
+        return "BDT"
+    return code
+
+
+def get_site_default_currency_code():
+    """Default promotions currency from SiteSettings, fallback to BDT."""
+    try:
+        from apps.pages.models import SiteSettings
+
+        settings_obj = SiteSettings.get_settings()
+        return normalize_currency_code(getattr(settings_obj, "currency", None))
+    except Exception:
+        return "BDT"
+
+
+def convert_amount_by_code(amount, from_code, to_code):
+    """Convert amount between currencies, returning original amount on failure."""
+    amount_decimal = Decimal(str(amount or 0))
+    source = normalize_currency_code(from_code)
+    target = normalize_currency_code(to_code)
+    if source == target:
+        return amount_decimal
+    try:
+        from apps.i18n.services import CurrencyConversionService
+
+        converted = CurrencyConversionService.convert_by_code(
+            amount_decimal,
+            source,
+            target,
+            round_result=False,
+        )
+        return Decimal(str(converted))
+    except Exception:
+        return amount_decimal
+
+
 class Bundle(models.Model):
     """
     Product bundle - Group related products with bundle pricing.
@@ -43,6 +85,16 @@ class Bundle(models.Model):
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    currency = models.ForeignKey(
+        'i18n.Currency',
+        on_delete=models.PROTECT,
+        to_field='code',
+        db_column='currency',
+        related_name='promotion_bundles',
+        default=get_site_default_currency_code,
+        verbose_name=_('currency'),
+        help_text=_('Currency for bundle prices (e.g. BDT, USD).')
     )
     
     @property
@@ -84,6 +136,10 @@ class Bundle(models.Model):
     def get_absolute_url(self):
         from django.urls import reverse
         return reverse('bundles:detail', kwargs={'slug': self.slug})
+
+    def save(self, *args, **kwargs):
+        self.currency_id = normalize_currency_code(self.currency_id or get_site_default_currency_code())
+        super().save(*args, **kwargs)
 
 
 class BundleItem(models.Model):
@@ -144,6 +200,15 @@ class Coupon(models.Model):
         default=DISCOUNT_PERCENTAGE
     )
     discount_value = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.ForeignKey(
+        'i18n.Currency',
+        on_delete=models.PROTECT,
+        to_field='code',
+        db_column='currency',
+        related_name='promotion_coupons',
+        default=get_site_default_currency_code,
+        help_text="Currency for fixed/amount-based coupon values"
+    )
     
     # Limits
     minimum_order_amount = models.DecimalField(
@@ -231,25 +296,48 @@ class Coupon(models.Model):
         
         return True
     
-    def calculate_discount(self, subtotal):
+    def calculate_discount(self, subtotal, subtotal_currency=None):
         """Calculate discount amount for given subtotal."""
+        subtotal = Decimal(str(subtotal or 0))
+        target_currency = normalize_currency_code(subtotal_currency or self.currency_id)
+        coupon_currency = normalize_currency_code(self.currency_id)
+
         if self.discount_type == self.DISCOUNT_PERCENTAGE:
             discount = subtotal * (self.discount_value / Decimal('100'))
             if self.maximum_discount:
-                discount = min(discount, self.maximum_discount)
+                max_discount = convert_amount_by_code(
+                    self.maximum_discount,
+                    coupon_currency,
+                    target_currency,
+                )
+                discount = min(discount, max_discount)
         else:
-            discount = self.discount_value
-        
+            discount = convert_amount_by_code(
+                self.discount_value,
+                coupon_currency,
+                target_currency,
+            )
+
         return min(discount, subtotal)  # Don't exceed subtotal
-    
-    def can_use(self, user=None, subtotal=Decimal('0')):
+
+    def can_use(self, user=None, subtotal=Decimal('0'), subtotal_currency=None):
         """Check if coupon can be used by user for given subtotal."""
+        subtotal = Decimal(str(subtotal or 0))
+        target_currency = normalize_currency_code(subtotal_currency or self.currency_id)
+        coupon_currency = normalize_currency_code(self.currency_id)
+
         if not self.is_valid:
             return False, "Coupon is not valid"
         
         # Check minimum order
-        if self.minimum_order_amount and subtotal < self.minimum_order_amount:
-            return False, f"Minimum order amount is ${self.minimum_order_amount}"
+        if self.minimum_order_amount:
+            required_minimum = convert_amount_by_code(
+                self.minimum_order_amount,
+                coupon_currency,
+                target_currency,
+            )
+            if subtotal < required_minimum:
+                return False, f"Minimum order amount is {required_minimum:.2f} {target_currency}"
         
         # Check user restrictions
         if self.users.exists() and user:
@@ -283,6 +371,10 @@ class Coupon(models.Model):
         
         return True, "Coupon is valid"
 
+    def save(self, *args, **kwargs):
+        self.currency_id = normalize_currency_code(self.currency_id or get_site_default_currency_code())
+        super().save(*args, **kwargs)
+
 
 class CouponUsage(models.Model):
     """Track coupon usage per user."""
@@ -305,6 +397,14 @@ class CouponUsage(models.Model):
     )
     
     discount_applied = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.ForeignKey(
+        'i18n.Currency',
+        on_delete=models.PROTECT,
+        to_field='code',
+        db_column='currency',
+        related_name='promotion_coupon_usages',
+        default=get_site_default_currency_code,
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -312,6 +412,13 @@ class CouponUsage(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Coupon Usage'
         verbose_name_plural = 'Coupon Usages'
+
+    def save(self, *args, **kwargs):
+        if self.coupon and self.coupon.currency_id:
+            self.currency_id = normalize_currency_code(self.coupon.currency_id)
+        else:
+            self.currency_id = normalize_currency_code(self.currency_id or get_site_default_currency_code())
+        super().save(*args, **kwargs)
 
 
 class Banner(models.Model):
@@ -435,6 +542,15 @@ class Sale(models.Model):
         default=DISCOUNT_PERCENTAGE
     )
     discount_value = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.ForeignKey(
+        'i18n.Currency',
+        on_delete=models.PROTECT,
+        to_field='code',
+        db_column='currency',
+        related_name='promotion_sales',
+        default=get_site_default_currency_code,
+        help_text="Currency for fixed discount values"
+    )
     
     # Products in sale
     products = models.ManyToManyField(
@@ -480,11 +596,22 @@ class Sale(models.Model):
         now = timezone.now()
         return self.start_date <= now <= self.end_date
     
-    def get_sale_price(self, original_price):
+    def get_sale_price(self, original_price, price_currency=None):
         """Calculate sale price for given original price."""
+        original_price = Decimal(str(original_price or 0))
+        target_currency = normalize_currency_code(price_currency or self.currency_id)
+
         if self.discount_type == self.DISCOUNT_PERCENTAGE:
             discount = original_price * (self.discount_value / Decimal('100'))
         else:
-            discount = self.discount_value
+            discount = convert_amount_by_code(
+                self.discount_value,
+                self.currency_id,
+                target_currency,
+            )
         
         return max(original_price - discount, Decimal('0'))
+
+    def save(self, *args, **kwargs):
+        self.currency_id = normalize_currency_code(self.currency_id or get_site_default_currency_code())
+        super().save(*args, **kwargs)

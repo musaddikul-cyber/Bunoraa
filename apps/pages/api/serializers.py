@@ -80,6 +80,8 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
     tagline = serializers.SerializerMethodField()
     address = serializers.SerializerMethodField()
     support_email = serializers.SerializerMethodField()
+    currency = serializers.CharField(source='currency_id', read_only=True)
+    currency_symbol = serializers.SerializerMethodField()
     
     class Meta:
         model = SiteSettings
@@ -117,6 +119,12 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
 
     def get_support_email(self, obj):
         return getattr(obj, "contact_email", "")
+
+    def get_currency_symbol(self, obj):
+        currency = getattr(obj, 'currency', None)
+        if not currency:
+            return ''
+        return getattr(currency, 'native_symbol', None) or getattr(currency, 'symbol', '') or ''
 
 
 class SubscriberCreateSerializer(serializers.Serializer):

@@ -20,6 +20,7 @@ const schema = z.object({
   shipping_state: z.string().optional(),
   shipping_postal_code: z.string().min(1, "Postal code is required"),
   shipping_country: z.string().min(1, "Country is required"),
+  saved_shipping_address_id: z.string().uuid().nullable().optional(),
   save_address: z.boolean().optional(),
 });
 
@@ -29,18 +30,24 @@ type CheckoutInfoStepProps = {
   defaultValues: Partial<CheckoutInfoFormValues>;
   countries: Country[];
   savedAddresses: Address[];
+  defaultSelectedAddressId?: string | null;
   allowSaveAddress?: boolean;
   onSubmit: (values: CheckoutInfoFormValues) => Promise<void>;
+  onSavedAddressSelectionChange?: (values: CheckoutInfoFormValues) => void;
   isSubmitting?: boolean;
+  isAutoSavingSelection?: boolean;
 };
 
 export function CheckoutInfoStep({
   defaultValues,
   countries,
   savedAddresses,
+  defaultSelectedAddressId,
   allowSaveAddress = false,
   onSubmit,
+  onSavedAddressSelectionChange,
   isSubmitting,
+  isAutoSavingSelection,
 }: CheckoutInfoStepProps) {
   const NEW_ADDRESS_ID = "new";
   const MAX_SAVED_ADDRESSES = 4;
@@ -50,6 +57,7 @@ export function CheckoutInfoStep({
   });
 
   const [selectedAddress, setSelectedAddress] = React.useState<string>("");
+  const shouldPersistSelectedAddressRef = React.useRef(false);
 
   React.useEffect(() => {
     form.reset(defaultValues);
@@ -72,14 +80,94 @@ export function CheckoutInfoStep({
     [countries]
   );
 
+  const normalize = React.useCallback((value?: string | null) => {
+    return (value || "").trim().toLowerCase();
+  }, []);
+
+  const findMatchedSavedAddress = React.useCallback(() => {
+    const shippingLine1 = normalize(defaultValues.shipping_address_line_1);
+    const shippingCity = normalize(defaultValues.shipping_city);
+    const shippingPostal = normalize(defaultValues.shipping_postal_code);
+    const shippingState = normalize(defaultValues.shipping_state);
+    const shippingCountry = normalize(
+      resolveCountryName(defaultValues.shipping_country || "")
+    );
+
+    if (!shippingLine1 || !shippingCity || !shippingPostal || !shippingCountry) {
+      return null;
+    }
+
+    return (
+      savedAddresses.find((address) => {
+        const addressCountry = normalize(resolveCountryName(address.country));
+        return (
+          normalize(address.address_line_1) === shippingLine1 &&
+          normalize(address.city) === shippingCity &&
+          normalize(address.postal_code) === shippingPostal &&
+          normalize(address.state) === shippingState &&
+          addressCountry === shippingCountry
+        );
+      }) || null
+    );
+  }, [
+    defaultValues.shipping_address_line_1,
+    defaultValues.shipping_city,
+    defaultValues.shipping_postal_code,
+    defaultValues.shipping_state,
+    defaultValues.shipping_country,
+    normalize,
+    resolveCountryName,
+    savedAddresses,
+  ]);
+
   React.useEffect(() => {
-    if (selectedAddress || !savedAddresses.length) return;
+    if (!savedAddresses.length) {
+      setSelectedAddress("");
+      return;
+    }
+
+    const hasExistingSelection = selectedAddress
+      ? savedAddresses.some((address) => address.id === selectedAddress) ||
+        selectedAddress === NEW_ADDRESS_ID
+      : false;
+    if (hasExistingSelection) return;
+
+    const hasSessionAddress =
+      Boolean(normalize(defaultValues.shipping_address_line_1)) ||
+      Boolean(normalize(defaultValues.shipping_city)) ||
+      Boolean(normalize(defaultValues.shipping_postal_code));
+
+    const selectedFromSession =
+      (defaultSelectedAddressId &&
+      savedAddresses.some((address) => address.id === defaultSelectedAddressId)
+        ? defaultSelectedAddressId
+        : null) || findMatchedSavedAddress()?.id;
+
+    if (selectedFromSession) {
+      setSelectedAddress(selectedFromSession);
+      return;
+    }
+
+    if (hasSessionAddress) {
+      setSelectedAddress(NEW_ADDRESS_ID);
+      return;
+    }
+
     const defaultAddress =
       savedAddresses.find((address) => address.is_default) || savedAddresses[0];
-    if (defaultAddress) {
-      setSelectedAddress(defaultAddress.id);
-    }
-  }, [savedAddresses, selectedAddress]);
+    setSelectedAddress(defaultAddress?.id || NEW_ADDRESS_ID);
+  }, [
+    defaultSelectedAddressId,
+    defaultValues.shipping_address_line_1,
+    defaultValues.shipping_city,
+    defaultValues.shipping_country,
+    defaultValues.shipping_postal_code,
+    findMatchedSavedAddress,
+    normalize,
+    savedAddresses,
+    selectedAddress,
+    NEW_ADDRESS_ID,
+  ]);
 
   React.useEffect(() => {
     if (!selectedAddress || selectedAddress === NEW_ADDRESS_ID) return;
@@ -92,7 +180,38 @@ export function CheckoutInfoStep({
     form.setValue("shipping_postal_code", address.postal_code || "");
     form.setValue("shipping_country", resolveCountryName(address.country));
     form.setValue("save_address", false);
-  }, [selectedAddress, savedAddresses, form, resolveCountryName, NEW_ADDRESS_ID]);
+
+    if (shouldPersistSelectedAddressRef.current && onSavedAddressSelectionChange) {
+      shouldPersistSelectedAddressRef.current = false;
+      const currentValues = form.getValues();
+      const payload: CheckoutInfoFormValues = {
+        ...currentValues,
+        shipping_address_line_1: address.address_line_1 || "",
+        shipping_address_line_2: address.address_line_2 || "",
+        shipping_city: address.city || "",
+        shipping_state: address.state || "",
+        shipping_postal_code: address.postal_code || "",
+        shipping_country: resolveCountryName(address.country),
+        save_address: false,
+        saved_shipping_address_id: selectedAddress,
+      };
+      const parsed = schema.safeParse(payload);
+      if (parsed.success) {
+        onSavedAddressSelectionChange({
+          ...parsed.data,
+          save_address: false,
+          saved_shipping_address_id: selectedAddress,
+        });
+      }
+    }
+  }, [
+    selectedAddress,
+    savedAddresses,
+    form,
+    resolveCountryName,
+    NEW_ADDRESS_ID,
+    onSavedAddressSelectionChange,
+  ]);
 
   const clearAddressFields = React.useCallback(() => {
     form.setValue("shipping_address_line_1", "");
@@ -105,14 +224,19 @@ export function CheckoutInfoStep({
 
   const handleSelectAddress = React.useCallback(
     (id: string) => {
+      shouldPersistSelectedAddressRef.current = Boolean(
+        id && id !== NEW_ADDRESS_ID && id !== selectedAddress
+      );
       setSelectedAddress(id);
       if (!id || id === NEW_ADDRESS_ID) {
         clearAddressFields();
+        form.setValue("saved_shipping_address_id", null);
       } else {
         form.setValue("save_address", false);
+        form.setValue("saved_shipping_address_id", id);
       }
     },
-    [clearAddressFields, NEW_ADDRESS_ID, form]
+    [clearAddressFields, NEW_ADDRESS_ID, form, selectedAddress]
   );
 
   const sortedCountries = React.useMemo(() => {
@@ -130,13 +254,17 @@ export function CheckoutInfoStep({
   };
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    const isNewAddress = !savedAddresses.length || selectedAddress === NEW_ADDRESS_ID;
+    const isSavedAddressSelected = Boolean(
+      savedAddresses.length && selectedAddress && selectedAddress !== NEW_ADDRESS_ID
+    );
+    const isNewAddress = !savedAddresses.length || !isSavedAddressSelected;
     const canSaveMore = savedAddresses.length < MAX_SAVED_ADDRESSES;
     const shouldSave =
       allowSaveAddress && isNewAddress && canSaveMore && Boolean(values.save_address);
     await onSubmit({
       ...values,
       save_address: shouldSave,
+      saved_shipping_address_id: isSavedAddressSelected ? selectedAddress : null,
     });
   });
 
@@ -224,6 +352,11 @@ export function CheckoutInfoStep({
               <p className="text-xs text-foreground/60">
                 Select a saved address or enter a new one.
               </p>
+              {isAutoSavingSelection ? (
+                <p className="text-xs text-foreground/60">
+                  Saving selected address...
+                </p>
+              ) : null}
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               {savedAddresses.map((address) => {
@@ -288,6 +421,7 @@ export function CheckoutInfoStep({
 
         {!savedAddresses.length || selectedAddress === NEW_ADDRESS_ID ? (
           <>
+            <div className="mt-2 border-t border-border" role="separator" aria-hidden="true" />
             <label className="block text-sm">
               Address line 1
               <input

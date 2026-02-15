@@ -1,10 +1,7 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
 import { useWishlist } from "@/components/wishlist/useWishlist";
 import { Button, type ButtonProps } from "@/components/ui/Button";
-import { useAuthContext } from "@/components/providers/AuthProvider";
-import { ApiError } from "@/lib/api";
 import { useToast } from "@/components/ui/ToastProvider";
 import { cn } from "@/lib/utils";
 
@@ -25,10 +22,7 @@ export function AddToWishlistButton({
   className,
   ...props
 }: AddToWishlistButtonProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { hasToken } = useAuthContext();
-  const { wishlistQuery, addItem, removeItem } = useWishlist({ enabled: hasToken });
+  const { wishlistQuery, addItem, removeItem } = useWishlist();
   const { push } = useToast();
 
   const wishlistItems = wishlistQuery.data?.data ?? [];
@@ -45,11 +39,6 @@ export function AddToWishlistButton({
   };
 
   const handleClick = async () => {
-    if (!hasToken) {
-      push("Sign in to manage your wishlist.", "info");
-      router.push(`/account/login/?next=${encodeURIComponent(pathname || "/")}`);
-      return;
-    }
     try {
       if (isInWishlist && existingItem) {
         const response = await removeItem.mutateAsync(existingItem.id);
@@ -58,12 +47,7 @@ export function AddToWishlistButton({
         const response = await addItem.mutateAsync({ productId, variantId });
         push(resolveMessage(response, "Added to wishlist."), "success");
       }
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        push("Sign in to manage your wishlist.", "info");
-        router.push(`/account/login/?next=${encodeURIComponent(pathname || "/")}`);
-        return;
-      }
+    } catch {
       push("Could not update wishlist.", "error");
     }
   };

@@ -8,11 +8,12 @@ from ..models import Coupon, Banner, Sale
 class CouponSerializer(serializers.ModelSerializer):
     """Serializer for coupon."""
     is_valid = serializers.ReadOnlyField()
+    currency = serializers.CharField(source='currency_id', read_only=True)
     
     class Meta:
         model = Coupon
         fields = [
-            'id', 'code', 'description', 'discount_type', 'discount_value',
+            'id', 'code', 'description', 'discount_type', 'discount_value', 'currency',
             'minimum_order_amount', 'maximum_discount',
             'valid_from', 'valid_until', 'is_valid'
         ]
@@ -57,12 +58,13 @@ class SaleSerializer(serializers.ModelSerializer):
     """Serializer for sale."""
     is_running = serializers.ReadOnlyField()
     product_count = serializers.SerializerMethodField()
+    currency = serializers.CharField(source='currency_id', read_only=True)
     
     class Meta:
         model = Sale
         fields = [
             'id', 'name', 'slug', 'description',
-            'discount_type', 'discount_value',
+            'discount_type', 'discount_value', 'currency',
             'banner_image', 'start_date', 'end_date',
             'is_running', 'product_count'
         ]

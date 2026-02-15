@@ -1,0 +1,102 @@
+{
+  "site_settings": {
+    "site_name": "Bunoraa",
+    "site_tagline": "Handcrafted artisan marketplace",
+    "site_description": "Discover handcrafted goods from local artisans.",
+    "contact_email": "support@bunoraa.com",
+    "contact_phone": "+8801700000000",
+    "contact_address": "Dhaka, Bangladesh",
+    "support_reply_time_note": "We reply within 1 business day.",
+    "currency": "BDT",
+    "tax_rate": "10.00",
+    "default_meta_title": "Bunoraa",
+    "default_meta_description": "Handcrafted artisan marketplace in Bangladesh.",
+    "footer_text": "Handcrafted with care.",
+    "copyright_text": "(C) 2026 Bunoraa. All rights reserved."
+  },
+  "newsletter_incentives": [
+    {
+      "title": "Welcome Discount",
+      "description": "Get 10% off your first order.",
+      "discount_percentage": 10,
+      "discount_code": "WELCOME10",
+      "min_order_amount": "500.00",
+      "max_uses": null,
+      "is_active": true
+    }
+  ],
+  "blog_categories": [
+    {
+      "name": "Crafting Tips",
+      "slug": "crafting-tips",
+      "description": "Tips and guides for caring for handmade products.",
+      "icon": "sparkles"
+    },
+    {
+      "name": "Artisan Stories",
+      "slug": "artisan-stories",
+      "description": "Behind-the-scenes stories from our artisans.",
+      "icon": "users"
+    }
+  ],
+  "blog_tags": [
+    {
+      "name": "Handmade",
+      "slug": "handmade"
+    },
+    {
+      "name": "Embroidery",
+      "slug": "embroidery"
+    },
+    {
+      "name": "Care Guide",
+      "slug": "care-guide"
+    }
+  ],
+  "faqs": [
+    {
+      "question": "How long does delivery take?",
+      "answer": "Delivery times depend on your location and the shipping method selected at checkout.",
+      "category": "Shipping",
+      "sort_order": 1,
+      "is_active": true
+    },
+    {
+      "question": "Do you accept returns?",
+      "answer": "Yes, returns are accepted within the return window stated on our policy page.",
+      "category": "Returns",
+      "sort_order": 2,
+      "is_active": true
+    },
+    {
+      "question": "Can I request customization?",
+      "answer": "Yes, many products can be customized. Contact us with your request.",
+      "category": "Customization",
+      "sort_order": 3,
+      "is_active": true
+    }
+  ],
+  "social_links": [
+    {
+      "site": 1,
+      "name": "Facebook",
+      "url": "https://www.facebook.com/bunoraa",
+      "order": 1,
+      "is_active": true
+    },
+    {
+      "site": 1,
+      "name": "Instagram",
+      "url": "https://www.instagram.com/bunoraa",
+      "order": 2,
+      "is_active": true
+    },
+    {
+      "site": 1,
+      "name": "YouTube",
+      "url": "https://www.youtube.com/@bunoraa",
+      "order": 3,
+      "is_active": true
+    }
+  ]
+}

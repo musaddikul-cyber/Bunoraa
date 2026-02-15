@@ -42,13 +42,17 @@ export function FooterNewsletter() {
         Monthly drops, artisan stories, and early access invites.
       </p>
       <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={handleSubmit}>
+        <label htmlFor="footer-newsletter-email" className="sr-only">
+          Email address
+        </label>
         <input
+          id="footer-newsletter-email"
           className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
           type="email"
           placeholder="Email address"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          aria-label="Email address"
+          autoComplete="email"
           required
         />
         <Button

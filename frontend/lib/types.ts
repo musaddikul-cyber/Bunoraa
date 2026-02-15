@@ -904,6 +904,7 @@ export type CheckoutSession = {
   shipping_state?: string | null;
   shipping_postal_code?: string | null;
   shipping_country?: string | null;
+  saved_shipping_address_id?: string | null;
   billing_first_name?: string | null;
   billing_last_name?: string | null;
   billing_company?: string | null;

@@ -2,12 +2,13 @@
 Promotions API views
 """
 import logging
+from decimal import Decimal
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
-from ..models import Coupon, Banner, Sale
+from ..models import Coupon, Banner, Sale, get_site_default_currency_code, normalize_currency_code
 from ..services import CouponService, BannerService, SaleService
 
 logger = logging.getLogger(__name__)
@@ -45,26 +46,43 @@ class CouponViewSet(viewsets.ViewSet):
         try:
             from apps.i18n.services import CurrencyService, CurrencyConversionService
             user_currency = CurrencyService.get_user_currency(request=request)
-            default_currency = CurrencyService.get_default_currency()
-            return user_currency, default_currency, CurrencyConversionService
+            return user_currency, CurrencyService, CurrencyConversionService
         except Exception:
             return None, None, None
 
-    def _format_minimum_order_message(self, coupon, user_currency, default_currency, conversion_service, message):
+    def _format_minimum_order_message(self, coupon, user_currency, currency_service, conversion_service, message):
+        # Preserve original non-minimum-order validation failures
+        if not message or 'minimum order amount' not in str(message).lower():
+            return message
+
         try:
-            from decimal import Decimal
             if coupon and coupon.minimum_order_amount:
-                display_amount = coupon.minimum_order_amount
-                display_currency = user_currency or default_currency
-                if user_currency and default_currency and user_currency.code != default_currency.code and conversion_service:
+                source_code = normalize_currency_code(
+                    getattr(coupon, 'currency_id', None) or get_site_default_currency_code()
+                )
+                display_amount = Decimal(str(coupon.minimum_order_amount))
+                display_currency = user_currency
+                if not display_currency and currency_service:
+                    display_currency = (
+                        currency_service.get_currency_by_code(source_code)
+                        or currency_service.get_currency_by_code(get_site_default_currency_code())
+                        or currency_service.get_default_currency()
+                    )
+
+                if (
+                    display_currency
+                    and conversion_service
+                    and display_currency.code != source_code
+                ):
                     display_amount = conversion_service.convert_by_code(
-                        Decimal(str(coupon.minimum_order_amount)),
-                        default_currency.code,
-                        user_currency.code,
+                        display_amount,
+                        source_code,
+                        display_currency.code,
                         round_result=True
                     )
                 if display_currency:
                     return f"Minimum order amount is {display_currency.format_amount(display_amount)}"
+                return f"Minimum order amount is {display_amount:.2f} {source_code}"
         except Exception:
             pass
         return message
@@ -83,34 +101,31 @@ class CouponViewSet(viewsets.ViewSet):
         
         code = serializer.validated_data['code']
         subtotal = serializer.validated_data.get('subtotal', 0)
-
-        # Normalize subtotal to default currency for validation
-        user_currency, default_currency, conversion_service = self._get_currency_context(request)
-        try:
-            if user_currency and default_currency and user_currency.code != default_currency.code and conversion_service:
-                from decimal import Decimal
-                subtotal = conversion_service.convert_by_code(
-                    Decimal(str(subtotal)), user_currency.code, default_currency.code, round_result=False
-                )
-        except Exception:
-            pass
+        user_currency, currency_service, conversion_service = self._get_currency_context(request)
+        subtotal_currency = getattr(user_currency, 'code', None)
         
         user = request.user if request.user.is_authenticated else None
         
         coupon, is_valid, message = CouponService.validate_coupon(
             code=code,
             user=user,
-            subtotal=subtotal
+            subtotal=subtotal,
+            subtotal_currency=subtotal_currency,
         )
         
         discount = None
         if coupon and is_valid:
-            discount = str(coupon.calculate_discount(subtotal))
+            discount = str(
+                coupon.calculate_discount(
+                    subtotal,
+                    subtotal_currency=subtotal_currency or getattr(coupon, 'currency_id', None),
+                )
+            )
 
         # Replace minimum order message with user-currency formatted value
         if coupon and not is_valid:
             message = self._format_minimum_order_message(
-                coupon, user_currency, default_currency, conversion_service, message
+                coupon, user_currency, currency_service, conversion_service, message
             )
         
         return Response({
@@ -145,18 +160,19 @@ class CouponViewSet(viewsets.ViewSet):
                 'data': None
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        user_currency, default_currency, conversion_service = self._get_currency_context(request)
+        user_currency, currency_service, conversion_service = self._get_currency_context(request)
         user = request.user if request.user.is_authenticated else None
 
         coupon, is_valid, message = CouponService.validate_coupon(
             code=code,
             user=user,
-            subtotal=cart.subtotal
+            subtotal=cart.subtotal,
+            subtotal_currency=cart.currency,
         )
 
         if not is_valid:
             message = self._format_minimum_order_message(
-                coupon, user_currency, default_currency, conversion_service, message
+                coupon, user_currency, currency_service, conversion_service, message
             )
             return Response({
                 'success': False,

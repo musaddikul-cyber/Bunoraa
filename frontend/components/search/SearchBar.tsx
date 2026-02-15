@@ -21,12 +21,17 @@ type SearchResponse = {
   query: string;
 };
 
-export function SearchBar() {
+type SearchBarProps = {
+  hideSubmitButtonOnDesktop?: boolean;
+};
+
+export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const [isInputFocused, setIsInputFocused] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const inputId = React.useId();
   const listboxId = React.useId();
   const debounced = useDebouncedValue(query, 400);
 
@@ -104,13 +109,21 @@ export function SearchBar() {
 
   return (
     <div ref={containerRef} className="relative w-full max-w-md">
-      <form onSubmit={onSubmit}>
+      <form onSubmit={onSubmit} className="relative">
+        <label htmlFor={inputId} className="sr-only">
+          Search products and categories
+        </label>
         <input
-          className="h-11 w-full min-h-0 rounded-full border border-border bg-card px-4 py-1 text-sm shadow-sm transition focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:h-10"
+          id={inputId}
+          className={`h-11 w-full min-h-11 rounded-full border border-border bg-card px-4 py-1 text-sm shadow-sm transition focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+            hideSubmitButtonOnDesktop ? "pr-24 lg:pr-4" : "pr-24"
+          }`}
           placeholder="Search products"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onFocus={() => setIsInputFocused(true)}
+          autoComplete="off"
+          enterKeyHint="search"
           onKeyDown={(event) => {
             if (!hasQuery) return;
             if (event.key === "ArrowDown") {
@@ -137,6 +150,15 @@ export function SearchBar() {
           aria-autocomplete="list"
           aria-activedescendant={activeIndex >= 0 ? options[activeIndex]?.id : undefined}
         />
+        <button
+          type="submit"
+          className={`absolute right-1 top-1/2 inline-flex h-9 min-h-9 -translate-y-1/2 items-center justify-center rounded-full bg-primary px-3 text-xs font-semibold text-white transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+            hideSubmitButtonOnDesktop ? "lg:hidden" : ""
+          }`}
+          aria-label="Search"
+        >
+          Search
+        </button>
       </form>
 
       {showSuggestions ? (

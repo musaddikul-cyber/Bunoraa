@@ -48,6 +48,442 @@ class CheckoutException(CommerceException):
 
 
 # =============================================================================
+# Session Merge Service
+# =============================================================================
+
+class SessionMergeService:
+    """Merge guest session commerce data into authenticated user data."""
+
+    ACTIVE_CHECKOUT_STEPS = [
+        CheckoutSession.STEP_CART,
+        CheckoutSession.STEP_INFORMATION,
+        CheckoutSession.STEP_SHIPPING,
+        CheckoutSession.STEP_PAYMENT,
+        CheckoutSession.STEP_REVIEW,
+    ]
+    CHECKOUT_STEP_ORDER = {
+        CheckoutSession.STEP_CART: 0,
+        CheckoutSession.STEP_INFORMATION: 1,
+        CheckoutSession.STEP_SHIPPING: 2,
+        CheckoutSession.STEP_PAYMENT: 3,
+        CheckoutSession.STEP_REVIEW: 4,
+        CheckoutSession.STEP_PROCESSING: 5,
+        CheckoutSession.STEP_COMPLETED: 6,
+        CheckoutSession.STEP_ABANDONED: 7,
+    }
+
+    @classmethod
+    def _get_max_quantity_per_item(cls) -> int:
+        try:
+            return int(CartSettings.get_settings().max_quantity_per_item or 0)
+        except Exception:
+            return 0
+
+    @classmethod
+    def _merge_cart_items(cls, target_cart: Cart, source_cart: Cart, *, max_quantity_per_item: int = 0):
+        """Merge all items from source cart into target cart."""
+        for source_item in source_cart.items.select_for_update().select_related('product', 'variant'):
+            existing_item = (
+                target_cart.items.select_for_update()
+                .filter(product=source_item.product, variant=source_item.variant)
+                .first()
+            )
+
+            if existing_item:
+                merged_quantity = existing_item.quantity + source_item.quantity
+                if max_quantity_per_item > 0:
+                    merged_quantity = min(merged_quantity, max_quantity_per_item)
+
+                update_fields = []
+                if existing_item.quantity != merged_quantity:
+                    existing_item.quantity = merged_quantity
+                    update_fields.append('quantity')
+
+                if source_item.gift_wrap and not existing_item.gift_wrap:
+                    existing_item.gift_wrap = True
+                    update_fields.append('gift_wrap')
+
+                if source_item.gift_message and not existing_item.gift_message:
+                    existing_item.gift_message = source_item.gift_message
+                    update_fields.append('gift_message')
+
+                if existing_item.price_at_add is None and source_item.price_at_add is not None:
+                    existing_item.price_at_add = source_item.price_at_add
+                    update_fields.append('price_at_add')
+
+                if update_fields:
+                    existing_item.save(update_fields=update_fields)
+
+                source_item.delete()
+            else:
+                source_item.cart = target_cart
+                source_item.save(update_fields=['cart'])
+
+    @classmethod
+    def _try_merge_coupon(cls, user_cart: Cart, source_cart: Cart, user) -> bool:
+        """Attempt to copy a guest coupon onto user cart if currently empty and valid."""
+        if user_cart.coupon_id or not source_cart.coupon_id:
+            return False
+
+        try:
+            from apps.promotions.services import CouponService
+
+            coupon_code = source_cart.coupon.code
+            coupon, is_valid, _message = CouponService.validate_coupon(
+                code=coupon_code,
+                user=user,
+                subtotal=user_cart.subtotal,
+                subtotal_currency=user_cart.currency,
+            )
+            if coupon and is_valid:
+                user_cart.coupon = coupon
+                user_cart.save(update_fields=['coupon'])
+                return True
+        except Exception:
+            return False
+
+        return False
+
+    @classmethod
+    def _try_merge_currency(
+        cls,
+        user_cart: Cart,
+        source_cart: Cart,
+        *,
+        had_user_items_before_merge: bool,
+    ) -> bool:
+        """Only inherit guest currency when user cart had no prior items."""
+        if had_user_items_before_merge:
+            return False
+
+        source_currency = (source_cart.currency or '').strip()
+        if not source_currency or source_currency == user_cart.currency:
+            return False
+
+        user_cart.currency = source_currency
+        user_cart.save(update_fields=['currency'])
+        return True
+
+    @classmethod
+    def _merge_saved_for_later(cls, user, session_key: str) -> int:
+        """Merge guest saved-for-later items into user saved-for-later items."""
+        merged_count = 0
+        guest_items = list(
+            SavedForLater.objects.select_for_update()
+            .filter(session_key=session_key, user__isnull=True)
+            .select_related('product', 'variant')
+        )
+        for guest_item in guest_items:
+            existing = (
+                SavedForLater.objects.select_for_update()
+                .filter(user=user, product=guest_item.product, variant=guest_item.variant)
+                .first()
+            )
+            if not existing:
+                guest_item.user = user
+                guest_item.session_key = None
+                guest_item.save(update_fields=['user', 'session_key'])
+                merged_count += 1
+                continue
+
+            update_fields = []
+
+            merged_quantity = existing.quantity + guest_item.quantity
+            if existing.quantity != merged_quantity:
+                existing.quantity = merged_quantity
+                update_fields.append('quantity')
+
+            if guest_item.notify_on_price_drop and not existing.notify_on_price_drop:
+                existing.notify_on_price_drop = True
+                update_fields.append('notify_on_price_drop')
+
+            if guest_item.notify_on_restock and not existing.notify_on_restock:
+                existing.notify_on_restock = True
+                update_fields.append('notify_on_restock')
+
+            if guest_item.price_at_save and (
+                not existing.price_at_save or guest_item.price_at_save < existing.price_at_save
+            ):
+                existing.price_at_save = guest_item.price_at_save
+                update_fields.append('price_at_save')
+
+            if update_fields:
+                existing.save(update_fields=update_fields)
+
+            guest_item.delete()
+            merged_count += 1
+
+        return merged_count
+
+    @classmethod
+    def _merge_checkout_session_data(cls, primary: CheckoutSession, duplicate: CheckoutSession):
+        """Fill missing checkout data on the primary session from a duplicate."""
+        text_fields = [
+            'email',
+            'shipping_first_name',
+            'shipping_last_name',
+            'shipping_company',
+            'shipping_email',
+            'shipping_phone',
+            'shipping_address_line_1',
+            'shipping_address_line_2',
+            'shipping_city',
+            'shipping_state',
+            'shipping_postal_code',
+            'shipping_country',
+            'billing_first_name',
+            'billing_last_name',
+            'billing_company',
+            'billing_address_line_1',
+            'billing_address_line_2',
+            'billing_city',
+            'billing_state',
+            'billing_postal_code',
+            'billing_country',
+            'coupon_code',
+            'order_notes',
+            'delivery_instructions',
+            'gift_message',
+            'payment_fee_label',
+        ]
+        fk_fields = [
+            'saved_shipping_address',
+            'saved_billing_address',
+            'shipping_rate',
+            'pickup_location',
+            'coupon',
+        ]
+        numeric_fields = [
+            'shipping_cost',
+            'payment_fee_amount',
+            'discount_amount',
+            'gift_wrap_cost',
+            'tax_rate',
+            'tax_amount',
+            'subtotal',
+            'total',
+            'exchange_rate',
+        ]
+
+        update_fields = []
+
+        for field in text_fields:
+            if not getattr(primary, field) and getattr(duplicate, field):
+                setattr(primary, field, getattr(duplicate, field))
+                update_fields.append(field)
+
+        for field in fk_fields:
+            if getattr(primary, f'{field}_id', None) is None and getattr(duplicate, f'{field}_id', None):
+                setattr(primary, field, getattr(duplicate, field))
+                update_fields.append(field)
+
+        for field in numeric_fields:
+            if not getattr(primary, field) and getattr(duplicate, field):
+                setattr(primary, field, getattr(duplicate, field))
+                update_fields.append(field)
+
+        if not primary.is_gift and duplicate.is_gift:
+            primary.is_gift = True
+            update_fields.append('is_gift')
+
+        if not primary.gift_wrap and duplicate.gift_wrap:
+            primary.gift_wrap = True
+            update_fields.append('gift_wrap')
+
+        if primary.billing_same_as_shipping and not duplicate.billing_same_as_shipping:
+            primary.billing_same_as_shipping = False
+            update_fields.append('billing_same_as_shipping')
+
+        if primary.shipping_method == CheckoutSession.SHIPPING_STANDARD and duplicate.shipping_method:
+            if duplicate.shipping_method != CheckoutSession.SHIPPING_STANDARD:
+                primary.shipping_method = duplicate.shipping_method
+                update_fields.append('shipping_method')
+
+        if primary.payment_method == CheckoutSession.PAYMENT_COD and duplicate.payment_method:
+            if duplicate.payment_method != CheckoutSession.PAYMENT_COD:
+                primary.payment_method = duplicate.payment_method
+                update_fields.append('payment_method')
+
+        primary_step_rank = cls.CHECKOUT_STEP_ORDER.get(primary.current_step, -1)
+        duplicate_step_rank = cls.CHECKOUT_STEP_ORDER.get(duplicate.current_step, -1)
+        if duplicate_step_rank > primary_step_rank:
+            primary.current_step = duplicate.current_step
+            update_fields.append('current_step')
+
+        if duplicate.expires_at and (not primary.expires_at or duplicate.expires_at > primary.expires_at):
+            primary.expires_at = duplicate.expires_at
+            update_fields.append('expires_at')
+
+        if update_fields:
+            primary.save(update_fields=sorted(set(update_fields)))
+
+    @classmethod
+    def _migrate_checkout_sessions(cls, user_cart: Cart, user, source_cart: Cart) -> int:
+        """Move active guest checkout sessions from source cart onto user cart."""
+        migrated = 0
+        source_sessions = list(
+            CheckoutSession.objects.select_for_update().filter(
+                cart=source_cart,
+                current_step__in=cls.ACTIVE_CHECKOUT_STEPS,
+            ).order_by('-updated_at', '-created_at')
+        )
+        if not source_sessions:
+            return migrated
+
+        target_sessions = list(
+            CheckoutSession.objects.select_for_update().filter(
+                cart=user_cart,
+                user=user,
+                current_step__in=cls.ACTIVE_CHECKOUT_STEPS,
+            ).order_by('-updated_at', '-created_at')
+        )
+
+        primary_session = target_sessions[0] if target_sessions else None
+
+        for source_session in source_sessions:
+            if primary_session is None:
+                update_fields = []
+
+                if source_session.user_id != getattr(user, 'id', None):
+                    source_session.user = user
+                    update_fields.append('user')
+
+                if source_session.cart_id != user_cart.id:
+                    source_session.cart = user_cart
+                    update_fields.append('cart')
+
+                if source_session.session_key:
+                    source_session.session_key = None
+                    update_fields.append('session_key')
+
+                if not source_session.email and getattr(user, 'email', None):
+                    source_session.email = user.email
+                    update_fields.append('email')
+
+                if update_fields:
+                    source_session.save(update_fields=update_fields)
+
+                primary_session = source_session
+                migrated += 1
+                continue
+
+            cls._merge_checkout_session_data(primary_session, source_session)
+            source_session.delete()
+            migrated += 1
+
+        # Ensure only one active checkout session remains for this cart/user.
+        extra_sessions = CheckoutSession.objects.select_for_update().filter(
+            cart=user_cart,
+            user=user,
+            current_step__in=cls.ACTIVE_CHECKOUT_STEPS,
+        ).exclude(pk=primary_session.pk)
+        for duplicate in extra_sessions:
+            cls._merge_checkout_session_data(primary_session, duplicate)
+            duplicate.delete()
+
+        return migrated
+
+    @classmethod
+    @transaction.atomic
+    def merge_guest_state_to_user(cls, user, session_key: Optional[str]) -> Dict[str, int]:
+        """
+        Merge guest cart and guest wishlist into the user's records and clear
+        guest session-backed records.
+        """
+        result = {
+            'merged_cart_items': 0,
+            'merged_wishlist_items': 0,
+            'merged_saved_for_later_items': 0,
+            'migrated_checkout_sessions': 0,
+            'adopted_guest_coupon': 0,
+            'cleared_session_carts': 0,
+            'cleared_session_wishlists': 0,
+        }
+
+        if not user or not getattr(user, 'is_authenticated', False) or not session_key:
+            return result
+
+        user_carts = Cart.objects.select_for_update().filter(user=user).order_by('-updated_at', '-created_at')
+        user_cart = user_carts.first()
+        if not user_cart:
+            user_cart = Cart.objects.create(user=user)
+
+        # Defensive merge for unexpected duplicate user carts.
+        duplicate_user_carts = list(user_carts.exclude(pk=user_cart.pk))
+        if duplicate_user_carts:
+            max_qty = cls._get_max_quantity_per_item()
+            for duplicate_cart in duplicate_user_carts:
+                cls._merge_cart_items(user_cart, duplicate_cart, max_quantity_per_item=max_qty)
+                cls._migrate_checkout_sessions(user_cart, user, duplicate_cart)
+                duplicate_cart.delete()
+
+        had_user_items_before_merge = user_cart.items.exists()
+        max_qty = cls._get_max_quantity_per_item()
+
+        guest_carts = list(
+            Cart.objects.select_for_update().filter(
+                session_key=session_key,
+                user__isnull=True,
+            ).order_by('-updated_at', '-created_at')
+        )
+
+        for guest_cart in guest_carts:
+            result['merged_cart_items'] += guest_cart.items.count()
+            cls._merge_cart_items(user_cart, guest_cart, max_quantity_per_item=max_qty)
+
+            if cls._try_merge_currency(
+                user_cart,
+                guest_cart,
+                had_user_items_before_merge=had_user_items_before_merge,
+            ):
+                had_user_items_before_merge = True
+
+            if cls._try_merge_coupon(user_cart, guest_cart, user=user):
+                result['adopted_guest_coupon'] = 1
+
+            result['migrated_checkout_sessions'] += cls._migrate_checkout_sessions(
+                user_cart=user_cart,
+                user=user,
+                source_cart=guest_cart,
+            )
+
+            guest_cart.delete()
+            result['cleared_session_carts'] += 1
+            had_user_items_before_merge = True
+
+        result['merged_saved_for_later_items'] = cls._merge_saved_for_later(
+            user=user,
+            session_key=session_key,
+        )
+
+        # Defensive cleanup in case legacy duplicates survived.
+        remaining_guest_carts = Cart.objects.filter(
+            session_key=session_key,
+            user__isnull=True,
+        )
+        remaining_cart_count = remaining_guest_carts.count()
+        if remaining_cart_count:
+            remaining_guest_carts.delete()
+            result['cleared_session_carts'] += remaining_cart_count
+
+        session_wishlist = SessionWishlist.objects.filter(session_key=session_key).first()
+        if session_wishlist:
+            result['merged_wishlist_items'] = session_wishlist.items.count()
+            user_wishlist, _ = Wishlist.objects.get_or_create(user=user)
+            session_wishlist.merge_into_user_wishlist(user_wishlist)
+            result['cleared_session_wishlists'] = 1
+
+        # Defensive cleanup in case of invalid historical duplicates.
+        remaining_session_wishlist = SessionWishlist.objects.filter(session_key=session_key)
+        remaining_wishlist_count = remaining_session_wishlist.count()
+        if remaining_wishlist_count:
+            remaining_session_wishlist.delete()
+            result['cleared_session_wishlists'] += remaining_wishlist_count
+
+        return result
+
+
+# =============================================================================
 # Cart Services
 # =============================================================================
 
@@ -118,6 +554,49 @@ class CartService:
         return None
     
     @classmethod
+    def _revalidate_applied_coupon(cls, cart: Cart) -> Tuple[bool, str]:
+        """
+        Revalidate an already-applied coupon against current cart state.
+
+        Returns:
+            Tuple[is_valid, message]
+        """
+        if not cart.coupon_id:
+            return True, "No coupon applied."
+
+        try:
+            from apps.promotions.services import CouponService
+
+            user = cart.user if cart.user and getattr(cart.user, 'is_authenticated', False) else None
+            coupon, is_valid, message = CouponService.validate_coupon(
+                code=cart.coupon.code,
+                user=user,
+                subtotal=cart.subtotal,
+                subtotal_currency=cart.currency,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Coupon revalidation failed for cart_id=%s coupon_id=%s: %s",
+                cart.id,
+                cart.coupon_id,
+                exc,
+            )
+            return True, "Coupon revalidation failed."
+
+        if coupon and is_valid:
+            return True, message or "Coupon is valid."
+
+        logger.info(
+            "Removed invalid coupon for cart_id=%s coupon_id=%s: %s",
+            cart.id,
+            cart.coupon_id,
+            message or "Coupon validation failed",
+        )
+        cart.coupon = None
+        cart.save(update_fields=['coupon'])
+        return False, message or "Coupon removed because it is no longer valid."
+
+    @classmethod
     @transaction.atomic
     def add_item(cls, cart: Cart, product, quantity=1, variant=None) -> CartItem:
         """Add an item to the cart."""
@@ -153,6 +632,9 @@ class CartService:
         
         # Update product cart count
         product.increment_cart(1)
+
+        # Revalidate coupon because subtotal/eligibility may have changed.
+        cls._revalidate_applied_coupon(cart)
         
         return item
     
@@ -175,6 +657,9 @@ class CartService:
         
         item.quantity = quantity
         item.save()
+
+        # Revalidate coupon because subtotal/eligibility may have changed.
+        cls._revalidate_applied_coupon(cart)
         
         return item
     
@@ -189,6 +674,9 @@ class CartService:
             
             # Update product cart count
             product.increment_cart(-1)
+
+            # Revalidate coupon because subtotal/eligibility may have changed.
+            cls._revalidate_applied_coupon(cart)
             
             return True
         except CartItem.DoesNotExist:
@@ -210,7 +698,8 @@ class CartService:
         coupon, is_valid, message = CouponService.validate_coupon(
             code=coupon_code,
             user=user,
-            subtotal=cart.subtotal
+            subtotal=cart.subtotal,
+            subtotal_currency=cart.currency,
         )
 
         if not coupon or not is_valid:
@@ -1044,7 +1533,8 @@ class EnhancedCartService:
         coupon, is_valid, message = CouponService.validate_coupon(
             code=coupon_code,
             user=user,
-            subtotal=cart.subtotal
+            subtotal=cart.subtotal,
+            subtotal_currency=cart.currency,
         )
 
         if not coupon or not is_valid:

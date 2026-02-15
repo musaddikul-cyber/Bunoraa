@@ -126,7 +126,7 @@ export function LocaleSwitcher({ className }: { className?: string }) {
           value={language}
           onChange={(event) => setLocale({ language: event.target.value })}
           disabled={isBusy || languageOptions.length === 0}
-          className="h-10 min-h-0 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-32 sm:text-sm"
+          className="h-10 min-h-10 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:w-32 sm:text-sm"
         >
           {languageOptions.length === 0 ? (
             <option value="">
@@ -147,7 +147,7 @@ export function LocaleSwitcher({ className }: { className?: string }) {
           value={currency}
           onChange={(event) => setLocale({ currency: event.target.value })}
           disabled={isBusy || resolvedCurrencyOptions.length === 0}
-          className="h-10 min-h-0 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-32 sm:text-sm"
+          className="h-10 min-h-10 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:w-32 sm:text-sm"
         >
           {resolvedCurrencyOptions.length === 0 ? (
             <option value="">

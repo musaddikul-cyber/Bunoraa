@@ -463,8 +463,14 @@ class SiteSettings(models.Model):
     default_meta_description = models.TextField(blank=True, max_length=300)
     
     # E-commerce settings
-    currency = models.CharField(max_length=3, default='BDT')
-    currency_symbol = models.CharField(max_length=5, default='৳')
+    currency = models.ForeignKey(
+        'i18n.Currency',
+        on_delete=models.PROTECT,
+        to_field='code',
+        db_column='currency',
+        related_name='page_site_settings',
+        default='BDT',
+    )
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=10)
     
 
@@ -506,7 +512,27 @@ class SiteSettings(models.Model):
     
     @classmethod
     def get_settings(cls):
-        obj, created = cls.objects.get_or_create(pk=1)
+        default_currency_code = 'BDT'
+        try:
+            from apps.i18n.models import Currency as I18nCurrency
+            I18nCurrency.objects.get_or_create(
+                code=default_currency_code,
+                defaults={
+                    'name': 'Bangladeshi Taka',
+                    'symbol': 'Tk',
+                    'is_active': True,
+                }
+            )
+        except Exception:
+            pass
+
+        obj, created = cls.objects.get_or_create(
+            pk=1,
+            defaults={'currency_id': default_currency_code},
+        )
+        if not obj.currency_id:
+            obj.currency_id = default_currency_code
+            obj.save(update_fields=['currency'])
         return obj
 
 

@@ -9,10 +9,10 @@ from core.admin_mixins import ImportExportEnhancedModelAdmin
 @admin.register(Coupon)
 class CouponAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
-        'code', 'discount_type', 'discount_value', 'is_valid',
+        'code', 'discount_type', 'discount_value', 'currency', 'is_valid',
         'times_used', 'usage_limit', 'valid_from', 'valid_until', 'is_active'
     ]
-    list_filter = ['discount_type', 'is_active', 'first_order_only', 'created_at']
+    list_filter = ['discount_type', 'currency', 'is_active', 'first_order_only', 'created_at']
     search_fields = ['code', 'description']
     filter_horizontal = ['categories', 'products', 'users']
     readonly_fields = ['times_used', 'created_at', 'updated_at']
@@ -22,7 +22,7 @@ class CouponAdmin(ImportExportEnhancedModelAdmin):
             'fields': ('code', 'description')
         }),
         ('Discount', {
-            'fields': ('discount_type', 'discount_value', 'maximum_discount')
+            'fields': ('discount_type', 'discount_value', 'maximum_discount', 'currency')
         }),
         ('Requirements', {
             'fields': ('minimum_order_amount', 'first_order_only')
@@ -46,10 +46,10 @@ class CouponAdmin(ImportExportEnhancedModelAdmin):
 
 @admin.register(CouponUsage)
 class CouponUsageAdmin(ImportExportEnhancedModelAdmin):
-    list_display = ['coupon', 'user', 'order', 'discount_applied', 'created_at']
-    list_filter = ['created_at']
+    list_display = ['coupon', 'user', 'order', 'discount_applied', 'currency', 'created_at']
+    list_filter = ['currency', 'created_at']
     search_fields = ['coupon__code', 'user__email', 'order__order_number']
-    readonly_fields = ['coupon', 'user', 'order', 'discount_applied', 'created_at']
+    readonly_fields = ['coupon', 'user', 'order', 'discount_applied', 'currency', 'created_at']
 
 
 @admin.register(Banner)
@@ -94,10 +94,10 @@ class BannerAdmin(ImportExportEnhancedModelAdmin):
 @admin.register(Sale)
 class SaleAdmin(ImportExportEnhancedModelAdmin):
     list_display = [
-        'name', 'slug', 'discount_type', 'discount_value',
+        'name', 'slug', 'discount_type', 'discount_value', 'currency',
         'is_running', 'start_date', 'end_date', 'is_active'
     ]
-    list_filter = ['discount_type', 'is_active', 'start_date']
+    list_filter = ['discount_type', 'currency', 'is_active', 'start_date']
     search_fields = ['name', 'description']
     prepopulated_fields = {'slug': ('name',)}
     filter_horizontal = ['products', 'categories']
@@ -107,7 +107,7 @@ class SaleAdmin(ImportExportEnhancedModelAdmin):
             'fields': ('name', 'slug', 'description')
         }),
         ('Discount', {
-            'fields': ('discount_type', 'discount_value')
+            'fields': ('discount_type', 'discount_value', 'currency')
         }),
         ('Products', {
             'fields': ('products', 'categories')

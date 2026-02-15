@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { ProductListItem, ProductFilterResponse } from "@/lib/types";
@@ -13,7 +14,7 @@ import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildBreadcrumbList, buildCollectionPage, buildItemList } from "@/lib/seo";
+import { buildBreadcrumbList, buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 300;
 
@@ -33,6 +34,25 @@ type Category = {
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
+
+function firstValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function hasIndexBustingFilters(searchParams: SearchParams): boolean {
+  return Object.entries(searchParams).some(([key, value]) => {
+    if (key === "page" || key === "view") return false;
+    if (Array.isArray(value)) return value.some((entry) => entry.trim() !== "");
+    return Boolean(value && value.trim() !== "");
+  });
+}
+
+function parsePageNumber(searchParams: SearchParams): number {
+  const rawPage = firstValue(searchParams.page);
+  const page = Number(rawPage || 1);
+  return Number.isFinite(page) && page > 1 ? Math.floor(page) : 1;
+}
 
 async function getCategory(slug: string) {
   try {
@@ -97,15 +117,46 @@ async function getCategoryFacets(slug: string) {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string[] }>;
-}) {
-  const { slug } = await params;
+  searchParams: Promise<SearchParams>;
+}): Promise<Metadata> {
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
   const slugPath = slug.join("/");
   const category = await getCategory(slugPath);
-  return {
+  const page = parsePageNumber(resolvedSearchParams);
+  const hasFilters = hasIndexBustingFilters(resolvedSearchParams);
+  const basePath = `/categories/${slugPath}/`;
+  const metadata = buildPageMetadata({
     title: category.meta_title || category.name,
-    description: category.meta_description || category.description || "",
+    description:
+      category.meta_description ||
+      category.description ||
+      `Browse ${category.name} products on Bunoraa.`,
+    path: page > 1 && !hasFilters ? `${basePath}?page=${page}` : basePath,
+  });
+
+  if (!hasFilters) {
+    return metadata;
+  }
+
+  return {
+    ...metadata,
+    alternates: {
+      canonical: basePath,
+    },
+    robots: {
+      index: false,
+      follow: true,
+      googleBot: {
+        index: false,
+        follow: true,
+        "max-snippet": -1,
+        "max-image-preview": "large",
+        "max-video-preview": -1,
+      },
+    },
   };
 }
 

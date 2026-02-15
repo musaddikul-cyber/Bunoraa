@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Bundle, ProductListItem } from "@/lib/types";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildBreadcrumbList, buildItemList } from "@/lib/seo";
+import { buildBreadcrumbList, buildItemList, buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -32,6 +33,22 @@ async function getBundleProducts(slug: string) {
   );
   const data = response.data as unknown as { items?: ProductListItem[] };
   return data.items || [];
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const bundle = await getBundle(slug);
+  return buildPageMetadata({
+    title: bundle.name,
+    description:
+      bundle.description || `Explore products included in the ${bundle.name} bundle.`,
+    path: `/bundles/${bundle.slug}/`,
+    images: [bundle.image],
+  });
 }
 
 export default async function BundleDetailPage({

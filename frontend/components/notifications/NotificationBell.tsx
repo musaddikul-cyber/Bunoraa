@@ -14,7 +14,7 @@ export function NotificationBell({
     <Link
       href="/notifications/"
       className={cn(
-        "relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-10 sm:w-10",
+        "relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className
       )}
       aria-label="Notifications"

@@ -1,10 +1,12 @@
 """
 Pages admin configuration
 """
+from django import forms
 from django.contrib import admin
 from django.db import models
 from django.forms import URLInput
 from django.utils.html import format_html
+from apps.i18n.models import Currency as I18nCurrency
 from .models import Page, FAQ, ContactMessage, SiteSettings, Subscriber, SocialLink
 from core.admin_mixins import ImportExportEnhancedModelAdmin
 
@@ -63,8 +65,22 @@ class ContactMessageAdmin(ImportExportEnhancedModelAdmin):
     )
 
 
+class SiteSettingsAdminForm(forms.ModelForm):
+    class Meta:
+        model = SiteSettings
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['currency'].queryset = I18nCurrency.objects.filter(
+            is_active=True
+        ).order_by('sort_order', 'code')
+
+
 @admin.register(SiteSettings)
 class SiteSettingsAdmin(ImportExportEnhancedModelAdmin):
+    form = SiteSettingsAdminForm
+
     fieldsets = (
         ('Basic Info', {
             'fields': ('site_name', 'site_tagline', 'site_description')
@@ -81,7 +97,7 @@ class SiteSettingsAdmin(ImportExportEnhancedModelAdmin):
         }),
         ('E-commerce', {
             'fields': (
-                'currency', 'currency_symbol', 'tax_rate'
+                'currency', 'tax_rate'
             )
         }),
         ('Footer', {

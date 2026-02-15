@@ -263,6 +263,7 @@ export function useCart() {
       return apiFetch(`/commerce/cart/validate/`, {
         method: "POST",
         allowGuest: true,
+        suppressErrorStatus: [400],
       });
     },
   });

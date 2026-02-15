@@ -1,6 +1,7 @@
 from django import forms
 from django.forms.utils import flatatt
 from django.utils.safestring import mark_safe
+from apps.i18n.models import Currency as I18nCurrency
 from .models import Category, Product
 
 class CategoryTreeWidget(forms.Widget):
@@ -39,6 +40,12 @@ class ProductAdminForm(forms.ModelForm):
         widget=CategoryTreeWidget,
         label='Primary Category',
     )
+    currency = forms.ModelChoiceField(
+        queryset=I18nCurrency.objects.none(),
+        to_field_name='code',
+        empty_label=None,
+        label='Currency',
+    )
 
     class Meta:
         model = Product
@@ -47,3 +54,21 @@ class ProductAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['categories'].queryset = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
+        currencies = I18nCurrency.objects.order_by('sort_order', 'code')
+        self.fields['currency'].queryset = currencies
+
+        current_code = (self.initial.get('currency') or getattr(self.instance, 'currency', '') or '').upper()
+        if current_code:
+            selected_currency = currencies.filter(code=current_code).first()
+            if selected_currency:
+                self.fields['currency'].initial = selected_currency
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        currency = self.cleaned_data.get('currency')
+        if currency:
+            instance.currency = currency.code
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance

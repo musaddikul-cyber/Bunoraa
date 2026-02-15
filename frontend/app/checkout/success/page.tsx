@@ -1,10 +1,12 @@
 "use client";
+import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/ToastProvider";
 import { apiFetch } from "@/lib/api";
 import { formatAddressLine } from "@/lib/address";
 import type { OrderDetail } from "@/lib/types";
@@ -16,8 +18,22 @@ async function fetchOrder(orderId: string) {
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams();
+  const { push } = useToast();
   const orderId = searchParams.get("order_id");
   const orderNumber = searchParams.get("order_number");
+
+  const handleCopyOrderNumber = React.useCallback(
+    async (value?: string | null) => {
+      if (!value) return;
+      try {
+        await navigator.clipboard.writeText(value);
+        push("Order number copied.", "success");
+      } catch {
+        push("Could not copy order number.", "error");
+      }
+    },
+    [push]
+  );
 
   const orderQuery = useQuery({
     queryKey: ["orders", orderId],
@@ -48,7 +64,14 @@ export default function CheckoutSuccessPage() {
                   We couldn&apos;t load full order details yet.
                 </p>
                 {orderNumber ? (
-                  <p className="text-sm font-semibold">Order #{orderNumber}</p>
+                  <button
+                    type="button"
+                    className="text-sm font-semibold underline underline-offset-4 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    onClick={() => handleCopyOrderNumber(orderNumber)}
+                    title="Copy order number"
+                  >
+                    Order #{orderNumber}
+                  </button>
                 ) : null}
                 <p className="text-xs text-foreground/60">
                   If you need help, please contact support with your order number.
@@ -56,9 +79,14 @@ export default function CheckoutSuccessPage() {
               </div>
             ) : orderQuery.data ? (
               <div className="space-y-3 text-sm">
-                <p className="text-sm text-foreground/60">
+                <button
+                  type="button"
+                  className="text-left text-sm text-foreground/60 underline underline-offset-4 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  onClick={() => handleCopyOrderNumber(orderQuery.data?.order_number)}
+                  title="Copy order number"
+                >
                   Order #{orderQuery.data.order_number}
-                </p>
+                </button>
                 {orderQuery.data.payment_status &&
                 orderQuery.data.payment_status !== "succeeded" ? (
                   <p className="text-sm text-amber-600">
@@ -84,7 +112,14 @@ export default function CheckoutSuccessPage() {
               </div>
             ) : orderNumber ? (
               <div className="space-y-2 text-sm">
-                <p className="text-sm text-foreground/60">Order #{orderNumber}</p>
+                <button
+                  type="button"
+                  className="text-left text-sm text-foreground/60 underline underline-offset-4 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  onClick={() => handleCopyOrderNumber(orderNumber)}
+                  title="Copy order number"
+                >
+                  Order #{orderNumber}
+                </button>
                 <p className="text-sm text-foreground/60">
                   Your order is confirmed. We&apos;ll email you with updates.
                 </p>

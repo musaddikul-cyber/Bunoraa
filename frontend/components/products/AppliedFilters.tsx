@@ -22,7 +22,7 @@ export function AppliedFilters() {
         <Button
           variant="ghost"
           size="sm"
-          className="min-h-8 px-2.5 text-xs sm:text-sm"
+          className="px-2.5 text-xs sm:text-sm"
           onClick={() => {
             const params = clearAllFilters(searchParams);
             router.push(`?${params.toString()}`);
@@ -40,7 +40,7 @@ export function AppliedFilters() {
               const params = removeAppliedFilter(searchParams, filter);
               router.push(`?${params.toString()}`);
             }}
-            className="inline-flex min-h-9 items-center rounded-full border border-border bg-card px-3.5 py-1.5 text-sm text-foreground/80"
+            className="inline-flex min-h-10 items-center rounded-full border border-border bg-card px-3.5 py-1.5 text-sm text-foreground/80"
           >
             {filter.label}
           </button>

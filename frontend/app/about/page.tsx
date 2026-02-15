@@ -1,8 +1,9 @@
+import type { Metadata } from "next";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { PageDetail } from "@/lib/types";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { absoluteUrl, cleanObject } from "@/lib/seo";
+import { absoluteUrl, buildPageMetadata, cleanObject } from "@/lib/seo";
 
 export const revalidate = 900;
 
@@ -18,6 +19,18 @@ async function getAboutPage() {
     }
     throw error;
   }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const page = await getAboutPage();
+  return buildPageMetadata({
+    title: page.meta_title || page.title,
+    description:
+      page.meta_description ||
+      page.excerpt ||
+      "Learn more about Bunoraa and our mission.",
+    path: "/about/",
+  });
 }
 
 export default async function AboutPage() {

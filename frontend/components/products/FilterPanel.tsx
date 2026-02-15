@@ -218,7 +218,7 @@ export function FilterPanel({
           <Button
             size="sm"
             variant="ghost"
-            className="min-h-8 px-2.5 text-xs sm:text-sm"
+            className="px-2.5 text-xs sm:text-sm"
             onClick={() => {
               const params = clearAllFilters(searchParams);
               router.push(`?${params.toString()}`);
@@ -234,7 +234,7 @@ export function FilterPanel({
             {visibleCategories.map((category) => (
               <Link
                 key={category.id}
-                className="inline-flex min-h-9 items-center rounded-full border border-border px-3.5 py-1.5 text-sm text-foreground/70 transition hover:border-primary/40 hover:text-foreground"
+                className="inline-flex min-h-10 items-center rounded-full border border-border px-3.5 py-1.5 text-sm text-foreground/70 transition hover:border-primary/40 hover:text-foreground"
                 href={`/categories/${category.slug}/${categorySuffix}`}
               >
                 {category.name}
@@ -305,7 +305,7 @@ export function FilterPanel({
       </Section>
 
       <Section title="Availability">
-        <label className="flex min-h-9 items-center gap-2 text-sm">
+        <label className="flex min-h-10 items-center gap-2 text-sm">
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-border text-primary"
@@ -322,7 +322,7 @@ export function FilterPanel({
           In stock only
         </label>
         {activeFilters?.has_on_sale ? (
-          <label className="flex min-h-9 items-center gap-2 text-sm">
+          <label className="flex min-h-10 items-center gap-2 text-sm">
             <input
               type="checkbox"
               className="h-4 w-4 rounded border-border text-primary"
@@ -339,7 +339,7 @@ export function FilterPanel({
             On sale
           </label>
         ) : null}
-        <label className="flex min-h-9 items-center gap-2 text-sm">
+        <label className="flex min-h-10 items-center gap-2 text-sm">
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-border text-primary"
@@ -359,7 +359,7 @@ export function FilterPanel({
 
       <Section title="Rating">
         {[4, 3, 2].map((rating) => (
-          <label key={rating} className="flex min-h-9 items-center gap-2 text-sm">
+          <label key={rating} className="flex min-h-10 items-center gap-2 text-sm">
             <input
               type="radio"
               name="min_rating"
@@ -397,7 +397,7 @@ export function FilterPanel({
                   key={tag.slug}
                   type="button"
                   className={cn(
-                    "inline-flex min-h-9 items-center rounded-full border px-3.5 py-1.5 text-sm",
+                    "inline-flex min-h-10 items-center rounded-full border px-3.5 py-1.5 text-sm",
                     isSelected
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-foreground/70"
@@ -426,7 +426,7 @@ export function FilterPanel({
                   key={item.value}
                   type="button"
                   className={cn(
-                    "inline-flex min-h-9 items-center rounded-full border px-3.5 py-1.5 text-sm",
+                    "inline-flex min-h-10 items-center rounded-full border px-3.5 py-1.5 text-sm",
                     isSelected
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border text-foreground/70"

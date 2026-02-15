@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Collection, ProductListItem } from "@/lib/types";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildBreadcrumbList, buildCollectionPage, buildItemList } from "@/lib/seo";
+import { buildBreadcrumbList, buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 600;
 
@@ -31,6 +32,22 @@ async function getCollectionProducts(slug: string) {
     { headers: await getServerLocaleHeaders(), next: { revalidate } }
   );
   return response.data;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const collection = await getCollection(slug);
+  return buildPageMetadata({
+    title: collection.name,
+    description:
+      collection.description || `Explore curated items in the ${collection.name} collection.`,
+    path: `/collections/${collection.slug}/`,
+    images: [collection.image],
+  });
 }
 
 export default async function CollectionDetailPage({

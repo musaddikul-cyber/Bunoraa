@@ -1,6 +1,64 @@
 {
   "items": [
     {
+      "code": "BUNORAA",
+      "description": "",
+      "discount_type": "percentage",
+      "discount_value": "5.00",
+      "minimum_order_amount": "3000.00",
+      "maximum_discount": "1000.00",
+      "usage_limit": 20,
+      "usage_limit_per_user": 1,
+      "first_order_only": false,
+      "valid_from": null,
+      "valid_until": null,
+      "is_active": true,
+      "categories": [],
+      "products": []
+    },
+    {
+      "code": "HOME15",
+      "description": "15% off Home & Living picks",
+      "discount_type": "percentage",
+      "discount_value": "15.00",
+      "minimum_order_amount": null,
+      "maximum_discount": "800.00",
+      "usage_limit": null,
+      "usage_limit_per_user": null,
+      "first_order_only": false,
+      "valid_from": null,
+      "valid_until": null,
+      "is_active": true,
+      "categories": [
+        "decor",
+        "home-living",
+        "decor",
+        "textiles"
+      ],
+      "products": []
+    },
+    {
+      "code": "JEWEL200",
+      "description": "BDT 200 off Jewelry orders",
+      "discount_type": "fixed",
+      "discount_value": "200.00",
+      "minimum_order_amount": "1500.00",
+      "maximum_discount": null,
+      "usage_limit": 500,
+      "usage_limit_per_user": null,
+      "first_order_only": false,
+      "valid_from": null,
+      "valid_until": null,
+      "is_active": true,
+      "categories": [
+        "jewelry",
+        "jewelry",
+        "earrings",
+        "necklaces"
+      ],
+      "products": []
+    },
+    {
       "code": "WELCOME10",
       "description": "10% off your first order",
       "discount_type": "percentage",
@@ -10,27 +68,15 @@
       "usage_limit": 1000,
       "usage_limit_per_user": 1,
       "first_order_only": true,
+      "valid_from": null,
+      "valid_until": null,
       "is_active": true,
-      "categories": ["women", "home-living", "gift-sets"]
-    },
-    {
-      "code": "HOME15",
-      "description": "15% off Home & Living picks",
-      "discount_type": "percentage",
-      "discount_value": "15.00",
-      "maximum_discount": "800.00",
-      "is_active": true,
-      "categories": ["home-living", "decor", "textiles"]
-    },
-    {
-      "code": "JEWEL200",
-      "description": "BDT 200 off Jewelry orders",
-      "discount_type": "fixed",
-      "discount_value": "200.00",
-      "minimum_order_amount": "1500.00",
-      "usage_limit": 500,
-      "is_active": true,
-      "categories": ["jewelry", "necklaces", "earrings"]
+      "categories": [
+        "home-living",
+        "gift-sets",
+        "women"
+      ],
+      "products": []
     }
   ]
 }

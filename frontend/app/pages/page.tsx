@@ -1,10 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildItemList } from "@/lib/seo";
+import { buildItemList, buildPageMetadata } from "@/lib/seo";
 
 export const revalidate = 300;
+export const metadata: Metadata = buildPageMetadata({
+  title: "Guides and Pages",
+  description: "Read Bunoraa guides, policies, and informational pages.",
+  path: "/pages/",
+});
 
 type PageSummary = {
   id: string;

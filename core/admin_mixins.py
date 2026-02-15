@@ -601,17 +601,23 @@ class EnhancedModelAdmin(
     def get_actions(self, request):
         """Get actions and add export + seed actions."""
         actions = super().get_actions(request)
+
+        def _as_unbound(action_callable):
+            """Django admin action registry expects callables with signature (modeladmin, request, queryset)."""
+            return getattr(action_callable, "__func__", action_callable)
         
         # Add export actions if not already present
         if hasattr(self, 'export_as_csv') and 'export_as_csv' not in actions:
+            action_callable = _as_unbound(self.export_as_csv)
             actions['export_as_csv'] = (
-                self.export_as_csv,
+                action_callable,
                 'export_as_csv',
                 self.export_as_csv.short_description
             )
         if hasattr(self, 'export_as_json') and 'export_as_json' not in actions:
+            action_callable = _as_unbound(self.export_as_json)
             actions['export_as_json'] = (
-                self.export_as_json,
+                action_callable,
                 'export_as_json',
                 self.export_as_json.short_description
             )
@@ -627,7 +633,8 @@ class EnhancedModelAdmin(
             ):
                 if hasattr(self, action_name) and action_name not in actions:
                     action = getattr(self, action_name)
-                    actions[action_name] = (action, action_name, action.short_description)
+                    action_callable = _as_unbound(action)
+                    actions[action_name] = (action_callable, action_name, action.short_description)
         
         return actions
 

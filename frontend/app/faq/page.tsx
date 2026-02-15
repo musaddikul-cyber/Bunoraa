@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { cleanObject } from "@/lib/seo";
+import { buildPageMetadata, cleanObject } from "@/lib/seo";
 
 export const revalidate = 300;
+export const metadata: Metadata = buildPageMetadata({
+  title: "Frequently Asked Questions",
+  description: "Get quick answers about Bunoraa orders, products, shipping, and support.",
+  path: "/faq/",
+});
 
 type Faq = {
   id: string;

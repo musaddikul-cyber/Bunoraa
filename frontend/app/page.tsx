@@ -1,4 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type {
@@ -18,9 +19,15 @@ import { HeroBannerSlider, type HeroBanner } from "@/components/promotions/HeroB
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { SITE_URL, absoluteUrl, buildItemList, cleanObject } from "@/lib/seo";
+import { SITE_URL, absoluteUrl, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
 
 export const revalidate = 300;
+export const metadata: Metadata = buildPageMetadata({
+  title: "Bunoraa | Curated Products and Artisan Collections",
+  description:
+    "Shop curated products, themed collections, bundles, and custom preorder programs at Bunoraa.",
+  path: "/",
+});
 
 type FeaturedCategory = {
   id: string;
@@ -354,12 +361,12 @@ export default async function Home() {
   ];
 
   const sectionWrapperClass = "mx-auto w-full max-w-7xl px-4 sm:px-6";
-  const compactActionClass = "min-h-11 px-4 sm:min-h-8 sm:px-4";
+  const compactActionClass = "min-h-11 px-4 sm:px-4";
   const primaryHeroCtaClass = "min-h-11 w-full justify-center sm:min-h-10 sm:w-auto";
   const sectionHeaderClass = "flex items-end justify-between gap-3 sm:items-center";
   const sectionTitleClass = "text-xl font-semibold leading-tight sm:text-2xl";
   const sectionDescriptionClass = "mt-1 text-xs text-foreground/60 sm:mt-2 sm:text-sm";
-  const sectionActionClass = "min-h-10 shrink-0 whitespace-nowrap px-3 sm:min-h-8 sm:px-4";
+  const sectionActionClass = "min-h-10 shrink-0 whitespace-nowrap px-3 sm:px-4";
 
   return (
     <div className="bg-background text-foreground">

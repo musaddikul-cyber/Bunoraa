@@ -1,11 +1,25 @@
 ﻿from email.message import EmailMessage as MimeEmail
 
+from django.conf import settings
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.chat.models import Conversation, ChatSettings
 
+TEST_MIDDLEWARE = [
+    middleware
+    for middleware in settings.MIDDLEWARE
+    if middleware
+    not in {
+        "debug_toolbar.middleware.DebugToolbarMiddleware",
+        "core.middleware.host_canonical.HostCanonicalMiddleware",
+        "core.middleware.ensure_trailing.EnsureTrailingSlashMiddleware",
+        "core.middleware.api_trailing_slash.ApiTrailingSlashMiddleware",
+    }
+]
 
+
+@override_settings(DEBUG=False, SECURE_SSL_REDIRECT=False, MIDDLEWARE=TEST_MIDDLEWARE)
 class ChatEmailInboundTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -22,7 +36,7 @@ class ChatEmailInboundTests(TestCase):
     def test_inbound_requires_secret(self):
         raw = self._build_raw_email()
         response = self.client.post(
-            "/api/chat/email/inbound/",
+            "/api/v1/chat/email/inbound/",
             data=raw,
             content_type="message/rfc822",
         )
@@ -32,7 +46,7 @@ class ChatEmailInboundTests(TestCase):
     def test_inbound_creates_conversation(self):
         raw = self._build_raw_email()
         response = self.client.post(
-            "/api/chat/email/inbound/",
+            "/api/v1/chat/email/inbound/",
             data=raw,
             content_type="message/rfc822",
             **{"HTTP_X_CHAT_EMAIL_SECRET": "secret"},
@@ -41,6 +55,7 @@ class ChatEmailInboundTests(TestCase):
         self.assertEqual(Conversation.objects.count(), 1)
 
 
+@override_settings(DEBUG=False, SECURE_SSL_REDIRECT=False, MIDDLEWARE=TEST_MIDDLEWARE)
 class ChatSettingsTests(TestCase):
     def test_business_hours_disabled(self):
         settings_obj = ChatSettings.get_settings()

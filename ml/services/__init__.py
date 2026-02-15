@@ -9,6 +9,7 @@ from .search_service import SearchService
 from .analytics_service import AnalyticsService
 from .fraud_service import FraudService
 from .personalization_service import PersonalizationService
+from .chat_model_service import ChatModelService
 
 __all__ = [
     "RecommendationService",
@@ -16,4 +17,5 @@ __all__ = [
     "AnalyticsService",
     "FraudService",
     "PersonalizationService",
+    "ChatModelService",
 ]

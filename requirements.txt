@@ -244,8 +244,6 @@ numba
 
 numpy
 
-openai
-
 opencv-python-headless
 
 packaging

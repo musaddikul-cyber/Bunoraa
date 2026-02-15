@@ -15,7 +15,58 @@ import os
 import sys
 from pathlib import Path
 from datetime import timedelta
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from corsheaders.defaults import default_headers
+
+# Environment parsing helpers
+def _env_bool(key: str, default: bool = False) -> bool:
+    value = os.environ.get(key)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _env_int(key: str, default: int) -> int:
+    value = os.environ.get(key)
+    if value is None or not value.strip():
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _env_float(key: str, default: float) -> float:
+    value = os.environ.get(key)
+    if value is None or not value.strip():
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _env_csv(key: str, default: str = '') -> list[str]:
+    raw = os.environ.get(key, default)
+    return [item.strip() for item in raw.split(',') if item.strip()]
+
+
+def _env_path(key: str, default: Path) -> Path:
+    value = os.environ.get(key, '').strip()
+    return Path(value) if value else default
+
+
+def _normalize_rediss_url(url: str) -> str:
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if parsed.scheme != 'rediss':
+        return url
+    params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    if 'ssl_cert_reqs' not in params:
+        params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'CERT_REQUIRED')
+        return urlunparse(parsed._replace(query=urlencode(params)))
+    return url
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -40,14 +91,17 @@ DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
 # Environment type: development, staging, production
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'production')
+PRODUCTION = ENVIRONMENT == 'production'
 
-# ML feature toggle (default: disabled)
-ML_ENABLED = os.environ.get('ML_ENABLED', 'False').lower() in ('1', 'true', 'yes')
-if ML_ENABLED:
-    try:
-        from apps.catalog import ml  # noqa: F401
-    except Exception:
-        ML_ENABLED = False
+# ML feature toggles
+ML_ENABLED = _env_bool('ML_ENABLED', False)
+ML_API_ENABLED = ML_ENABLED and _env_bool('ML_API_ENABLED', True)
+ML_CELERY_BEAT_ENABLED = ML_ENABLED and _env_bool('ML_CELERY_BEAT_ENABLED', True)
+ML_TRACKING_MIDDLEWARE_ENABLED = ML_ENABLED and _env_bool('ML_TRACKING_MIDDLEWARE_ENABLED', False)
+ML_PRODUCT_TRACKING_MIDDLEWARE_ENABLED = ML_ENABLED and _env_bool('ML_PRODUCT_TRACKING_MIDDLEWARE_ENABLED', False)
+ML_AUTO_TRAINING = ML_ENABLED and _env_bool('ML_AUTO_TRAINING', False)
+ML_AUTO_RETRAIN_ON_DRIFT = ML_ENABLED and _env_bool('ML_AUTO_RETRAIN_ON_DRIFT', True)
+ML_TRACK_ADMIN = _env_bool('ML_TRACK_ADMIN', False)
 
 # Parse ALLOWED_HOSTS from environment
 _allowed_hosts = os.environ.get('ALLOWED_HOSTS', 'bunoraa.com,www.bunoraa.com,api.bunoraa.com,localhost,127.0.0.1')
@@ -151,8 +205,11 @@ MIDDLEWARE = [
     # 'core.middleware.request_logging.RequestLoggingMiddleware',  # Disabled: Memory overhead
     'core.middleware.cache_control_html.CacheControlHTMLMiddleware',
     'core.middleware.api_response.APIResponseMiddleware',
-    # 'ml.middleware.MLInferenceMiddleware',  # Disabled: Memory overhead
 ]
+if ML_TRACKING_MIDDLEWARE_ENABLED:
+    MIDDLEWARE.append('ml.middleware.MLTrackingMiddleware')
+if ML_PRODUCT_TRACKING_MIDDLEWARE_ENABLED:
+    MIDDLEWARE.append('ml.middleware.MLProductTrackingMiddleware')
 
 # Return JSON on CSRF failures and set a fresh cookie for SPA-friendly recovery
 CSRF_FAILURE_VIEW = 'core.exceptions.csrf_failure'
@@ -393,6 +450,35 @@ CHAT_WS_RATE_LIMIT_COUNT = int(os.environ.get('CHAT_WS_RATE_LIMIT_COUNT', 30))
 CHAT_WS_RATE_LIMIT_WINDOW = int(os.environ.get('CHAT_WS_RATE_LIMIT_WINDOW', 10))  # seconds
 CHAT_EMAIL_WEBHOOK_SECRET = os.environ.get('CHAT_EMAIL_WEBHOOK_SECRET', '')
 CHAT_AI_RATE_LIMIT_PER_MINUTE = int(os.environ.get('CHAT_AI_RATE_LIMIT_PER_MINUTE', 10))
+CHAT_AI_LOCAL_MODEL_ENABLED = _env_bool('CHAT_AI_LOCAL_MODEL_ENABLED', True)
+CHAT_AI_DEFAULT_MODEL = os.environ.get('CHAT_AI_DEFAULT_MODEL', 'Qwen/Qwen2.5-1.5B-Instruct').strip()
+CHAT_AI_USE_CHAT_SETTINGS_MODEL = _env_bool('CHAT_AI_USE_CHAT_SETTINGS_MODEL', False)
+CHAT_AI_MODEL_DEVICE = os.environ.get('CHAT_AI_MODEL_DEVICE', 'auto').strip().lower()
+CHAT_AI_MODEL_DTYPE = os.environ.get('CHAT_AI_MODEL_DTYPE', 'auto').strip().lower()
+CHAT_AI_MODEL_QUANTIZATION = os.environ.get('CHAT_AI_MODEL_QUANTIZATION', 'none').strip().lower()
+CHAT_AI_MODEL_ALLOW_DOWNLOAD = _env_bool('CHAT_AI_MODEL_ALLOW_DOWNLOAD', True)
+CHAT_AI_MODEL_LOCAL_FILES_ONLY = _env_bool('CHAT_AI_MODEL_LOCAL_FILES_ONLY', False)
+CHAT_AI_MODEL_TRUST_REMOTE_CODE = _env_bool('CHAT_AI_MODEL_TRUST_REMOTE_CODE', False)
+CHAT_AI_MODEL_USE_FAST_TOKENIZER = _env_bool('CHAT_AI_MODEL_USE_FAST_TOKENIZER', True)
+CHAT_AI_MODEL_REVISION = os.environ.get('CHAT_AI_MODEL_REVISION', '').strip()
+CHAT_AI_MODEL_CACHE_DIR = str(_env_path('CHAT_AI_MODEL_CACHE_DIR', BASE_DIR / '.cache' / 'huggingface'))
+CHAT_AI_CONTEXT_HISTORY_LIMIT = _env_int('CHAT_AI_CONTEXT_HISTORY_LIMIT', 10)
+CHAT_AI_MAX_INPUT_TOKENS = _env_int('CHAT_AI_MAX_INPUT_TOKENS', 2048)
+CHAT_AI_MAX_NEW_TOKENS = _env_int('CHAT_AI_MAX_NEW_TOKENS', 256)
+CHAT_AI_MAX_RESPONSE_CHARS = _env_int('CHAT_AI_MAX_RESPONSE_CHARS', 4000)
+CHAT_AI_TEMPERATURE_DEFAULT = _env_float('CHAT_AI_TEMPERATURE_DEFAULT', 0.7)
+CHAT_AI_DO_SAMPLE = _env_bool('CHAT_AI_DO_SAMPLE', True)
+CHAT_AI_TOP_P = _env_float('CHAT_AI_TOP_P', 0.92)
+CHAT_AI_TOP_K = _env_int('CHAT_AI_TOP_K', 50)
+CHAT_AI_REPETITION_PENALTY = _env_float('CHAT_AI_REPETITION_PENALTY', 1.08)
+CHAT_AI_NO_REPEAT_NGRAM_SIZE = _env_int('CHAT_AI_NO_REPEAT_NGRAM_SIZE', 3)
+CHAT_AI_PERSONALIZATION_ENABLED = _env_bool('CHAT_AI_PERSONALIZATION_ENABLED', True)
+CHAT_AI_INCLUDE_USER_PREFERENCES = _env_bool('CHAT_AI_INCLUDE_USER_PREFERENCES', True)
+CHAT_AI_INCLUDE_BEHAVIOR_PROFILE = _env_bool('CHAT_AI_INCLUDE_BEHAVIOR_PROFILE', True)
+CHAT_AI_FALLBACK_TO_RULES = _env_bool('CHAT_AI_FALLBACK_TO_RULES', True)
+CHAT_AI_AUTO_HANDOFF_ON_FAILURE = _env_bool('CHAT_AI_AUTO_HANDOFF_ON_FAILURE', False)
+if CHAT_AI_LOCAL_MODEL_ENABLED:
+    Path(CHAT_AI_MODEL_CACHE_DIR).mkdir(parents=True, exist_ok=True)
 
 # Notification configuration
 NOTIFICATION_DEDUPE_TTL_SECONDS = int(os.environ.get('NOTIFICATION_DEDUPE_TTL_SECONDS', 3600))
@@ -535,8 +621,8 @@ EMAIL_SERVICE_SETTINGS = {
 }
 
 # Celery Configuration
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0'))
+CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0'))
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -751,50 +837,104 @@ CREDENTIAL_ENCRYPTION_KEY = os.environ.get('CREDENTIAL_ENCRYPTION_KEY', '')
 # =============================================================================
 # ML/AI CONFIGURATION
 # =============================================================================
-ML_MODELS_DIR = BASE_DIR / 'ml'
-ML_TRAINING_DATA_DIR = BASE_DIR / 'ml' / 'training_data'
-ML_MODELS_DATA_DIR = BASE_DIR / 'ml' / 'models_data'
+ML_MODELS_DIR = _env_path('ML_MODELS_DIR', BASE_DIR / 'ml')
+ML_TRAINING_DATA_DIR = _env_path('ML_TRAINING_DATA_DIR', BASE_DIR / 'ml' / 'training_data')
+ML_MODELS_DATA_DIR = _env_path('ML_MODELS_DATA_DIR', BASE_DIR / 'ml' / 'models_data')
 if ML_ENABLED:
     ML_MODELS_DIR.mkdir(exist_ok=True)
     ML_TRAINING_DATA_DIR.mkdir(parents=True, exist_ok=True)
     ML_MODELS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Model update schedule (in hours)
-ML_MODEL_UPDATE_INTERVAL = int(os.environ.get('ML_MODEL_UPDATE_INTERVAL', 24))
+ML_MODEL_UPDATE_INTERVAL = _env_int('ML_MODEL_UPDATE_INTERVAL', 24)
 
-# ML Feature flags
+ML_RECOMMENDATIONS_ENABLED = ML_ENABLED and _env_bool('ML_RECOMMENDATIONS', True)
+ML_SEMANTIC_SEARCH_ENABLED = ML_ENABLED and _env_bool('ML_SEMANTIC_SEARCH', True)
+ML_FRAUD_DETECTION_ENABLED = ML_ENABLED and _env_bool('ML_FRAUD_DETECTION', True)
+ML_DEMAND_FORECASTING_ENABLED = ML_ENABLED and _env_bool('ML_DEMAND_FORECASTING', True)
+ML_PERSONALIZATION_ENABLED = ML_ENABLED and _env_bool('ML_PERSONALIZATION', True)
+ML_CHURN_PREDICTION_ENABLED = ML_ENABLED and _env_bool('ML_CHURN_PREDICTION', True)
+ML_IMAGE_CLASSIFICATION_ENABLED = ML_ENABLED and _env_bool('ML_IMAGE_CLASSIFICATION', True)
+ML_CHAT_ASSISTANT_ENABLED = ML_ENABLED and _env_bool('ML_CHAT_ASSISTANT', True)
+
 ML_FEATURES = {
-    'recommendations': os.environ.get('ML_RECOMMENDATIONS', 'True').lower() in ('1', 'true', 'yes'),
-    'semantic_search': os.environ.get('ML_SEMANTIC_SEARCH', 'True').lower() in ('1', 'true', 'yes'),
-    'fraud_detection': os.environ.get('ML_FRAUD_DETECTION', 'True').lower() in ('1', 'true', 'yes'),
-    'demand_forecasting': os.environ.get('ML_DEMAND_FORECASTING', 'True').lower() in ('1', 'true', 'yes'),
-    'personalization': os.environ.get('ML_PERSONALIZATION', 'True').lower() in ('1', 'true', 'yes'),
-    'churn_prediction': os.environ.get('ML_CHURN_PREDICTION', 'True').lower() in ('1', 'true', 'yes'),
-    'image_classification': os.environ.get('ML_IMAGE_CLASSIFICATION', 'True').lower() in ('1', 'true', 'yes'),
+    'recommendations': ML_RECOMMENDATIONS_ENABLED,
+    'semantic_search': ML_SEMANTIC_SEARCH_ENABLED,
+    'fraud_detection': ML_FRAUD_DETECTION_ENABLED,
+    'demand_forecasting': ML_DEMAND_FORECASTING_ENABLED,
+    'personalization': ML_PERSONALIZATION_ENABLED,
+    'churn_prediction': ML_CHURN_PREDICTION_ENABLED,
+    'image_classification': ML_IMAGE_CLASSIFICATION_ENABLED,
+    'chat_assistant': ML_CHAT_ASSISTANT_ENABLED,
 }
-if not ML_ENABLED:
-    ML_FEATURES = {key: False for key in ML_FEATURES}
 
 # ML Cache & Feature Store
-ML_REDIS_URL = os.environ.get('ML_REDIS_URL', 'redis://localhost:6379/1')
+ML_REDIS_URL = _normalize_rediss_url(os.environ.get('ML_REDIS_URL', 'redis://localhost:6379/1'))
 ML_CACHE_BACKEND = os.environ.get('ML_CACHE_BACKEND', 'redis')  # redis, memory
 
 # ML Inference settings
 ML_INFERENCE = {
-    'cache_ttl': int(os.environ.get('ML_CACHE_TTL', 3600)),
-    'batch_size': int(os.environ.get('ML_BATCH_SIZE', 32)),
-    'timeout': float(os.environ.get('ML_TIMEOUT', 5.0)),
-    'max_retries': int(os.environ.get('ML_MAX_RETRIES', 3)),
+    'cache_ttl': _env_int('ML_CACHE_TTL', 3600),
+    'batch_size': _env_int('ML_BATCH_SIZE', 32),
+    'timeout': _env_float('ML_TIMEOUT', 5.0),
+    'max_retries': _env_int('ML_MAX_RETRIES', 3),
 }
 
 # ML Training settings
 ML_TRAINING = {
-    'embedding_dim': int(os.environ.get('ML_EMBEDDING_DIM', 128)),
-    'hidden_dim': int(os.environ.get('ML_HIDDEN_DIM', 256)),
-    'num_epochs': int(os.environ.get('ML_NUM_EPOCHS', 50)),
-    'batch_size': int(os.environ.get('ML_TRAINING_BATCH_SIZE', 256)),
-    'learning_rate': float(os.environ.get('ML_LEARNING_RATE', 0.001)),
-    'use_gpu': os.environ.get('ML_USE_GPU', 'True').lower() in ('1', 'true', 'yes'),
+    'embedding_dim': _env_int('ML_EMBEDDING_DIM', 128),
+    'hidden_dim': _env_int('ML_HIDDEN_DIM', 256),
+    'num_epochs': _env_int('ML_NUM_EPOCHS', 50),
+    'batch_size': _env_int('ML_TRAINING_BATCH_SIZE', 256),
+    'learning_rate': _env_float('ML_LEARNING_RATE', 0.001),
+    'use_gpu': _env_bool('ML_USE_GPU', True),
+}
+
+ML_DATA_COLLECTION = {
+    'enabled': ML_ENABLED and _env_bool('ML_DATA_COLLECTION_ENABLED', True),
+    'batch_size': _env_int('ML_DATA_BATCH_SIZE', 100),
+    'flush_interval': _env_int('ML_DATA_FLUSH_INTERVAL', 300),
+    'retention_days': _env_int('ML_DATA_RETENTION_DAYS', 90),
+    'anonymize_ip': _env_bool('ML_ANONYMIZE_IP', False),
+    'collect_location': _env_bool('ML_COLLECT_LOCATION', True),
+    'collect_device_info': _env_bool('ML_COLLECT_DEVICE_INFO', True),
+}
+
+ML_TRACKING = {
+    'track_page_views': ML_ENABLED and _env_bool('ML_TRACK_PAGE_VIEWS', True),
+    'track_product_views': ML_ENABLED and _env_bool('ML_TRACK_PRODUCT_VIEWS', True),
+    'exclude_paths': _env_csv(
+        'ML_TRACKING_EXCLUDE_PATHS',
+        '/admin/,/api/ml/,/static/,/media/,/__debug__/',
+    ),
+    'exclude_bots': _env_bool('ML_TRACKING_EXCLUDE_BOTS', True),
+}
+
+ML_MODEL_STORAGE = {
+    'model_dir': str(_env_path('ML_MODEL_DIR', ML_MODELS_DIR / 'saved_models')),
+    'training_data_dir': str(ML_TRAINING_DATA_DIR),
+    'max_model_versions': _env_int('ML_MAX_MODEL_VERSIONS', 5),
+    'model_format': os.environ.get('ML_MODEL_FORMAT', 'pt'),
+}
+
+ML_AUTO_TRAINING_CONFIG = {
+    'enabled': ML_AUTO_TRAINING,
+    'min_interactions': _env_int('ML_AUTO_MIN_INTERACTIONS', 1000),
+    'min_users': _env_int('ML_AUTO_MIN_USERS', 100),
+    'min_products': _env_int('ML_AUTO_MIN_PRODUCTS', 50),
+    'new_interactions_threshold': _env_int('ML_AUTO_NEW_INTERACTIONS_THRESHOLD', 5000),
+    'new_users_threshold': _env_int('ML_AUTO_NEW_USERS_THRESHOLD', 500),
+    'new_products_threshold': _env_int('ML_AUTO_NEW_PRODUCTS_THRESHOLD', 100),
+    'max_days_between_training': _env_int('ML_AUTO_MAX_DAYS_BETWEEN_TRAINING', 7),
+    'training_hour': _env_int('ML_AUTO_TRAINING_HOUR', 2),
+    'min_performance_score': _env_float('ML_AUTO_MIN_PERFORMANCE_SCORE', 0.6),
+    'max_performance_drop': _env_float('ML_AUTO_MAX_PERFORMANCE_DROP', 0.1),
+    'enable_drift_detection': _env_bool('ML_AUTO_ENABLE_DRIFT_DETECTION', True),
+    'drift_threshold': _env_float('ML_AUTO_DRIFT_THRESHOLD', 0.15),
+    'max_concurrent_trainings': _env_int('ML_AUTO_MAX_CONCURRENT_TRAININGS', 2),
+    'training_timeout_minutes': _env_int('ML_AUTO_TRAINING_TIMEOUT_MINUTES', 120),
+    'models_to_train': _env_csv('ML_AUTO_MODELS_TO_TRAIN', ''),
+    'models_to_exclude': _env_csv('ML_AUTO_MODELS_TO_EXCLUDE', ''),
 }
 
 # =============================================================================

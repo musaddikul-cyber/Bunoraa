@@ -3,6 +3,8 @@ Celery Configuration for Bunoraa
 Production-ready task queue with scheduled backups and maintenance.
 """
 import os
+import logging
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from celery import Celery
 from celery.schedules import crontab
 from django.conf import settings
@@ -10,10 +12,46 @@ from django.conf import settings
 # Set default Django settings
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 
+
+def _normalize_rediss_url(url: str) -> str:
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if parsed.scheme != 'rediss':
+        return url
+    params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    if 'ssl_cert_reqs' not in params:
+        params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'CERT_REQUIRED')
+        return urlunparse(parsed._replace(query=urlencode(params)))
+    return url
+
+
+_settings_module = os.environ.get('DJANGO_SETTINGS_MODULE', '')
+if _settings_module.endswith('.local'):
+    # Local eager mode should not depend on external Redis availability.
+    os.environ['CELERY_BROKER_URL'] = 'memory://'
+    os.environ['CELERY_RESULT_BACKEND'] = 'cache+memory://'
+else:
+    for _env_key in ('CELERY_BROKER_URL', 'CELERY_RESULT_BACKEND'):
+        _env_value = os.environ.get(_env_key)
+        if _env_value:
+            os.environ[_env_key] = _normalize_rediss_url(_env_value)
+
 app = Celery('bunoraa')
+logger = logging.getLogger('bunoraa.celery')
 
 # Load config from Django settings
 app.config_from_object('django.conf:settings', namespace='CELERY')
+_broker_url = getattr(settings, 'CELERY_BROKER_URL', app.conf.broker_url)
+_result_backend = getattr(settings, 'CELERY_RESULT_BACKEND', app.conf.result_backend)
+app.conf.update(
+    broker_url=_normalize_rediss_url(_broker_url) if _broker_url else _broker_url,
+    result_backend=_normalize_rediss_url(_result_backend) if _result_backend else _result_backend,
+    task_always_eager=getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', app.conf.task_always_eager),
+    task_eager_propagates=getattr(settings, 'CELERY_TASK_EAGER_PROPAGATES', app.conf.task_eager_propagates),
+    task_ignore_result=getattr(settings, 'CELERY_TASK_IGNORE_RESULT', app.conf.task_ignore_result),
+    task_store_eager_result=getattr(settings, 'CELERY_TASK_STORE_EAGER_RESULT', app.conf.task_store_eager_result),
+)
 
 # Auto-discover tasks from all installed apps
 app.autodiscover_tasks()
@@ -295,6 +333,33 @@ app.conf.beat_schedule = {
         'schedule': crontab(hour=9, minute=0, day_of_week=1),
     },
 }
+
+# -----------------------------------------------------------------------------
+# ML schedule controls
+# -----------------------------------------------------------------------------
+_legacy_ml_keys = (
+    'update-ml-recommendations',
+    'train-recommendation-models',
+    'train-embedding-models',
+    'train-demand-forecaster',
+    'train-fraud-detector',
+)
+for _ml_key in _legacy_ml_keys:
+    app.conf.beat_schedule.pop(_ml_key, None)
+
+if getattr(settings, 'ML_ENABLED', False) and getattr(settings, 'ML_CELERY_BEAT_ENABLED', False):
+    _ml_update_every = max(1, int(getattr(settings, 'ML_MODEL_UPDATE_INTERVAL', 24) or 24))
+    app.conf.beat_schedule['update-ml-recommendations'] = {
+        'task': 'core.tasks.update_ml_models',
+        'schedule': crontab(hour=f'*/{_ml_update_every}', minute=0),
+    }
+
+    if getattr(settings, 'ML_AUTO_TRAINING', False):
+        try:
+            from ml.tasks import get_celery_beat_schedule as get_ml_celery_beat_schedule
+            app.conf.beat_schedule.update(get_ml_celery_beat_schedule())
+        except Exception as exc:
+            logger.warning("Failed to load ML auto-training beat schedule: %s", exc)
 
 # =============================================================================
 # TASK ROUTING

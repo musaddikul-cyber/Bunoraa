@@ -1,9 +1,8 @@
 """
 Django Signals for Bunoraa Chat System
 """
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -72,17 +71,33 @@ def notify_new_message(sender, instance, created, **kwargs):
         f'chat_{instance.conversation_id}',
         {
             'type': 'chat_message',
-            'message': {
-                'id': str(instance.id),
-                'conversation_id': str(instance.conversation_id),
-                'sender_id': str(instance.sender_id) if instance.sender_id else None,
-                'sender_name': instance.sender.get_full_name() if instance.sender else 'Bot',
-                'is_from_customer': instance.is_from_customer,
-                'is_from_bot': instance.is_from_bot,
-                'message_type': instance.message_type,
-                'content': instance.content,
-                'timestamp': instance.created_at.isoformat()
-            }
+            'message_id': str(instance.id),
+            'conversation_id': str(instance.conversation_id),
+            'sender_id': str(instance.sender_id) if instance.sender_id else None,
+            'sender_name': (
+                instance.sender.get_full_name() or instance.sender.email
+                if instance.sender else 'Bot'
+            ),
+            'sender_avatar_url': (
+                instance.sender.avatar.url
+                if instance.sender and getattr(instance.sender, 'avatar', None)
+                else None
+            ),
+            'sender_role': (
+                'admin' if instance.sender and instance.sender.is_superuser else
+                'staff' if instance.sender and instance.sender.is_staff else
+                'customer' if instance.is_from_customer else
+                'bot' if instance.is_from_bot else
+                'agent'
+            ),
+            'is_from_customer': instance.is_from_customer,
+            'is_from_bot': instance.is_from_bot,
+            'message_type': instance.message_type,
+            'content': instance.content,
+            'metadata': instance.metadata or {},
+            'reply_to': str(instance.reply_to_id) if instance.reply_to_id else None,
+            'attachments': [],
+            'timestamp': instance.created_at.isoformat(),
         }
     )
     

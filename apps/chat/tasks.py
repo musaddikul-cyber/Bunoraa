@@ -37,17 +37,16 @@ def generate_ai_response(self, conversation_id: str, message_content: str):
         if response:
             # Send via WebSocket
             channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f'chat_{conversation_id}',
-                {
-                    'type': 'ai_response',
-                    'message': {
+            if channel_layer is not None:
+                async_to_sync(channel_layer.group_send)(
+                    f'chat_{conversation_id}',
+                    {
+                        'type': 'ai_response',
                         'content': response,
-                        'is_from_bot': True,
+                        'metadata': {'is_from_bot': True},
                         'timestamp': timezone.now().isoformat()
                     }
-                }
-            )
+                )
             
             logger.info(f"AI response sent for conversation {conversation_id}")
         
@@ -273,13 +272,14 @@ def send_chat_rating_request(conversation_id: str):
         
         # Send via WebSocket if customer still connected
         channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f'chat_{conversation_id}',
-            {
-                'type': 'rating_request',
-                'conversation_id': str(conversation_id)
-            }
-        )
+        if channel_layer is not None:
+            async_to_sync(channel_layer.group_send)(
+                f'chat_{conversation_id}',
+                {
+                    'type': 'rating_request',
+                    'conversation_id': str(conversation_id)
+                }
+            )
         
         logger.info(f"Sent rating request for conversation {conversation_id}")
         

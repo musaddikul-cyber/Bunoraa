@@ -71,8 +71,11 @@ urlpatterns = [
     path('api/v1/', include('core.urls_api')),
     
     # ML API (direct path for frontend JS library compatibility)
-    # Disabled to reduce memory footprint on Render free tier (torch not available)
-    # path('api/ml/', include('ml.api.urls')),
+    *(
+        [path('api/ml/', include('ml.api.urls'))]
+        if settings.ML_ENABLED and getattr(settings, 'ML_API_ENABLED', True)
+        else []
+    ),
     
     # Health checks
     path('health', health_check, name='health_check_noslash'),

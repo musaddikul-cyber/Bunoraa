@@ -3,6 +3,7 @@ API URL Configuration - Version 1
 All API endpoints under /api/v1/
     """
 from django.urls import path, include
+from django.conf import settings
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
@@ -18,8 +19,11 @@ urlpatterns = [
     path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     
     # ML/AI APIs (comprehensive ML services)
-    # Disabled: ML module requires torch and other ML packages not installed on free tier
-    # path('ml/', include('ml.api.urls')),
+    *(
+        [path('ml/', include('ml.api.urls'))]
+        if settings.ML_ENABLED and getattr(settings, 'ML_API_ENABLED', True)
+        else []
+    ),
     
     # App APIs
     path('accounts/', include('apps.accounts.api.urls')),

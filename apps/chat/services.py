@@ -11,6 +11,7 @@ import logging
 from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from django.conf import settings
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Count, Avg, Q, F
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -112,33 +113,50 @@ class ChatService:
     def assign_agent(conversation_id: str, agent_id: str = None):
         """Assign an agent to a conversation."""
         from apps.chat.models import Conversation, ChatAgent, ConversationStatus
-        
-        conversation = Conversation.objects.get(id=conversation_id)
-        
-        if agent_id:
-            agent = ChatAgent.objects.get(id=agent_id)
-        else:
-            # Auto-assign to available agent
-            agent = ChatService.find_available_agent(
-                category=conversation.category
+
+        with transaction.atomic():
+            conversation = Conversation.objects.select_for_update().get(id=conversation_id)
+
+            if conversation.agent_id:
+                existing_agent = conversation.agent
+                return existing_agent, None
+
+            if agent_id:
+                agent = ChatAgent.objects.select_for_update().get(id=agent_id, is_active=True)
+            else:
+                # Auto-assign to best available agent with row-level locking.
+                available = ChatAgent.objects.select_for_update().filter(
+                    is_active=True,
+                    is_online=True,
+                    is_accepting_chats=True,
+                ).annotate(
+                    available_slots=F('max_concurrent_chats') - F('current_chat_count')
+                ).filter(available_slots__gt=0)
+
+                if conversation.category:
+                    available = available.filter(
+                        Q(categories=[]) | Q(categories__contains=[conversation.category])
+                    )
+
+                agent = available.order_by('-available_slots', '-avg_rating').first()
+
+            if not agent:
+                return None, 'No agents available'
+
+            if agent.current_chat_count >= agent.max_concurrent_chats:
+                return None, 'Agent at capacity'
+
+            conversation.agent = agent
+            conversation.status = ConversationStatus.ACTIVE
+            conversation.is_bot_handling = False
+            conversation.save(update_fields=['agent', 'status', 'is_bot_handling', 'updated_at'])
+
+            ChatAgent.objects.filter(id=agent.id).update(
+                current_chat_count=F('current_chat_count') + 1
             )
-        
-        if not agent:
-            return None, 'No agents available'
-        
-        # Assign
-        conversation.agent = agent
-        conversation.status = ConversationStatus.ACTIVE
-        conversation.is_bot_handling = False
-        conversation.save()
-        
-        # Update agent's chat count
-        agent.current_chat_count += 1
-        agent.save(update_fields=['current_chat_count'])
-        
-        # Notify via WebSocket
+
+        # Notify outside transaction to avoid holding locks during network IO.
         ChatService.notify_agent_assigned(conversation, agent)
-        
         return agent, None
 
     @staticmethod
@@ -234,7 +252,6 @@ class AIService:
     def generate_response(conversation_id: str, customer_message: str) -> Optional[str]:
         """Generate AI response to customer message."""
         from apps.chat.models import Conversation, Message, ChatSettings
-        import openai
 
         settings_obj = ChatSettings.get_settings()
         
@@ -266,50 +283,34 @@ class AIService:
         
         try:
             # Build conversation history for context
-            messages = AIService._build_message_history(conversation)
-            messages.append({
-                'role': 'user',
-                'content': customer_message
-            })
-
-            # Call OpenAI
-            client = openai.OpenAI(api_key=getattr(settings, 'OPENAI_API_KEY', ''))
-
-            # Optional moderation check
-            try:
-                moderation = client.moderations.create(
-                    model='omni-moderation-latest',
-                    input=customer_message
-                )
-                if moderation and moderation.results and moderation.results[0].flagged:
-                    conversation.request_human_agent()
-                    return "I'm unable to assist with that. I'm connecting you to a human agent."
-            except Exception:
-                pass
-
-            response = client.chat.completions.create(
-                model=settings_obj.ai_model,
-                messages=[
-                    {'role': 'system', 'content': settings_obj.ai_system_prompt},
-                    {'role': 'system', 'content': 'Follow safety and privacy guidelines. Do not request sensitive credentials.'}
-                ] + messages,
-                temperature=settings_obj.ai_temperature,
-                max_tokens=settings_obj.ai_max_tokens
+            history = AIService._build_message_history(
+                conversation,
+                limit=max(2, int(getattr(settings, 'CHAT_AI_CONTEXT_HISTORY_LIMIT', 10) or 10)),
             )
-            
-            ai_response = response.choices[0].message.content
-            
-            # Save AI response as message
+            history.append({'role': 'user', 'content': customer_message})
+
+            ai_response = AIService._generate_local_model_response(
+                conversation=conversation,
+                settings_obj=settings_obj,
+                history=history,
+            )
+            if not ai_response and getattr(settings, 'CHAT_AI_FALLBACK_TO_RULES', True):
+                ai_response = AIService._rule_based_response(customer_message)
+
+            if not ai_response:
+                if getattr(settings, 'CHAT_AI_AUTO_HANDOFF_ON_FAILURE', False):
+                    conversation.request_human_agent()
+                    return "I'm connecting you with a human agent for more detailed support."
+                return None
+
             Message.objects.create(
                 conversation=conversation,
                 sender=None,
                 is_from_customer=False,
                 is_from_bot=True,
-                content=ai_response
+                content=ai_response,
             )
-            
             return ai_response
-            
         except Exception as e:
             logger.error(f"AI response generation failed: {e}")
             return None
@@ -336,36 +337,148 @@ class AIService:
 
     @staticmethod
     def categorize_conversation(message: str) -> str:
-        """Use AI to categorize the conversation."""
+        """Categorize conversation using deterministic keyword mapping."""
         from apps.chat.models import ConversationCategory
-        import openai
-        
-        try:
-            client = openai.OpenAI(api_key=getattr(settings, 'OPENAI_API_KEY', ''))
-            
-            categories = [c[0] for c in ConversationCategory.choices]
-            
-            response = client.chat.completions.create(
-                model='gpt-3.5-turbo',
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': f'Categorize the following customer message into one of these categories: {", ".join(categories)}. Respond with just the category code.'
-                    },
-                    {'role': 'user', 'content': message}
-                ],
-                temperature=0
-            )
-            
-            category = response.choices[0].message.content.strip().lower()
-            
-            if category in categories:
+
+        text = (message or '').strip().lower()
+        if not text:
+            return ConversationCategory.GENERAL
+
+        keyword_map = {
+            ConversationCategory.ORDER_INQUIRY: (
+                'order', 'tracking', 'track', 'invoice', 'order number', 'purchase',
+            ),
+            ConversationCategory.SHIPPING: (
+                'shipping', 'delivery', 'courier', 'dispatch', 'arrive', 'eta',
+            ),
+            ConversationCategory.RETURNS: (
+                'return', 'refund', 'exchange', 'cancel', 'replacement',
+            ),
+            ConversationCategory.PAYMENT: (
+                'payment', 'paid', 'transaction', 'card', 'bkash', 'nagad', 'sslcommerz',
+            ),
+            ConversationCategory.PRODUCT_QUESTION: (
+                'product', 'size', 'material', 'color', 'stock', 'available', 'details',
+            ),
+            ConversationCategory.TECHNICAL: (
+                'bug', 'error', 'issue', 'problem', 'login', 'cannot', 'failed',
+            ),
+            ConversationCategory.COMPLAINT: (
+                'complaint', 'bad', 'worst', 'angry', 'disappointed',
+            ),
+            ConversationCategory.FEEDBACK: (
+                'feedback', 'suggestion', 'feature request', 'improve',
+            ),
+        }
+
+        for category, keywords in keyword_map.items():
+            if any(keyword in text for keyword in keywords):
                 return category
-            return ConversationCategory.GENERAL
-            
-        except Exception as e:
-            logger.error(f"AI categorization failed: {e}")
-            return ConversationCategory.GENERAL
+        return ConversationCategory.GENERAL
+
+    @staticmethod
+    def _generate_local_model_response(conversation, settings_obj, history) -> Optional[str]:
+        if not (
+            getattr(settings, 'ML_ENABLED', False)
+            and getattr(settings, 'ML_CHAT_ASSISTANT_ENABLED', True)
+            and getattr(settings, 'CHAT_AI_LOCAL_MODEL_ENABLED', True)
+        ):
+            return None
+
+        try:
+            from ml.services.chat_model_service import ChatModelService
+        except Exception as exc:
+            logger.warning("ML chat model service unavailable: %s", exc)
+            return None
+
+        personalization = AIService._build_personalization_context(conversation)
+        model_override = None
+        if getattr(settings, 'CHAT_AI_USE_CHAT_SETTINGS_MODEL', False):
+            configured = (getattr(settings_obj, 'ai_model', '') or '').strip()
+            blocked_models = {
+                'gpt-4',
+                'gpt-3.5-turbo',
+                'gpt-4o',
+                'gpt-4.1',
+            }
+            if configured and configured.lower() not in blocked_models:
+                model_override = configured
+
+        return ChatModelService.generate_reply(
+            system_prompt=f"{settings_obj.ai_system_prompt}\nFollow safety and privacy guidelines. Do not request sensitive credentials.",
+            history=history,
+            personalization=personalization,
+            model_id_override=model_override,
+            temperature=settings_obj.ai_temperature,
+            max_new_tokens=settings_obj.ai_max_tokens,
+        )
+
+    @staticmethod
+    def _build_personalization_context(conversation) -> Dict[str, Any]:
+        context: Dict[str, Any] = {}
+        customer = getattr(conversation, 'customer', None)
+
+        if getattr(settings, 'CHAT_AI_PERSONALIZATION_ENABLED', True):
+            if conversation.customer_name:
+                context['customer_name'] = conversation.customer_name
+            if conversation.category:
+                context['conversation_category'] = conversation.category
+            if conversation.order_reference:
+                context['order_reference'] = conversation.order_reference
+
+            if customer and getattr(settings, 'CHAT_AI_INCLUDE_USER_PREFERENCES', True):
+                preferences = getattr(customer, 'preferences', None)
+                if preferences:
+                    context['language'] = getattr(preferences, 'language', None)
+                    context['currency'] = getattr(preferences, 'currency', None)
+                    context['timezone'] = getattr(preferences, 'timezone', None)
+
+            if customer and getattr(settings, 'CHAT_AI_INCLUDE_BEHAVIOR_PROFILE', True):
+                profile = getattr(customer, 'behavior_profile', None)
+                if profile:
+                    categories = (profile.category_preferences or {}) if hasattr(profile, 'category_preferences') else {}
+                    top_categories = list(categories.keys())[:3]
+                    context['engagement_score'] = float(profile.engagement_score or 0)
+                    context['loyalty_score'] = float(profile.loyalty_score or 0)
+                    context['total_orders'] = int(profile.total_orders or 0)
+                    context['top_categories'] = ', '.join(top_categories) if top_categories else None
+
+        return {key: value for key, value in context.items() if value not in (None, '', [], {}, ())}
+
+    @staticmethod
+    def _rule_based_response(customer_message: str) -> str:
+        text = (customer_message or '').strip().lower()
+        if not text:
+            return "Thanks for reaching out. Could you share a few more details so I can help?"
+
+        rules = (
+            (
+                ('refund', 'return', 'exchange', 'cancel'),
+                "I can help with returns and refunds. Please share your order number and the reason, and I will guide you through the next steps.",
+            ),
+            (
+                ('order', 'tracking', 'track', 'delivery', 'shipping'),
+                "I can help with order and delivery updates. Please provide your order number so I can check the latest status.",
+            ),
+            (
+                ('payment', 'failed', 'transaction', 'bkash', 'nagad', 'sslcommerz'),
+                "I can help troubleshoot payment issues. Please share when the payment failed and which payment method you used.",
+            ),
+            (
+                ('product', 'size', 'material', 'stock', 'available'),
+                "I can help with product details. Please tell me the product name or link and what information you need.",
+            ),
+            (
+                ('agent', 'human', 'person'),
+                "No problem. I am connecting you with a human support agent now.",
+            ),
+        )
+
+        for keywords, reply in rules:
+            if any(keyword in text for keyword in keywords):
+                return reply
+
+        return "Thanks for your message. I can help with orders, delivery, returns, payments, and product questions. What would you like to do next?"
 
 
 class ChatAnalyticsService:

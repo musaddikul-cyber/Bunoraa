@@ -10,6 +10,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Q, F
 from django.shortcuts import get_object_or_404
 from django.conf import settings
@@ -28,6 +29,12 @@ from apps.chat.models import (
 from apps.chat.services import ChatService, ChatAnalyticsService
 from apps.chat.tasks import generate_ai_response, send_chat_rating_request
 from apps.chat.utils import redact_payload
+from apps.chat.permissions import (
+    get_agent_for_user,
+    user_is_agent,
+    user_can_access_conversation,
+    conversation_queryset_for_user,
+)
 
 from .serializers import (
     ChatAgentSerializer, ChatAgentPublicSerializer,
@@ -37,6 +44,8 @@ from .serializers import (
     CannedResponseSerializer, ChatSettingsSerializer, ChatAnalyticsSerializer,
     AgentDashboardSerializer, ChatQueueSerializer
 )
+
+User = get_user_model()
 
 
 class IsAgentOrAdmin(permissions.BasePermission):
@@ -209,13 +218,16 @@ class ConversationViewSet(viewsets.ModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return Conversation.objects.none()
         user = self.request.user
-        
-        # Agents can see all conversations
-        is_agent = ChatAgent.objects.filter(user=user, is_active=True).exists()
-        if is_agent or user.is_staff:
-            queryset = Conversation.objects.all()
-        else:
-            queryset = Conversation.objects.filter(customer=user)
+
+        queryset = Conversation.objects.select_related(
+            'customer', 'agent', 'agent__user'
+        )
+        queryset = conversation_queryset_for_user(user, queryset)
+
+        # Staff can scope to specific customer for user-specific operations.
+        customer_id = self.request.query_params.get('customer_id')
+        if customer_id and (user.is_staff or user_is_agent(user)):
+            queryset = queryset.filter(customer_id=customer_id)
         
         # Filter by status
         status_filter = self.request.query_params.get('status')
@@ -328,11 +340,17 @@ class ConversationViewSet(viewsets.ModelViewSet):
             
             if not user.is_authenticated:
                 return Response({'detail': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
-            
-            conversation = Conversation.objects.filter(
-                customer=user,
-                status__in=[ConversationStatus.OPEN, ConversationStatus.ACTIVE, ConversationStatus.WAITING]
-            ).order_by('-created_at').first()
+
+            statuses = [ConversationStatus.OPEN, ConversationStatus.ACTIVE, ConversationStatus.WAITING]
+            base = Conversation.objects.select_related('customer', 'agent', 'agent__user')
+            base = conversation_queryset_for_user(user, base)
+
+            # Admin/staff can request active conversation for a specific user.
+            customer_id = request.query_params.get('customer_id')
+            if customer_id and user.is_staff:
+                base = base.filter(customer_id=customer_id)
+
+            conversation = base.filter(status__in=statuses).order_by('-created_at').first()
             
             if conversation:
                 logger.debug(f"[Chat] Found active conversation: {conversation.id}")
@@ -354,6 +372,86 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 {'detail': f'Error retrieving active conversation: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['get', 'post'], url_path='for-user', permission_classes=[IsAgentOrAdmin])
+    def for_user(self, request):
+        """
+        User-specific conversation operations for staff/admin support.
+
+        GET: list conversations for a specific customer user_id.
+        POST: create or reuse an active conversation for a specific customer user_id.
+        """
+        if not request.user.is_staff:
+            return Response(
+                {'detail': 'Staff only'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        user_id = request.data.get('user_id') if request.method == 'POST' else request.query_params.get('user_id')
+        if not user_id:
+            return Response({'detail': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = get_object_or_404(User, id=user_id)
+
+        if request.method == 'GET':
+            queryset = Conversation.objects.filter(customer=customer).select_related(
+                'customer', 'agent', 'agent__user'
+            ).order_by('-last_message_at', '-created_at')
+            serializer = ConversationSerializer(queryset, many=True, context={'request': request})
+            return Response(serializer.data)
+
+        category = request.data.get('category') or ConversationCategory.GENERAL
+        subject = (request.data.get('subject') or '').strip() or 'Support'
+        initial_message = (request.data.get('initial_message') or '').strip()
+        force_new = bool(request.data.get('force_new', False))
+
+        active_statuses = [ConversationStatus.OPEN, ConversationStatus.WAITING, ConversationStatus.ACTIVE]
+        existing = None
+        if not force_new:
+            existing = Conversation.objects.filter(
+                customer=customer,
+                status__in=active_statuses,
+            ).order_by('-created_at').first()
+
+        if existing:
+            serializer = ConversationDetailSerializer(existing, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        with transaction.atomic():
+            agent = get_agent_for_user(request.user)
+            conversation = Conversation.objects.create(
+                customer=customer,
+                agent=agent,
+                status=ConversationStatus.ACTIVE if agent else ConversationStatus.OPEN,
+                category=category,
+                subject=subject,
+                source='admin_console',
+                is_bot_handling=False,
+                customer_email=customer.email,
+                customer_name=customer.get_full_name() or customer.email,
+                initial_message=initial_message,
+            )
+
+            if agent:
+                ChatAgent.objects.filter(id=agent.id).update(
+                    current_chat_count=F('current_chat_count') + 1
+                )
+
+            if initial_message:
+                message = Message.objects.create(
+                    conversation=conversation,
+                    sender=request.user,
+                    is_from_customer=False,
+                    is_from_bot=False,
+                    message_type=MessageType.TEXT,
+                    content=initial_message,
+                )
+                conversation.first_response_at = message.created_at
+                conversation.last_message_at = message.created_at
+                conversation.save(update_fields=['first_response_at', 'last_message_at'])
+
+        serializer = ConversationDetailSerializer(conversation, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['post'])
     def rate(self, request, id=None):
@@ -385,9 +483,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         """Close a conversation."""
         conversation = self.get_object()
         
-        # Verify permission
-        is_agent = ChatAgent.objects.filter(user=request.user, is_active=True).exists()
-        if not is_agent and conversation.customer != request.user:
+        if not user_can_access_conversation(request.user, conversation):
             return Response(
                 {'detail': 'Not authorized'},
                 status=status.HTTP_403_FORBIDDEN
@@ -441,9 +537,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         try:
             conversation = self.get_object()
             
-            # Verify permission - must be customer or assigned agent
-            is_agent = ChatAgent.objects.filter(user=request.user, is_active=True).exists()
-            if not is_agent and conversation.customer != request.user:
+            if not user_can_access_conversation(request.user, conversation):
                 return Response(
                     {'detail': 'Not authorized'},
                     status=status.HTTP_403_FORBIDDEN
@@ -562,6 +656,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
     def internal_notes(self, request, id=None):
         """Update internal notes for a conversation."""
         conversation = self.get_object()
+        if not user_can_access_conversation(request.user, conversation):
+            return Response({'detail': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
         notes = request.data.get('internal_notes', '')
         conversation.internal_notes = notes
         conversation.save(update_fields=['internal_notes'])
@@ -573,18 +669,11 @@ class ConversationViewSet(viewsets.ModelViewSet):
         conversation = self.get_object()
         
         # Verify agent
-        agent = ChatAgent.objects.filter(user=request.user, is_active=True).first()
+        agent = get_agent_for_user(request.user)
         if not agent:
             return Response(
                 {'detail': 'Not an agent'},
                 status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Check capacity
-        if agent.current_chat_count >= agent.max_concurrent_chats:
-            return Response(
-                {'detail': 'Maximum chat capacity reached'},
-                status=status.HTTP_400_BAD_REQUEST
             )
         
         assigned_agent, error = ChatService.assign_agent(str(conversation.id), str(agent.id))
@@ -601,10 +690,15 @@ class ConversationViewSet(viewsets.ModelViewSet):
         conversation = self.get_object()
         
         # Verify current agent
-        current_agent = ChatAgent.objects.filter(user=request.user, is_active=True).first()
+        current_agent = get_agent_for_user(request.user)
         if not current_agent and not request.user.is_staff:
             return Response(
                 {'detail': 'Not authorized'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        if current_agent and conversation.agent_id != current_agent.id and not request.user.is_staff:
+            return Response(
+                {'detail': 'Can only transfer your own assigned conversations'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -624,33 +718,52 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Transfer
-        old_agent = conversation.agent
-        conversation.agent = target_agent
-        if old_agent:
-            note = f"Transferred from {old_agent.user.get_full_name() or old_agent.user.email}"
-            conversation.internal_notes = f"{conversation.internal_notes}\n{note}".strip()
-        conversation.save(update_fields=['agent', 'internal_notes'])
-        
-        # Update counts
-        if old_agent:
-            old_agent.current_chat_count = max(0, old_agent.current_chat_count - 1)
-            old_agent.save()
-        target_agent.current_chat_count += 1
-        target_agent.save()
+        with transaction.atomic():
+            locked_conversation = Conversation.objects.select_for_update().get(id=conversation.id)
+            old_agent = locked_conversation.agent
+
+            if old_agent and old_agent.id == target_agent.id:
+                return Response(
+                    {'detail': 'Conversation is already assigned to this agent'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            locked_target = ChatAgent.objects.select_for_update().get(id=target_agent.id)
+            if locked_target.current_chat_count >= locked_target.max_concurrent_chats:
+                return Response(
+                    {'detail': 'Target agent at capacity'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            locked_conversation.agent = locked_target
+            if old_agent:
+                note = f"Transferred from {old_agent.user.get_full_name() or old_agent.user.email}"
+                locked_conversation.internal_notes = f"{locked_conversation.internal_notes}\n{note}".strip()
+            locked_conversation.save(update_fields=['agent', 'internal_notes'])
+
+            if old_agent:
+                ChatAgent.objects.filter(id=old_agent.id).update(
+                    current_chat_count=F('current_chat_count') - 1
+                )
+                ChatAgent.objects.filter(id=old_agent.id, current_chat_count__lt=0).update(current_chat_count=0)
+
+            ChatAgent.objects.filter(id=locked_target.id).update(
+                current_chat_count=F('current_chat_count') + 1
+            )
+            conversation = locked_conversation
         
         return Response(ConversationSerializer(conversation, context={'request': request}).data)
     
     @action(detail=False, methods=['get'])
     def queue(self, request):
         """Get waiting conversations (for agents)."""
-        if not ChatAgent.objects.filter(user=request.user, is_active=True).exists():
+        if not request.user.is_staff and not get_agent_for_user(request.user):
             return Response({'detail': 'Not an agent'}, status=status.HTTP_403_FORBIDDEN)
         
         waiting = Conversation.objects.filter(
             status=ConversationStatus.WAITING,
             agent__isnull=True
-        ).order_by('created_at')
+        ).select_related('customer').order_by('created_at')
         
         return Response(ConversationSerializer(waiting, many=True, context={'request': request}).data)
 
@@ -675,11 +788,13 @@ class MessageViewSet(viewsets.ModelViewSet):
     throttle_scope = 'chat_messages'
 
     def _user_can_access_conversation(self, conversation):
-        if self.request.user.is_staff:
-            return True
-        if conversation.customer_id == self.request.user.id:
-            return True
-        return ChatAgent.objects.filter(user=self.request.user, is_active=True).exists()
+        agent = get_agent_for_user(self.request.user)
+        return user_can_access_conversation(
+            self.request.user,
+            conversation,
+            agent=agent,
+            allow_waiting_queue=True,
+        )
 
     def _ensure_message_access(self, message):
         if not self._user_can_access_conversation(message.conversation):
@@ -688,22 +803,36 @@ class MessageViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Message.objects.none()
+        base_queryset = Message.objects.select_related(
+            'sender',
+            'conversation',
+            'conversation__customer',
+            'conversation__agent',
+            'conversation__agent__user',
+        )
         conversation_id = self.request.query_params.get('conversation')
         if conversation_id:
             try:
-                conversation = Conversation.objects.get(id=conversation_id)
+                conversation = Conversation.objects.select_related('agent', 'customer').get(id=conversation_id)
             except Conversation.DoesNotExist:
                 return Message.objects.none()
 
             if not self._user_can_access_conversation(conversation):
                 return Message.objects.none()
 
-            return Message.objects.filter(conversation_id=conversation_id).order_by('created_at')
+            return base_queryset.filter(conversation_id=conversation_id).order_by('created_at')
 
-        if self.request.user.is_staff or ChatAgent.objects.filter(user=self.request.user, is_active=True).exists():
-            return Message.objects.all()
+        if self.request.user.is_staff:
+            return base_queryset
 
-        return Message.objects.filter(conversation__customer=self.request.user)
+        agent = get_agent_for_user(self.request.user)
+        if agent:
+            return base_queryset.filter(
+                Q(conversation__agent=agent) |
+                Q(conversation__status=ConversationStatus.WAITING, conversation__agent__isnull=True)
+            )
+
+        return base_queryset.filter(conversation__customer=self.request.user)
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -716,12 +845,24 @@ class MessageViewSet(viewsets.ModelViewSet):
         message = serializer.save()
         
         conversation = message.conversation
-        conversation.last_message_at = timezone.now()
-        conversation.save(update_fields=['last_message_at'])
+        now = timezone.now()
+        update_fields = ['last_message_at']
+        conversation.last_message_at = now
+        if not message.is_from_customer and not conversation.first_response_at:
+            conversation.first_response_at = now
+            update_fields.append('first_response_at')
+        conversation.save(update_fields=update_fields)
         
         # Trigger AI response if bot handling
         if conversation.is_bot_handling and message.is_from_customer:
-            generate_ai_response.delay(str(conversation.id), message.content)
+            try:
+                generate_ai_response.delay(str(conversation.id), message.content)
+            except Exception as exc:
+                logging.getLogger('bunoraa.chat').warning(
+                    "Failed to enqueue AI response for conversation %s: %s",
+                    conversation.id,
+                    exc,
+                )
         
         return Response(
             MessageSerializer(message, context={'request': request}).data,

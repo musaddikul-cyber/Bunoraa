@@ -114,6 +114,12 @@ CACHES = {
 # =============================================================================
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_EAGER', 'True').lower() in ('1', 'true', 'yes')
 CELERY_TASK_EAGER_PROPAGATES = True
+if CELERY_TASK_ALWAYS_EAGER:
+    # Keep local development fully in-process so remote Redis config cannot break requests.
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'cache+memory://'
+    CELERY_TASK_IGNORE_RESULT = True
+    CELERY_TASK_STORE_EAGER_RESULT = False
 
 # =============================================================================
 # THROTTLING - Disabled for Development

@@ -13,7 +13,6 @@ import logging
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
-from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.cache import cache
 import time
@@ -188,23 +187,12 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             metadata=metadata
         )
 
-        # Broadcast to room
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'chat_message',
-                'message_id': str(message['id']),
-                'sender_id': str(self.user.id),
-                'sender_name': self.user.get_full_name() or self.user.email,
-                'is_from_customer': message['is_from_customer'],
-                'content': message_content,
-                'message_type': message_type,
-                'metadata': metadata,
-                'reply_to': reply_to_id,
-                'attachments': message.get('attachments', []),
-                'timestamp': message['created_at']
-            }
-        )
+        # Acknowledge sender. Room broadcast is emitted via post_save signal.
+        await self.send_json({
+            'type': 'message_sent',
+            'message_id': str(message['id']),
+            'timestamp': message['created_at'],
+        })
 
         # Update conversation last_message_at
         await self.update_conversation_timestamp()
@@ -383,18 +371,49 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
     # Event handlers (called when receiving from channel layer)
     async def chat_message(self, event):
         """Send chat message to WebSocket."""
+        # Support both flattened payload and legacy {"message": {...}} shape.
+        payload = event.get('message') if isinstance(event, dict) else None
+        if payload:
+            message_id = payload.get('id')
+            sender_id = payload.get('sender_id')
+            sender_name = payload.get('sender_name')
+            is_from_customer = payload.get('is_from_customer', False)
+            content = payload.get('content', '')
+            message_type = payload.get('message_type', 'text')
+            metadata = payload.get('metadata', {})
+            reply_to = payload.get('reply_to')
+            attachments = payload.get('attachments', [])
+            timestamp = payload.get('timestamp')
+            sender_avatar_url = payload.get('sender_avatar_url')
+            sender_role = payload.get('sender_role')
+        else:
+            message_id = event.get('message_id')
+            sender_id = event.get('sender_id')
+            sender_name = event.get('sender_name')
+            is_from_customer = event.get('is_from_customer', False)
+            content = event.get('content', '')
+            message_type = event.get('message_type', 'text')
+            metadata = event.get('metadata', {})
+            reply_to = event.get('reply_to')
+            attachments = event.get('attachments', [])
+            timestamp = event.get('timestamp')
+            sender_avatar_url = event.get('sender_avatar_url')
+            sender_role = event.get('sender_role')
+
         await self.send_json({
             'type': 'message',
-            'message_id': event['message_id'],
-            'sender_id': event['sender_id'],
-            'sender_name': event['sender_name'],
-            'is_from_customer': event['is_from_customer'],
-            'content': event['content'],
-            'message_type': event['message_type'],
-            'metadata': event.get('metadata', {}),
-            'reply_to': event.get('reply_to'),
-            'attachments': event.get('attachments', []),
-            'timestamp': event['timestamp']
+            'message_id': message_id,
+            'sender_id': sender_id,
+            'sender_name': sender_name,
+            'sender_avatar_url': sender_avatar_url,
+            'sender_role': sender_role,
+            'is_from_customer': is_from_customer,
+            'content': content,
+            'message_type': message_type,
+            'metadata': metadata,
+            'reply_to': reply_to,
+            'attachments': attachments,
+            'timestamp': timestamp,
         })
 
     async def typing_indicator(self, event):
@@ -495,36 +514,58 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def ai_response(self, event):
         """Send AI response to WebSocket."""
+        payload = event.get('message') if isinstance(event, dict) else None
+        if payload:
+            message_id = payload.get('id')
+            content = payload.get('content', '')
+            metadata = payload.get('metadata', {})
+            timestamp = payload.get('timestamp')
+        else:
+            message_id = event.get('message_id')
+            content = event.get('content', '')
+            metadata = event.get('metadata', {})
+            timestamp = event.get('timestamp')
+
         await self.send_json({
             'type': 'ai_message',
-            'message_id': event['message_id'],
-            'content': event['content'],
-            'metadata': event.get('metadata', {}),
-            'timestamp': event['timestamp']
+            'message_id': message_id,
+            'content': content,
+            'metadata': metadata,
+            'timestamp': timestamp
+        })
+
+    async def conversation_update(self, event):
+        """Send conversation status updates."""
+        await self.send_json({
+            'type': 'conversation_update',
+            'conversation_id': event.get('conversation_id'),
+            'status': event.get('status'),
+            'agent_id': event.get('agent_id'),
+        })
+
+    async def rating_request(self, event):
+        """Prompt customer for rating after conversation closure."""
+        await self.send_json({
+            'type': 'rating_request',
+            'conversation_id': event.get('conversation_id'),
         })
 
     # Database operations
     @database_sync_to_async
     def check_conversation_access(self):
         """Check if user has access to the conversation."""
-        from apps.chat.models import Conversation, ChatAgent
+        from apps.chat.models import Conversation
+        from apps.chat.permissions import get_agent_for_user, user_can_access_conversation
         
         try:
             conversation = Conversation.objects.get(id=self.conversation_id)
-            
-            # Customer can access their own conversations
-            if conversation.customer_id == self.user.id:
-                return True
-            
-            # Agents can access any conversation
-            if ChatAgent.objects.filter(user=self.user).exists():
-                return True
-            
-            # Staff can access any conversation
-            if self.user.is_staff:
-                return True
-                
-            return False
+            agent = get_agent_for_user(self.user)
+            return user_can_access_conversation(
+                self.user,
+                conversation,
+                agent=agent,
+                allow_waiting_queue=True,
+            )
         except Conversation.DoesNotExist:
             return False
 

@@ -8,6 +8,7 @@ from apps.chat.models import (
     ChatAgent, Conversation, Message, MessageAttachment,
     CannedResponse, ChatSettings, ChatAnalytics, ConversationStatus
 )
+from apps.chat.permissions import user_can_access_conversation, get_agent_for_user
 
 User = get_user_model()
 
@@ -16,14 +17,22 @@ class UserMinimalSerializer(serializers.ModelSerializer):
     """Minimal user serializer for chat display."""
     
     full_name = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ['id', 'email', 'full_name']
+        fields = ['id', 'email', 'full_name', 'avatar_url']
         read_only_fields = fields
     
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.email
+
+    def get_avatar_url(self, obj):
+        request = self.context.get('request')
+        if obj.avatar:
+            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
+        from django.conf import settings
+        return settings.DEFAULT_AGENT_AVATAR_URL
 
 
 class ChatAgentSerializer(serializers.ModelSerializer):
@@ -71,6 +80,10 @@ class ChatAgentSerializer(serializers.ModelSerializer):
         return settings.DEFAULT_AGENT_AVATAR_URL
 
     def get_role(self, obj):
+        if obj.user.is_superuser:
+            return "admin"
+        if obj.user.is_staff:
+            return "staff"
         return "agent"
 
     def get_total_ratings(self, obj):
@@ -105,6 +118,10 @@ class ChatAgentPublicSerializer(serializers.ModelSerializer):
         return obj.user.get_full_name() or obj.user.email
 
     def get_role(self, obj):
+        if obj.user.is_superuser:
+            return "admin"
+        if obj.user.is_staff:
+            return "staff"
         return "agent"
 
 
@@ -134,11 +151,15 @@ class MessageSerializer(serializers.ModelSerializer):
     sender = UserMinimalSerializer(read_only=True)
     attachments = MessageAttachmentSerializer(many=True, read_only=True)
     reply_to_preview = serializers.SerializerMethodField()
+    sender_display_name = serializers.SerializerMethodField()
+    sender_avatar_url = serializers.SerializerMethodField()
+    sender_role = serializers.SerializerMethodField()
     
     class Meta:
         model = Message
         fields = [
             'id', 'conversation', 'sender', 'is_from_customer', 'is_from_bot',
+            'sender_display_name', 'sender_avatar_url', 'sender_role',
             'message_type', 'content', 'attachments',
             'is_read', 'read_at', 'is_edited', 'edited_at', 'is_deleted',
             'reactions', 'reply_to', 'reply_to_preview',
@@ -159,6 +180,66 @@ class MessageSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def _get_chat_settings(self):
+        if not hasattr(self, '_chat_settings_cache'):
+            self._chat_settings_cache = ChatSettings.get_settings()
+        return self._chat_settings_cache
+
+    def get_sender_display_name(self, obj):
+        request = self.context.get('request')
+        if (
+            request
+            and getattr(request, 'user', None)
+            and request.user.is_authenticated
+            and obj.sender_id == request.user.id
+            and obj.is_from_customer
+        ):
+            return ''
+        if obj.is_from_bot:
+            return self._get_chat_settings().bot_name
+        if obj.sender:
+            return obj.sender.get_full_name() or obj.sender.email
+        return 'Support'
+
+    def get_sender_avatar_url(self, obj):
+        request = self.context.get('request')
+        settings_obj = self._get_chat_settings()
+
+        def _abs(url):
+            return request.build_absolute_uri(url) if request else url
+
+        if obj.is_from_bot:
+            if settings_obj.bot_avatar:
+                return _abs(settings_obj.bot_avatar.url)
+            from django.conf import settings
+            return settings.DEFAULT_AGENT_AVATAR_URL
+
+        sender = obj.sender
+        if not sender:
+            from django.conf import settings
+            return settings.DEFAULT_AGENT_AVATAR_URL
+
+        # Prefer explicit agent avatar for support users.
+        agent_profile = getattr(sender, 'chat_agent_profile', None)
+        if agent_profile and getattr(agent_profile, 'avatar', None):
+            return _abs(agent_profile.avatar.url)
+        if sender.avatar:
+            return _abs(sender.avatar.url)
+
+        from django.conf import settings
+        return settings.DEFAULT_AGENT_AVATAR_URL
+
+    def get_sender_role(self, obj):
+        if obj.is_from_bot:
+            return 'bot'
+        if not obj.sender:
+            return 'agent'
+        if obj.sender.is_superuser:
+            return 'admin'
+        if obj.sender.is_staff:
+            return 'staff'
+        return 'customer'
+
 
 class MessageCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating messages."""
@@ -178,9 +259,16 @@ class MessageCreateSerializer(serializers.ModelSerializer):
         conversation = attrs.get('conversation')
 
         if request and conversation:
-            is_agent = ChatAgent.objects.filter(user=request.user, is_active=True).exists()
-            if not (request.user.is_staff or conversation.customer_id == request.user.id or is_agent):
+            if not user_can_access_conversation(request.user, conversation):
                 raise serializers.ValidationError('Not authorized to post to this conversation.')
+            agent = get_agent_for_user(request.user)
+            if (
+                agent
+                and conversation.agent_id is None
+                and conversation.status == ConversationStatus.WAITING
+                and not request.user.is_staff
+            ):
+                raise serializers.ValidationError('Assign the conversation before sending a message.')
 
         settings_obj = ChatSettings.get_settings()
         content = attrs.get('content') or ''
@@ -219,9 +307,9 @@ class MessageCreateSerializer(serializers.ModelSerializer):
         # Set sender from request
         validated_data['sender'] = request.user
         
-        # Determine if from customer or agent
-        is_agent = ChatAgent.objects.filter(user=request.user, is_active=True).exists()
-        validated_data['is_from_customer'] = not is_agent
+        # Determine sender side from conversation ownership, not role only.
+        conversation = validated_data['conversation']
+        validated_data['is_from_customer'] = conversation.customer_id == request.user.id
         
         message = Message.objects.create(**validated_data)
         
@@ -252,11 +340,13 @@ class ConversationSerializer(serializers.ModelSerializer):
     message_count = serializers.SerializerMethodField()
     feedback = serializers.CharField(source='rating_comment', read_only=True)
     internal_notes = serializers.SerializerMethodField()
+    customer_avatar_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Conversation
         fields = [
             'id', 'customer', 'customer_name', 'customer_email', 'customer_phone',
+            'customer_avatar_url',
             'agent', 'category', 'subject', 'status', 'priority',
             'is_bot_handling', 'source', 'order_reference',
             'rating', 'feedback', 'message_count', 'last_message', 'unread_count',
@@ -298,10 +388,19 @@ class ConversationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return ''
-        is_agent = ChatAgent.objects.filter(user=request.user, is_active=True).exists()
-        if is_agent or request.user.is_staff:
+        if request.user.is_staff:
+            return obj.internal_notes
+        agent = get_agent_for_user(request.user)
+        if agent and obj.agent_id == agent.id:
             return obj.internal_notes
         return ''
+
+    def get_customer_avatar_url(self, obj):
+        request = self.context.get('request')
+        if obj.customer and obj.customer.avatar:
+            return request.build_absolute_uri(obj.customer.avatar.url) if request else obj.customer.avatar.url
+        from django.conf import settings
+        return settings.DEFAULT_AGENT_AVATAR_URL
 
 
 class ConversationDetailSerializer(ConversationSerializer):
@@ -315,7 +414,7 @@ class ConversationDetailSerializer(ConversationSerializer):
     
     def get_messages(self, obj):
         """Get last 50 messages (oldest first for display)."""
-        messages = obj.messages.filter(is_deleted=False).order_by('-created_at')[:50]
+        messages = obj.messages.filter(is_deleted=False).select_related('sender').order_by('-created_at')[:50]
         # Reverse to get chronological order (oldest first)
         messages_list = list(messages)
         messages_list.reverse()

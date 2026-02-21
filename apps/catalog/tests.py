@@ -14,6 +14,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings, RequestFactory
 
 from apps.catalog.admin import ProductAdmin
+from apps.catalog.forms import ProductAdminForm
 from apps.catalog.ai.schemas import FieldSuggestionPayload
 from apps.catalog.ai.providers.personalization import PersonalizationProvider
 from apps.catalog.ai.providers.pricing import PricingProvider
@@ -62,6 +63,23 @@ class CatalogRegressionTests(TestCase):
         self.assertTrue(os.path.exists(css_path))
         self.assertTrue(os.path.exists(js_path))
 
+    def test_product_image_live_preview_asset_exists(self):
+        js_path = os.path.join(
+            settings.BASE_DIR,
+            "apps",
+            "catalog",
+            "static",
+            "js",
+            "admin",
+            "product_image_live_preview.js",
+        )
+        self.assertTrue(os.path.exists(js_path))
+
+    def test_product_admin_media_includes_live_preview_script(self):
+        product_admin = ProductAdmin(Product, django_admin.site)
+        media_js = tuple(getattr(product_admin.media, "_js", ()))
+        self.assertIn("js/admin/product_image_live_preview.js", media_js)
+
     def test_celery_task_names_are_current(self):
         from core.celery import app
 
@@ -107,6 +125,21 @@ class CatalogRegressionTests(TestCase):
         finally:
             if os.path.exists(path):
                 os.unlink(path)
+
+    def test_product_form_primary_category_includes_ancestors_in_categories(self):
+        root = Category.objects.create(name="Root", slug="root")
+        parent = Category.objects.create(name="Parent", slug="parent", parent=root)
+        child = Category.objects.create(name="Child", slug="child", parent=parent)
+
+        form = ProductAdminForm()
+        form.cleaned_data = {
+            "primary_category": child,
+            "categories": Category.objects.filter(id=child.id),
+        }
+
+        cleaned = form.clean()
+        selected_ids = set(cleaned["categories"].values_list("id", flat=True))
+        self.assertEqual(selected_ids, {root.id, parent.id, child.id})
 
 
 class ProductAutofillValidationTests(TestCase):

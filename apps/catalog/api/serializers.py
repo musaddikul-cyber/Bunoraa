@@ -177,7 +177,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         if not request:
             return data
         try:
-            base_currency = (getattr(instance.product, "currency", None) or "BDT").upper()
+            base_currency = (getattr(instance.product, "currency_id", None) or "BDT").upper()
             user_currency = CurrencyService.get_user_currency(request=request)
             if user_currency and user_currency.code != base_currency:
                 for field in ("price", "current_price"):
@@ -216,6 +216,7 @@ class BadgeSerializer(serializers.ModelSerializer):
 class ProductListSerializer(ContentTranslationMixin, PriceConversionMixin, serializers.ModelSerializer):
     """Lightweight product serializer for lists."""
     primary_image = serializers.SerializerMethodField()
+    currency = serializers.CharField(source='currency_id', read_only=True)
     current_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     discount_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
     is_on_sale = serializers.BooleanField(read_only=True)
@@ -260,6 +261,7 @@ class ProductDetailSerializer(ContentTranslationMixin, PriceConversionMixin, ser
     variants = ProductVariantSerializer(many=True, read_only=True)
     categories = CategoryListSerializer(many=True, read_only=True)
     primary_category = CategoryListSerializer(read_only=True)
+    currency = serializers.CharField(source='currency_id', read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     attributes = AttributeValueSerializer(many=True, read_only=True)
     shipping_material = ShippingMaterialSerializer(read_only=True)
@@ -337,6 +339,7 @@ class ProductDetailSerializer(ContentTranslationMixin, PriceConversionMixin, ser
 class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializer):
     """Lightweight serializer for quick view modal."""
     primary_image = serializers.SerializerMethodField()
+    currency = serializers.CharField(source='currency_id', read_only=True)
     current_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     is_on_sale = serializers.BooleanField(read_only=True)
     is_in_stock = serializers.SerializerMethodField()

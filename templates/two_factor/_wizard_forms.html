@@ -1,0 +1,36 @@
+{% load i18n %}
+{{ wizard.management_form }}
+
+{% for hidden in wizard.form.hidden_fields %}
+  {{ hidden }}
+{% endfor %}
+
+{% if wizard.form.non_field_errors %}
+  <div class="auth-alert auth-alert-error" role="alert" aria-live="assertive">
+    {% for error in wizard.form.non_field_errors %}
+      <p>{{ error }}</p>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% for field in wizard.form.visible_fields %}
+  <div class="form-row{% if field.errors %} has-error{% endif %}">
+    <label for="{{ field.id_for_label }}">
+      {{ field.label }}
+      {% if field.field.required %}
+        <span class="required-indicator" aria-hidden="true">*</span>
+      {% endif %}
+    </label>
+    {{ field }}
+    {% if field.help_text %}
+      <small class="help-text">{{ field.help_text|safe }}</small>
+    {% endif %}
+    {% if field.errors %}
+      <ul class="errorlist" role="list">
+        {% for error in field.errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endfor %}

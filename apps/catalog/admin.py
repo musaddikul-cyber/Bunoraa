@@ -338,12 +338,12 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         "is_active", "is_featured", "is_bestseller", "is_new_arrival",
         StockFilter, PriceRangeFilter, "aspect_ratio", "primary_category"
     )
-    inlines = [ProductImageInline, ProductVariantInline, Product3DAssetInline, ProductMakingOfInline, CustomerPhotoInline, ProductQuestionInline]
+    inlines = [ProductImageInline, ProductVariantInline, Product3DAssetInline, ProductMakingOfInline]
     prepopulated_fields = {"slug": ("name",)}
     date_hierarchy = "created_at"
     list_per_page = 25
     list_editable = ("is_active",)
-    save_on_top = True
+    save_on_top = False
     filter_horizontal = ("categories", "tags")
     
     # Export fields
@@ -385,8 +385,11 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         }),
         (_('Sustainability'), {
             "fields": (
-                "carbon_footprint_kg", "recycled_content_percentage", 
-                "sustainability_score", "ethical_sourcing_notes", "eco_certifications"
+                "carbon_footprint_kg",
+                "recycled_content_percentage",
+                "sustainability_score",
+                "ethical_sourcing_notes",
+                "eco_certifications",
             ),
             "classes": ("collapse",),
         }),
@@ -411,6 +414,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "admin/js/vendor/jquery/jquery.min.js",
             "admin/js/jquery.init.js",
             "js/admin/category_tree_widget.js",
+            "js/admin/product_image_live_preview.js",
             "js/admin/product_ai_autofill.js",
         )
 
@@ -442,6 +446,17 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
         max_images = int(getattr(settings, "PRODUCT_AI_MAX_IMAGES", 4))
         context = dict(context)
+        inline_formsets = list(context.get("inline_admin_formsets") or [])
+        top_inline_formsets = []
+        remaining_inline_formsets = []
+        for inline_formset in inline_formsets:
+            inline_model = getattr(getattr(inline_formset, "opts", None), "model", None)
+            if inline_model is ProductImage:
+                top_inline_formsets.append(inline_formset)
+            else:
+                remaining_inline_formsets.append(inline_formset)
+        context["top_inline_admin_formsets"] = top_inline_formsets
+        context["inline_admin_formsets"] = remaining_inline_formsets
         context["product_ai_enabled"] = bool(getattr(settings, "PRODUCT_AI_ENABLED", False))
         context["product_ai_max_images"] = max_images
         context["product_ai_endpoints"] = {
@@ -451,6 +466,16 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "feedback_template": reverse("admin:catalog_product_ai_autofill_feedback", kwargs={"job_id": uuid.uuid4()}),
         }
         return super().render_change_form(request, context, add, change, form_url, obj)
+
+    def get_form(self, request, obj=None, **kwargs):
+        base_form = super().get_form(request, obj, **kwargs)
+
+        class RequestAwareProductAdminForm(base_form):
+            def __init__(self, *args, **inner_kwargs):
+                inner_kwargs["request"] = request
+                super().__init__(*args, **inner_kwargs)
+
+        return RequestAwareProductAdminForm
 
     def _parse_payload(self, request):
         if request.content_type and "application/json" in request.content_type:

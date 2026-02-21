@@ -540,7 +540,14 @@ class Product(TimeStampedMixin):
     price = models.DecimalField(max_digits=12, decimal_places=2)
     sale_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    currency = models.CharField(max_length=10, default=CURRENCY_DEFAULT)
+    currency = models.ForeignKey(
+        "i18n.Currency",
+        to_field="code",
+        db_column="currency",
+        on_delete=models.PROTECT,
+        related_name="catalog_products",
+        default=CURRENCY_DEFAULT,
+    )
 
     # Shipping & display
     weight = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
@@ -724,6 +731,10 @@ class Product(TimeStampedMixin):
         return self.sale_price if (self.sale_price is not None and self.sale_price < self.price) else self.price
 
     @property
+    def currency_code(self):
+        return (self.currency_id or CURRENCY_DEFAULT).upper()
+
+    @property
     def discount_percentage(self):
         if self.sale_price and self.price and self.price > 0:
             return (self.price - self.sale_price) / self.price * 100
@@ -795,7 +806,7 @@ class Product(TimeStampedMixin):
             "offers": {
                 "@type": "Offer",
                 "price": str(self.current_price),
-                "priceCurrency": self.currency,
+                "priceCurrency": self.currency_code,
                 "availability": "http://schema.org/InStock" if self.is_in_stock() else "http://schema.org/OutOfStock",
             },
         }
@@ -1367,7 +1378,7 @@ class SEOMixin:
                 "image": [img.image.url for img in self.images.all()[:3]],
                 "description": self.short_description or self.description,
                 "sku": self.sku,
-                "offers": {"price": str(self.current_price), "priceCurrency": self.currency},
+                "offers": {"price": str(self.current_price), "priceCurrency": self.currency_code},
             }
         return {}
 

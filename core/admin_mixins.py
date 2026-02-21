@@ -590,7 +590,7 @@ class EnhancedModelAdmin(
     show_full_result_count = True
     list_per_page = 25
     list_max_show_all = 500
-    save_on_top = True
+    save_on_top = False
     
     # Default actions
     actions = ['export_as_csv', 'export_as_json']

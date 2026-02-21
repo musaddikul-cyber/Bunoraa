@@ -1,0 +1,128 @@
+{% load i18n static %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'en' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>{% block title %}{% block page_title %}{% trans "Admin Login" %}{% endblock %} | {{ SITE_NAME|default:"Bunoraa" }}{% endblock %}</title>
+  {% if SITE_FAVICON %}
+    <link rel="icon" href="{{ SITE_FAVICON }}">
+  {% else %}
+    <link rel="icon" href="{% static 'images/assets/favicon.ico' %}">
+  {% endif %}
+  <script>
+    (function () {
+      var themes = ["system", "light", "dark", "moonlight", "gray", "modern"];
+      var darkThemes = { dark: true, moonlight: true };
+      var theme = "system";
+      var legacy = null;
+
+      try {
+        theme = localStorage.getItem("admin-theme");
+        legacy = localStorage.getItem("theme");
+      } catch (error) {
+        theme = "system";
+      }
+
+      if (!themes.includes(theme)) {
+        if (legacy === "dark") {
+          theme = "dark";
+        } else if (legacy === "light") {
+          theme = "light";
+        } else {
+          theme = "system";
+        }
+      }
+
+      document.documentElement.dataset.adminTheme = theme;
+      document.documentElement.dataset.theme = theme === "system" ? "auto" : (darkThemes[theme] ? "dark" : "light");
+    })();
+  </script>
+  <link rel="stylesheet" href="{% static 'admin/css/two-factor-login.css' %}">
+  <script defer src="{% static 'admin/js/theme.js' %}"></script>
+  {% block extra_media %}{% endblock %}
+</head>
+<body class="admin-auth-page">
+  <div class="admin-auth-shell">
+    <header class="auth-topbar">
+      <a class="brand-link" href="/" aria-label="{{ SITE_NAME|default:'Bunoraa' }}">
+        <span class="brand-logo-wrap" aria-hidden="true">
+          {% if SITE_LOGO %}
+            <img src="{{ SITE_LOGO }}" alt="" class="brand-logo brand-logo-light-bg">
+          {% else %}
+            <img src="{% static 'images/assets/logo_dark_bunoraa.png' %}" alt="" class="brand-logo brand-logo-light-bg">
+          {% endif %}
+          {% if SITE_LOGO_DARK %}
+            <img src="{{ SITE_LOGO_DARK }}" alt="" class="brand-logo brand-logo-dark-bg">
+          {% else %}
+            <img src="{% static 'images/assets/logo_light_bunoraa.png' %}" alt="" class="brand-logo brand-logo-dark-bg">
+          {% endif %}
+        </span>
+        <span class="brand-meta">
+          <strong>{{ SITE_NAME|default:"Bunoraa" }}</strong>
+          <small>{% trans "Administration" %}</small>
+        </span>
+      </a>
+      <button type="button" class="theme-toggle theme-toggle-button" aria-label="{% trans 'Switch admin theme' %}">
+        <span class="theme-toggle-label">{% trans "Theme:" %}</span>
+        <span class="theme-toggle-value" data-theme-name>{% trans "System" %}</span>
+      </button>
+    </header>
+
+    {% if messages %}
+      <ul class="auth-global-messages">
+        {% for message in messages %}
+          <li class="auth-global-message {% if message.tags %}{{ message.tags }}{% endif %}">
+            {{ message }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% block content_wrapper %}
+      <main class="auth-main">
+        {% block content %}{% endblock %}
+      </main>
+    {% endblock %}
+  </div>
+
+  <script>
+    (function () {
+      var labels = {
+        system: "System",
+        light: "Light",
+        dark: "Dark",
+        moonlight: "Moonlight",
+        gray: "Gray",
+        modern: "Modern"
+      };
+
+      function updateThemeLabel() {
+        var target = document.querySelector("[data-theme-name]");
+        var storedTheme = "system";
+        if (!target) {
+          return;
+        }
+        try {
+          storedTheme = localStorage.getItem("admin-theme") || "system";
+        } catch (error) {
+          storedTheme = "system";
+        }
+        var theme = document.documentElement.dataset.adminTheme || storedTheme;
+        target.textContent = labels[theme] || labels.system;
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        updateThemeLabel();
+        document.addEventListener("click", function (event) {
+          if (event.target.closest(".theme-toggle")) {
+            window.setTimeout(updateThemeLabel, 10);
+          }
+        });
+      });
+      window.addEventListener("storage", updateThemeLabel);
+    })();
+  </script>
+</body>
+</html>

@@ -253,40 +253,79 @@
     border-bottom-right-radius: 0px;
 }
 
+.admin-interface .selector a.selector-chooseall,
+.admin-interface .selector button.selector-chooseall,
+.admin-interface .selector a.selector-clearall,
+.admin-interface .selector button.selector-clearall {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    height: auto;
+    margin: 2px 0;
+    padding: 6px 10px;
+    line-height: 1.2;
+    overflow: visible;
+    border: 1px solid transparent;
+    border-radius: var(--admin-interface-module-border-radius);
+    background-image: none;
+    text-decoration: none;
+    opacity: 1;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.admin-interface .selector a.selector-chooseall,
+.admin-interface .selector button.selector-chooseall {
+    background-color: var(--admin-interface-save-button-background-color);
+    color: var(--admin-interface-save-button-text-color);
+}
+
+.admin-interface .selector a.selector-clearall,
+.admin-interface .selector button.selector-clearall {
+    background-color: var(--admin-interface-delete-button-background-color);
+    color: var(--admin-interface-delete-button-text-color);
+}
+
 .admin-interface .selector a.selector-chooseall:focus,
 .admin-interface .selector a.selector-chooseall:hover,
-.admin-interface .selector a.selector-clearall:focus,
-.admin-interface .selector a.selector-clearall:hover {
-    color: var(--admin-interface-generic-link-hover-color);
-}
-
-.admin-interface .selector button.selector-chooseall,
-.admin-interface .selector button.selector-clearall {
-    background-color: var(--admin-interface-generic-link-color);
-    padding: 8px 12px;
-}
-
 .admin-interface .selector button.selector-chooseall:focus,
-.admin-interface .selector button.selector-chooseall:hover,
+.admin-interface .selector button.selector-chooseall:hover {
+    background-color: var(--admin-interface-save-button-background-hover-color);
+    color: var(--admin-interface-save-button-text-color);
+}
+
+.admin-interface .selector a.selector-clearall:focus,
+.admin-interface .selector a.selector-clearall:hover,
 .admin-interface .selector button.selector-clearall:focus,
 .admin-interface .selector button.selector-clearall:hover {
-    background-color: var(--admin-interface-generic-link-hover-color);
+    background-color: var(--admin-interface-delete-button-background-hover-color);
+    color: var(--admin-interface-delete-button-text-color);
 }
 
-/* fix #393  */
+/* selector footer readability and overlap guard */
 .admin-interface .selector-chosen .list-footer-display {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     background: var(--admin-interface-module-background-color);
-}
-.admin-interface .selector-chosen .list-footer-display {
     color: var(--admin-interface-module-text-color);
+    line-height: 1.35;
+    text-align: left;
 }
+
 .admin-interface .selector-chosen .list-footer-display__clear {
     color: var(--admin-interface-module-link-color);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
 }
+
 .admin-interface .selector-chosen .list-footer-display__clear:hover {
     color: var(--admin-interface-module-link-hover-color);
 }
-/* endfix */
 
 .admin-interface a:link,
 .admin-interface a:visited {

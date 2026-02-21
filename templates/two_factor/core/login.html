@@ -1,0 +1,68 @@
+{% extends "two_factor/_base_focus.html" %}
+{% load i18n %}
+{% load two_factor_tags %}
+
+{% block page_title %}{% trans "Admin Login" %}{% endblock %}
+{% block hero_title %}{% trans "Admin login with two-step verification" %}{% endblock %}
+{% block hero_description %}{% trans "Use your staff credentials and OTP challenge to access the Bunoraa backend safely." %}{% endblock %}
+
+{% block extra_media %}
+  {{ wizard.form.media }}
+{% endblock %}
+
+{% block content %}
+  <section class="auth-card">
+    <header class="auth-card-header">
+      <h1>{% trans "Sign in" %}</h1>
+
+      {% if wizard.steps.current == 'auth' %}
+        <p>{% trans "Enter your administrator email and password." %}</p>
+      {% elif wizard.steps.current == 'token' %}
+        <p>{{ device|as_verbose_action }}</p>
+      {% elif wizard.steps.current == 'backup' %}
+        <p>{% trans "Enter one of your backup tokens to continue." %}</p>
+      {% else %}
+        <p>{% trans "Complete the verification step to continue." %}</p>
+      {% endif %}
+    </header>
+
+    <form action="" method="post" class="auth-form" novalidate>
+      {% csrf_token %}
+      {% include "two_factor/_wizard_forms.html" %}
+
+      <input type="submit" value="" hidden>
+
+      {% if other_devices %}
+        <div class="device-options">
+          <p>{% trans "Or use another authentication method:" %}</p>
+          <div class="device-option-list">
+            {% for other in other_devices %}
+              <button
+                name="challenge_device"
+                value="{{ other.persistent_id }}"
+                class="btn btn-secondary alt-device-button"
+                type="submit">
+                {{ other|as_action }}
+              </button>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      {% include "two_factor/_wizard_actions.html" %}
+    </form>
+
+    {% if backup_tokens %}
+      <div class="backup-token-section">
+        <hr>
+        <form action="" method="post" class="auth-form-inline">
+          {% csrf_token %}
+          <p>{% trans "You can also sign in with a backup token if your primary device is unavailable." %}</p>
+          <button name="wizard_goto_step" type="submit" value="backup" class="btn btn-link backup-link">
+            {% trans "Use Backup Token" %}
+          </button>
+        </form>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

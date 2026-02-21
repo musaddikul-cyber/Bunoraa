@@ -645,10 +645,6 @@ def main() -> int:
     return main_with_argv(sys.argv)
 
 
-if __name__ == "__main__":
-    sys.exit(main())
-
-
 def main_with_argv(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Manage Bunoraa env variables from schema.")
     parser.add_argument(
@@ -705,3 +701,7 @@ def main_with_argv(argv: list[str]) -> int:
         return _validate(schema, args.env, selected_targets)
 
     return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

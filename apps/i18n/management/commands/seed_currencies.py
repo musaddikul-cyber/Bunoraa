@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 
-from core.seed.runner import SeedRunner
+from core.management.seed_utils import run_seed_command
 
 
 class Command(BaseCommand):
@@ -31,18 +31,12 @@ class Command(BaseCommand):
                 )
             )
 
-        runner = SeedRunner(
-            dry_run=options.get("dry_run", False),
-            prune=not options.get("no_prune", False),
-            confirm_prune=options.get("confirm_prune", False),
-            logger=self.stdout.write,
-        )
-        result = runner.run(
-            only=["i18n.currencies", "i18n.exchange_rates"],
+        run_seed_command(
+            self,
             kind="prod",
-        )
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Seeded currencies. Created: {result.created}, Updated: {result.updated}, Pruned: {result.pruned}, Errors: {result.errors}"
-            )
+            success_label="Seeded currencies.",
+            only=["i18n.currencies", "i18n.exchange_rates"],
+            dry_run=bool(options.get("dry_run", False)),
+            no_prune=bool(options.get("no_prune", False)),
+            confirm_prune=bool(options.get("confirm_prune", False)),
         )

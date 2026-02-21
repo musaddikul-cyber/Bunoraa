@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import os
-
 from django.core.management.base import BaseCommand
 
-from core.seed.runner import SeedRunner
+from core.management.seed_utils import run_seed_command
 
 
 class Command(BaseCommand):
@@ -25,8 +23,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         user = options.get("user")
-        if user:
-            os.environ["SEED_DEFAULT_USER_EMAIL"] = user
 
         if options.get("skip_api_key"):
             self.stdout.write(self.style.WARNING("API key seeding is disabled in the unified seed system."))
@@ -43,15 +39,13 @@ class Command(BaseCommand):
         if options.get("skip_templates"):
             only = [name for name in only if name != "email_service.email_templates"]
 
-        runner = SeedRunner(
-            dry_run=options.get("dry_run", False),
-            prune=not options.get("no_prune", False),
-            confirm_prune=options.get("confirm_prune", False),
-            logger=self.stdout.write,
-        )
-        result = runner.run(only=only, kind="prod")
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Seeded email service. Created: {result.created}, Updated: {result.updated}, Pruned: {result.pruned}, Errors: {result.errors}"
-            )
+        run_seed_command(
+            self,
+            kind="prod",
+            success_label="Seeded email service.",
+            only=only,
+            dry_run=bool(options.get("dry_run", False)),
+            no_prune=bool(options.get("no_prune", False)),
+            confirm_prune=bool(options.get("confirm_prune", False)),
+            env_overrides={"SEED_DEFAULT_USER_EMAIL": user} if user else None,
         )

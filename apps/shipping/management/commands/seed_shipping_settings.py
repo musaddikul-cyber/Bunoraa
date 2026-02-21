@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import os
-
 from django.core.management.base import BaseCommand
 
-from core.seed.runner import SeedRunner
+from core.management.seed_utils import run_seed_command
 
 
 class Command(BaseCommand):
@@ -26,8 +24,15 @@ class Command(BaseCommand):
         parser.add_argument(
             "--enable-free-shipping",
             action="store_true",
+            dest="enable_free_shipping",
             default=True,
             help="Enable free shipping above threshold",
+        )
+        parser.add_argument(
+            "--disable-free-shipping",
+            action="store_false",
+            dest="enable_free_shipping",
+            help="Disable free shipping",
         )
         parser.add_argument("--dry-run", action="store_true", help="Show changes without writing.")
         parser.add_argument("--no-prune", action="store_true", help="Disable pruning for this run.")
@@ -38,19 +43,19 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        os.environ["SEED_SHIPPING_FREE_THRESHOLD"] = str(options.get("threshold"))
-        os.environ["SEED_SHIPPING_HANDLING_DAYS"] = str(options.get("handling_days"))
-        os.environ["SEED_SHIPPING_ENABLE_FREE_SHIPPING"] = "1" if options.get("enable_free_shipping") else "0"
-
-        runner = SeedRunner(
-            dry_run=options.get("dry_run", False),
-            prune=not options.get("no_prune", False),
-            confirm_prune=options.get("confirm_prune", False),
-            logger=self.stdout.write,
-        )
-        result = runner.run(only=["shipping.settings"], kind="prod")
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Seeded shipping settings. Created: {result.created}, Updated: {result.updated}, Pruned: {result.pruned}, Errors: {result.errors}"
-            )
+        run_seed_command(
+            self,
+            kind="prod",
+            success_label="Seeded shipping settings.",
+            only=["shipping.settings"],
+            dry_run=bool(options.get("dry_run", False)),
+            no_prune=bool(options.get("no_prune", False)),
+            confirm_prune=bool(options.get("confirm_prune", False)),
+            env_overrides={
+                "SEED_SHIPPING_FREE_THRESHOLD": str(options.get("threshold")),
+                "SEED_SHIPPING_HANDLING_DAYS": str(options.get("handling_days")),
+                "SEED_SHIPPING_ENABLE_FREE_SHIPPING": "1"
+                if options.get("enable_free_shipping")
+                else "0",
+            },
         )

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import os
-
 from django.core.management.base import BaseCommand
 
-from core.seed.runner import SeedRunner
+from core.management.seed_utils import resolve_confirm_prune, run_seed_command
 
 
 class Command(BaseCommand):
@@ -14,7 +12,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force",
             action="store_true",
-            help="Allow pruning in production (confirm destructive prune).",
+            help="Deprecated alias for --confirm-prune.",
+        )
+        parser.add_argument(
+            "--confirm-prune",
+            action="store_true",
+            help="Confirm pruning in production.",
         )
         parser.add_argument(
             "--assign-facets",
@@ -38,22 +41,19 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         taxonomy_file = options.get("file")
-        if taxonomy_file:
-            os.environ["SEED_TAXONOMY_PATH"] = taxonomy_file
+        env_overrides = {"SEED_TAXONOMY_PATH": taxonomy_file} if taxonomy_file else None
 
         only = ["catalog.categories"]
         if options.get("assign_facets"):
             only.extend(["catalog.facets", "catalog.category_facets"])
 
-        runner = SeedRunner(
-            dry_run=options.get("dry_run", False),
-            prune=not options.get("no_prune", False),
-            confirm_prune=options.get("force", False),
-            logger=self.stdout.write,
-        )
-        result = runner.run(only=only, kind="prod")
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Seeded categories. Created: {result.created}, Updated: {result.updated}, Pruned: {result.pruned}, Errors: {result.errors}"
-            )
+        run_seed_command(
+            self,
+            kind="prod",
+            success_label="Seeded categories.",
+            only=only,
+            dry_run=bool(options.get("dry_run", False)),
+            no_prune=bool(options.get("no_prune", False)),
+            confirm_prune=resolve_confirm_prune(options, "force"),
+            env_overrides=env_overrides,
         )

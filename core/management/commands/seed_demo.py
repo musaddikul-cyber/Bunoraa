@@ -1,11 +1,9 @@
 """
 Unified demo/sample seed command.
 """
-import random
-
 from django.core.management.base import BaseCommand
 
-from core.seed.runner import SeedRunner
+from core.management.seed_utils import run_seed_command, split_csv_option
 
 
 class Command(BaseCommand):
@@ -44,33 +42,21 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        only = options.get("only")
-        exclude = options.get("exclude")
-        dry_run = options.get("dry_run", False)
-        no_prune = options.get("no_prune", False)
-        confirm_prune = options.get("confirm_prune", False)
+        only = split_csv_option(options.get("only"))
+        exclude = split_csv_option(options.get("exclude"))
+        dry_run = bool(options.get("dry_run", False))
+        no_prune = bool(options.get("no_prune", False))
+        confirm_prune = bool(options.get("confirm_prune", False))
         seed = options.get("seed")
 
-        if seed is not None:
-            random.seed(seed)
-
-        runner = SeedRunner(
-            dry_run=dry_run,
-            prune=not no_prune,
-            confirm_prune=confirm_prune,
-            logger=self.stdout.write,
-        )
-
-        result = runner.run(
-            only=only.split(",") if only else None,
-            exclude=exclude.split(",") if exclude else None,
+        run_seed_command(
+            self,
             kind="demo",
+            success_label="Demo seed completed.",
+            only=only,
+            exclude=exclude,
+            dry_run=dry_run,
+            no_prune=no_prune,
+            confirm_prune=confirm_prune,
+            seed=seed,
         )
-
-        self.stdout.write("")
-        self.stdout.write(self.style.SUCCESS("Demo seed completed."))
-        self.stdout.write(f"  Created: {result.created}")
-        self.stdout.write(f"  Updated: {result.updated}")
-        self.stdout.write(f"  Pruned:  {result.pruned}")
-        self.stdout.write(f"  Skipped: {result.skipped}")
-        self.stdout.write(f"  Errors:  {result.errors}")

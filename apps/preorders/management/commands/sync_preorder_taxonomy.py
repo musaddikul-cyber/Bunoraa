@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import os
+from django.core.management.base import BaseCommand
 
-from django.core.management.base import BaseCommand, CommandError
-
-from core.seed.runner import SeedRunner
+from core.management.seed_utils import resolve_confirm_prune, run_seed_command
 
 
 SECTION_TO_SPEC = {
@@ -40,37 +38,28 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force",
             action="store_true",
-            help="Allow pruning in production.",
+            help="Deprecated alias for --confirm-prune.",
+        )
+        parser.add_argument(
+            "--confirm-prune",
+            action="store_true",
+            help="Confirm pruning in production.",
         )
 
     def handle(self, *args, **options):
         taxonomy_file = options.get("file")
-        if taxonomy_file:
-            os.environ["SEED_PREORDER_TAXONOMY_PATH"] = taxonomy_file
-
         section_list = self._parse_sections(options.get("only"))
         selected_specs = [SECTION_TO_SPEC[section] for section in section_list]
 
-        runner = SeedRunner(
-            dry_run=options.get("dry_run", False),
-            prune=not options.get("no_prune", False),
-            confirm_prune=options.get("force", False),
-            logger=self.stdout.write,
-        )
-        result = runner.run(only=selected_specs, kind="prod")
-
-        if result.errors:
-            raise CommandError(
-                f"Preorder taxonomy sync finished with {result.errors} error(s). "
-                f"Created={result.created}, Updated={result.updated}, Pruned={result.pruned}."
-            )
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                "Preorder taxonomy synced. "
-                f"Created: {result.created}, Updated: {result.updated}, "
-                f"Pruned: {result.pruned}, Skipped: {result.skipped}."
-            )
+        run_seed_command(
+            self,
+            kind="prod",
+            success_label="Preorder taxonomy synced.",
+            only=selected_specs,
+            dry_run=bool(options.get("dry_run", False)),
+            no_prune=bool(options.get("no_prune", False)),
+            confirm_prune=resolve_confirm_prune(options, "force"),
+            env_overrides={"SEED_PREORDER_TAXONOMY_PATH": taxonomy_file} if taxonomy_file else None,
         )
 
     def _parse_sections(self, raw: str | None) -> list[str]:

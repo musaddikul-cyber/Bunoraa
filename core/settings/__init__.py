@@ -15,7 +15,7 @@ _settings_module = os.environ.get('DJANGO_SETTINGS_MODULE', '').strip()
 if _settings_module in ('core.settings', 'core.settings.__init__', ''):
     if _environment == 'production':
         from .production import *  # noqa: F401,F403
-    elif _environment in ('development', 's3'):
+    elif _environment == 's3':
         from .s3 import *  # noqa: F401,F403
     else:
         from .local import *  # noqa: F401,F403

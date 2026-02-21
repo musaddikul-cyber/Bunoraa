@@ -157,7 +157,7 @@ app.conf.beat_schedule = {
     
     # Check low stock alerts every hour
     'check-low-stock': {
-        'task': 'apps.products.tasks.check_low_stock_alerts',
+        'task': 'catalog.check_low_stock',
         'schedule': crontab(minute=0),
     },
     
@@ -173,7 +173,7 @@ app.conf.beat_schedule = {
     
     # Train recommendation models weekly on Sunday at 2 AM
     'train-recommendation-models': {
-        'task': 'ml_models.training.tasks.train_recommendation_model',
+        'task': 'ml.training.tasks.train_recommendation_model',
         'schedule': crontab(hour=2, minute=0, day_of_week=0),
         'args': ('ncf',),
         'options': {'queue': 'ml_training'},
@@ -181,48 +181,48 @@ app.conf.beat_schedule = {
     
     # Train embedding models weekly on Sunday at 3 AM
     'train-embedding-models': {
-        'task': 'ml_models.training.tasks.train_embedding_models',
+        'task': 'ml.training.tasks.train_embedding_models',
         'schedule': crontab(hour=3, minute=0, day_of_week=0),
         'options': {'queue': 'ml_training'},
     },
     
     # Train demand forecaster weekly on Monday at 1 AM
     'train-demand-forecaster': {
-        'task': 'ml_models.training.tasks.train_demand_forecaster',
+        'task': 'ml.training.tasks.train_demand_forecaster',
         'schedule': crontab(hour=1, minute=0, day_of_week=1),
         'options': {'queue': 'ml_training'},
     },
     
     # Train fraud detector daily at 4 AM
     'train-fraud-detector': {
-        'task': 'ml_models.training.tasks.train_fraud_detector',
+        'task': 'ml.training.tasks.train_fraud_detector',
         'schedule': crontab(hour=4, minute=0),
         'options': {'queue': 'ml_training'},
     },
     
     # Train churn predictor weekly on Tuesday at 1 AM - DISABLED
     # 'train-churn-predictor': {
-    #     'task': 'ml_models.training.tasks.train_churn_predictor',
+    #     'task': 'ml.training.tasks.train_churn_predictor',
     #     'schedule': crontab(hour=1, minute=0, day_of_week=2),
     #     'options': {'queue': 'ml_training'},
     # },
     
     # Train search model weekly on Wednesday at 1 AM - DISABLED
     # 'train-search-model': {
-    #     'task': 'ml_models.training.tasks.train_search_model',
+    #     'task': 'ml.training.tasks.train_search_model',
     #     'schedule': crontab(hour=1, minute=0, day_of_week=3),
     #     'options': {'queue': 'ml_training'},
     # },
     
     # ML model health check hourly - DISABLED
     # 'ml-health-check': {
-    #     'task': 'ml_models.training.tasks.model_health_check',
+    #     'task': 'ml.training.tasks.model_health_check',
     #     'schedule': crontab(minute=0),
     # },
     
     # Batch inference for recommendations every 6 hours - DISABLED
     # 'batch-recommendations': {
-    #     'task': 'ml_models.training.tasks.batch_generate_recommendations',
+    #     'task': 'ml.training.tasks.batch_generate_recommendations',
     #     'schedule': crontab(hour='*/6', minute=30),
     #     'options': {'queue': 'ml_inference'},
     # },
@@ -236,6 +236,12 @@ app.conf.beat_schedule = {
         'task': 'apps.analytics.tasks.cleanup_old_data',
         'schedule': crontab(hour=4, minute=0, day_of_month=1),
         'kwargs': {'days': 365},
+    },
+
+    # Cleanup expired product AI autofill evidence (default retention: 365 days)
+    'cleanup-product-autofill-evidence': {
+        'task': 'catalog.cleanup_product_autofill_evidence',
+        'schedule': crontab(hour=4, minute=45, day_of_month=1),
     },
     
     # Clean old user interactions monthly (keep 2 years)
@@ -384,7 +390,9 @@ app.conf.task_routes = {
     
     # ML tasks (resource intensive)
     'core.tasks.update_ml_*': {'queue': 'ml'},
-    'apps.products.tasks.train_*': {'queue': 'ml'},
+    'ml.training.tasks.*': {'queue': 'ml'},
+    'catalog.run_product_autofill_job': {'queue': 'catalog_ai'},
+    'catalog.cleanup_product_autofill_evidence': {'queue': 'catalog_ai'},
 }
 
 # =============================================================================

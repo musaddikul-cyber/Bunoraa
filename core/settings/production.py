@@ -4,7 +4,7 @@ Optimized for performance, security, and scalability.
 Uses PostgreSQL, Redis, Cloudflare R2 storage.
 """
 import os
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import dj_database_url
 from .base import *
 
@@ -43,6 +43,19 @@ def _normalize_origin(value: str) -> str:
     if not parsed.netloc:
         return ''
     return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _normalize_rediss_url(url: str | None) -> str | None:
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if parsed.scheme != 'rediss':
+        return url
+    params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    if 'ssl_cert_reqs' not in params:
+        params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'CERT_REQUIRED')
+        return urlunparse(parsed._replace(query=urlencode(params)))
+    return url
 
 
 # Parse ALLOWED_HOSTS from environment
@@ -194,8 +207,8 @@ EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY', '')
 # =============================================================================
 # CELERY - MEMORY OPTIMIZED FOR LOW RESOURCE ENVIRONMENTS
 # =============================================================================
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', REDIS_URL)
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', REDIS_URL)
+CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', REDIS_URL))
+CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', REDIS_URL))
 CELERY_TASK_ALWAYS_EAGER = False
 
 # Worker memory optimization

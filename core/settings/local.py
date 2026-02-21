@@ -110,6 +110,34 @@ CACHES = {
 }
 
 # =============================================================================
+# CHANNEL LAYERS - Prefer in-memory in local development
+# =============================================================================
+CHANNEL_LAYERS_USE_REDIS = os.environ.get('CHANNEL_LAYERS_USE_REDIS', 'False').lower() in ('1', 'true', 'yes')
+if CHANNEL_LAYERS_USE_REDIS:
+    _channel_layer_redis_url = os.environ.get('CHANNEL_LAYERS_REDIS_URL') or os.environ.get('REDIS_URL', '')
+    if _channel_layer_redis_url:
+        CHANNEL_LAYERS = {
+            'default': {
+                'BACKEND': 'channels_redis.core.RedisChannelLayer',
+                'CONFIG': {
+                    'hosts': [_channel_layer_redis_url],
+                },
+            },
+        }
+    else:
+        CHANNEL_LAYERS = {
+            'default': {
+                'BACKEND': 'channels.layers.InMemoryChannelLayer',
+            },
+        }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+
+# =============================================================================
 # CELERY - Eager Mode for Development
 # =============================================================================
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_EAGER', 'True').lower() in ('1', 'true', 'yes')

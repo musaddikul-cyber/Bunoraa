@@ -1,5 +1,13 @@
 ﻿{
   "version": 1,
+  "default_aspect_ratio": "1:1",
+  "aspect_choices": [
+    {"code": "1:1", "label": "1:1", "sort_order": 0, "is_default": true},
+    {"code": "4:3", "label": "4:3", "sort_order": 10},
+    {"code": "3:2", "label": "3:2", "sort_order": 20},
+    {"code": "16:9", "label": "16:9", "sort_order": 30},
+    {"code": "free", "label": "Free / responsive", "sort_order": 40}
+  ],
   "categories": [
     {
       "code": "CAT_HOME",

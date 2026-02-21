@@ -10,6 +10,8 @@ from django.utils.text import slugify
 from core.seed.base import SeedContext, SeedResult, SeedSpec, JSONSeedSpec
 from core.seed.registry import register_seed
 from apps.catalog.models import (
+    ASPECT_RATIO_DEFAULT_CODE,
+    AspectRatioChoice,
     Category,
     Facet,
     CategoryFacet,
@@ -26,6 +28,7 @@ from apps.catalog.models import (
     ProductMakingOf,
     ProductQuestion,
     ProductAnswer,
+    get_default_aspect_ratio_code,
 )
 from django.contrib.auth import get_user_model
 
@@ -48,6 +51,7 @@ class CategorySeedSpec(SeedSpec):
     name = "catalog.categories"
     app_label = "catalog"
     kind = "prod"
+    dependencies = ["catalog.aspect_ratio_choices"]
     description = "Seed category taxonomy tree"
 
     def apply(self, ctx: SeedContext) -> SeedResult:
@@ -55,6 +59,7 @@ class CategorySeedSpec(SeedSpec):
         tree = data.get("categories", [])
         result = SeedResult()
         desired_keys: set[tuple[str | None, str]] = set()
+        taxonomy_default_aspect = str(data.get("default_aspect_ratio") or "").strip() or get_default_aspect_ratio_code()
 
         def create_node(node: dict[str, Any], parent: Category | None = None) -> Category | None:
             name = node.get("name") or node.get("display_name")
@@ -67,7 +72,7 @@ class CategorySeedSpec(SeedSpec):
                 "is_deleted": False,
                 "meta_title": node.get("meta_title", ""),
                 "meta_description": node.get("meta_description", ""),
-                "aspect_ratio": node.get("aspect_ratio", "1:1"),
+                "aspect_ratio": node.get("aspect_ratio", taxonomy_default_aspect),
             }
             lookup = {"parent": parent, "slug": slug}
             if ctx.dry_run:
@@ -133,6 +138,126 @@ class CategorySeedSpec(SeedSpec):
         return result
 
 
+class AspectRatioChoiceSeedSpec(SeedSpec):
+    name = "catalog.aspect_ratio_choices"
+    app_label = "catalog"
+    kind = "prod"
+    description = "Seed catalog aspect-ratio choices from taxonomy data"
+
+    @staticmethod
+    def _extract_from_taxonomy(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        desired: dict[str, dict[str, Any]] = {}
+        raw_choices = data.get("aspect_choices") or []
+        for idx, item in enumerate(raw_choices):
+            if isinstance(item, str):
+                code = item.strip()
+                payload = {}
+            else:
+                payload = dict(item or {})
+                code = str(payload.get("code") or payload.get("value") or "").strip()
+            if not code:
+                continue
+            label = str(payload.get("label") or code).strip() or code
+            sort_order = int(payload.get("sort_order", idx))
+            is_active = bool(payload.get("is_active", True))
+            is_default = bool(payload.get("is_default", False))
+            desired[code] = {
+                "label": label,
+                "sort_order": sort_order,
+                "is_active": is_active,
+                "is_default": is_default,
+            }
+
+        def collect_category_aspects(nodes: list[dict[str, Any]]):
+            for node in nodes or []:
+                code = str((node or {}).get("aspect_ratio") or "").strip()
+                if code and code not in desired:
+                    desired[code] = {
+                        "label": code,
+                        "sort_order": len(desired) + 100,
+                        "is_active": True,
+                        "is_default": False,
+                    }
+                collect_category_aspects((node or {}).get("children") or [])
+
+        collect_category_aspects(data.get("categories") or [])
+        return desired
+
+    def apply(self, ctx: SeedContext) -> SeedResult:
+        data = _load_taxonomy(ctx)
+        desired = self._extract_from_taxonomy(data)
+        result = SeedResult()
+
+        if not desired:
+            # Ensure at least one valid choice exists.
+            desired[ASPECT_RATIO_DEFAULT_CODE] = {
+                "label": ASPECT_RATIO_DEFAULT_CODE,
+                "sort_order": 0,
+                "is_active": True,
+                "is_default": True,
+            }
+
+        if not any(item.get("is_default") for item in desired.values()):
+            preferred_default = str(data.get("default_aspect_ratio") or "").strip()
+            if preferred_default and preferred_default in desired:
+                desired[preferred_default]["is_default"] = True
+            elif ASPECT_RATIO_DEFAULT_CODE in desired:
+                desired[ASPECT_RATIO_DEFAULT_CODE]["is_default"] = True
+            else:
+                first_code = sorted(
+                    desired.items(),
+                    key=lambda item: (item[1].get("sort_order", 0), item[0]),
+                )[0][0]
+                desired[first_code]["is_default"] = True
+
+        if ctx.dry_run:
+            existing = {obj.code: obj for obj in AspectRatioChoice.objects.all()}
+            for code, payload in desired.items():
+                obj = existing.get(code)
+                if not obj:
+                    result.created += 1
+                    continue
+                changed = any(
+                    getattr(obj, field) != payload[field]
+                    for field in ("label", "sort_order", "is_active", "is_default")
+                )
+                if changed:
+                    result.updated += 1
+            if ctx.prune:
+                for code in existing:
+                    if code not in desired:
+                        result.pruned += 1
+            return result
+
+        for code, payload in desired.items():
+            obj, created = AspectRatioChoice.objects.get_or_create(
+                code=code,
+                defaults=payload,
+            )
+            if created:
+                result.created += 1
+                continue
+            changed = False
+            for field in ("label", "sort_order", "is_active", "is_default"):
+                new_value = payload[field]
+                if getattr(obj, field) != new_value:
+                    setattr(obj, field, new_value)
+                    changed = True
+            if changed:
+                obj.save(update_fields=["label", "sort_order", "is_active", "is_default", "updated_at"])
+                result.updated += 1
+
+        if ctx.prune:
+            stale_qs = AspectRatioChoice.objects.exclude(code__in=list(desired.keys()))
+            for stale in stale_qs:
+                stale.is_active = False
+                stale.is_default = False
+                stale.save(update_fields=["is_active", "is_default", "updated_at"])
+                result.pruned += 1
+
+        return result
+
+
 class CategoryFacetSeedSpec(SeedSpec):
     name = "catalog.category_facets"
     app_label = "catalog"
@@ -186,6 +311,7 @@ class CategoryFacetSeedSpec(SeedSpec):
         return result
 
 
+register_seed(AspectRatioChoiceSeedSpec())
 register_seed(CategorySeedSpec())
 
 register_seed(

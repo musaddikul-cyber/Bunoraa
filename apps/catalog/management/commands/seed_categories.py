@@ -43,7 +43,7 @@ class Command(BaseCommand):
         taxonomy_file = options.get("file")
         env_overrides = {"SEED_TAXONOMY_PATH": taxonomy_file} if taxonomy_file else None
 
-        only = ["catalog.categories"]
+        only = ["catalog.aspect_ratio_choices", "catalog.categories"]
         if options.get("assign_facets"):
             only.extend(["catalog.facets", "catalog.category_facets"])
 

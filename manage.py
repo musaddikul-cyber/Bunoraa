@@ -22,7 +22,7 @@ def main():
         environment = os.environ.get("ENVIRONMENT", "").lower()
         if environment == "production":
             settings_module = "core.settings.production"
-        elif environment in ("development", "s3"):
+        elif environment == "s3":
             settings_module = "core.settings.s3"
         else:
             settings_module = "core.settings.local"

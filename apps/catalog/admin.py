@@ -2,12 +2,20 @@ from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Sum, Count, F, Q
-from django.urls import reverse
-from django.http import HttpResponse
+from django.db import transaction
+from django.urls import reverse, path
+from django.http import HttpResponse, JsonResponse, HttpResponseNotAllowed, Http404
+from django.core.cache import cache
+from django.core.files.storage import default_storage
+from django.utils import timezone, translation
 import csv
+import json
+import logging
 import os
 import tempfile
+import uuid
 from pathlib import Path
+from urllib.parse import parse_qsl, urlparse
 from django.conf import settings
 
 from core.admin_mixins import (
@@ -26,6 +34,7 @@ from core.admin_mixins import (
 )
 
 from .models import (
+    AspectRatioChoice,
     Category,
     Product,
     ProductVariant,
@@ -43,7 +52,16 @@ from .models import (
     Facet,
     CategoryFacet,
     Tag,
+    ProductAutofillJob,
+    ProductAutofillSource,
+    ProductFieldSuggestion,
+    ProductAutofillFeedback,
+    CategoryPricingProfile,
 )
+from .ai.validators import apply_suggestions_to_product
+from .tasks import run_product_autofill_job
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -129,8 +147,12 @@ class ProductQuestionInline(EnhancedTabularInline):
     inlines = [ProductAnswerInline] # Nested inline for answers
 
 
+from .forms import CategoryAdminForm, ProductAdminForm
+
+
 @admin.register(Category)
 class CategoryAdmin(ImportExportEnhancedModelAdmin):
+    form = CategoryAdminForm
     list_display = ("name", "slug", "parent", "display_path", "depth", "product_count", "is_visible", "aspect_ratio")
     search_fields = ("name", "slug")
     list_filter = ("is_visible", "is_deleted", "aspect_ratio", "parent", "depth")
@@ -301,12 +323,10 @@ class CategoryAdmin(ImportExportEnhancedModelAdmin):
         self.message_user(request, f"Exported {queryset.count()} categories to {path}")
     export_selected_csv.short_description = "Export selected categories as CSV"
 
-
-from .forms import ProductAdminForm 
-
 @admin.register(Product)
 class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeaturedMixin):
     form = ProductAdminForm 
+    change_form_template = "admin/catalog/product/change_form.html"
     list_display = (
         "thumbnail_preview", "name", "sku", "primary_category_display", 
         "price_display", "stock_status", "performance_stats", "is_active",
@@ -391,7 +411,387 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "admin/js/vendor/jquery/jquery.min.js",
             "admin/js/jquery.init.js",
             "js/admin/category_tree_widget.js",
+            "js/admin/product_ai_autofill.js",
         )
+
+    def get_urls(self):
+        custom_urls = [
+            path(
+                "ai/autofill/start/",
+                self.admin_site.admin_view(self.ai_autofill_start_view),
+                name="catalog_product_ai_autofill_start",
+            ),
+            path(
+                "ai/autofill/<uuid:job_id>/status/",
+                self.admin_site.admin_view(self.ai_autofill_status_view),
+                name="catalog_product_ai_autofill_status",
+            ),
+            path(
+                "ai/autofill/<uuid:job_id>/apply/",
+                self.admin_site.admin_view(self.ai_autofill_apply_view),
+                name="catalog_product_ai_autofill_apply",
+            ),
+            path(
+                "ai/autofill/<uuid:job_id>/feedback/",
+                self.admin_site.admin_view(self.ai_autofill_feedback_view),
+                name="catalog_product_ai_autofill_feedback",
+            ),
+        ]
+        return custom_urls + super().get_urls()
+
+    def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
+        max_images = int(getattr(settings, "PRODUCT_AI_MAX_IMAGES", 4))
+        context = dict(context)
+        context["product_ai_enabled"] = bool(getattr(settings, "PRODUCT_AI_ENABLED", False))
+        context["product_ai_max_images"] = max_images
+        context["product_ai_endpoints"] = {
+            "start": reverse("admin:catalog_product_ai_autofill_start"),
+            "status_template": reverse("admin:catalog_product_ai_autofill_status", kwargs={"job_id": uuid.uuid4()}),
+            "apply_template": reverse("admin:catalog_product_ai_autofill_apply", kwargs={"job_id": uuid.uuid4()}),
+            "feedback_template": reverse("admin:catalog_product_ai_autofill_feedback", kwargs={"job_id": uuid.uuid4()}),
+        }
+        return super().render_change_form(request, context, add, change, form_url, obj)
+
+    def _parse_payload(self, request):
+        if request.content_type and "application/json" in request.content_type:
+            try:
+                return json.loads(request.body.decode("utf-8"))
+            except Exception:
+                return {}
+        return request.POST
+
+    def _parse_bool(self, value, default=False):
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    def _rate_limited(self, request):
+        limit = int(getattr(settings, "PRODUCT_AI_START_RATE_LIMIT_PER_MIN", 6))
+        key = f"catalog:autofill:start:{request.user.id}"
+        current = cache.get(key, 0)
+        if current >= limit:
+            return True
+        cache.set(key, current + 1, timeout=60)
+        return False
+
+    def _check_upload_file(self, uploaded):
+        allowed_mime = {"image/jpeg", "image/png", "image/webp"}
+        max_size_mb = int(getattr(settings, "PRODUCT_AI_MAX_IMAGE_SIZE_MB", 8))
+        content_type = getattr(uploaded, "content_type", "").lower()
+        if content_type not in allowed_mime:
+            return False, f"Unsupported file type: {content_type or 'unknown'}"
+        if uploaded.size > (max_size_mb * 1024 * 1024):
+            return False, f"Image exceeds {max_size_mb}MB limit."
+        if not self._scan_upload(uploaded):
+            return False, "File blocked by security scanning hook."
+        return True, ""
+
+    def _scan_upload(self, uploaded):
+        """
+        Hook point for antivirus/file-scanning integration.
+        """
+        return True
+
+    def _store_temp_upload(self, job_id, uploaded):
+        filename = f"{uuid.uuid4()}-{uploaded.name}".replace(" ", "_")
+        storage_path = f"catalog/autofill/{job_id}/{filename}"
+        return default_storage.save(storage_path, uploaded)
+
+    def _get_job_for_user(self, request, job_id):
+        qs = ProductAutofillJob.objects.select_related("product", "requested_by")
+        if request.user.is_superuser:
+            job = qs.filter(id=job_id).first()
+        else:
+            job = qs.filter(id=job_id, requested_by=request.user).first()
+        if not job:
+            raise Http404("Autofill job not found.")
+        return job
+
+    def _rediss_ssl_param_missing(self):
+        for attr in ("CELERY_BROKER_URL", "CELERY_RESULT_BACKEND"):
+            value = getattr(settings, attr, "")
+            if not value:
+                continue
+            parsed = urlparse(str(value))
+            if parsed.scheme != "rediss":
+                continue
+            params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            if "ssl_cert_reqs" not in params:
+                return True
+        return False
+
+    def _run_autofill_job_sync(self, job):
+        from .ai.engine import ProductAutofillEngine
+
+        ProductAutofillEngine(job_id=str(job.id)).run()
+        job.refresh_from_db(fields=["status", "progress", "error_message", "updated_at"])
+
+    def _serialize_suggestion(self, suggestion):
+        return {
+            "field_name": suggestion.field_name,
+            "value": suggestion.value_json,
+            "display_value": suggestion.display_value,
+            "confidence": suggestion.confidence,
+            "is_null": suggestion.is_null_suggestion,
+            "low_confidence": suggestion.low_confidence,
+            "rationale": suggestion.rationale,
+            "source_urls": suggestion.source_urls or [],
+            "metadata": suggestion.metadata or {},
+            "status": suggestion.status,
+        }
+
+    def ai_autofill_start_view(self, request):
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+
+        if not getattr(settings, "PRODUCT_AI_ENABLED", False):
+            return JsonResponse({"ok": False, "error": "Product AI is disabled."}, status=503)
+
+        if not request.user.has_perm("catalog.change_product"):
+            return JsonResponse({"ok": False, "error": "Permission denied."}, status=403)
+
+        if self._rate_limited(request):
+            return JsonResponse({"ok": False, "error": "Rate limit exceeded."}, status=429)
+
+        payload = self._parse_payload(request)
+        product_id = payload.get("product_id") if hasattr(payload, "get") else None
+        currency = (payload.get("currency") if hasattr(payload, "get") else None) or getattr(settings, "DEFAULT_CURRENCY", "BDT")
+        allow_external = self._parse_bool(payload.get("allow_external") if hasattr(payload, "get") else None, default=getattr(settings, "PRODUCT_AI_ALLOW_EXTERNAL_DEFAULT", True))
+        locale = (payload.get("locale") if hasattr(payload, "get") else None) or translation.get_language() or "en"
+
+        product = None
+        if product_id:
+            product = Product.objects.filter(id=product_id).first()
+            if not product:
+                return JsonResponse({"ok": False, "error": "Product not found."}, status=404)
+
+        max_images = int(getattr(settings, "PRODUCT_AI_MAX_IMAGES", 4))
+        uploads = request.FILES.getlist("images")
+        if len(uploads) > max_images:
+            return JsonResponse({"ok": False, "error": f"Maximum {max_images} images allowed."}, status=400)
+
+        active_limit = int(getattr(settings, "PRODUCT_AI_MAX_CONCURRENT_JOBS", 2))
+        active_jobs = ProductAutofillJob.objects.filter(
+            requested_by=request.user,
+            status__in=[ProductAutofillJob.STATUS_PENDING, ProductAutofillJob.STATUS_RUNNING],
+        ).count()
+        if active_jobs >= active_limit:
+            return JsonResponse({"ok": False, "error": "Too many active autofill jobs. Please wait."}, status=429)
+
+        with transaction.atomic():
+            job = ProductAutofillJob.objects.create(
+                product=product,
+                requested_by=request.user,
+                status=ProductAutofillJob.STATUS_PENDING,
+                locale=locale,
+                currency=currency,
+                allow_external=allow_external,
+                force_overwrite=False,
+                image_count=0,
+                progress=0,
+            )
+
+            temp_paths = []
+            for uploaded in uploads[:max_images]:
+                ok, error = self._check_upload_file(uploaded)
+                if not ok:
+                    job.status = ProductAutofillJob.STATUS_FAILED
+                    job.error_message = error
+                    job.save(update_fields=["status", "error_message", "updated_at"])
+                    return JsonResponse({"ok": False, "error": error}, status=400)
+                temp_paths.append(self._store_temp_upload(job.id, uploaded))
+
+            job.image_count = len(temp_paths)
+            job.input_payload = {
+                "temp_images": temp_paths,
+                "requested_ip": request.META.get("REMOTE_ADDR"),
+                "requested_at": timezone.now().isoformat(),
+            }
+            job.save(update_fields=["image_count", "input_payload", "updated_at"])
+
+        dispatch_mode = "async"
+        if self._rediss_ssl_param_missing():
+            logger.warning(
+                "Skipping Celery enqueue for autofill job %s because rediss URL is missing ssl_cert_reqs; running sync fallback.",
+                job.id,
+            )
+            dispatch_mode = "sync_fallback"
+            try:
+                self._run_autofill_job_sync(job)
+            except Exception as sync_exc:
+                logger.exception("Synchronous fallback failed for job %s: %s", job.id, sync_exc)
+                job.status = ProductAutofillJob.STATUS_FAILED
+                job.error_message = "Unable to dispatch autofill job; check Celery/Redis configuration."
+                job.save(update_fields=["status", "error_message", "updated_at"])
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": "Unable to dispatch autofill job. Fix Celery/Redis configuration and retry.",
+                    },
+                    status=500,
+                )
+        else:
+            try:
+                run_product_autofill_job.delay(str(job.id))
+            except Exception as exc:
+                message = str(exc or "")
+                ssl_error = "rediss:// URL must have parameter ssl_cert_reqs"
+                if ssl_error in message:
+                    logger.warning(
+                        "Celery enqueue skipped for autofill job %s due to Redis SSL URL config: %s",
+                        job.id,
+                        message,
+                    )
+                else:
+                    logger.exception("Failed to enqueue product autofill job %s: %s", job.id, exc)
+                dispatch_mode = "sync_fallback"
+                try:
+                    self._run_autofill_job_sync(job)
+                except Exception as sync_exc:
+                    logger.exception("Synchronous fallback failed for job %s: %s", job.id, sync_exc)
+                    job.status = ProductAutofillJob.STATUS_FAILED
+                    job.error_message = "Unable to dispatch autofill job; check Celery/Redis configuration."
+                    job.save(update_fields=["status", "error_message", "updated_at"])
+                    return JsonResponse(
+                        {
+                            "ok": False,
+                            "error": "Unable to dispatch autofill job. Fix Celery/Redis configuration and retry.",
+                        },
+                        status=500,
+                    )
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "job_id": str(job.id),
+                "status": job.status,
+                "image_count": job.image_count,
+                "dispatch_mode": dispatch_mode,
+            }
+        )
+
+    def ai_autofill_status_view(self, request, job_id):
+        if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
+        job = self._get_job_for_user(request, job_id)
+        suggestions = [
+            self._serialize_suggestion(item)
+            for item in job.suggestions.order_by("field_name")
+        ]
+        return JsonResponse(
+            {
+                "ok": True,
+                "job_id": str(job.id),
+                "status": job.status,
+                "progress": job.progress,
+                "error_message": job.error_message,
+                "summary": job.summary or {},
+                "suggestions": suggestions,
+            }
+        )
+
+    def ai_autofill_apply_view(self, request, job_id):
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        job = self._get_job_for_user(request, job_id)
+        if job.status != ProductAutofillJob.STATUS_COMPLETED:
+            return JsonResponse({"ok": False, "error": "Job not completed yet."}, status=409)
+
+        payload = self._parse_payload(request)
+        force_overwrite = self._parse_bool(payload.get("force_overwrite") if hasattr(payload, "get") else None, default=False)
+        suggestions = list(job.suggestions.order_by("field_name"))
+
+        if not job.product_id:
+            suggestion_map = {
+                item.field_name: item.value_json
+                for item in suggestions
+                if item.value_json not in (None, "", [])
+            }
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "mode": "client_apply",
+                    "fields": suggestion_map,
+                }
+            )
+
+        result = apply_suggestions_to_product(
+            product=job.product,
+            suggestions=suggestions,
+            force_overwrite=force_overwrite,
+        )
+
+        changed_fields = set(result.get("changed_fields", []))
+        for suggestion in suggestions:
+            if suggestion.field_name in changed_fields:
+                suggestion.status = ProductFieldSuggestion.STATUS_APPLIED
+                suggestion.save(update_fields=["status", "updated_at"])
+                ProductAutofillFeedback.objects.create(
+                    job=job,
+                    suggestion=suggestion,
+                    user=request.user,
+                    field_name=suggestion.field_name,
+                    feedback_type=ProductAutofillFeedback.TYPE_ACCEPTED,
+                    final_value=suggestion.value_json,
+                    metadata={"source": "apply_endpoint", "force_overwrite": force_overwrite},
+                )
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "mode": "server_apply",
+                "result": result,
+            }
+        )
+
+    def ai_autofill_feedback_view(self, request, job_id):
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        job = self._get_job_for_user(request, job_id)
+        payload = self._parse_payload(request)
+
+        items = payload.get("items") if hasattr(payload, "get") else None
+        if not items:
+            items = [payload]
+
+        created = 0
+        for item in items:
+            field_name = (item or {}).get("field_name")
+            feedback_type = (item or {}).get("feedback_type")
+            final_value = (item or {}).get("final_value")
+            note = (item or {}).get("note", "")
+            if not field_name or feedback_type not in {
+                ProductAutofillFeedback.TYPE_ACCEPTED,
+                ProductAutofillFeedback.TYPE_REJECTED,
+                ProductAutofillFeedback.TYPE_EDITED,
+            }:
+                continue
+
+            suggestion = ProductFieldSuggestion.objects.filter(job=job, field_name=field_name).first()
+            ProductAutofillFeedback.objects.create(
+                job=job,
+                suggestion=suggestion,
+                user=request.user,
+                field_name=field_name,
+                feedback_type=feedback_type,
+                previous_value=suggestion.value_json if suggestion else None,
+                final_value=final_value,
+                note=note,
+                metadata={"source": "manual_feedback"},
+            )
+            if suggestion:
+                if feedback_type == ProductAutofillFeedback.TYPE_REJECTED:
+                    suggestion.status = ProductFieldSuggestion.STATUS_REJECTED
+                elif feedback_type == ProductAutofillFeedback.TYPE_EDITED:
+                    suggestion.status = ProductFieldSuggestion.STATUS_EDITED
+                elif feedback_type == ProductAutofillFeedback.TYPE_ACCEPTED:
+                    suggestion.status = ProductFieldSuggestion.STATUS_APPLIED
+                suggestion.save(update_fields=["status", "updated_at"])
+            created += 1
+
+        return JsonResponse({"ok": True, "created": created})
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(
@@ -622,6 +1022,116 @@ class CategoryFacetAdmin(ImportExportEnhancedModelAdmin):
 class TagAdmin(ImportExportEnhancedModelAdmin):
     list_display = ("name",)
     search_fields = ("name",)
+
+
+@admin.register(AspectRatioChoice)
+class AspectRatioChoiceAdmin(ImportExportEnhancedModelAdmin):
+    list_display = ("code", "label", "sort_order", "is_active", "is_default", "updated_at")
+    list_filter = ("is_active", "is_default")
+    search_fields = ("code", "label")
+    ordering = ("sort_order", "code")
+
+
+@admin.register(CategoryPricingProfile)
+class CategoryPricingProfileAdmin(ImportExportEnhancedModelAdmin):
+    list_display = (
+        "category",
+        "min_margin_percentage",
+        "max_margin_percentage",
+        "sale_discount_min_percentage",
+        "sale_discount_max_percentage",
+        "stock_default",
+        "low_stock_threshold_default",
+        "is_active",
+    )
+    search_fields = ("category__name",)
+    list_filter = ("is_active",)
+
+
+@admin.register(ProductAutofillJob)
+class ProductAutofillJobAdmin(ImportExportEnhancedModelAdmin):
+    list_display = (
+        "id",
+        "product",
+        "requested_by",
+        "status",
+        "progress",
+        "locale",
+        "currency",
+        "image_count",
+        "allow_external",
+        "created_at",
+    )
+    list_filter = ("status", "allow_external", "locale", "created_at")
+    search_fields = ("id", "product__name", "requested_by__email", "requested_by__username")
+    readonly_fields = (
+        "id",
+        "product",
+        "requested_by",
+        "status",
+        "progress",
+        "locale",
+        "currency",
+        "image_count",
+        "allow_external",
+        "force_overwrite",
+        "input_payload",
+        "summary",
+        "error_message",
+        "started_at",
+        "completed_at",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(ProductAutofillSource)
+class ProductAutofillSourceAdmin(ImportExportEnhancedModelAdmin):
+    list_display = ("job", "provider", "source_type", "domain", "trust_score", "fetched_at")
+    list_filter = ("provider", "source_type", "fetched_at")
+    search_fields = ("job__id", "url", "domain", "title")
+    readonly_fields = ("job", "provider", "source_type", "url", "domain", "title", "snippet", "trust_score", "metadata", "fetched_at")
+
+
+@admin.register(ProductFieldSuggestion)
+class ProductFieldSuggestionAdmin(ImportExportEnhancedModelAdmin):
+    list_display = ("job", "field_name", "confidence", "status", "is_null_suggestion", "low_confidence", "updated_at")
+    list_filter = ("status", "is_null_suggestion", "low_confidence", "field_name")
+    search_fields = ("job__id", "field_name", "display_value", "rationale")
+    readonly_fields = (
+        "job",
+        "field_name",
+        "value_json",
+        "display_value",
+        "confidence",
+        "is_null_suggestion",
+        "low_confidence",
+        "rationale",
+        "source_urls",
+        "metadata",
+        "status",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(ProductAutofillFeedback)
+class ProductAutofillFeedbackAdmin(ImportExportEnhancedModelAdmin):
+    list_display = ("job", "user", "field_name", "feedback_type", "created_at")
+    list_filter = ("feedback_type", "field_name", "created_at")
+    search_fields = ("job__id", "user__email", "field_name", "note")
+    readonly_fields = (
+        "job",
+        "suggestion",
+        "user",
+        "field_name",
+        "feedback_type",
+        "previous_value",
+        "final_value",
+        "note",
+        "metadata",
+        "created_at",
+    )
 
 
 @admin.register(ProductQuestion)

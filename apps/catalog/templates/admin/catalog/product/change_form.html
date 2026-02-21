@@ -1,0 +1,41 @@
+{% extends "admin/change_form.html" %}
+{% load i18n static %}
+
+{% block after_field_sets %}
+{{ block.super }}
+{% if product_ai_enabled %}
+<fieldset class="module aligned" id="product-ai-autofill-panel">
+  <h2>{% trans "AI Product Autofill" %}</h2>
+  <div class="form-row">
+    <div>
+      <p class="help">
+        {% blocktrans with max_images=product_ai_max_images %}
+        Analyze up to {{ max_images }} images and generate confidence-scored field suggestions with citations.
+        {% endblocktrans %}
+      </p>
+      <button type="button" class="button" id="product-ai-analyze-btn">{% trans "Analyze Images" %}</button>
+      <label style="margin-left: 12px;">
+        <input type="checkbox" id="product-ai-force-overwrite" />
+        {% trans "Overwrite existing values" %}
+      </label>
+      <button type="button" class="button" id="product-ai-apply-btn" disabled style="margin-left: 8px;">
+        {% trans "Apply Suggestions" %}
+      </button>
+      <span id="product-ai-status-text" style="margin-left: 12px; color: #374151;"></span>
+    </div>
+  </div>
+  <div class="form-row" style="margin-top: 10px;">
+    <div
+      id="product-ai-config"
+      data-product-id="{% if original %}{{ original.id }}{% endif %}"
+      data-start-url="{{ product_ai_endpoints.start }}"
+      data-status-template="{{ product_ai_endpoints.status_template }}"
+      data-apply-template="{{ product_ai_endpoints.apply_template }}"
+      data-feedback-template="{{ product_ai_endpoints.feedback_template }}"
+      data-max-images="{{ product_ai_max_images }}"
+    ></div>
+    <div id="product-ai-suggestions-container"></div>
+  </div>
+</fieldset>
+{% endif %}
+{% endblock %}

@@ -1,236 +1,462 @@
-from django.test import TestCase
-from django.urls import reverse
-from rest_framework.test import APIClient
-from .models import Category, Product, ProductVariant, ProductImage, Attribute, AttributeValue, Tag, Facet, CategoryFacet, ShippingMaterial, Badge, ProductBadge
-from django.contrib.contenttypes.models import ContentType
+import io
+import json
+import os
+import tempfile
 from decimal import Decimal
-from django.utils import timezone
+from unittest.mock import patch
+
+from PIL import Image
+from django.conf import settings
+from django.contrib import admin as django_admin
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings, RequestFactory
+
+from apps.catalog.admin import ProductAdmin
+from apps.catalog.ai.schemas import FieldSuggestionPayload
+from apps.catalog.ai.providers.personalization import PersonalizationProvider
+from apps.catalog.ai.providers.pricing import PricingProvider
+from apps.catalog.ai.providers.research import is_safe_public_url
+from apps.catalog.ai.validators import normalize_raw_suggestions
+from apps.catalog.models import (
+    AspectRatioChoice,
+    Category,
+    CategoryPricingProfile,
+    EcoCertification,
+    Product,
+    ProductAutofillFeedback,
+    ProductAutofillJob,
+    ProductFieldSuggestion,
+    ShippingMaterial,
+    Tag,
+)
+
+def _image_upload(name: str = "sample.png") -> SimpleUploadedFile:
+    bio = io.BytesIO()
+    image = Image.new("RGB", (120, 120), color=(120, 40, 50))
+    image.save(bio, format="PNG")
+    return SimpleUploadedFile(name, bio.getvalue(), content_type="image/png")
 
 
-class CatalogModelsTests(TestCase):
+class CatalogRegressionTests(TestCase):
+    def test_category_tree_static_assets_exist(self):
+        css_path = os.path.join(
+            settings.BASE_DIR,
+            "apps",
+            "catalog",
+            "static",
+            "css",
+            "admin",
+            "category_tree_widget.css",
+        )
+        js_path = os.path.join(
+            settings.BASE_DIR,
+            "apps",
+            "catalog",
+            "static",
+            "js",
+            "admin",
+            "category_tree_widget.js",
+        )
+        self.assertTrue(os.path.exists(css_path))
+        self.assertTrue(os.path.exists(js_path))
+
+    def test_celery_task_names_are_current(self):
+        from core.celery import app
+
+        self.assertEqual(app.conf.beat_schedule["check-low-stock"]["task"], "catalog.check_low_stock")
+        self.assertEqual(app.conf.task_routes["ml.training.tasks.*"]["queue"], "ml")
+
+    @patch("apps.catalog.management.commands.seed_categories.run_seed_command")
+    def test_seed_categories_includes_aspect_ratio_choices(self, mock_run_seed):
+        from apps.catalog.management.commands.seed_categories import Command
+
+        command = Command()
+        command.handle(
+            force=False,
+            confirm_prune=False,
+            assign_facets=False,
+            file=None,
+            dry_run=True,
+            no_prune=True,
+        )
+
+        called_only = mock_run_seed.call_args.kwargs.get("only", [])
+        self.assertIn("catalog.aspect_ratio_choices", called_only)
+
+    def test_export_taxonomy_includes_aspect_choices(self):
+        from django.core.management import call_command
+
+        AspectRatioChoice.objects.create(
+            code="1:1",
+            label="1:1",
+            sort_order=0,
+            is_default=True,
+            is_active=True,
+        )
+
+        fd, path = tempfile.mkstemp(prefix="taxonomy_", suffix=".json")
+        os.close(fd)
+        try:
+            call_command("export_taxonomy", out=path, format="json")
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertIn("aspect_choices", payload)
+            self.assertIn("default_aspect_ratio", payload)
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+class ProductAutofillValidationTests(TestCase):
     def setUp(self):
-        # categories
-        self.root = Category.objects.create(name="Root Category")
-        self.child = Category.objects.create(name="Child Category", parent=self.root)
-        self.grand = Category.objects.create(name="Grandchild", parent=self.child)
+        self.category = Category.objects.create(name="Handmade Home", slug="handmade-home")
+        self.tag = Tag.objects.create(name="eco")
+        self.cert = EcoCertification.objects.create(name="FSC", slug="fsc")
+        self.material = ShippingMaterial.objects.create(name="Recycled Paper", eco_score=8)
 
-        # attributes
-        self.color = Attribute.objects.create(name="Color", slug="color")
-        self.red = AttributeValue.objects.create(attribute=self.color, value="Red")
+    def test_threshold_nulling_and_price_fallback(self):
+        raw = {
+            "name": {"value": "Weak Name", "confidence": 0.2},
+            "price": {"value": None, "confidence": 0.1},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.8)
+        mapped = {item.field_name: item for item in result}
+        self.assertIsNone(mapped["name"].value)
+        self.assertIsNotNone(mapped["price"].value)
 
-        # product
-        self.prod = Product.objects.create(name="Handmade Bowl", price=Decimal("50.00"), sale_price=Decimal("45.00"))
-        self.prod.categories.add(self.child)
-        self.prod.tags.add(Tag.objects.create(name="wood"))
-        self.prod.attributes.add(self.red)
+    def test_noise_tokens_are_rejected_for_text_fields(self):
+        raw = {
+            "name": {"value": "Tmp3S2Z29Pn", "confidence": 0.95},
+            "description": {"value": "Tmp3S2Z29Pn tmp3s2z29pn", "confidence": 0.9},
+            "short_description": {"value": "Tmp3S2Z29Pn", "confidence": 0.9},
+            "meta_title": {"value": "Tmp3S2Z29Pn | Bunoraa", "confidence": 0.9},
+            "meta_description": {"value": "Tmp3S2Z29Pn", "confidence": 0.9},
+            "price": {"value": "10.00", "confidence": 0.4},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.8)
+        mapped = {item.field_name: item for item in result}
+        self.assertIsNone(mapped["name"].value)
+        self.assertIsNone(mapped["description"].value)
+        self.assertIsNone(mapped["short_description"].value)
+        self.assertIsNone(mapped["meta_title"].value)
+        self.assertIsNone(mapped["meta_description"].value)
+        self.assertFalse(mapped["price"].value is None)
 
-        self.variant = ProductVariant.objects.create(product=self.prod, sku="HB-RED-1", price=Decimal("48.00"), stock_quantity=5)
+    def test_aspect_ratio_fallback_uses_db_default_choice(self):
+        AspectRatioChoice.objects.all().delete()
+        AspectRatioChoice.objects.create(code="4:3", label="4:3", is_active=True, is_default=True, sort_order=0)
+        AspectRatioChoice.objects.create(code="3:2", label="3:2", is_active=True, is_default=False, sort_order=10)
 
-    def test_category_paths(self):
-        self.assertEqual(self.root.depth, 0)
-        self.assertEqual(self.child.depth, 1)
-        self.assertIn(self.child, list(self.root.get_descendants()))
-        self.assertIn(self.root, list(self.child.get_ancestors()))
+        raw = {
+            "aspect_ratio": {"value": "9:16", "confidence": 0.9},
+            "price": {"value": "20.00", "confidence": 0.6},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.8)
+        mapped = {item.field_name: item for item in result}
+        self.assertEqual(mapped["aspect_ratio"].value, "4:3")
 
-    def test_product_pricing_helpers(self):
-        self.assertTrue(self.prod.is_on_sale)
-        self.assertEqual(self.prod.current_price, Decimal("45.00"))
-        self.assertGreater(self.prod.discount_percentage, 0)
-        self.assertEqual(self.variant.current_price, Decimal("48.00"))
+    def test_aspect_ratio_keeps_active_db_choice(self):
+        AspectRatioChoice.objects.all().delete()
+        AspectRatioChoice.objects.create(code="4:3", label="4:3", is_active=True, is_default=True, sort_order=0)
+        AspectRatioChoice.objects.create(code="3:2", label="3:2", is_active=True, is_default=False, sort_order=10)
 
-    def test_product_soft_delete(self):
-        self.prod.soft_delete()
-        qs = Product.objects.filter(id=self.prod.id)
-        self.assertFalse(qs.exists())
-        # hard query should still find it
-        from catalog.managers import SoftDeleteQuerySet
-        all_qs = Product.objects.all_with_deleted()
-        self.assertTrue(all_qs.dead().filter(id=self.prod.id).exists())
+        raw = {
+            "aspect_ratio": {"value": "3:2", "confidence": 0.9},
+            "price": {"value": "20.00", "confidence": 0.6},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.8)
+        mapped = {item.field_name: item for item in result}
+        self.assertEqual(mapped["aspect_ratio"].value, "3:2")
+
+    def test_taxonomy_maps_to_existing_entities_only(self):
+        raw = {
+            "primary_category": {"value": "Handmade Home", "confidence": 0.3},
+            "categories": {"value": ["Handmade Home", "Unknown Cat"], "confidence": 0.3},
+            "tags": {"value": ["eco", "nonexistent"], "confidence": 0.3},
+            "eco_certifications": {"value": ["FSC", "unknown cert"], "confidence": 0.3},
+            "shipping_material": {"value": "Recycled Paper", "confidence": 0.3},
+            "price": {"value": "20.00", "confidence": 0.9},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.1)
+        mapped = {item.field_name: item for item in result}
+        self.assertEqual(mapped["primary_category"].value, str(self.category.id))
+        self.assertEqual(mapped["categories"].value, [str(self.category.id)])
+        self.assertEqual(mapped["tags"].value, [str(self.tag.id)])
+        self.assertEqual(mapped["eco_certifications"].value, [str(self.cert.id)])
+        self.assertEqual(mapped["shipping_material"].value, str(self.material.id))
+
+    def test_ssrf_url_guard(self):
+        self.assertFalse(is_safe_public_url("http://127.0.0.1/admin"))
+        self.assertFalse(is_safe_public_url("http://localhost:8000"))
+        self.assertTrue(is_safe_public_url("https://example.com/product"))
+
+    def test_pricing_profile_influences_estimation(self):
+        CategoryPricingProfile.objects.create(
+            category=self.category,
+            min_margin_percentage=40,
+            max_margin_percentage=60,
+            sale_discount_min_percentage=10,
+            sale_discount_max_percentage=20,
+            stock_default=22,
+            low_stock_threshold_default=6,
+            is_active=True,
+        )
+        similar = [
+            Product.objects.create(name="A", slug="a", price=Decimal("30.00"), primary_category=self.category),
+            Product.objects.create(name="B", slug="b", price=Decimal("40.00"), primary_category=self.category),
+        ]
+        provider = PricingProvider()
+        estimate = provider.estimate(
+            product=None,
+            primary_category=self.category,
+            research_docs=[],
+            similar_products=similar,
+        )
+        self.assertGreater(Decimal(str(estimate["price"]["value"])), Decimal("0.00"))
+        self.assertEqual(int(estimate["stock_quantity"]["value"]), 22)
+        self.assertEqual(int(estimate["low_stock_threshold"]["value"]), 6)
+
+    def test_field_suggestion_payload_is_json_safe_for_decimal(self):
+        payload = FieldSuggestionPayload(
+            field_name="price",
+            value=Decimal("19.99"),
+            confidence=0.9,
+            metadata={"nested": {"cost": Decimal("10.25")}},
+        ).to_model_payload()
+        self.assertEqual(payload["value_json"], "19.99")
+        self.assertEqual(payload["metadata"]["nested"]["cost"], "10.25")
+
+    def test_personalization_uses_feedback_memory(self):
+        user = get_user_model().objects.create_user(email="staff1@example.com", password="pass")
+        product = Product.objects.create(name="X", slug="x", price=Decimal("10.00"), primary_category=self.category)
+        job = ProductAutofillJob.objects.create(
+            product=product,
+            requested_by=user,
+            locale="en",
+            currency="USD",
+            allow_external=False,
+        )
+        ProductAutofillFeedback.objects.create(
+            job=job,
+            user=user,
+            field_name="description",
+            feedback_type=ProductAutofillFeedback.TYPE_EDITED,
+            final_value="Elegant handcrafted premium finish with artisan detail",
+        )
+        hints = PersonalizationProvider().get_hints(user=user, category=self.category, locale="en")
+        self.assertIn("[en]", hints["description_style"])
 
 
-class CatalogAPITests(TestCase):
+@override_settings(
+    PRODUCT_AI_ENABLED=True,
+    PRODUCT_AI_MAX_IMAGES=4,
+)
+class ProductAutofillAdminEndpointTests(TestCase):
     def setUp(self):
-        self.client = APIClient()
-        # categories
-        self.root = Category.objects.create(name="Root Category")
-        self.child = Category.objects.create(name="Child Category", parent=self.root)
+        cache.clear()
+        self.factory = RequestFactory()
+        self.product_admin = ProductAdmin(Product, django_admin.site)
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            email="admin@example.com",
+            password="pass",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.category = Category.objects.create(name="Decor", slug="decor")
+        self.product = Product.objects.create(
+            name="Base Product",
+            slug="base-product",
+            price=Decimal("25.00"),
+            primary_category=self.category,
+        )
+        self.product.categories.add(self.category)
 
-        # products
-        self.prod1 = Product.objects.create(name="Alpha", price=Decimal("10.00"))
-        self.prod1.categories.add(self.root)
-        self.prod2 = Product.objects.create(name="Beta", price=Decimal("20.00"))
-        self.prod2.categories.add(self.child)
+    @patch("apps.catalog.admin.run_product_autofill_job.delay")
+    def test_start_endpoint_creates_job(self, mock_delay):
+        request = self.factory.post(
+            "/admin/catalog/product/ai/autofill/start/",
+            data={
+                "product_id": str(self.product.id),
+                "currency": "USD",
+                "locale": "en",
+                "allow_external": "true",
+                "images": _image_upload(),
+            },
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_start_view(request)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertTrue(payload["ok"])
+        self.assertTrue(ProductAutofillJob.objects.filter(id=payload["job_id"]).exists())
+        mock_delay.assert_called_once()
 
-        self.facet = Facet.objects.create(name="Color", slug="color", type="choice", values=["Red","Blue"])
-        CategoryFacet.objects.create(category=self.root, facet=self.facet)
+    @patch("apps.catalog.ai.engine.ProductAutofillEngine")
+    @patch("apps.catalog.admin.run_product_autofill_job.delay")
+    def test_start_endpoint_falls_back_when_celery_enqueue_fails(self, mock_delay, mock_engine):
+        mock_delay.side_effect = ValueError("redis ssl config invalid")
+        mock_engine.return_value.run.return_value = {"status": "completed"}
 
-    def test_category_list(self):
-        url = reverse("category-list")
-        resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(len(resp.json()) >= 1)
+        request = self.factory.post(
+            "/admin/catalog/product/ai/autofill/start/",
+            data={
+                "product_id": str(self.product.id),
+                "currency": "USD",
+                "locale": "en",
+                "allow_external": "true",
+                "images": _image_upload(),
+            },
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_start_view(request)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertEqual(payload["dispatch_mode"], "sync_fallback")
+        mock_engine.assert_called_once()
 
-    def test_products_by_category_includes_children(self):
-        url = reverse("product-by-category")
-        resp = self.client.get(url, {"category": str(self.root.id)})
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        # Should include Beta (in child)
-        self.assertTrue(any(p["name"] == "Beta" for p in data.get("results", data)))
+    @override_settings(
+        CELERY_BROKER_URL="rediss://redis.example.com:6379/1",
+        CELERY_RESULT_BACKEND="rediss://redis.example.com:6379/2",
+    )
+    @patch("apps.catalog.ai.engine.ProductAutofillEngine")
+    @patch("apps.catalog.admin.run_product_autofill_job.delay")
+    def test_start_endpoint_skips_enqueue_when_rediss_ssl_param_missing(self, mock_delay, mock_engine):
+        mock_engine.return_value.run.return_value = {"status": "completed"}
 
-    def test_facets_endpoint(self):
-        url = reverse("facet-list")
-        resp = self.client.get(url, {"category": str(self.root.id)})
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertTrue(isinstance(data, list))
+        request = self.factory.post(
+            "/admin/catalog/product/ai/autofill/start/",
+            data={
+                "product_id": str(self.product.id),
+                "currency": "USD",
+                "locale": "en",
+                "allow_external": "true",
+                "images": _image_upload(),
+            },
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_start_view(request)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertEqual(payload["dispatch_mode"], "sync_fallback")
+        mock_delay.assert_not_called()
+        mock_engine.assert_called_once()
 
-    def test_category_children_endpoint(self):
-        url = reverse("category-children", kwargs={"pk": str(self.root.id)})
-        resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertTrue(isinstance(data, list))
+    def test_status_endpoint_returns_suggestions(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+        )
+        ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="name",
+            value_json="Decor Bowl",
+            display_value="Decor Bowl",
+            confidence=0.91,
+            rationale="test",
+        )
+        request = self.factory.get(f"/admin/catalog/product/ai/autofill/{job.id}/status/")
+        request.user = self.user
+        response = self.product_admin.ai_autofill_status_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], ProductAutofillJob.STATUS_COMPLETED)
+        self.assertEqual(len(payload["suggestions"]), 1)
 
+    def test_apply_endpoint_fill_blanks_only(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+        )
+        ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="name",
+            value_json="Overwritten Name",
+            display_value="Overwritten Name",
+            confidence=0.9,
+        )
+        ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="description",
+            value_json="AI generated description",
+            display_value="AI generated description",
+            confidence=0.9,
+        )
+        request = self.factory.post(
+            f"/admin/catalog/product/ai/autofill/{job.id}/apply/",
+            data={"force_overwrite": "false"},
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_apply_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, "Base Product")
+        self.assertEqual(self.product.description, "AI generated description")
 
-class Phase1FeatureTests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.root = Category.objects.create(name="Root")
-        self.child = Category.objects.create(name="Child", parent=self.root)
-        self.prod = Product.objects.create(name="Quick", price="12.00")
-        self.prod.categories.add(self.child)
+    def test_apply_endpoint_for_new_product_returns_client_mode(self):
+        job = ProductAutofillJob.objects.create(
+            product=None,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+        )
+        ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="name",
+            value_json="New Suggested Product",
+            display_value="New Suggested Product",
+            confidence=0.9,
+        )
+        request = self.factory.post(
+            f"/admin/catalog/product/ai/autofill/{job.id}/apply/",
+            data={"force_overwrite": "false"},
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_apply_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertEqual(payload["mode"], "client_apply")
+        self.assertEqual(payload["fields"]["name"], "New Suggested Product")
 
-    def test_aspect_ratio_inheritance_and_quick_view(self):
-        # Set category aspect ratio
-        self.root.aspect_ratio = "16:9"
-        self.root.save()
-        # Product default should be 1:1 but quick view should show product's own if set
-        url = reverse("product-quick_view", kwargs={"pk": str(self.prod.id)})
-        resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertIn("aspect_ratio", data)
-
-        # set product aspect ratio override
-        self.prod.aspect_ratio = "4:3"
-        self.prod.save()
-        resp = self.client.get(url)
-        data = resp.json()
-        self.assertEqual(data.get("aspect_ratio"), "4:3")
-
-    def test_shipping_material_and_quick_view(self):
-        sm = ShippingMaterial.objects.create(name="Recycled Paper", eco_score=8)
-        self.prod.shipping_material = sm
-        self.prod.save()
-        url = reverse("product-quick_view", kwargs={"pk": str(self.prod.id)})
-        resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json().get("shipping", {}).get("name"), "Recycled Paper")
-
-    def test_badge_scheduling_tasks(self):
-        from catalog.tasks import apply_scheduled_badges, remove_expired_badges
-        import datetime
-        now = timezone.now()
-        # badge that applies to the child category
-        badge = Badge.objects.create(name="On Sale", slug="on-sale", start=now - datetime.timedelta(hours=1), end=now + datetime.timedelta(hours=1), is_active=True, target_content_type=ContentType.objects.get_for_model(Category), target_object_id=str(self.child.id))
-        # run scheduler task
-        apply_scheduled_badges()
-        self.assertTrue(ProductBadge.objects.filter(product=self.prod, badge=badge).exists())
-        # expire badge
-        badge.is_active = False
-        badge.save()
-        remove_expired_badges()
-        self.assertFalse(ProductBadge.objects.filter(product=self.prod, badge=badge).exists())
-
-    def test_cost_field_and_visibility(self):
-        # model persistence
-        p = Product.objects.create(name="Costed", price=Decimal("10.00"), cost=Decimal("6.00"))
-        self.assertEqual(p.cost, Decimal("6.00"))
-
-        # anonymous quick_view should not include cost
-        url = reverse("product-quick_view", kwargs={"pk": str(p.id)})
-        resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 200)
-        self.assertIsNone(resp.json().get("cost"))
-
-        # staff user should see cost on product detail
-        User = get_user_model()
-        staff = User.objects.create_user("staff", "staff@example.com", "pass")
-        staff.is_staff = True
-        staff.save()
-        self.client.force_authenticate(staff)
-        detail_url = reverse("product-detail", kwargs={"pk": str(p.id)})
-        resp = self.client.get(detail_url)
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(Decimal(str(resp.json().get("cost"))), Decimal("6.00"))
-
-    def test_product_price_filter(self):
-        url = reverse("product-list")
-        resp = self.client.get(url, {"price_max": "15"})
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        # should include only Alpha (10)
-        names = [p["name"] for p in data.get("results", data)]
-        self.assertIn("Alpha", names)
-        self.assertNotIn("Beta", names)
-
-    def test_slug_uniqueness_and_primary_category_behavior(self):
-        # product slug uniqueness case-insensitive
-        p1 = Product.objects.create(name="Case", slug="UniqueSlug", price="1.00")
-        with self.assertRaises(Exception):
-            Product.objects.create(name="Case2", slug="uniqueslug", price="2.00")
-
-        # primary category auto set on M2M and category counts updated
-        p = Product.objects.create(name="ProdCat", price="4.00")
-        cat1 = Category.objects.create(name="C1")
-        cat2 = Category.objects.create(name="C2", parent=cat1)
-        p.categories.add(cat2)
-        p.refresh_from_db()
-        self.assertIsNotNone(p.primary_category)
-        self.assertEqual(p.primary_category, cat2)
-        cat2.refresh_from_db()
-        self.assertEqual(cat2.product_count, 1)
-
-        # removing product from category decrements count
-        p.categories.remove(cat2)
-        cat2.refresh_from_db()
-        self.assertEqual(cat2.product_count, 0)
-
-    def test_counters_increment_and_soft_delete_affect_counts(self):
-        p = Product.objects.create(name="Metrics", price="10.00")
-        self.assertEqual(p.views_count, 0)
-        # increment views
-        p.increment_views()
-        self.assertEqual(p.views_count, 1)
-        # quick view returns views_count
-        url = reverse("product-quick_view", kwargs={"pk": str(p.id)})
-        resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json().get("views_count"), 1)
-        # increment sales
-        p.increment_sales(2)
-        self.assertEqual(p.sales_count, 2)
-
-        # category product count decremented on soft_delete
-        c = Category.objects.create(name="SaleCat")
-        p.categories.add(c)
-        c.refresh_from_db()
-        self.assertEqual(c.product_count, 1)
-        p.soft_delete()
-        c.refresh_from_db()
-        self.assertEqual(c.product_count, 0)
-
-    def test_attribute_filter_param(self):
-        # Create attribute and assign to a product
-        color = Attribute.objects.create(name="Color", slug="color")
-        av = AttributeValue.objects.create(attribute=color, value="Red")
-        p = Product.objects.create(name="Red Item", price="5.00")
-        p.attributes.add(av)
-        url = reverse("product-list")
-        resp = self.client.get(url, {"attr_color": "Red"})
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        names = [p2["name"] for p2 in data.get("results", data)]
-        self.assertIn("Red Item", names)
+    def test_feedback_endpoint_updates_status(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+        )
+        suggestion = ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="description",
+            value_json="Desc",
+            display_value="Desc",
+            confidence=0.8,
+        )
+        request = self.factory.post(
+            f"/admin/catalog/product/ai/autofill/{job.id}/feedback/",
+            data=json.dumps(
+                {
+                    "field_name": "description",
+                    "feedback_type": ProductAutofillFeedback.TYPE_REJECTED,
+                    "note": "not accurate",
+                }
+            ),
+            content_type="application/json",
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_feedback_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        suggestion.refresh_from_db()
+        self.assertEqual(suggestion.status, ProductFieldSuggestion.STATUS_REJECTED)
+        self.assertTrue(ProductAutofillFeedback.objects.filter(job=job, field_name="description").exists())

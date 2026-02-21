@@ -3,12 +3,44 @@ Catalog Celery tasks - Background jobs for catalog maintenance
 """
 import logging
 from celery import shared_task
+from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q, F, Avg, Count
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(
+    bind=True,
+    name="catalog.run_product_autofill_job",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 3},
+)
+def run_product_autofill_job(self, job_id: str):
+    """
+    Execute the product AI autofill pipeline for a single job.
+    """
+    from .ai.engine import ProductAutofillEngine
+    from .models import ProductAutofillJob
+
+    job = ProductAutofillJob.objects.filter(id=job_id).first()
+    if not job:
+        logger.warning("Autofill job not found: %s", job_id)
+        return {"status": "missing", "job_id": job_id}
+
+    # Idempotent no-op for terminal jobs.
+    if job.status in {
+        ProductAutofillJob.STATUS_COMPLETED,
+        ProductAutofillJob.STATUS_CANCELLED,
+    }:
+        return {"status": job.status, "job_id": job_id}
+
+    engine = ProductAutofillEngine(job_id=job_id)
+    return engine.run()
 
 
 # =============================================================================
@@ -352,6 +384,20 @@ def cleanup_soft_deleted():
     
     logger.info(f"Permanently deleted {products_deleted} products, {categories_deleted} categories")
     return {'products': products_deleted, 'categories': categories_deleted}
+
+
+@shared_task(name="catalog.cleanup_product_autofill_evidence")
+def cleanup_product_autofill_evidence(retention_days: int | None = None):
+    """
+    Purge old autofill jobs/suggestions/sources after retention window.
+    """
+    from .models import ProductAutofillJob
+
+    keep_days = int(retention_days or getattr(settings, "PRODUCT_AI_RETENTION_DAYS", 365))
+    cutoff = timezone.now() - timezone.timedelta(days=keep_days)
+    deleted, _ = ProductAutofillJob.objects.filter(created_at__lt=cutoff).delete()
+    logger.info("Deleted %s expired product autofill jobs older than %s days", deleted, keep_days)
+    return {"deleted": deleted, "retention_days": keep_days}
 
 
 # =============================================================================

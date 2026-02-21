@@ -19,14 +19,14 @@ from django.core.wsgi import get_wsgi_application
 _start_ts = time.time()
 
 # Choose settings module based on environment
-environment = os.environ.get('ENVIRONMENT', 'production')
-if environment == 'local':
-    settings_module = 'core.settings.local'
-elif environment == 'development':
+environment = os.environ.get('ENVIRONMENT', 'development').lower()
+if environment == 'production':
+    settings_module = 'core.settings.production'
+elif environment == 's3':
     settings_module = 'core.settings.s3'
 else:
-    # Production and any other environment
-    settings_module = 'core.settings.production'
+    # Local/development defaults to local settings.
+    settings_module = 'core.settings.local'
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', settings_module)
 

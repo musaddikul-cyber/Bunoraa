@@ -1,0 +1,536 @@
+from __future__ import annotations
+
+import difflib
+import re
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from typing import Any
+
+from django.utils.text import slugify
+
+from apps.catalog.models import (
+    get_active_aspect_ratio_codes,
+    get_default_aspect_ratio_code,
+)
+from core.utils.helpers import generate_sku
+
+from .schemas import AUTOFILL_FIELDS, FieldSuggestionPayload
+
+
+NULL_IF_LOW_CONFIDENCE_FIELDS = {
+    "name",
+    "description",
+    "short_description",
+    "primary_category",
+    "categories",
+    "tags",
+    "weight",
+    "length",
+    "width",
+    "height",
+    "shipping_material",
+    "carbon_footprint_kg",
+    "recycled_content_percentage",
+    "sustainability_score",
+    "ethical_sourcing_notes",
+    "eco_certifications",
+    "meta_title",
+    "meta_description",
+}
+
+
+DECIMAL_FIELDS = {"price", "sale_price", "cost", "weight", "length", "width", "height", "recycled_content_percentage"}
+INTEGER_FIELDS = {"stock_quantity", "low_stock_threshold"}
+TEXT_FIELDS = {
+    "name",
+    "description",
+    "short_description",
+    "meta_title",
+    "meta_description",
+    "ethical_sourcing_notes",
+}
+TMP_TOKEN_RE = re.compile(r"^(tmp|temp)[a-z0-9_-]{3,}$", re.I)
+UUIDISH_RE = re.compile(r"^[0-9a-f]{8,}$", re.I)
+
+
+def _allowed_aspect_codes(*, include_code: str | None = None) -> set[str]:
+    return get_active_aspect_ratio_codes(include_code=include_code)
+
+
+def clamp_confidence(value: Any) -> float:
+    try:
+        casted = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, min(1.0, casted))
+
+
+def quantize_decimal(value: Any, places: str = "0.01") -> Decimal | None:
+    if value is None or value == "":
+        return None
+    try:
+        return Decimal(str(value)).quantize(Decimal(places), rounding=ROUND_HALF_UP)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def clean_text_value(value: Any, max_chars: int = 5000) -> str | None:
+    if value is None:
+        return None
+    text = re.sub(r"\s+", " ", str(value)).strip()
+    if not text:
+        return None
+    return text[:max_chars]
+
+
+def text_looks_like_noise(value: Any) -> bool:
+    text = clean_text_value(value, max_chars=220)
+    if not text:
+        return True
+    tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9&'().+\-_]*", text)
+    if not tokens:
+        return True
+    normalized_tokens = [token.strip("._-") for token in tokens if token.strip("._-")]
+    if not normalized_tokens:
+        return True
+
+    def _token_is_noise(token: str) -> bool:
+        if TMP_TOKEN_RE.match(token):
+            return True
+        compact = token.lower().replace("-", "").replace("_", "")
+        if UUIDISH_RE.match(compact):
+            return True
+        letters = sum(ch.isalpha() for ch in token)
+        digits = sum(ch.isdigit() for ch in token)
+        vowels = sum(ch.lower() in "aeiou" for ch in token if ch.isalpha())
+        if letters > 0 and digits > 0 and len(token) >= 8 and vowels <= 1:
+            return True
+        return False
+
+    if len(normalized_tokens) == 1 and _token_is_noise(normalized_tokens[0]):
+        return True
+    if all(_token_is_noise(token) for token in normalized_tokens):
+        return True
+
+    alpha_tokens = [
+        token for token in tokens
+        if any(ch.isalpha() for ch in token)
+    ]
+    return len(alpha_tokens) == 0
+
+
+def _string_similarity(a: str, b: str) -> float:
+    if not a or not b:
+        return 0.0
+    a_norm = slugify(a).replace("-", " ")
+    b_norm = slugify(b).replace("-", " ")
+    return difflib.SequenceMatcher(None, a_norm, b_norm).ratio()
+
+
+def map_category_value(value: Any):
+    from apps.catalog.models import Category
+
+    if value in (None, ""):
+        return None, 0.0
+
+    if isinstance(value, dict):
+        category_id = value.get("id")
+        label = value.get("name", "")
+    else:
+        category_id = None
+        label = str(value)
+
+    if category_id:
+        category = Category.objects.filter(id=category_id, is_deleted=False).first()
+        if category:
+            return category, 1.0
+
+    best = None
+    best_score = 0.0
+    for category in Category.objects.filter(is_deleted=False).only("id", "name"):
+        score = _string_similarity(label, category.name)
+        if score > best_score:
+            best = category
+            best_score = score
+    return best, best_score
+
+
+def map_many_to_many_by_name(model, raw_values: Any, threshold: float = 0.74):
+    if not raw_values:
+        return [], 0.0
+
+    values = raw_values if isinstance(raw_values, list) else [raw_values]
+    matched = []
+    confidences = []
+    available = list(model.objects.all().only("id", "name"))
+    for value in values:
+        label = value.get("name") if isinstance(value, dict) else str(value)
+        best_item = None
+        best_score = 0.0
+        for item in available:
+            score = _string_similarity(label, item.name)
+            if score > best_score:
+                best_item = item
+                best_score = score
+        if best_item and best_score >= threshold:
+            matched.append(best_item)
+            confidences.append(best_score)
+    if not matched:
+        return [], 0.0
+    return matched, sum(confidences) / len(confidences)
+
+
+def map_shipping_material_value(value: Any):
+    from apps.catalog.models import ShippingMaterial
+
+    if value in (None, ""):
+        return None, 0.0
+
+    if isinstance(value, dict):
+        material_id = value.get("id")
+        label = value.get("name", "")
+    else:
+        material_id = None
+        label = str(value)
+
+    if material_id:
+        material = ShippingMaterial.objects.filter(id=material_id).first()
+        if material:
+            return material, 1.0
+
+    best = None
+    best_score = 0.0
+    for material in ShippingMaterial.objects.all().only("id", "name"):
+        score = _string_similarity(label, material.name)
+        if score > best_score:
+            best = material
+            best_score = score
+    return best, best_score
+
+
+def compute_sustainability_score(carbon_kg: float | None, recycled_pct: Decimal | None, certifications_count: int = 0) -> float | None:
+    if carbon_kg is None and recycled_pct is None and certifications_count == 0:
+        return None
+    recycled = float(recycled_pct or 0) / 100.0
+    carbon_score = 1.0
+    if carbon_kg is not None:
+        carbon_score = max(0.0, 1.0 - min(float(carbon_kg) / 100.0, 1.0))
+    cert_bonus = min(certifications_count * 0.1, 0.2)
+    score = (0.6 * recycled) + (0.3 * carbon_score) + cert_bonus
+    return round(max(0.0, min(1.0, score)), 4)
+
+
+def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confidence_threshold: float) -> list[FieldSuggestionPayload]:
+    """
+    Normalize all raw provider output into validated field suggestions.
+    """
+    from apps.catalog.models import EcoCertification, Tag
+
+    normalized: list[FieldSuggestionPayload] = []
+    raw = dict(raw_suggestions or {})
+    resolved_name_value: str | None = None
+    resolved_description_value: str | None = None
+
+    # Hard guarantees
+    sku_value = raw.get("sku", {}).get("value")
+    if not sku_value:
+        raw["sku"] = {
+            "value": generate_sku("PRD"),
+            "confidence": 0.6,
+            "rationale": "Generated fallback SKU because no reliable OCR SKU was found.",
+            "source_urls": [],
+        }
+
+    default_aspect_code = get_default_aspect_ratio_code()
+    if raw.get("aspect_ratio", {}).get("value") not in _allowed_aspect_codes():
+        raw["aspect_ratio"] = {
+            "value": default_aspect_code,
+            "confidence": 0.75,
+            "rationale": "Default aspect ratio fallback.",
+            "source_urls": [],
+        }
+
+    if raw.get("price", {}).get("value") in (None, ""):
+        raw["price"] = {
+            "value": "10.00",
+            "confidence": 0.25,
+            "rationale": "Conservative fallback estimate when no strong market comparison was available.",
+            "source_urls": [],
+            "low_confidence": True,
+        }
+
+    for field in AUTOFILL_FIELDS:
+        payload = raw.get(field, {})
+        value = payload.get("value")
+        confidence = clamp_confidence(payload.get("confidence", 0.0))
+        rationale = payload.get("rationale", "")
+        source_urls = [u for u in (payload.get("source_urls") or []) if isinstance(u, str)]
+        metadata = payload.get("metadata") or {}
+        low_confidence = bool(payload.get("low_confidence", False))
+        is_null = False
+
+        if field in DECIMAL_FIELDS:
+            value = quantize_decimal(value)
+        elif field in INTEGER_FIELDS:
+            value = int(value) if value not in (None, "") else None
+        elif field in TEXT_FIELDS:
+            value = clean_text_value(value)
+            if value and text_looks_like_noise(value):
+                value = None
+                confidence = min(confidence, 0.2)
+                low_confidence = True
+                is_null = True
+                rationale = (rationale + " " if rationale else "") + "Rejected placeholder/noise text."
+
+        if field == "primary_category":
+            category, mapped_conf = map_category_value(value)
+            if category:
+                value = str(category.id)
+                confidence = max(confidence, mapped_conf)
+                metadata["name"] = category.name
+            else:
+                value = None
+
+        if field == "categories":
+            from apps.catalog.models import Category
+
+            categories = []
+            confidence_accumulator = []
+            for candidate in (value or []):
+                cat, mapped_conf = map_category_value(candidate)
+                if cat and cat.id not in {c.id for c in categories}:
+                    categories.append(cat)
+                    confidence_accumulator.append(mapped_conf)
+            value = [str(c.id) for c in categories]
+            if confidence_accumulator:
+                confidence = max(confidence, sum(confidence_accumulator) / len(confidence_accumulator))
+            metadata["names"] = list(Category.objects.filter(id__in=value).values_list("name", flat=True))
+
+        if field == "tags":
+            tag_matches, mapped_conf = map_many_to_many_by_name(Tag, value or [])
+            value = [str(tag.id) for tag in tag_matches]
+            if tag_matches:
+                confidence = max(confidence, mapped_conf)
+                metadata["names"] = [tag.name for tag in tag_matches]
+
+        if field == "eco_certifications":
+            cert_matches, mapped_conf = map_many_to_many_by_name(EcoCertification, value or [])
+            value = [str(cert.id) for cert in cert_matches]
+            if cert_matches:
+                confidence = max(confidence, mapped_conf)
+                metadata["names"] = [cert.name for cert in cert_matches]
+
+        if field == "shipping_material":
+            material, mapped_conf = map_shipping_material_value(value)
+            if material:
+                value = str(material.id)
+                confidence = max(confidence, mapped_conf)
+                metadata["name"] = material.name
+            else:
+                value = None
+
+        if field == "sale_price":
+            price_value = quantize_decimal(raw.get("price", {}).get("value"))
+            if value is not None and price_value is not None and value >= price_value:
+                value = None
+
+        if field == "cost":
+            if value is None:
+                price_value = quantize_decimal(raw.get("price", {}).get("value"))
+                if price_value is not None:
+                    value = (price_value * Decimal("0.65")).quantize(Decimal("0.01"))
+                    rationale = rationale or "Estimated from base margin profile."
+                    confidence = max(confidence, 0.45)
+
+        if field == "sustainability_score":
+            carbon = raw.get("carbon_footprint_kg", {}).get("value")
+            recycled = quantize_decimal(raw.get("recycled_content_percentage", {}).get("value"))
+            cert_count = len(raw.get("eco_certifications", {}).get("value") or [])
+            computed = compute_sustainability_score(float(carbon) if carbon not in (None, "") else None, recycled, cert_count)
+            value = computed
+            if computed is not None:
+                confidence = max(confidence, 0.7)
+
+        if field == "name":
+            if value:
+                token_count = len(re.findall(r"[A-Za-z]{2,}", value))
+                if token_count == 0:
+                    value = None
+                    confidence = min(confidence, 0.2)
+                    low_confidence = True
+                    is_null = True
+            resolved_name_value = value
+
+        if field in {"description", "short_description", "meta_description", "ethical_sourcing_notes"} and value:
+            word_count = len(re.findall(r"[A-Za-z]{2,}", value))
+            if word_count < 4:
+                value = None
+                confidence = min(confidence, 0.3)
+                low_confidence = True
+                is_null = True
+                rationale = (rationale + " " if rationale else "") + "Text content too short for reliable enrichment."
+
+        if field == "description":
+            resolved_description_value = value
+
+        if field in {"description", "short_description", "meta_description"} and value and resolved_name_value:
+            if slugify(str(value)) == slugify(str(resolved_name_value)):
+                value = None
+                confidence = min(confidence, 0.25)
+                low_confidence = True
+                is_null = True
+                rationale = (rationale + " " if rationale else "") + "Rejected duplicate name-only content."
+
+        if field == "short_description" and value and not resolved_description_value:
+            value = None
+            confidence = min(confidence, 0.25)
+            low_confidence = True
+            is_null = True
+            rationale = (rationale + " " if rationale else "") + "Missing reliable long description evidence."
+
+        if field in {"meta_title", "meta_description"} and (not resolved_name_value):
+            value = None
+            confidence = min(confidence, 0.2)
+            low_confidence = True
+            is_null = True
+            rationale = (rationale + " " if rationale else "") + "SEO fields require a reliable product name."
+
+        if field in NULL_IF_LOW_CONFIDENCE_FIELDS and confidence < confidence_threshold:
+            value = None if field not in {"tags", "categories", "eco_certifications"} else []
+            is_null = True
+            rationale = rationale or f"Insufficient evidence for {field} (confidence below threshold)."
+
+        if field == "price" and value is None:
+            value = Decimal("10.00")
+            low_confidence = True
+            confidence = max(confidence, 0.25)
+            rationale = rationale or "Fallback price estimate."
+
+        normalized.append(
+            FieldSuggestionPayload(
+                field_name=field,
+                value=value,
+                confidence=confidence,
+                rationale=rationale,
+                source_urls=source_urls,
+                metadata=metadata,
+                is_null=is_null,
+                low_confidence=low_confidence or confidence < confidence_threshold,
+            )
+        )
+    return normalized
+
+
+def is_blank_model_field(product, field_name: str) -> bool:
+    value = getattr(product, field_name, None)
+    if field_name in {"categories", "tags", "eco_certifications"}:
+        return value.count() == 0
+    return value in (None, "")
+
+
+def apply_suggestions_to_product(product, suggestions, force_overwrite: bool = False) -> dict[str, Any]:
+    """
+    Apply suggestion queryset/list onto a product object.
+    """
+    from apps.catalog.models import Category, EcoCertification, ShippingMaterial, Tag
+
+    changed_fields = []
+    m2m_updates: dict[str, list[str]] = {}
+    applied = 0
+    skipped = 0
+
+    for suggestion in suggestions:
+        field = suggestion.field_name
+        if field not in AUTOFILL_FIELDS:
+            continue
+        value = suggestion.value_json
+
+        if not force_overwrite and field not in {"categories", "tags", "eco_certifications"} and not is_blank_model_field(product, field):
+            skipped += 1
+            continue
+
+        if field == "primary_category":
+            category = Category.objects.filter(id=value, is_deleted=False).first() if value else None
+            if category:
+                product.primary_category = category
+                changed_fields.append("primary_category")
+                applied += 1
+            else:
+                skipped += 1
+            continue
+
+        if field in {"categories", "tags", "eco_certifications"}:
+            if not force_overwrite and not is_blank_model_field(product, field):
+                skipped += 1
+                continue
+            ids = [str(v) for v in (value or [])]
+            m2m_updates[field] = ids
+            applied += 1
+            continue
+
+        if field == "shipping_material":
+            material = ShippingMaterial.objects.filter(id=value).first() if value else None
+            if material:
+                product.shipping_material = material
+                changed_fields.append("shipping_material")
+                applied += 1
+            else:
+                skipped += 1
+            continue
+
+        if field in DECIMAL_FIELDS and value is not None:
+            quantized = quantize_decimal(value)
+            if quantized is None:
+                skipped += 1
+                continue
+            setattr(product, field, quantized)
+            changed_fields.append(field)
+            applied += 1
+            continue
+
+        if field in INTEGER_FIELDS and value is not None:
+            setattr(product, field, int(value))
+            changed_fields.append(field)
+            applied += 1
+            continue
+
+        if field == "aspect_ratio":
+            if value not in _allowed_aspect_codes(include_code=str(value) if value else None):
+                value = get_default_aspect_ratio_code()
+            setattr(product, field, value)
+            changed_fields.append(field)
+            applied += 1
+            continue
+
+        if field == "sustainability_score":
+            # Derived from material fields; do not directly force if absent.
+            continue
+
+        setattr(product, field, value)
+        changed_fields.append(field)
+        applied += 1
+
+    if changed_fields:
+        update_fields = sorted(set(changed_fields + ["updated_at"]))
+        product.save(update_fields=update_fields)
+
+    if "categories" in m2m_updates:
+        categories = Category.objects.filter(id__in=m2m_updates["categories"], is_deleted=False)
+        product.categories.set(categories)
+        if not product.primary_category and categories.exists():
+            product.primary_category = categories.first()
+            product.save(update_fields=["primary_category", "updated_at"])
+    if "tags" in m2m_updates:
+        tags = Tag.objects.filter(id__in=m2m_updates["tags"])
+        product.tags.set(tags)
+    if "eco_certifications" in m2m_updates:
+        certs = EcoCertification.objects.filter(id__in=m2m_updates["eco_certifications"])
+        product.eco_certifications.set(certs)
+
+    # Recompute score after eco data changes.
+    product.compute_sustainability_score(save=True)
+
+    return {
+        "applied": applied,
+        "skipped": skipped,
+        "changed_fields": sorted(set(changed_fields + list(m2m_updates.keys()))),
+    }

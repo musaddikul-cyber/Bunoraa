@@ -1,4 +1,5 @@
 import uuid
+import re
 from decimal import Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -14,15 +15,8 @@ from django.core.cache import cache
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 CURRENCY_DEFAULT = getattr(settings, "DEFAULT_CURRENCY", "BDT")
-
-# Standard aspect ratio choices for product/category card display
-ASPECT_CHOICES = (
-    ("1:1", "1:1"),
-    ("4:3", "4:3"),
-    ("16:9", "16:9"),
-    ("3:2", "3:2"),
-    ("free", "Free / responsive"),
-)
+ASPECT_RATIO_DEFAULT_CODE = "1:1"
+ASPECT_RATIO_CODE_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*[:/x]\s*(\d+(?:\.\d+)?)\s*$", re.I)
 
 # Aspect unit choices for custom dimensions
 ASPECT_UNIT_CHOICES = [
@@ -91,6 +85,95 @@ class TimeStampedMixin(models.Model):
         abstract = True
 
 
+class AspectRatioChoice(TimeStampedMixin):
+    """Admin-manageable aspect ratio choices used across catalog and AI."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    code = models.CharField(max_length=32, unique=True)
+    label = models.CharField(max_length=100)
+    sort_order = models.PositiveSmallIntegerField(default=0, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    is_default = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        ordering = ["sort_order", "label", "code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_default"],
+                condition=Q(is_default=True),
+                name="catalog_single_default_aspect_ratio",
+            ),
+        ]
+
+    def __str__(self):
+        return self.label or self.code
+
+
+def get_active_aspect_ratio_choices(*, include_code: str | None = None) -> list[tuple[str, str]]:
+    qs = AspectRatioChoice.objects.filter(is_active=True)
+    if include_code:
+        qs = qs | AspectRatioChoice.objects.filter(code=include_code)
+    rows = qs.order_by("sort_order", "label", "code").values_list("code", "label")
+    choices = [(code, label or code) for code, label in rows]
+    if choices:
+        # Preserve order while deduplicating in case include_code overlaps.
+        seen = set()
+        deduped = []
+        for code, label in choices:
+            if code in seen:
+                continue
+            seen.add(code)
+            deduped.append((code, label))
+        return deduped
+    return [(ASPECT_RATIO_DEFAULT_CODE, ASPECT_RATIO_DEFAULT_CODE)]
+
+
+def get_active_aspect_ratio_codes(*, include_code: str | None = None) -> set[str]:
+    return {code for code, _ in get_active_aspect_ratio_choices(include_code=include_code)}
+
+
+def get_default_aspect_ratio_code() -> str:
+    default_choice = (
+        AspectRatioChoice.objects.filter(is_active=True, is_default=True)
+        .order_by("sort_order", "code")
+        .values_list("code", flat=True)
+        .first()
+    )
+    if default_choice:
+        return default_choice
+    first_choice = (
+        AspectRatioChoice.objects.filter(is_active=True)
+        .order_by("sort_order", "code")
+        .values_list("code", flat=True)
+        .first()
+    )
+    return first_choice or ASPECT_RATIO_DEFAULT_CODE
+
+
+def is_registered_aspect_ratio_code(code: str | None) -> bool:
+    normalized = (code or "").strip()
+    if not normalized:
+        return True
+    if not AspectRatioChoice.objects.exists():
+        # Bootstrap mode (before first seed)
+        return True
+    return AspectRatioChoice.objects.filter(code=normalized).exists()
+
+
+def parse_aspect_ratio_code(code: str | None) -> tuple[Decimal, Decimal] | None:
+    normalized = (code or "").strip()
+    if not normalized:
+        return None
+    match = ASPECT_RATIO_CODE_RE.match(normalized)
+    if not match:
+        return None
+    width = Decimal(match.group(1))
+    height = Decimal(match.group(2))
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
+
+
 class Category(TimeStampedMixin):
     """Category model using materialized path.
 
@@ -127,7 +210,7 @@ class Category(TimeStampedMixin):
     image = models.ImageField(null=True, blank=True, upload_to="catalog/category_images/")
     icon = models.CharField(max_length=100, blank=True)
     # Display preferences
-    aspect_ratio = models.CharField(max_length=10, choices=ASPECT_CHOICES, default="1:1", blank=True)
+    aspect_ratio = models.CharField(max_length=32, default=ASPECT_RATIO_DEFAULT_CODE, blank=True)
     
     # Custom aspect ratio dimensions (for inheritance and precise control)
     aspect_width = models.DecimalField(
@@ -162,6 +245,10 @@ class Category(TimeStampedMixin):
     def clean(self):
         if self.parent and self.parent_id == self.id:
             raise ValidationError("Category cannot be parent of itself")
+        if not self.aspect_ratio:
+            self.aspect_ratio = get_default_aspect_ratio_code()
+        if not is_registered_aspect_ratio_code(self.aspect_ratio):
+            raise ValidationError({"aspect_ratio": "Unknown aspect ratio. Add it in Aspect Ratio Choices first."})
 
     def save(self, *args, **kwargs):
         # slugify
@@ -262,7 +349,7 @@ class Category(TimeStampedMixin):
         """Return effective aspect (width, height, unit) inheriting from ancestors.
 
         Returns a dict: {'width': Decimal, 'height': Decimal, 'unit': str, 'ratio': Decimal}
-        Defaults to 1:1 if nothing is set on the category chain.
+        Defaults to configured default aspect ratio if nothing is set on the category chain.
         """
         # If this category has both width and height specified, use it
         if self.aspect_width and self.aspect_height:
@@ -293,12 +380,17 @@ class Category(TimeStampedMixin):
                 }
             parent = parent.parent
 
-        # Default 1:1
+        # Default to configured aspect ratio; fallback to 1:1 if unparsable.
+        parsed_default = parse_aspect_ratio_code(get_default_aspect_ratio_code())
+        if parsed_default:
+            default_width, default_height = parsed_default
+        else:
+            default_width, default_height = Decimal('1'), Decimal('1')
         return {
-            'width': Decimal('1'),
-            'height': Decimal('1'),
+            'width': default_width,
+            'height': default_height,
             'unit': 'ratio',
-            'ratio': Decimal('1')
+            'ratio': (default_width / default_height) if default_height else Decimal('1'),
         }
 
     def get_products(self, include_subcategories=True, qs=None):
@@ -456,7 +548,7 @@ class Product(TimeStampedMixin):
     width = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
     height = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
     shipping_material = models.ForeignKey("ShippingMaterial", null=True, blank=True, on_delete=models.SET_NULL, related_name="products")
-    aspect_ratio = models.CharField(max_length=10, choices=ASPECT_CHOICES, default="1:1", blank=True)
+    aspect_ratio = models.CharField(max_length=32, default=ASPECT_RATIO_DEFAULT_CODE, blank=True)
 
     stock_quantity = models.IntegerField(default=0)
     allow_backorder = models.BooleanField(default=False)
@@ -557,6 +649,10 @@ class Product(TimeStampedMixin):
         # price validations
         if self.sale_price is not None and self.sale_price >= self.price:
             raise ValidationError("Sale price must be lower than regular price")
+        if not self.aspect_ratio:
+            self.aspect_ratio = get_default_aspect_ratio_code()
+        if not is_registered_aspect_ratio_code(self.aspect_ratio):
+            raise ValidationError({"aspect_ratio": "Unknown aspect ratio. Add it in Aspect Ratio Choices first."})
 
     def soft_delete(self):
         # decrement category product_count if not already deleted
@@ -1522,5 +1618,221 @@ class EcoCertification(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class CategoryPricingProfile(models.Model):
+    """Category-level defaults used by product AI pricing and inventory suggestion."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    category = models.OneToOneField(
+        Category,
+        on_delete=models.CASCADE,
+        related_name="pricing_profile",
+    )
+    min_margin_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=35)
+    max_margin_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=55)
+    sale_discount_min_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=5)
+    sale_discount_max_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=15)
+    price_floor = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    stock_default = models.PositiveIntegerField(default=12)
+    low_stock_threshold_default = models.PositiveIntegerField(default=5)
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["is_active"])]
+
+    def __str__(self):
+        return f"Pricing profile for {self.category.name}"
+
+
+class ProductAutofillJob(models.Model):
+    """Tracks asynchronous AI autofill runs initiated from admin."""
+
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "Pending"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_CANCELLED, "Cancelled"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name="autofill_jobs",
+        null=True,
+        blank=True,
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="product_autofill_jobs",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    locale = models.CharField(max_length=10, blank=True, default="")
+    currency = models.CharField(max_length=10, default=CURRENCY_DEFAULT)
+    image_count = models.PositiveSmallIntegerField(default=0)
+    allow_external = models.BooleanField(default=True)
+    force_overwrite = models.BooleanField(default=False)
+    progress = models.PositiveSmallIntegerField(default=0)
+    error_message = models.TextField(blank=True)
+    input_payload = models.JSONField(null=True, blank=True)
+    summary = models.JSONField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["product", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Autofill job {self.id} ({self.status})"
+
+    @property
+    def is_finished(self):
+        return self.status in {self.STATUS_COMPLETED, self.STATUS_FAILED, self.STATUS_CANCELLED}
+
+
+class ProductAutofillSource(models.Model):
+    """Research source/evidence captured during an autofill job."""
+
+    SOURCE_WEB = "web"
+    SOURCE_INTERNAL = "internal"
+    SOURCE_IMAGE = "image"
+    SOURCE_CHOICES = (
+        (SOURCE_WEB, "Web"),
+        (SOURCE_INTERNAL, "Internal"),
+        (SOURCE_IMAGE, "Image"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(ProductAutofillJob, on_delete=models.CASCADE, related_name="sources")
+    provider = models.CharField(max_length=120)
+    source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES, default=SOURCE_WEB)
+    url = models.URLField(blank=True)
+    domain = models.CharField(max_length=255, blank=True)
+    title = models.CharField(max_length=500, blank=True)
+    snippet = models.TextField(blank=True)
+    trust_score = models.FloatField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+    )
+    metadata = models.JSONField(null=True, blank=True)
+    fetched_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["job", "provider"]),
+            models.Index(fields=["domain"]),
+        ]
+
+    def __str__(self):
+        return f"{self.provider}: {self.url or self.title or self.id}"
+
+
+class ProductFieldSuggestion(models.Model):
+    """Field-level suggestion generated by AI for a product autofill job."""
+
+    STATUS_SUGGESTED = "suggested"
+    STATUS_APPLIED = "applied"
+    STATUS_REJECTED = "rejected"
+    STATUS_EDITED = "edited"
+    STATUS_CHOICES = (
+        (STATUS_SUGGESTED, "Suggested"),
+        (STATUS_APPLIED, "Applied"),
+        (STATUS_REJECTED, "Rejected"),
+        (STATUS_EDITED, "Edited"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(ProductAutofillJob, on_delete=models.CASCADE, related_name="suggestions")
+    field_name = models.CharField(max_length=120, db_index=True)
+    value_json = models.JSONField(null=True, blank=True)
+    display_value = models.TextField(blank=True)
+    confidence = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+    )
+    is_null_suggestion = models.BooleanField(default=False)
+    low_confidence = models.BooleanField(default=False)
+    rationale = models.TextField(blank=True)
+    source_urls = models.JSONField(default=list, blank=True)
+    metadata = models.JSONField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_SUGGESTED, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("job", "field_name")
+        indexes = [
+            models.Index(fields=["job", "status"]),
+            models.Index(fields=["field_name"]),
+        ]
+
+    def __str__(self):
+        return f"{self.field_name} ({self.confidence:.2f})"
+
+
+class ProductAutofillFeedback(models.Model):
+    """Admin feedback for tuning autofill suggestions over time."""
+
+    TYPE_ACCEPTED = "accepted"
+    TYPE_REJECTED = "rejected"
+    TYPE_EDITED = "edited"
+    TYPE_CHOICES = (
+        (TYPE_ACCEPTED, "Accepted"),
+        (TYPE_REJECTED, "Rejected"),
+        (TYPE_EDITED, "Edited"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(ProductAutofillJob, on_delete=models.CASCADE, related_name="feedback")
+    suggestion = models.ForeignKey(
+        ProductFieldSuggestion,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="feedback_entries",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="product_autofill_feedback",
+    )
+    field_name = models.CharField(max_length=120, db_index=True)
+    feedback_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    previous_value = models.JSONField(null=True, blank=True)
+    final_value = models.JSONField(null=True, blank=True)
+    note = models.TextField(blank=True)
+    metadata = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["job", "feedback_type"]),
+            models.Index(fields=["field_name"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.feedback_type} - {self.field_name}"
 
 

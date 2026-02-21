@@ -13,14 +13,19 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from django.core.management.base import BaseCommand
-from apps.catalog.models import Category, CategoryFacet
+from apps.catalog.models import (
+    AspectRatioChoice,
+    Category,
+    CategoryFacet,
+    get_default_aspect_ratio_code,
+)
 
 
 # CSV headers for export
 HEADERS = [
     'node_id', 'name', 'slug', 'parent_slug', 'path', 'depth',
     'is_visible', 'is_deleted', 'meta_title', 'meta_description',
-    'allowed_facets', 'product_count'
+    'allowed_facets', 'aspect_ratio', 'product_count'
 ]
 
 
@@ -82,6 +87,7 @@ class Command(BaseCommand):
                 'meta_title': c.meta_title or '',
                 'meta_description': c.meta_description or '',
                 'allowed_facets': allowed_facets,
+                'aspect_ratio': c.aspect_ratio or '',
                 'product_count': c.product_count,
             })
 
@@ -111,9 +117,16 @@ class Command(BaseCommand):
         """Export to JSON format (nested tree structure)."""
         # Build nested tree
         tree = self._build_tree(rows)
+        aspect_choices = list(
+            AspectRatioChoice.objects.filter(is_active=True)
+            .order_by("sort_order", "code")
+            .values("code", "label", "sort_order", "is_default")
+        )
         
         output = {
             'version': '1.0',
+            'default_aspect_ratio': get_default_aspect_ratio_code(),
+            'aspect_choices': aspect_choices,
             'categories': tree,
             'total_count': len(rows)
         }
@@ -151,6 +164,8 @@ class Command(BaseCommand):
                 'name': node['name'],
                 'slug': node['slug'],
             }
+            if node.get('aspect_ratio'):
+                cleaned['aspect_ratio'] = node['aspect_ratio']
             if node.get('allowed_facets'):
                 cleaned['facets'] = node['allowed_facets'].split(',')
             if node['children']:

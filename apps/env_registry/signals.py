@@ -3,7 +3,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from .models import EnvValue
-from .runtime import apply_runtime_overrides
+from .services import apply_runtime_overrides
 
 
 @receiver(post_save, sender=EnvValue)

@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand, CommandError
-from apps.seo.analysis import generate_content_brief, detect_serp_features, classify_intent_from_term_and_serp
+from apps.seo.services import generate_content_brief, detect_serp_features, classify_intent_from_term_and_serp
 
 
 class Command(BaseCommand):

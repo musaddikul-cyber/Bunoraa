@@ -30,7 +30,7 @@ from .models import (
     EmailMessage, EmailEvent, EmailAttachment, Suppression,
     UnsubscribeGroup, UnsubscribePreference, Webhook, WebhookLog, DailyStats
 )
-from .serializers import (
+from .api.serializers import (
     APIKeySerializer, APIKeyCreateSerializer,
     SenderDomainSerializer, SenderDomainCreateSerializer,
     SenderIdentitySerializer,
@@ -41,9 +41,7 @@ from .serializers import (
     UnsubscribeGroupSerializer, WebhookSerializer, WebhookCreateSerializer,
     DailyStatsSerializer, StatsOverviewSerializer
 )
-from .engine import EmailEnvelope, QueueManager
-from .authentication import APIKeyAuthentication
-from .permissions import HasAPIKeyPermission
+from .services import EmailEnvelope, QueueManager, APIKeyAuthentication, HasAPIKeyPermission
 
 logger = logging.getLogger('bunoraa.email_service.api')
 

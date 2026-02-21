@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from apps.env_registry.schema_loader import sync_from_schema
+from apps.env_registry.services import sync_registry_from_schema
 
 
 class Command(BaseCommand):
@@ -16,7 +16,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         schema_path = options.get("schema")
         env = (options.get("env") or settings.ENVIRONMENT).lower()
-        result = sync_from_schema(schema_path, env=env, force=options.get("force"), prune=options.get("prune"))
+        result = sync_registry_from_schema(
+            schema_path,
+            env=env,
+            force=options.get("force"),
+            prune=options.get("prune"),
+        )
         self.stdout.write(
             self.style.SUCCESS(
                 f"Env registry synced. Variables processed: {result['variables_processed']}, changed: {result['variables_changed']}"

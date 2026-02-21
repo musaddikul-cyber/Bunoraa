@@ -1,4 +1,4 @@
-"""
+﻿"""
 Account API serializers
 """
 from rest_framework import serializers
@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from ..models import Address, WebAuthnCredential, DataExportJob, AccountDeletionRequest
-from ..behavior_models import UserPreferences, UserSession
+from ..models import UserPreferences, UserSession
 
 User = get_user_model()
 
@@ -241,3 +241,4 @@ class AccountDeletionStatusSerializer(serializers.ModelSerializer):
         fields = [
             'status', 'requested_at', 'scheduled_for', 'processed_at', 'cancelled_at', 'reason'
         ]
+

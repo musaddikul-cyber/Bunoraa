@@ -24,13 +24,10 @@ Author: Bunoraa AI Team
 Version: 2.0.0
 """
 
-from .core.registry import ModelRegistry
-from .core.base import BaseMLModel, BaseNeuralNetwork
-from .core.inference import InferenceEngine
-from .core.config import MLConfig
-from .core.metrics import MetricsTracker
-from .core.feature_store import FeatureStore
-from .core.settings import get_default_settings, get_celery_beat_schedule
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any, Dict, Tuple
 
 __version__ = "2.0.0"
 __all__ = [
@@ -44,3 +41,25 @@ __all__ = [
     "get_default_settings",
     "get_celery_beat_schedule",
 ]
+
+_LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
+    "ModelRegistry": ("ml.core.registry", "ModelRegistry"),
+    "BaseMLModel": ("ml.core.base", "BaseMLModel"),
+    "BaseNeuralNetwork": ("ml.core.base", "BaseNeuralNetwork"),
+    "InferenceEngine": ("ml.core.inference", "InferenceEngine"),
+    "MLConfig": ("ml.core.config", "MLConfig"),
+    "MetricsTracker": ("ml.core.metrics", "MetricsTracker"),
+    "FeatureStore": ("ml.core.feature_store", "FeatureStore"),
+    "get_default_settings": ("ml.core.settings", "get_default_settings"),
+    "get_celery_beat_schedule": ("ml.core.settings", "get_celery_beat_schedule"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name not in _LAZY_IMPORTS:
+        raise AttributeError(f"module 'ml' has no attribute '{name}'")
+    module_path, attr_name = _LAZY_IMPORTS[name]
+    module = import_module(module_path)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value

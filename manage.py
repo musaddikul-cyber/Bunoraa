@@ -8,7 +8,8 @@ from pathlib import Path
 try:
     from dotenv import load_dotenv
     env_path = Path(__file__).resolve().parent / '.env'
-    load_dotenv(dotenv_path=env_path, override=True)
+    # Do not override already-exported environment variables.
+    load_dotenv(dotenv_path=env_path, override=False)
 except ImportError:
     pass
 

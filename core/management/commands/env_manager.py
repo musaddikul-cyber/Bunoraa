@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.env_registry import env_manager
+from apps.env_registry.services import DEFAULT_SCHEMA_PATH, main_with_argv
 
 
 class Command(BaseCommand):
@@ -9,7 +9,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--schema",
-            default=str(env_manager.DEFAULT_SCHEMA_PATH),
+            default=str(DEFAULT_SCHEMA_PATH),
             help="Path to env schema YAML (default: config/env.schema.yml)",
         )
         subparsers = parser.add_subparsers(dest="command", required=True)
@@ -57,6 +57,6 @@ class Command(BaseCommand):
         if options.get("dry_run"):
             argv.append("--dry-run")
 
-        exit_code = env_manager.main_with_argv(argv)
+        exit_code = main_with_argv(argv)
         if exit_code:
             raise CommandError(f"env_manager failed with exit code {exit_code}")

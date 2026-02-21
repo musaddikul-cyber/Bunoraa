@@ -1,4 +1,4 @@
-"""
+﻿"""
 Notifications API views
 """
 from django.conf import settings
@@ -275,7 +275,7 @@ class NotificationPreferenceViewSet(viewsets.ViewSet):
         serializer.save()
 
         try:
-            from apps.accounts.behavior_models import UserPreferences
+            from apps.accounts.models import UserPreferences
             user_prefs, _ = UserPreferences.objects.get_or_create(user=request.user)
             user_prefs.email_notifications = prefs.email_enabled
             user_prefs.sms_notifications = prefs.sms_enabled
@@ -486,3 +486,4 @@ class NotificationHealthView(APIView):
             },
             'meta': {}
         })
+

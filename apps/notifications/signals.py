@@ -1,4 +1,4 @@
-"""
+﻿"""
 Notifications signals
 """
 from django.db.models.signals import post_save, post_migrate
@@ -32,7 +32,7 @@ def ensure_notification_preferences(sender, **kwargs):
         return
     try:
         from .models import NotificationPreference
-        from apps.accounts.behavior_models import UserPreferences
+        from apps.accounts.models import UserPreferences
         from .services import NotificationService
 
         User = get_user_model()
@@ -80,3 +80,4 @@ def broadcast_notification(sender, instance, created, **kwargs):
         )
     except Exception:
         pass
+

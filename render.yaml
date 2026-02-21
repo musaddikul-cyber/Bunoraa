@@ -33,7 +33,19 @@ services:
       - key: NEXT_FRONTEND_ORIGIN
         value: "https://bunoraa.com"
       - key: ML_ENABLED
-        value: "false"
+        value: "true"
+      - key: ML_CHAT_ASSISTANT
+        value: "true"
+      - key: CHAT_AI_LOCAL_MODEL_ENABLED
+        value: "true"
+      - key: CHAT_AI_DEFAULT_MODEL
+        value: "Qwen/Qwen2.5-1.5B-Instruct"
+      - key: CHAT_AI_ALLOWED_MODELS
+        value: "Qwen/*,microsoft/Phi-3.5-mini-instruct,mistralai/Ministral-8B-Instruct-2410,meta-llama/Llama-3.2-3B-Instruct"
+      - key: CHAT_AI_MODEL_FALLBACKS
+        value: "Qwen/Qwen2.5-0.5B-Instruct,microsoft/Phi-3.5-mini-instruct"
+      - key: CHAT_AI_GENERATION_MAX_TIME_SECONDS
+        value: "12"
       - key: PRERENDER_ENABLED
         value: "false"
       - key: LIBRETRANSLATE_URL

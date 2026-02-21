@@ -40,7 +40,18 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        sub = serializer.save()
+        try:
+            sub = serializer.save()
+        except stripe.error.StripeError as exc:
+            return Response(
+                {"success": False, "message": str(exc), "data": {}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception:
+            return Response(
+                {"success": False, "message": "Subscription creation failed", "data": {}},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         return Response({"success": True, "message": "Subscription created", "data": self.get_serializer(sub).data}, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):

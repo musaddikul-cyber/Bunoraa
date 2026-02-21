@@ -1,4 +1,4 @@
-"""
+﻿"""
 Personalization Service
 
 Django service for real-time personalization.
@@ -530,7 +530,7 @@ class PersonalizationService:
     def _get_user_preferences(self, user_id: int) -> Dict[str, Any]:
         """Get user's preferences."""
         try:
-            from apps.accounts.behavior_models import UserBehaviorProfile
+            from apps.accounts.models import UserBehaviorProfile
             
             profile = UserBehaviorProfile.objects.filter(user_id=user_id).first()
             
@@ -815,3 +815,4 @@ class PersonalizationService:
             "risk_level": risk_level,
             "days_inactive": days_inactive,
         }
+

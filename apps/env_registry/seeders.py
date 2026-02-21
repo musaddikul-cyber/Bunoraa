@@ -17,7 +17,7 @@ class EnvRegistrySeedSpec(SeedSpec):
             return SeedResult(skipped=1)
 
         try:
-            from apps.env_registry.schema_loader import sync_from_schema
+            from apps.env_registry.services import sync_registry_from_schema
         except Exception:
             return SeedResult(errors=1)
 
@@ -26,7 +26,7 @@ class EnvRegistrySeedSpec(SeedSpec):
         if ctx.dry_run:
             return SeedResult(skipped=1)
 
-        stats = sync_from_schema(schema_path or None, env=env_name, force=False, prune=False)
+        stats = sync_registry_from_schema(schema_path or None, env=env_name, force=False, prune=False)
         result = SeedResult()
         result.updated = stats.get("variables_changed", 0)
         return result

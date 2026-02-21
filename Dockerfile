@@ -26,10 +26,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
+COPY requirements-ml.txt .
+
+ARG INSTALL_ML_DEPS=0
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt \
+    && if [ "$INSTALL_ML_DEPS" = "1" ]; then pip install --no-cache-dir -r requirements-ml.txt; fi
 
 # Copy project files
 COPY . .

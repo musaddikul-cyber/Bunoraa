@@ -502,7 +502,11 @@ class ChatSettings(models.Model):
     
     # AI Settings
     ai_enabled = models.BooleanField(default=True)
-    ai_model = models.CharField(max_length=50, default='gpt-4')
+    ai_model = models.CharField(
+        max_length=120,
+        default='Qwen/Qwen2.5-1.5B-Instruct',
+        help_text='Local Hugging Face model ID or local model path',
+    )
     ai_temperature = models.FloatField(default=0.7)
     ai_max_tokens = models.PositiveIntegerField(default=500)
     ai_system_prompt = models.TextField(

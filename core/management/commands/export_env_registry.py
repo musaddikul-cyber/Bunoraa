@@ -2,7 +2,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from apps.env_registry.models import EnvValue
-from apps.env_registry import env_manager
+from apps.env_registry.services import sync_from_schema
 
 
 class Command(BaseCommand):
@@ -38,7 +38,7 @@ class Command(BaseCommand):
             if value is not None:
                 overrides[variable.key] = value
 
-        env_manager.sync_from_schema(
+        sync_from_schema(
             schema_path=schema_path,
             env=env,
             targets=targets,

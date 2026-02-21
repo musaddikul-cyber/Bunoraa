@@ -40,6 +40,11 @@ class Command(BaseCommand):
             help='Show Redis queue status only',
         )
         parser.add_argument(
+            '--chat',
+            action='store_true',
+            help='Show local chat model status only',
+        )
+        parser.add_argument(
             '--json',
             action='store_true',
             help='Output as JSON',
@@ -49,10 +54,11 @@ class Command(BaseCommand):
         show_health = options['health']
         show_data = options['data']
         show_queue = options['queue']
+        show_chat = options['chat']
         output_json = options['json']
         
         # If no specific option, show all
-        show_all = not (show_health or show_data or show_queue)
+        show_all = not (show_health or show_data or show_queue or show_chat)
         
         status = {
             'timestamp': timezone.now().isoformat(),
@@ -68,6 +74,9 @@ class Command(BaseCommand):
         
         if show_all or show_queue:
             status['queue'] = self._get_queue_status()
+
+        if show_all or show_chat:
+            status['chat'] = self._get_chat_status()
         
         if show_all:
             status['system'] = self._get_system_status()
@@ -304,6 +313,22 @@ class Command(BaseCommand):
             system_status['celery_available'] = False
         
         return system_status
+
+    def _get_chat_status(self) -> dict:
+        """Get local chat assistant status."""
+        chat_status = {
+            'enabled': False,
+            'loaded_model_id': None,
+            'compute_device': None,
+            'load_error': None,
+        }
+        try:
+            from ml.services.chat_model_service import ChatModelService
+            status = ChatModelService.get_status()
+            chat_status.update(status)
+        except Exception as e:
+            chat_status['load_error'] = str(e)
+        return chat_status
     
     def _display_status(self, status: dict):
         """Display status in formatted output."""
@@ -395,6 +420,36 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(self.style.ERROR("  ✗ Redis Not Available"))
             
+            self.stdout.write("")
+
+        # Chat model
+        if 'chat' in status:
+            self.stdout.write("-" * 40)
+            self.stdout.write("CHAT MODEL STATUS")
+            self.stdout.write("-" * 40)
+
+            chat = status['chat']
+            if chat.get('enabled'):
+                self.stdout.write(self.style.SUCCESS("  ✓ Local chat assistant enabled"))
+            else:
+                self.stdout.write(self.style.WARNING("  ○ Local chat assistant disabled"))
+
+            self.stdout.write(f"  Loaded Model: {chat.get('loaded_model_id') or '-'}")
+            self.stdout.write(f"  Compute Device: {chat.get('compute_device') or '-'}")
+            if chat.get('last_load_seconds'):
+                self.stdout.write(f"  Last Load Time: {chat.get('last_load_seconds'):.2f}s")
+
+            deps = chat.get('dependencies') or {}
+            if deps:
+                self.stdout.write(
+                    f"  Dependencies: torch={deps.get('torch')}, "
+                    f"transformers={deps.get('transformers')}, "
+                    f"bitsandbytes={deps.get('bitsandbytes')}"
+                )
+
+            if chat.get('load_error'):
+                self.stdout.write(self.style.ERROR(f"  Error: {chat['load_error']}"))
+
             self.stdout.write("")
         
         # System

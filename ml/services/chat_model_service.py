@@ -6,7 +6,9 @@ configuration from Django settings. It does not require external API keys.
 """
 from __future__ import annotations
 
+import importlib.util
 import logging
+import os
 import threading
 import time
 from typing import Any, Dict, List, Optional
@@ -20,12 +22,14 @@ class ChatModelService:
     """Thread-safe lazy loader and inference wrapper for local chat models."""
 
     _lock = threading.Lock()
+    _inference_lock = threading.Lock()
     _model = None
     _tokenizer = None
     _loaded_model_id: Optional[str] = None
     _compute_device: str = "cpu"
     _load_error: Optional[str] = None
     _last_load_seconds: float = 0.0
+    _last_attempted_models: List[str] = []
 
     @classmethod
     def is_enabled(cls) -> bool:
@@ -37,12 +41,18 @@ class ChatModelService:
 
     @classmethod
     def get_status(cls) -> Dict[str, Any]:
+        primary = cls._normalize_model_id(getattr(settings, "CHAT_AI_DEFAULT_MODEL", "") or "")
+        fallback = cls._resolve_fallback_models()
         return {
             "enabled": cls.is_enabled(),
             "loaded_model_id": cls._loaded_model_id,
             "compute_device": cls._compute_device,
             "load_error": cls._load_error,
             "last_load_seconds": cls._last_load_seconds,
+            "model_primary": primary,
+            "model_fallbacks": fallback,
+            "last_attempted_models": list(cls._last_attempted_models),
+            "dependencies": cls._dependency_status(),
         }
 
     @classmethod
@@ -99,8 +109,13 @@ class ChatModelService:
         )
 
         try:
+            serialize = bool(getattr(settings, "CHAT_AI_SERIALIZE_GENERATION", True))
             with torch.inference_mode():
-                outputs = model.generate(**inputs, **generation_config)
+                if serialize:
+                    with cls._inference_lock:
+                        outputs = model.generate(**inputs, **generation_config)
+                else:
+                    outputs = model.generate(**inputs, **generation_config)
         except RuntimeError as exc:
             if "out of memory" in str(exc).lower() and torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -116,108 +131,258 @@ class ChatModelService:
         return cls._sanitize_response(text)
 
     @classmethod
+    def warmup(cls, *, model_id_override: Optional[str] = None) -> bool:
+        """Preload model/tokenizer for startup readiness checks."""
+        return cls._ensure_loaded(model_id_override=model_id_override)
+
+    @classmethod
     def _ensure_loaded(cls, *, model_id_override: Optional[str] = None) -> bool:
-        model_id = cls._resolve_model_id(model_id_override)
-        if not model_id:
-            cls._load_error = "CHAT_AI_DEFAULT_MODEL is empty"
+        candidate_model_ids = cls._resolve_candidate_model_ids(model_id_override)
+        cls._last_attempted_models = list(candidate_model_ids)
+        if not candidate_model_ids:
+            cls._load_error = "No valid local chat model candidate is configured"
             return False
 
-        if cls._model is not None and cls._tokenizer is not None and cls._loaded_model_id == model_id:
+        if (
+            cls._model is not None
+            and cls._tokenizer is not None
+            and cls._loaded_model_id in candidate_model_ids
+        ):
             return True
 
         with cls._lock:
-            if cls._model is not None and cls._tokenizer is not None and cls._loaded_model_id == model_id:
+            if (
+                cls._model is not None
+                and cls._tokenizer is not None
+                and cls._loaded_model_id in candidate_model_ids
+            ):
                 return True
 
-            start = time.perf_counter()
             cls._load_error = None
+            errors: List[str] = []
 
-            try:
-                import torch
-                from transformers import AutoModelForCausalLM, AutoTokenizer
-            except Exception as exc:
-                cls._load_error = f"Missing ML dependencies: {exc}"
-                logger.warning("Failed to import local chat dependencies: %s", exc)
-                return False
-
-            local_files_only = bool(
-                getattr(settings, "CHAT_AI_MODEL_LOCAL_FILES_ONLY", False)
-                or not getattr(settings, "CHAT_AI_MODEL_ALLOW_DOWNLOAD", True)
-            )
-            trust_remote_code = bool(getattr(settings, "CHAT_AI_MODEL_TRUST_REMOTE_CODE", False))
-            cache_dir = (getattr(settings, "CHAT_AI_MODEL_CACHE_DIR", "") or "").strip() or None
-            revision = (getattr(settings, "CHAT_AI_MODEL_REVISION", "") or "").strip() or None
-            use_fast_tokenizer = bool(getattr(settings, "CHAT_AI_MODEL_USE_FAST_TOKENIZER", True))
-
-            tokenizer_kwargs: Dict[str, Any] = {
-                "local_files_only": local_files_only,
-                "trust_remote_code": trust_remote_code,
-                "use_fast": use_fast_tokenizer,
-            }
-            model_kwargs: Dict[str, Any] = {
-                "local_files_only": local_files_only,
-                "trust_remote_code": trust_remote_code,
-            }
-            if cache_dir:
-                tokenizer_kwargs["cache_dir"] = cache_dir
-                model_kwargs["cache_dir"] = cache_dir
-            if revision:
-                tokenizer_kwargs["revision"] = revision
-                model_kwargs["revision"] = revision
-
-            compute_device = cls._resolve_device(torch)
-            torch_dtype = cls._resolve_dtype(torch, compute_device)
-            if torch_dtype is not None:
-                model_kwargs["torch_dtype"] = torch_dtype
-
-            quant_mode = (getattr(settings, "CHAT_AI_MODEL_QUANTIZATION", "none") or "none").strip().lower()
-            if quant_mode in {"8bit", "4bit"}:
-                try:
-                    import bitsandbytes  # noqa: F401
-                    model_kwargs[f"load_in_{quant_mode}"] = True
-                    model_kwargs["device_map"] = "auto"
-                except Exception:
-                    logger.warning(
-                        "CHAT_AI_MODEL_QUANTIZATION=%s requested but bitsandbytes is unavailable; loading full precision",
-                        quant_mode,
+            for candidate in candidate_model_ids:
+                ok, info = cls._load_model(candidate)
+                if ok:
+                    cls._model = info["model"]
+                    cls._tokenizer = info["tokenizer"]
+                    cls._loaded_model_id = candidate
+                    cls._compute_device = info["compute_device"]
+                    cls._last_load_seconds = info["elapsed"]
+                    cls._load_error = None
+                    logger.info(
+                        "Loaded local chat model '%s' on %s in %.2fs",
+                        candidate,
+                        cls._compute_device,
+                        cls._last_load_seconds,
                     )
-            elif compute_device == "cuda":
-                model_kwargs["device_map"] = "auto"
+                    return True
+                errors.append(info["error"])
 
-            try:
-                tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_kwargs)
-                if tokenizer.pad_token_id is None and tokenizer.eos_token is not None:
-                    tokenizer.pad_token = tokenizer.eos_token
-
-                model = AutoModelForCausalLM.from_pretrained(model_id, **model_kwargs)
-                if compute_device == "mps":
-                    model = model.to("mps")
-                elif compute_device == "cpu":
-                    model = model.to("cpu")
-                model.eval()
-            except Exception as exc:
-                cls._load_error = f"Failed to load model '{model_id}': {exc}"
-                logger.warning(cls._load_error)
-                return False
-
-            cls._model = model
-            cls._tokenizer = tokenizer
-            cls._loaded_model_id = model_id
-            cls._compute_device = compute_device
-            cls._last_load_seconds = time.perf_counter() - start
-            logger.info(
-                "Loaded local chat model '%s' on %s in %.2fs",
-                model_id,
-                compute_device,
-                cls._last_load_seconds,
-            )
-            return True
+            cls._load_error = " | ".join(error for error in errors if error)[:3000]
+            logger.warning("Failed to load any local chat model candidate: %s", cls._load_error)
+            return False
 
     @classmethod
-    def _resolve_model_id(cls, override: Optional[str]) -> str:
-        if override and override.strip():
-            return override.strip()
-        return (getattr(settings, "CHAT_AI_DEFAULT_MODEL", "") or "").strip()
+    def _load_model(cls, model_id: str) -> tuple[bool, Dict[str, Any]]:
+        start = time.perf_counter()
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except Exception as exc:
+            return False, {"error": f"Missing ML dependencies: {exc}"}
+
+        local_files_only = bool(
+            getattr(settings, "CHAT_AI_MODEL_LOCAL_FILES_ONLY", False)
+            or not getattr(settings, "CHAT_AI_MODEL_ALLOW_DOWNLOAD", True)
+            or os.environ.get("HF_HUB_OFFLINE", "").strip().lower() in {"1", "true", "yes", "on"}
+        )
+        trust_remote_code = bool(getattr(settings, "CHAT_AI_MODEL_TRUST_REMOTE_CODE", False))
+        cache_dir = (getattr(settings, "CHAT_AI_MODEL_CACHE_DIR", "") or "").strip() or None
+        revision = (getattr(settings, "CHAT_AI_MODEL_REVISION", "") or "").strip() or None
+        use_fast_tokenizer = bool(getattr(settings, "CHAT_AI_MODEL_USE_FAST_TOKENIZER", True))
+
+        if trust_remote_code and not revision:
+            logger.warning(
+                "CHAT_AI_MODEL_TRUST_REMOTE_CODE is enabled without CHAT_AI_MODEL_REVISION pinning. "
+                "Pin a revision in production for supply-chain safety."
+            )
+
+        tokenizer_kwargs: Dict[str, Any] = {
+            "local_files_only": local_files_only,
+            "trust_remote_code": trust_remote_code,
+            "use_fast": use_fast_tokenizer,
+        }
+        model_kwargs: Dict[str, Any] = {
+            "local_files_only": local_files_only,
+            "trust_remote_code": trust_remote_code,
+        }
+        if cache_dir:
+            tokenizer_kwargs["cache_dir"] = cache_dir
+            model_kwargs["cache_dir"] = cache_dir
+        if revision:
+            tokenizer_kwargs["revision"] = revision
+            model_kwargs["revision"] = revision
+
+        compute_device = cls._resolve_device(torch)
+        torch_dtype = cls._resolve_dtype(torch, compute_device)
+        if torch_dtype is not None:
+            model_kwargs["torch_dtype"] = torch_dtype
+
+        quant_mode = (getattr(settings, "CHAT_AI_MODEL_QUANTIZATION", "none") or "none").strip().lower()
+        if quant_mode in {"8bit", "4bit"}:
+            try:
+                import bitsandbytes  # noqa: F401
+                from transformers import BitsAndBytesConfig
+
+                if quant_mode == "8bit":
+                    model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
+                else:
+                    bnb_dtype = torch_dtype if torch_dtype is not None else getattr(torch, "bfloat16", None)
+                    model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_compute_dtype=bnb_dtype,
+                    )
+                model_kwargs["device_map"] = "auto"
+            except Exception as exc:
+                logger.warning(
+                    "CHAT_AI_MODEL_QUANTIZATION=%s requested but bitsandbytes config failed (%s); loading full precision",
+                    quant_mode,
+                    exc,
+                )
+        elif compute_device == "cuda":
+            model_kwargs["device_map"] = "auto"
+
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_id, **tokenizer_kwargs)
+            if tokenizer.pad_token_id is None and tokenizer.eos_token is not None:
+                tokenizer.pad_token = tokenizer.eos_token
+
+            model = AutoModelForCausalLM.from_pretrained(model_id, **model_kwargs)
+            if compute_device == "mps":
+                model = model.to("mps")
+            elif compute_device == "cpu":
+                model = model.to("cpu")
+            model.eval()
+        except Exception as exc:
+            return False, {"error": f"Failed to load model '{model_id}': {exc}"}
+
+        return True, {
+            "model": model,
+            "tokenizer": tokenizer,
+            "compute_device": compute_device,
+            "elapsed": time.perf_counter() - start,
+        }
+
+    @classmethod
+    def _resolve_candidate_model_ids(cls, override: Optional[str]) -> List[str]:
+        candidates: List[str] = []
+        primary = cls._normalize_model_id(override or getattr(settings, "CHAT_AI_DEFAULT_MODEL", ""))
+        if primary:
+            candidates.append(primary)
+
+        candidates.extend(cls._resolve_fallback_models())
+
+        deduped: List[str] = []
+        seen: set[str] = set()
+        for model_id in candidates:
+            lowered = model_id.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            if cls._is_model_id_allowed(model_id):
+                deduped.append(model_id)
+            else:
+                logger.warning("Skipping disallowed chat model candidate: %s", model_id)
+        return deduped
+
+    @classmethod
+    def _resolve_fallback_models(cls) -> List[str]:
+        raw = getattr(settings, "CHAT_AI_MODEL_FALLBACKS", "") or ""
+        values = cls._split_csv(raw)
+        return [model for model in (cls._normalize_model_id(v) for v in values) if model]
+
+    @classmethod
+    def _normalize_model_id(cls, value: str) -> str:
+        if not value:
+            return ""
+        model_id = str(value).strip()
+        if not model_id:
+            return ""
+        if any(ch in model_id for ch in ("\r", "\n", "\t")):
+            return ""
+        if len(model_id) > 200:
+            return ""
+        if model_id.startswith(("http://", "https://")):
+            return ""
+        return model_id
+
+    @classmethod
+    def _split_csv(cls, raw: str) -> List[str]:
+        if not raw:
+            return []
+        return [part.strip() for part in str(raw).split(",") if part.strip()]
+
+    @classmethod
+    def _is_model_id_allowed(cls, model_id: str) -> bool:
+        normalized = (model_id or "").strip()
+        if not normalized:
+            return False
+
+        lower = normalized.lower()
+        blocked_defaults = {
+            "gpt-4",
+            "gpt-4o",
+            "gpt-4.1",
+            "gpt-3.5-turbo",
+            "claude-3.5-sonnet",
+            "claude-3.7-sonnet",
+            "gemini-1.5-pro",
+            "gemini-1.5-flash",
+        }
+        blocked_models = {
+            value.strip().lower()
+            for value in cls._split_csv(getattr(settings, "CHAT_AI_BLOCKED_MODELS", ""))
+            if value.strip()
+        }
+        if lower in blocked_defaults or lower in blocked_models:
+            return False
+
+        blocked_prefixes = ("openai:", "anthropic:", "google:", "cohere:", "xai:")
+        if lower.startswith(blocked_prefixes):
+            return False
+
+        # Model IDs without a namespace that look like hosted API model names are disallowed.
+        if "/" not in normalized and lower.startswith(("gpt-", "claude-", "gemini-")):
+            return False
+
+        if os.path.exists(normalized):
+            return True
+
+        allowlist = [
+            value.lower()
+            for value in cls._split_csv(getattr(settings, "CHAT_AI_ALLOWED_MODELS", ""))
+            if value
+        ]
+        if not allowlist:
+            return True
+
+        for allowed in allowlist:
+            if allowed.endswith("*"):
+                prefix = allowed[:-1]
+                if lower.startswith(prefix):
+                    return True
+            elif lower == allowed:
+                return True
+        return False
+
+    @classmethod
+    def _dependency_status(cls) -> Dict[str, bool]:
+        return {
+            "torch": importlib.util.find_spec("torch") is not None,
+            "transformers": importlib.util.find_spec("transformers") is not None,
+            "bitsandbytes": importlib.util.find_spec("bitsandbytes") is not None,
+        }
 
     @classmethod
     def _resolve_device(cls, torch_module) -> str:
@@ -339,19 +504,23 @@ class ChatModelService:
             else getattr(settings, "CHAT_AI_MAX_NEW_TOKENS", 256)
         )
         max_tokens = max(32, min(max_tokens, 1024))
+        max_time = float(getattr(settings, "CHAT_AI_GENERATION_MAX_TIME_SECONDS", 12.0) or 0.0)
 
         config: Dict[str, Any] = {
             "max_new_tokens": max_tokens,
             "do_sample": do_sample,
-            "top_p": float(getattr(settings, "CHAT_AI_TOP_P", 0.92)),
-            "top_k": int(getattr(settings, "CHAT_AI_TOP_K", 50)),
-            "repetition_penalty": float(getattr(settings, "CHAT_AI_REPETITION_PENALTY", 1.08)),
-            "no_repeat_ngram_size": int(getattr(settings, "CHAT_AI_NO_REPEAT_NGRAM_SIZE", 3)),
+            "top_p": min(1.0, max(0.1, float(getattr(settings, "CHAT_AI_TOP_P", 0.92)))),
+            "top_k": min(200, max(1, int(getattr(settings, "CHAT_AI_TOP_K", 50)))),
+            "repetition_penalty": min(2.0, max(1.0, float(getattr(settings, "CHAT_AI_REPETITION_PENALTY", 1.08)))),
+            "no_repeat_ngram_size": min(8, max(0, int(getattr(settings, "CHAT_AI_NO_REPEAT_NGRAM_SIZE", 3)))),
             "pad_token_id": tokenizer.pad_token_id,
             "eos_token_id": tokenizer.eos_token_id,
+            "use_cache": bool(getattr(settings, "CHAT_AI_USE_KV_CACHE", True)),
         }
         if do_sample:
             config["temperature"] = max(0.05, temp)
+        if max_time > 0:
+            config["max_time"] = max_time
         return config
 
     @classmethod
@@ -370,6 +539,19 @@ class ChatModelService:
         for token in leading_tokens:
             if cleaned.startswith(token):
                 cleaned = cleaned[len(token):].strip()
+
+        trailing_markers = (
+            "<|user|>",
+            "<|assistant|>",
+            "USER:",
+            "ASSISTANT:",
+            "[INST]",
+            "<|im_end|>",
+        )
+        for marker in trailing_markers:
+            idx = cleaned.find(marker)
+            if idx > 0:
+                cleaned = cleaned[:idx].strip()
 
         if not cleaned:
             return None

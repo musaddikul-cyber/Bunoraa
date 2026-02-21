@@ -8,6 +8,7 @@ Provides business logic for:
 - Analytics
 """
 import logging
+import re
 from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from django.conf import settings
 from django.utils import timezone
@@ -21,6 +22,9 @@ if TYPE_CHECKING:
     from apps.chat.models import ChatAgent
 
 logger = logging.getLogger('bunoraa.chat')
+
+EMAIL_RE = re.compile(r"([a-zA-Z0-9_.+-]+)@([a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)")
+PHONE_RE = re.compile(r"\b(\+?\d[\d\s\-().]{6,}\d)\b")
 
 
 class ChatService:
@@ -293,6 +297,7 @@ class AIService:
                 conversation=conversation,
                 settings_obj=settings_obj,
                 history=history,
+                customer_message=customer_message,
             )
             if not ai_response and getattr(settings, 'CHAT_AI_FALLBACK_TO_RULES', True):
                 ai_response = AIService._rule_based_response(customer_message)
@@ -377,7 +382,7 @@ class AIService:
         return ConversationCategory.GENERAL
 
     @staticmethod
-    def _generate_local_model_response(conversation, settings_obj, history) -> Optional[str]:
+    def _generate_local_model_response(conversation, settings_obj, history, customer_message: str = "") -> Optional[str]:
         if not (
             getattr(settings, 'ML_ENABLED', False)
             and getattr(settings, 'ML_CHAT_ASSISTANT_ENABLED', True)
@@ -391,18 +396,11 @@ class AIService:
             logger.warning("ML chat model service unavailable: %s", exc)
             return None
 
-        personalization = AIService._build_personalization_context(conversation)
-        model_override = None
-        if getattr(settings, 'CHAT_AI_USE_CHAT_SETTINGS_MODEL', False):
-            configured = (getattr(settings_obj, 'ai_model', '') or '').strip()
-            blocked_models = {
-                'gpt-4',
-                'gpt-3.5-turbo',
-                'gpt-4o',
-                'gpt-4.1',
-            }
-            if configured and configured.lower() not in blocked_models:
-                model_override = configured
+        personalization = AIService._build_personalization_context(
+            conversation,
+            latest_customer_message=customer_message,
+        )
+        model_override = AIService._resolve_model_override(settings_obj)
 
         return ChatModelService.generate_reply(
             system_prompt=f"{settings_obj.ai_system_prompt}\nFollow safety and privacy guidelines. Do not request sensitive credentials.",
@@ -414,13 +412,22 @@ class AIService:
         )
 
     @staticmethod
-    def _build_personalization_context(conversation) -> Dict[str, Any]:
+    def _resolve_model_override(settings_obj) -> Optional[str]:
+        if not getattr(settings, 'CHAT_AI_USE_CHAT_SETTINGS_MODEL', False):
+            return None
+        configured = (getattr(settings_obj, 'ai_model', '') or '').strip()
+        return configured or None
+
+    @staticmethod
+    def _build_personalization_context(conversation, latest_customer_message: str = "") -> Dict[str, Any]:
         context: Dict[str, Any] = {}
         customer = getattr(conversation, 'customer', None)
 
         if getattr(settings, 'CHAT_AI_PERSONALIZATION_ENABLED', True):
-            if conversation.customer_name:
-                context['customer_name'] = conversation.customer_name
+            full_name = (conversation.customer_name or '').strip()
+            if full_name:
+                context['customer_name'] = full_name
+                context['customer_first_name'] = full_name.split()[0]
             if conversation.category:
                 context['conversation_category'] = conversation.category
             if conversation.order_reference:
@@ -443,7 +450,122 @@ class AIService:
                     context['total_orders'] = int(profile.total_orders or 0)
                     context['top_categories'] = ', '.join(top_categories) if top_categories else None
 
-        return {key: value for key, value in context.items() if value not in (None, '', [], {}, ())}
+            if customer and getattr(settings, 'CHAT_AI_INCLUDE_ORDER_CONTEXT', True):
+                AIService._augment_order_context(context, conversation, customer)
+
+            if customer and getattr(settings, 'CHAT_AI_INCLUDE_ML_PROFILE', True):
+                AIService._augment_ml_profile_context(context, customer)
+
+            if latest_customer_message:
+                context['detected_intent'] = AIService.categorize_conversation(latest_customer_message)
+                if getattr(settings, 'CHAT_AI_INCLUDE_CANNED_KNOWLEDGE', True):
+                    snippets = AIService._select_support_knowledge(
+                        latest_customer_message=latest_customer_message,
+                        category=context.get('conversation_category'),
+                    )
+                    if snippets:
+                        context['support_knowledge'] = " | ".join(snippets)
+
+        filtered = {key: value for key, value in context.items() if value not in (None, '', [], {}, ())}
+        max_fields = max(4, int(getattr(settings, 'CHAT_AI_MAX_PERSONALIZATION_FIELDS', 16) or 16))
+        if len(filtered) > max_fields:
+            filtered = dict(list(filtered.items())[:max_fields])
+        return filtered
+
+    @staticmethod
+    def _augment_order_context(context: Dict[str, Any], conversation, customer) -> None:
+        try:
+            from apps.orders.models import Order
+        except Exception:
+            return
+
+        try:
+            order_qs = Order.objects.filter(user_id=customer.id, is_deleted=False).order_by('-created_at')
+
+            order_reference = (getattr(conversation, 'order_reference', None) or '').strip()
+            if order_reference:
+                referenced = order_qs.filter(order_number=order_reference).first()
+                if referenced:
+                    context['referenced_order_status'] = referenced.status
+                    context['referenced_shipping_method'] = referenced.shipping_method
+                    context['referenced_payment_status'] = referenced.payment_status
+                    context['tracking_available'] = bool(referenced.tracking_number or referenced.tracking_url)
+
+            recent_orders = list(order_qs.only('order_number', 'status')[:3])
+            if recent_orders:
+                summary = []
+                for order in recent_orders:
+                    masked = AIService._mask_order_reference(order.order_number)
+                    summary.append(f"{masked}:{order.status}")
+                context['recent_order_statuses'] = ', '.join(summary)
+        except Exception as exc:
+            logger.debug("Failed to load order context for conversation %s: %s", getattr(conversation, 'id', None), exc)
+
+    @staticmethod
+    def _augment_ml_profile_context(context: Dict[str, Any], customer) -> None:
+        try:
+            from ml.services.personalization_service import PersonalizationService
+            profile = PersonalizationService().get_user_profile(customer.id)
+        except Exception:
+            return
+
+        segments = profile.get('segments') or []
+        if segments:
+            context['customer_segments'] = ', '.join(str(item) for item in segments[:3])
+
+        preferences = profile.get('preferences') or {}
+        categories = preferences.get('categories') or []
+        if categories:
+            context['preferred_category_count'] = len(categories)
+
+    @staticmethod
+    def _select_support_knowledge(latest_customer_message: str, category: Optional[str] = None) -> List[str]:
+        try:
+            from apps.chat.models import CannedResponse
+        except Exception:
+            return []
+
+        text = (latest_customer_message or '').strip().lower()
+        if not text:
+            return []
+
+        keywords = {token for token in text.split() if len(token) >= 4}
+        if not keywords:
+            return []
+
+        queryset = CannedResponse.objects.filter(
+            is_active=True,
+            is_global=True,
+        )
+        if category:
+            queryset = queryset.filter(Q(category=category) | Q(category='general'))
+
+        limit = max(1, int(getattr(settings, 'CHAT_AI_KNOWLEDGE_CANDIDATE_LIMIT', 20) or 20))
+        candidates = list(queryset.values_list('content', flat=True)[:limit])
+
+        scored: List[tuple[int, str]] = []
+        for content in candidates:
+            snippet = (content or '').strip()
+            if not snippet:
+                continue
+            lower = snippet.lower()
+            score = sum(1 for keyword in keywords if keyword in lower)
+            if score > 0:
+                scored.append((score, snippet))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        max_snippets = max(1, int(getattr(settings, 'CHAT_AI_KNOWLEDGE_SNIPPET_LIMIT', 3) or 3))
+        max_len = max(80, int(getattr(settings, 'CHAT_AI_KNOWLEDGE_SNIPPET_MAX_CHARS', 240) or 240))
+        return [snippet[:max_len].strip() for _, snippet in scored[:max_snippets]]
+
+    @staticmethod
+    def _mask_order_reference(order_number: str) -> str:
+        value = (order_number or '').strip()
+        if not value:
+            return ''
+        if len(value) <= 6:
+            return value
+        return f"...{value[-6:]}"
 
     @staticmethod
     def _rule_based_response(customer_message: str) -> str:
@@ -689,3 +811,99 @@ class ChatAnalyticsService:
             'total_messages': messages,
             'period_days': days
         }
+
+
+def get_agent_for_user(user):
+    """Return active chat agent profile for a user, if any."""
+    from apps.chat.models import ChatAgent
+    if not user or not user.is_authenticated:
+        return None
+    return ChatAgent.objects.filter(user=user, is_active=True).first()
+
+
+def user_is_agent(user) -> bool:
+    """True when user has an active chat agent profile."""
+    return get_agent_for_user(user) is not None
+
+
+def user_can_access_conversation(
+    user,
+    conversation,
+    *,
+    agent=None,
+    allow_waiting_queue: bool = True,
+) -> bool:
+    """Evaluate whether a user can access a conversation."""
+    from apps.chat.models import ConversationStatus
+
+    if not user or not user.is_authenticated:
+        return False
+
+    if user.is_staff:
+        return True
+
+    if conversation.customer_id == user.id:
+        return True
+
+    if agent is None:
+        agent = get_agent_for_user(user)
+    if not agent:
+        return False
+
+    if conversation.agent_id == agent.id:
+        return True
+
+    if (
+        allow_waiting_queue
+        and conversation.agent_id is None
+        and conversation.status == ConversationStatus.WAITING
+    ):
+        return True
+
+    return False
+
+
+def conversation_queryset_for_user(
+    user,
+    queryset=None,
+    *,
+    allow_waiting_queue: bool = True,
+):
+    """Return a conversation queryset scoped to the authenticated user."""
+    from apps.chat.models import Conversation, ConversationStatus
+
+    if queryset is None:
+        queryset = Conversation.objects.all()
+
+    if not user or not user.is_authenticated:
+        return queryset.none()
+
+    if user.is_staff:
+        return queryset
+
+    agent = get_agent_for_user(user)
+    if agent:
+        access_q = Q(agent=agent)
+        if allow_waiting_queue:
+            access_q |= Q(status=ConversationStatus.WAITING, agent__isnull=True)
+        return queryset.filter(access_q)
+
+    return queryset.filter(customer=user)
+
+
+def redact_pii(text: str) -> str:
+    if not text:
+        return text
+    masked = EMAIL_RE.sub(r"***@\2", text)
+    masked = PHONE_RE.sub("***", masked)
+    return masked
+
+
+def redact_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: redact_payload(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact_payload(v) for v in value]
+    if isinstance(value, str):
+        return redact_pii(value)
+    return value

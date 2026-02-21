@@ -1,4 +1,4 @@
-"""
+﻿"""
 Process Email Queue Command
 ============================
 
@@ -10,7 +10,7 @@ Usage:
 
 from django.core.management.base import BaseCommand
 
-from apps.email_service.engine import QueueManager
+from apps.email_service.services import QueueManager
 
 
 class Command(BaseCommand):
@@ -55,4 +55,5 @@ class Command(BaseCommand):
                 self.stdout.write('\nStopping queue processor...')
         else:
             processed = QueueManager.process_queue(batch_size=batch_size)
-            self.stdout.write(self.style.SUCCESS(f'\n✅ Processed {processed} emails'))
+            self.stdout.write(self.style.SUCCESS(f'\nâœ… Processed {processed} emails'))
+

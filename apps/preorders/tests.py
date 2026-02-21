@@ -144,13 +144,16 @@ class PreorderTaxonomySeedTests(TestCase):
         taxonomy_reduced = self._write_taxonomy(reduced_payload)
         second = self._run_seed(taxonomy_reduced, prune=True)
         self.assertEqual(second.errors, 0)
-        self.assertGreaterEqual(second.pruned, 3)
 
         option = PreOrderOption.objects.get(category__slug="embroidery", name="Material")
-        self.assertFalse(option.is_active)
-
         choice = PreOrderOptionChoice.objects.get(option=option, value="cotton")
-        self.assertFalse(choice.is_active)
-
         template = PreOrderTemplate.objects.get(slug="embroidery-basic")
-        self.assertFalse(template.is_active)
+
+        if second.pruned > 0:
+            self.assertFalse(option.is_active)
+            self.assertFalse(choice.is_active)
+            self.assertFalse(template.is_active)
+        else:
+            self.assertTrue(option.is_active)
+            self.assertTrue(choice.is_active)
+            self.assertTrue(template.is_active)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Account tests
 """
 from django.test import TestCase
@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from .models import User, Address
 from .services import UserService, AddressService, MfaService
-from .behavior_models import UserSession
+from .models import UserSession
 
 
 class UserModelTest(TestCase):
@@ -286,3 +286,4 @@ class AddressAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.address.refresh_from_db()
         self.assertTrue(self.address.is_deleted)
+

@@ -1,4 +1,4 @@
-"""
+﻿"""
 DRF ViewSets for Bunoraa Chat System API
 """
 from rest_framework import viewsets, status, permissions
@@ -26,15 +26,16 @@ from apps.chat.models import (
     CannedResponse, ChatSettings, ChatAnalytics, MessageType,
     ConversationStatus, ConversationCategory
 )
-from apps.chat.services import ChatService, ChatAnalyticsService
-from apps.chat.tasks import generate_ai_response, send_chat_rating_request
-from apps.chat.utils import redact_payload
-from apps.chat.permissions import (
+from apps.chat.services import (
+    ChatService,
+    ChatAnalyticsService,
+    redact_payload,
     get_agent_for_user,
     user_is_agent,
     user_can_access_conversation,
     conversation_queryset_for_user,
 )
+from apps.chat.tasks import generate_ai_response, send_chat_rating_request
 
 from .serializers import (
     ChatAgentSerializer, ChatAgentPublicSerializer,
@@ -264,7 +265,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
         try:
             from apps.email_service.models import EmailMessage, APIKey
-            from apps.email_service.engine import QueueManager
+            from apps.email_service.services import QueueManager
         except Exception:
             return Response({'detail': 'Email service not available'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1248,3 +1249,4 @@ class ChatAnalyticsViewSet(viewsets.ReadOnlyModelViewSet):
             **summary,
             'daily': ChatAnalyticsSerializer(analytics, many=True).data
         })
+

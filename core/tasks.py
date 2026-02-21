@@ -1,4 +1,4 @@
-"""
+﻿"""
 Celery tasks for scheduled backups and maintenance
 """
 import os
@@ -304,7 +304,7 @@ def update_user_behavior_profiles():
     logger.info("Updating user behavior profiles...")
     
     try:
-        from apps.accounts.behavior_models import UserBehaviorProfile
+        from apps.accounts.models import UserBehaviorProfile
         from apps.accounts.models import User
         from apps.analytics.models import ProductView, SearchQuery
         from apps.orders.models import Order
@@ -1017,3 +1017,4 @@ def send_templated_email_task(
         'message_id': result.message_id,
         'error': result.error,
     }
+

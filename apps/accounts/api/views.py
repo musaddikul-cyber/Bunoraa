@@ -1,4 +1,4 @@
-"""
+﻿"""
 Account API views
 """
 import json
@@ -13,6 +13,10 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.http import FileResponse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from ..models import (
@@ -22,7 +26,7 @@ from ..models import (
     DataExportJob,
     AccountDeletionRequest,
 )
-from ..behavior_models import UserPreferences, UserSession
+from ..models import UserPreferences, UserSession
 from ..services import UserService, AddressService, MfaService, AuthSessionService, ExportService
 from .serializers import (
     UserSerializer,
@@ -42,9 +46,109 @@ from .serializers import (
     DataExportJobSerializer,
     AccountDeletionStatusSerializer,
 )
-from .commerce_merge import merge_guest_commerce_state
 
 User = get_user_model()
+
+
+def merge_guest_commerce_state(request, user) -> None:
+    """Best-effort merge of guest cart/wishlist into authenticated user data."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return
+
+    session = getattr(request, 'session', None)
+    session_key = getattr(session, 'session_key', None) if session else None
+    if not session:
+        return
+
+    if not session_key:
+        try:
+            session.cycle_key()
+        except Exception:
+            return
+        return
+
+    try:
+        from apps.commerce.services import SessionMergeService
+        SessionMergeService.merge_guest_state_to_user(user=user, session_key=session_key)
+    except Exception:
+        pass
+    finally:
+        try:
+            session.cycle_key()
+        except Exception:
+            pass
+
+
+class MfaTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Return MFA challenge when enabled for the user."""
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        user = self.user
+        vault = MfaService._get_vault(user)
+        if vault.mfa_enabled:
+            methods = list(MfaService.available_methods(user))
+            return {
+                'mfa_required': True,
+                'mfa_token': MfaService.create_mfa_token(user),
+                'methods': methods,
+            }
+        data['mfa_required'] = False
+        return data
+
+
+@method_decorator(ratelimit(key='ip', rate='10/m', block=True), name='dispatch')
+@method_decorator(ratelimit(key='post:email', rate='10/m', block=True), name='dispatch')
+class MfaTokenObtainPairView(TokenObtainPairView):
+    """Token endpoint that supports MFA step-up."""
+    serializer_class = MfaTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if data.get('mfa_required'):
+            return Response({
+                'success': True,
+                'message': 'MFA required.',
+                'data': data,
+                'meta': None
+            }, status=status.HTTP_200_OK)
+
+        access = data.get('access')
+        refresh = data.get('refresh')
+        if access and refresh:
+            refresh_obj = RefreshToken(refresh)
+            access_obj = AccessToken(access)
+            try:
+                expires_at = datetime.fromtimestamp(refresh_obj['exp'], tz=dt_timezone.utc)
+                OutstandingToken.objects.get_or_create(
+                    jti=str(refresh_obj['jti']),
+                    user=serializer.user,
+                    token=str(refresh_obj),
+                    expires_at=expires_at,
+                )
+            except Exception:
+                pass
+
+            try:
+                AuthSessionService.create_session(
+                    serializer.user,
+                    request,
+                    str(access_obj['jti']),
+                    str(refresh_obj['jti']),
+                )
+            except Exception:
+                pass
+
+            merge_guest_commerce_state(request, serializer.user)
+
+        return Response({
+            'success': True,
+            'message': 'Login successful.',
+            'data': data,
+            'meta': None
+        }, status=status.HTTP_200_OK)
 
 
 class RegisterView(APIView):
@@ -1176,3 +1280,4 @@ class AccountDeletionCancelView(APIView):
             'data': serializer.data,
             'meta': None
         })
+

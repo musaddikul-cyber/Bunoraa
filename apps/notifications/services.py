@@ -1,4 +1,4 @@
-"""
+﻿"""
 Notifications services
 """
 from datetime import timedelta
@@ -705,7 +705,7 @@ class EmailService:
     def _send_via_email_service(user, subject, html_body, text_body, headers=None, metadata=None):
         try:
             from apps.email_service.models import EmailMessage
-            from apps.email_service.engine import QueueManager
+            from apps.email_service.services import QueueManager
             import uuid
 
             message = EmailMessage.objects.create(
@@ -1297,7 +1297,7 @@ class DigestService:
                 </div>
                 
                 <div style="background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666;">
-                    <p>© 2025 Bunoraa. All rights reserved.</p>
+                    <p>Â© 2025 Bunoraa. All rights reserved.</p>
                     <p>
                         <a href="{getattr(settings, 'SITE_URL', '')}/account/notifications/preferences/" style="color: #6366F1;">
                             Manage notification preferences
@@ -1324,7 +1324,7 @@ class DigestService:
         for notif in digest['all_notifications'][:10]:
             lines.extend([
                 "",
-                f"• {notif.title}",
+                f"â€¢ {notif.title}",
                 f"  {notif.message}",
                 f"  {notif.created_at.strftime('%b %d, %Y %H:%M')}"
             ])
@@ -2431,32 +2431,33 @@ class SMSTemplates:
     
     @staticmethod
     def order_confirmation(order_number: str, total: str) -> str:
-        return f"বুনরাআ: আপনার অর্ডার #{order_number} নিশ্চিত করা হয়েছে। মোট: ৳{total}। ধন্যবাদ!"
+        return f"à¦¬à§à¦¨à¦°à¦¾à¦†: à¦†à¦ªà¦¨à¦¾à¦° à¦…à¦°à§à¦¡à¦¾à¦° #{order_number} à¦¨à¦¿à¦¶à§à¦šà¦¿à¦¤ à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤ à¦®à§‹à¦Ÿ: à§³{total}à¥¤ à¦§à¦¨à§à¦¯à¦¬à¦¾à¦¦!"
     
     @staticmethod
     def order_shipped(order_number: str, tracking: str) -> str:
-        return f"বুনরাআ: আপনার অর্ডার #{order_number} শিপ করা হয়েছে। ট্র্যাকিং: {tracking}"
+        return f"à¦¬à§à¦¨à¦°à¦¾à¦†: à¦†à¦ªà¦¨à¦¾à¦° à¦…à¦°à§à¦¡à¦¾à¦° #{order_number} à¦¶à¦¿à¦ª à¦•à¦°à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤ à¦Ÿà§à¦°à§à¦¯à¦¾à¦•à¦¿à¦‚: {tracking}"
     
     @staticmethod
     def order_delivered(order_number: str) -> str:
-        return f"বুনরাআ: আপনার অর্ডার #{order_number} ডেলিভারি হয়েছে। ধন্যবাদ!"
+        return f"à¦¬à§à¦¨à¦°à¦¾à¦†: à¦†à¦ªà¦¨à¦¾à¦° à¦…à¦°à§à¦¡à¦¾à¦° #{order_number} à¦¡à§‡à¦²à¦¿à¦­à¦¾à¦°à¦¿ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤ à¦§à¦¨à§à¦¯à¦¬à¦¾à¦¦!"
     
     @staticmethod
     def otp(code: str) -> str:
-        return f"বুনরাআ: আপনার OTP কোড হলো {code}। ৫ মিনিটের মধ্যে ব্যবহার করুন।"
+        return f"à¦¬à§à¦¨à¦°à¦¾à¦†: à¦†à¦ªà¦¨à¦¾à¦° OTP à¦•à§‹à¦¡ à¦¹à¦²à§‹ {code}à¥¤ à§« à¦®à¦¿à¦¨à¦¿à¦Ÿà§‡à¦° à¦®à¦§à§à¦¯à§‡ à¦¬à§à¦¯à¦¬à¦¹à¦¾à¦° à¦•à¦°à§à¦¨à¥¤"
     
     @staticmethod
     def password_reset(code: str) -> str:
-        return f"বুনরাআ: পাসওয়ার্ড রিসেট কোড: {code}। কাউকে শেয়ার করবেন না।"
+        return f"à¦¬à§à¦¨à¦°à¦¾à¦†: à¦ªà¦¾à¦¸à¦“à¦¯à¦¼à¦¾à¦°à§à¦¡ à¦°à¦¿à¦¸à§‡à¦Ÿ à¦•à§‹à¦¡: {code}à¥¤ à¦•à¦¾à¦‰à¦•à§‡ à¦¶à§‡à¦¯à¦¼à¦¾à¦° à¦•à¦°à¦¬à§‡à¦¨ à¦¨à¦¾à¥¤"
     
     @staticmethod
     def payment_received(order_number: str, amount: str) -> str:
-        return f"বুনরাআ: ৳{amount} পেমেন্ট পাওয়া গেছে অর্ডার #{order_number} এর জন্য।"
+        return f"à¦¬à§à¦¨à¦°à¦¾à¦†: à§³{amount} à¦ªà§‡à¦®à§‡à¦¨à§à¦Ÿ à¦ªà¦¾à¦“à¦¯à¦¼à¦¾ à¦—à§‡à¦›à§‡ à¦…à¦°à§à¦¡à¦¾à¦° #{order_number} à¦à¦° à¦œà¦¨à§à¦¯à¥¤"
     
     @staticmethod
     def promotion(message: str) -> str:
-        return f"বুনরাআ: {message} bunoraa.com এ ভিজিট করুন!"
+        return f"à¦¬à§à¦¨à¦°à¦¾à¦†: {message} bunoraa.com à¦ à¦­à¦¿à¦œà¦¿à¦Ÿ à¦•à¦°à§à¦¨!"
 
 
 # Singleton instance
 sms_service = SMSService()
+

@@ -11,7 +11,7 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 
-from apps.catalog.managers import SoftDeleteManager
+from apps.catalog.models import SoftDeleteManager
 
 
 class Interaction(models.Model):

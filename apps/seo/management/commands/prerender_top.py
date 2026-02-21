@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.conf import settings
 
-from apps.seo.prerender import is_prerender_enabled, prerender_paths
+from apps.seo.services import is_prerender_enabled, prerender_paths
 
 
 class Command(BaseCommand):
@@ -51,3 +51,4 @@ class Command(BaseCommand):
         for url, error in failures:
             self.stdout.write(self.style.ERROR(f'Failed {url}: {error}'))
         self.stdout.write(self.style.SUCCESS(f'Prerendered {saved} pages'))
+

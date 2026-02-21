@@ -1,4 +1,4 @@
-"""
+﻿"""
 Email Service Celery Tasks
 ==========================
 
@@ -35,7 +35,7 @@ def process_email_queue(self, batch_size=100):
     Process queued emails and send them.
     Runs continuously to process the email queue.
     """
-    from .engine import QueueManager
+    from .services import QueueManager
     
     try:
         QueueManager.process_queue(batch_size=batch_size)
@@ -51,7 +51,7 @@ def retry_failed_emails():
     Retry failed emails that are due for retry.
     Should run periodically (e.g., every 5 minutes).
     """
-    from .engine import QueueManager
+    from .services import QueueManager
     
     QueueManager.retry_failed(max_age_hours=24)
     logger.info("Processed failed email retries")
@@ -492,3 +492,4 @@ def send_webhook_for_event(event_id):
             message_id=event.message.message_id,
             payload=payload
         )
+

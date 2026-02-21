@@ -1,4 +1,4 @@
-"""
+﻿"""
 Search Service
 
 Django service for semantic search and product retrieval.
@@ -461,7 +461,7 @@ class SearchService:
     ) -> List[Dict]:
         """Personalize results based on user preferences."""
         try:
-            from apps.accounts.behavior_models import UserBehaviorProfile
+            from apps.accounts.models import UserBehaviorProfile
             
             profile = UserBehaviorProfile.objects.filter(user_id=user_id).first()
             
@@ -668,3 +668,4 @@ class SearchService:
             )
         except Exception as e:
             logger.debug(f"Failed to log search: {e}")
+

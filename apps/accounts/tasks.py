@@ -1,4 +1,4 @@
-"""
+﻿"""
 Celery tasks for Accounts app.
 Handles background tasks related to user management.
 """
@@ -21,7 +21,7 @@ def cleanup_old_interactions(days: int = 730):
     logger.info(f"Cleaning up user interactions older than {days} days...")
     
     try:
-        from apps.accounts.behavior_models import UserInteraction
+        from apps.accounts.models import UserInteraction
         
         cutoff = timezone.now() - timedelta(days=days)
         deleted, _ = UserInteraction.objects.filter(created_at__lt=cutoff).delete()
@@ -125,7 +125,7 @@ def calculate_user_lifetime_value(user_id: int):
     """
     try:
         from apps.accounts.models import User
-        from apps.accounts.behavior_models import UserBehaviorProfile
+        from apps.accounts.models import UserBehaviorProfile
         from apps.orders.models import Order
         from django.db.models import Sum
         
@@ -157,7 +157,7 @@ def generate_data_export(job_id: str):
     try:
         from django.core.files.base import ContentFile
         from apps.accounts.models import DataExportJob, Address, User
-        from apps.accounts.behavior_models import UserPreferences
+        from apps.accounts.models import UserPreferences
         from apps.orders.models import Order
         from apps.payments.models import PaymentMethod, Payment
         from apps.subscriptions.models import Subscription
@@ -249,7 +249,7 @@ def cleanup_old_auth_sessions(days: Optional[int] = None):
     """
     try:
         from django.conf import settings
-        from apps.accounts.behavior_models import UserSession
+        from apps.accounts.models import UserSession
 
         retention_days = days or int(getattr(settings, 'AUTH_SESSION_RETENTION_DAYS', 90))
         cutoff = timezone.now() - timedelta(days=retention_days)
@@ -288,3 +288,4 @@ def process_account_deletions():
     except Exception as e:
         logger.error(f"Failed to process account deletions: {e}")
         return {'error': str(e)}
+

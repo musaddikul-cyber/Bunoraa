@@ -4,8 +4,21 @@ set -euo pipefail
 # Install dependencies already handled by Render
 echo "Starting build script..."
 pip install -r requirements.txt
-# Skip ML requirements - disabled for memory optimization on Render free tier
-# pip install -r requirements-ml.txt
+
+is_true() {
+  case "${1:-}" in
+    1|true|TRUE|True|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Install ML dependencies only when ML/chat assistant is enabled.
+if is_true "${ML_ENABLED:-0}" || is_true "${ML_CHAT_ASSISTANT:-0}" || is_true "${CHAT_AI_LOCAL_MODEL_ENABLED:-0}"; then
+  echo "Installing ML requirements..."
+  pip install -r requirements-ml.txt
+else
+  echo "Skipping ML requirements (ML/chat assistant disabled)"
+fi
 
 # Run migrations and collectstatic
 python manage.py makemigrations --noinput

@@ -4,8 +4,7 @@ from django.conf import settings
 
 from .forms import EnvValueForm
 from .models import EnvCategory, EnvValue, EnvVariable
-from .runtime import apply_runtime_overrides
-from .schema_loader import sync_from_schema
+from .services import apply_runtime_overrides, sync_registry_from_schema
 from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 
@@ -34,7 +33,7 @@ class EnvVariableAdmin(ImportExportEnhancedModelAdmin):
     actions = ["sync_from_schema_action", "apply_runtime_action"]
 
     def sync_from_schema_action(self, request, queryset):
-        sync_from_schema(None, env=settings.ENVIRONMENT, force=False, prune=False)
+        sync_registry_from_schema(None, env=settings.ENVIRONMENT, force=False, prune=False)
         self.message_user(request, "Env registry synced from schema.")
 
     sync_from_schema_action.short_description = "Sync env registry from schema"

@@ -3,7 +3,7 @@ WebSocket URL routing
 """
 from django.urls import re_path
 from . import consumers
-from apps.chat.routing import websocket_urlpatterns as chat_websocket_urlpatterns
+from apps.chat.views import websocket_urlpatterns as chat_websocket_urlpatterns
 
 websocket_urlpatterns = [
     # Core WebSocket endpoints

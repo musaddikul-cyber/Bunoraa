@@ -8,7 +8,7 @@ from apps.chat.models import (
     ChatAgent, Conversation, Message, MessageAttachment,
     CannedResponse, ChatSettings, ChatAnalytics, ConversationStatus
 )
-from apps.chat.permissions import user_can_access_conversation, get_agent_for_user
+from apps.chat.services import user_can_access_conversation, get_agent_for_user
 
 User = get_user_model()
 
@@ -485,12 +485,23 @@ class ChatSettingsSerializer(serializers.ModelSerializer):
         model = ChatSettings
         fields = [
             'id', 'is_chat_enabled', 'welcome_message', 'offline_message',
-            'wait_message', 'ai_enabled', 'max_concurrent_chats',
+            'wait_message', 'ai_enabled', 'ai_model', 'ai_temperature',
+            'ai_max_tokens', 'ai_system_prompt',
+            'max_ai_responses_before_handoff', 'auto_reply_delay_seconds',
+            'max_concurrent_chats',
             'business_hours_enabled', 'business_hours',
             'allowed_file_types', 'max_file_size_mb',
             'support_inbox', 'email_reply_from'
         ]
         read_only_fields = ['id']
+
+    def validate_ai_model(self, value):
+        model_id = (value or "").strip()
+        if not model_id:
+            raise serializers.ValidationError("AI model cannot be empty.")
+        if any(ch in model_id for ch in ("\n", "\r", "\t")):
+            raise serializers.ValidationError("AI model contains invalid characters.")
+        return model_id
 
 
 class ChatAnalyticsSerializer(serializers.ModelSerializer):

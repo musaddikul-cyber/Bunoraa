@@ -19,7 +19,6 @@ class I18nConfig(AppConfig):
             from . import signals  # noqa
             # Connect user creation signal for auto-creating locale preferences
             signals.connect_user_signal()
-            from .translation_signals import register_translation_signals  # noqa
-            register_translation_signals()
+            signals.register_translation_signals()
         except ImportError:
             pass

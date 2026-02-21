@@ -1,4 +1,4 @@
-"""
+﻿"""
 Account services - Business logic layer for user management, authentication, and tracking.
 Includes comprehensive credential management with encryption support.
 """
@@ -29,6 +29,252 @@ from .models import (
 )
 
 logger = logging.getLogger('bunoraa.accounts')
+
+
+class EmailServiceIntegration:
+    """Integration layer between accounts and the email service."""
+
+    @staticmethod
+    def _get_queue_manager():
+        from apps.email_service.services import QueueManager
+        return QueueManager
+
+    @staticmethod
+    def get_api_key():
+        """Get default send-capable API key."""
+        try:
+            from apps.email_service.models import APIKey
+            return (
+                APIKey.objects.filter(
+                    permission=APIKey.Permission.MAIL_SEND,
+                    is_active=True,
+                ).first()
+                or APIKey.objects.filter(
+                    permission=APIKey.Permission.FULL_ACCESS,
+                    is_active=True,
+                ).first()
+            )
+        except Exception as exc:
+            logger.error("Failed to resolve email API key: %s", exc)
+            return None
+
+    @staticmethod
+    def _get_site_url() -> str:
+        frontend = getattr(settings, "NEXT_FRONTEND_ORIGIN", "") or getattr(
+            settings, "NEXT_PUBLIC_SITE_URL", ""
+        )
+        site_url = frontend or getattr(settings, "SITE_URL", "https://bunoraa.com")
+        return site_url.rstrip("/")
+
+    @staticmethod
+    def _send_fallback_email(subject: str, to_email: str, text_content: str, html_content: str) -> bool:
+        try:
+            send_mail(
+                subject,
+                text_content,
+                settings.DEFAULT_FROM_EMAIL,
+                [to_email],
+                html_message=html_content,
+                fail_silently=False,
+            )
+            return True
+        except Exception as exc:
+            logger.error("Fallback email send failed for %s: %s", to_email, exc)
+            return False
+
+    @staticmethod
+    def _queue_message(
+        *,
+        user: User,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        try:
+            from apps.email_service.models import EmailMessage
+
+            api_key = EmailServiceIntegration.get_api_key()
+            if not api_key:
+                return False
+
+            message = EmailMessage.objects.create(
+                message_id=f"acct_{user.id}_{secrets.token_hex(4)}@bunoraa.com",
+                api_key=api_key,
+                user=user,
+                to_email=to_email,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                from_name=getattr(settings, "DEFAULT_FROM_NAME", "Bunoraa"),
+                subject=subject,
+                html_body=html_content,
+                text_body=text_content,
+                status=EmailMessage.Status.QUEUED,
+                metadata=metadata or {},
+            )
+            EmailServiceIntegration._get_queue_manager().enqueue(message)
+            return True
+        except Exception as exc:
+            logger.error("Failed to queue email for %s: %s", to_email, exc)
+            return False
+
+    @staticmethod
+    def send_verification_email(user: User, token: str) -> bool:
+        site_url = EmailServiceIntegration._get_site_url()
+        verification_url = f"{site_url}/account/verify-email/{token}/"
+        context = {
+            "user": user,
+            "verification_url": verification_url,
+            "site_name": "Bunoraa",
+            "token_expires_hours": 24,
+        }
+        html_content = render_to_string("emails/verify_email.html", context)
+        text_content = f"Verify your email: {verification_url}"
+        queued = EmailServiceIntegration._queue_message(
+            user=user,
+            to_email=user.email,
+            subject="Verify Your Email Address",
+            html_content=html_content,
+            text_content=text_content,
+            metadata={
+                "user_id": str(user.id),
+                "email_type": "verification",
+                "token": token,
+            },
+        )
+        if queued:
+            return True
+        return EmailServiceIntegration._send_fallback_email(
+            "Verify Your Email Address",
+            user.email,
+            text_content,
+            html_content,
+        )
+
+    @staticmethod
+    def send_password_reset_email(user: User, token: str) -> bool:
+        site_url = EmailServiceIntegration._get_site_url()
+        reset_url = f"{site_url}/account/reset-password/{token}/"
+        context = {
+            "user": user,
+            "reset_url": reset_url,
+            "site_name": "Bunoraa",
+            "token_expires_hours": 1,
+        }
+        html_content = render_to_string("emails/reset_password.html", context)
+        text_content = f"Reset your password: {reset_url}"
+        queued = EmailServiceIntegration._queue_message(
+            user=user,
+            to_email=user.email,
+            subject="Reset Your Password",
+            html_content=html_content,
+            text_content=text_content,
+            metadata={
+                "user_id": str(user.id),
+                "email_type": "password_reset",
+                "token": token,
+            },
+        )
+        if queued:
+            return True
+        return EmailServiceIntegration._send_fallback_email(
+            "Reset Your Password",
+            user.email,
+            text_content,
+            html_content,
+        )
+
+    @staticmethod
+    def send_welcome_email(user: User) -> bool:
+        site_url = EmailServiceIntegration._get_site_url()
+        context = {
+            "user": user,
+            "site_name": "Bunoraa",
+            "dashboard_url": f"{site_url}/account/",
+        }
+        html_content = render_to_string("emails/welcome.html", context)
+        text_content = f"Welcome to Bunoraa, {user.get_short_name()}!"
+        queued = EmailServiceIntegration._queue_message(
+            user=user,
+            to_email=user.email,
+            subject="Welcome to Bunoraa!",
+            html_content=html_content,
+            text_content=text_content,
+            metadata={
+                "user_id": str(user.id),
+                "email_type": "welcome",
+            },
+        )
+        if queued:
+            return True
+        return EmailServiceIntegration._send_fallback_email(
+            "Welcome to Bunoraa!",
+            user.email,
+            text_content,
+            html_content,
+        )
+
+    @staticmethod
+    def send_account_deleted_email(user: User) -> bool:
+        context = {
+            "user": user,
+            "site_name": "Bunoraa",
+        }
+        html_content = render_to_string("emails/account_deleted.html", context)
+        text_content = "Your Bunoraa account has been deleted."
+        queued = EmailServiceIntegration._queue_message(
+            user=user,
+            to_email=user.email,
+            subject="Your Bunoraa Account Has Been Deleted",
+            html_content=html_content,
+            text_content=text_content,
+            metadata={
+                "user_id": str(user.id),
+                "email_type": "account_deleted",
+            },
+        )
+        if queued:
+            return True
+        return EmailServiceIntegration._send_fallback_email(
+            "Your Bunoraa Account Has Been Deleted",
+            user.email,
+            text_content,
+            html_content,
+        )
+
+    @staticmethod
+    def send_email_change_verification(user: User, new_email: str, token: str) -> bool:
+        site_url = EmailServiceIntegration._get_site_url()
+        verification_url = f"{site_url}/account/verify-new-email/{token}/"
+        context = {
+            "user": user,
+            "new_email": new_email,
+            "verification_url": verification_url,
+            "site_name": "Bunoraa",
+        }
+        html_content = render_to_string("emails/verify_new_email.html", context)
+        text_content = f"Verify your new email: {verification_url}"
+        queued = EmailServiceIntegration._queue_message(
+            user=user,
+            to_email=new_email,
+            subject="Verify Your New Email Address",
+            html_content=html_content,
+            text_content=text_content,
+            metadata={
+                "user_id": str(user.id),
+                "email_type": "email_change_verification",
+                "new_email": new_email,
+                "token": token,
+            },
+        )
+        if queued:
+            return True
+        return EmailServiceIntegration._send_fallback_email(
+            "Verify Your New Email Address",
+            new_email,
+            text_content,
+            html_content,
+        )
 
 
 class CredentialEncryptionService:
@@ -194,7 +440,7 @@ class UserService:
     def _store_credentials(user: User, raw_password: str) -> None:
         """Store encrypted credentials for the user."""
         try:
-            from .behavior_models import UserCredentialVault
+            from .models import UserCredentialVault
             
             vault, created = UserCredentialVault.objects.get_or_create(user=user)
             
@@ -261,7 +507,6 @@ class UserService:
         
         # Send email via email service
         try:
-            from .email_integration import EmailServiceIntegration
             success = EmailServiceIntegration.send_verification_email(user, token)
             if success:
                 logger.info(f"Verification email queued for {user.email}")
@@ -316,7 +561,6 @@ class UserService:
         
         # Send email via email service
         try:
-            from .email_integration import EmailServiceIntegration
             success = EmailServiceIntegration.send_password_reset_email(user, token)
             if success:
                 logger.info(f"Password reset email queued for {user.email}")
@@ -418,7 +662,7 @@ class BehaviorTrackingService:
             return
         
         try:
-            from .behavior_models import UserInteraction, UserSession
+            from .models import UserInteraction, UserSession
             
             # Get or create session
             session = None
@@ -455,7 +699,7 @@ class BehaviorTrackingService:
             return
         
         try:
-            from .behavior_models import UserBehaviorProfile, UserInteraction
+            from .models import UserBehaviorProfile, UserInteraction
             from django.db.models import Count, Avg
             
             profile, _ = UserBehaviorProfile.objects.get_or_create(user=user)
@@ -498,7 +742,7 @@ class MfaService:
 
     @staticmethod
     def _get_vault(user: User):
-        from .behavior_models import UserCredentialVault
+        from .models import UserCredentialVault
         vault, _ = UserCredentialVault.objects.get_or_create(user=user)
         return vault
 
@@ -642,7 +886,7 @@ class AuthSessionService:
 
     @staticmethod
     def create_session(user: User, request, access_jti: str, refresh_jti: str):
-        from .behavior_models import UserSession
+        from .models import UserSession
         try:
             from user_agents import parse as parse_ua
         except Exception:
@@ -729,3 +973,5 @@ class ExportService:
         req.cancelled_at = timezone.now()
         req.save(update_fields=['status', 'cancelled_at'])
         return req
+
+

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Account admin configuration
 """
 from django.contrib import admin, messages
@@ -28,7 +28,7 @@ from core.admin_mixins import (
 
 # Import behavior models with graceful fallback
 try:
-    from .behavior_models import (
+    from .models import (
         UserBehaviorProfile,
         UserCredentialVault,
         UserPreferences,
@@ -103,8 +103,8 @@ class UserAdmin(ImportExportEnhancedModelAdmin, BaseUserAdmin):
     
     def verification_badge(self, obj):
         if obj.is_verified:
-            return format_html('<span style="color: #16a34a;" title="Verified">✓</span>')
-        return format_html('<span style="color: #dc2626;" title="Not verified">✗</span>')
+            return format_html('<span style="color: #16a34a;" title="Verified">âœ“</span>')
+        return format_html('<span style="color: #dc2626;" title="Not verified">âœ—</span>')
     verification_badge.short_description = _('Verified')
     verification_badge.admin_order_field = 'is_verified'
     
@@ -340,3 +340,4 @@ if BEHAVIOR_MODELS_AVAILABLE:
         readonly_fields = ['created_at']
         ordering = ['-created_at']
         date_hierarchy = 'created_at'
+

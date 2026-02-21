@@ -36,13 +36,18 @@ class EnvRegistryConfig(AppConfig):
                 if "env_registry_historicalenvvariable" not in table_names:
                     return
 
-                from .schema_loader import sync_from_schema
+                from .services import sync_registry_from_schema
 
                 schema_path = getattr(settings, "ENV_REGISTRY_SCHEMA_PATH", "")
-                sync_from_schema(schema_path or None, env=settings.ENVIRONMENT, force=False, prune=False)
+                sync_registry_from_schema(
+                    schema_path or None,
+                    env=settings.ENVIRONMENT,
+                    force=False,
+                    prune=False,
+                )
 
                 if getattr(settings, "ENV_REGISTRY_AUTOSYNC_RUNTIME", True):
-                    from .runtime import apply_runtime_overrides
+                    from .services import apply_runtime_overrides
 
                     apply_runtime_overrides(settings.ENVIRONMENT)
 

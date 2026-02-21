@@ -1184,7 +1184,7 @@ class CheckoutViewSet(viewsets.ViewSet):
                     ipn_url = request.build_absolute_uri(reverse('payments:gateway-ipn'))
 
                     if gateway.code == 'sslcommerz' or gateway.ssl_store_id:
-                        from apps.payments.bangladesh_gateways import SSLCommerzService
+                        from apps.payments.services import SSLCommerzService
                         result = SSLCommerzService(gateway=gateway).init_transaction(
                             order,
                             success_url=success_url,
@@ -1194,14 +1194,14 @@ class CheckoutViewSet(viewsets.ViewSet):
                         )
                         payment_redirect_url = result.get('redirect_url')
                     elif gateway.code == 'bkash':
-                        from apps.payments.bangladesh_gateways import BkashService
+                        from apps.payments.services import BkashService
                         result = BkashService(gateway=gateway).create_payment(
                             order,
                             callback_url=success_url,
                         )
                         payment_redirect_url = result.get('bkash_url')
                     elif gateway.code == 'nagad':
-                        from apps.payments.bangladesh_gateways import NagadService
+                        from apps.payments.services import NagadService
                         result = NagadService(gateway=gateway).init_payment(
                             order,
                             callback_url=success_url,
@@ -1231,3 +1231,4 @@ class CheckoutViewSet(viewsets.ViewSet):
                 'message': str(e),
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
+

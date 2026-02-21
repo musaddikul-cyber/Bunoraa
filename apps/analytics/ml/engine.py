@@ -1,4 +1,4 @@
-"""
+﻿"""
 ML-based Recommendation and Personalization System for Bunoraa
 Uses scikit-learn for collaborative filtering and content-based recommendations
 """
@@ -290,7 +290,7 @@ class UserSegmentationEngine:
             Dict with segment_id, segment_name, and characteristics
         """
         try:
-            from apps.accounts.behavior_models import UserBehaviorProfile
+            from apps.accounts.models import UserBehaviorProfile
             
             profile = UserBehaviorProfile.objects.get(user_id=user_id)
             
@@ -480,3 +480,4 @@ class PersonalizationEngine:
 recommender = ProductRecommender()
 segmentation = UserSegmentationEngine()
 personalization = PersonalizationEngine()
+

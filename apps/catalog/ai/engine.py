@@ -85,6 +85,7 @@ class ProductAutofillEngine:
 
         self._mark_running()
         try:
+            context_hints = self._get_context_hints()
             image_paths = self._collect_image_paths()
             self._set_progress(15)
             vision = self.vision_provider.analyze(image_paths)
@@ -92,8 +93,15 @@ class ProductAutofillEngine:
             ocr = self.ocr_provider.extract(image_paths)
             self._set_progress(45)
 
+            context_text = self._context_hint_text(context_hints)
             candidate_text = " ".join(
-                chunk for chunk in [vision.get("candidate_name"), ocr.get("text"), getattr(self.job.product, "name", "")]
+                chunk
+                for chunk in [
+                    vision.get("candidate_name"),
+                    ocr.get("text"),
+                    getattr(self.job.product, "name", ""),
+                    context_text,
+                ]
                 if chunk
             )
             similar_products = get_internal_similar_products(self.job.product, candidate_text, limit=6)
@@ -102,8 +110,14 @@ class ProductAutofillEngine:
             search_results = []
             used_provider = "none"
             research_docs = []
+            query = ""
             if self.job.allow_external and bool(getattr(settings, "PRODUCT_AI_ALLOW_EXTERNAL_DEFAULT", True)):
-                query = self._build_search_query(candidate_text, ocr=ocr, vision=vision)
+                query = self._build_search_query(
+                    candidate_text,
+                    ocr=ocr,
+                    vision=vision,
+                    context_hints=context_hints,
+                )
                 if query:
                     search_results, used_provider = self.search_provider.search(query=query, max_results=10)
                     research_docs = self.research_provider.fetch_documents(search_results, max_docs=8)
@@ -127,18 +141,21 @@ class ProductAutofillEngine:
                 research_docs=research_docs,
                 internal_similar_products=similar_products,
                 personalization_hints=hints,
+                context_hints=context_hints,
             )
             pricing = self.pricing_provider.estimate(
                 product=self.job.product,
                 primary_category=category,
                 research_docs=research_docs,
                 similar_products=similar_products,
+                context_hints=context_hints,
             )
             raw_suggestions = {**extracted, **pricing}
 
             normalized_suggestions = normalize_raw_suggestions(
                 raw_suggestions=raw_suggestions,
                 confidence_threshold=self.confidence_threshold,
+                context_hints=context_hints,
             )
             self._set_progress(88)
 
@@ -153,10 +170,14 @@ class ProductAutofillEngine:
                 summary={
                     "images_analyzed": len(image_paths),
                     "search_provider": used_provider,
+                    "search_query": query if self.job.allow_external else "",
                     "search_result_count": len(search_results),
                     "research_docs_count": len(research_docs),
                     "internal_similar_count": len(similar_products),
                     "confidence_threshold": self.confidence_threshold,
+                    "context_hint_keys": sorted(context_hints.keys()),
+                    "non_null_suggestions": sum(1 for item in normalized_suggestions if item.value not in (None, "", [])),
+                    "high_confidence_suggestions": sum(1 for item in normalized_suggestions if item.confidence >= self.confidence_threshold),
                 }
             )
             return {"status": "completed", "job_id": str(self.job.id)}
@@ -167,11 +188,26 @@ class ProductAutofillEngine:
         finally:
             self._cleanup_local_files()
 
-    def _build_search_query(self, candidate_text: str, *, ocr: dict[str, Any], vision: dict[str, Any]) -> str:
+    def _build_search_query(
+        self,
+        candidate_text: str,
+        *,
+        ocr: dict[str, Any],
+        vision: dict[str, Any],
+        context_hints: dict[str, Any],
+    ) -> str:
         parts = []
         text_tokens = _query_seed_tokens(candidate_text)
         if text_tokens:
             parts.append(" ".join(text_tokens[:8]))
+        hint_name = (context_hints.get("name") or "").strip()
+        if hint_name:
+            hint_tokens = _query_seed_tokens(hint_name)
+            if hint_tokens:
+                parts.append(" ".join(hint_tokens[:6]))
+        primary_category_name = (context_hints.get("primary_category_name") or "").strip()
+        if primary_category_name:
+            parts.append(primary_category_name[:60])
         sku_candidates = ocr.get("sku_candidates") or []
         if sku_candidates:
             parts.append(str(sku_candidates[0])[:40])
@@ -183,6 +219,26 @@ class ProductAutofillEngine:
             return ""
         parts.append("product specifications")
         return " ".join(part for part in parts if part).strip()
+
+    def _get_context_hints(self) -> dict[str, Any]:
+        payload = self.job.input_payload or {}
+        hints = payload.get("context_hints")
+        return hints if isinstance(hints, dict) else {}
+
+    def _context_hint_text(self, context_hints: dict[str, Any]) -> str:
+        chunks = []
+        for key in ("name", "short_description", "description", "primary_category_name"):
+            value = context_hints.get(key)
+            if isinstance(value, str) and value.strip():
+                chunks.append(value.strip())
+        for key in ("image_names", "category_names", "tag_names", "eco_certification_names"):
+            values = context_hints.get(key)
+            if not isinstance(values, list):
+                continue
+            cleaned = [str(item).strip() for item in values if str(item).strip()]
+            if cleaned:
+                chunks.append(" ".join(cleaned[:8]))
+        return " ".join(chunks).strip()
 
     def _collect_image_paths(self) -> list[str]:
         paths: list[str] = []

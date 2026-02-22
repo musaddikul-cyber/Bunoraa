@@ -37,6 +37,27 @@ NULL_IF_LOW_CONFIDENCE_FIELDS = {
     "meta_description",
 }
 
+FIELD_CONFIDENCE_THRESHOLDS = {
+    "name": 0.75,
+    "description": 0.72,
+    "short_description": 0.72,
+    "primary_category": 0.70,
+    "categories": 0.65,
+    "tags": 0.60,
+    "shipping_material": 0.58,
+    "weight": 0.62,
+    "length": 0.62,
+    "width": 0.62,
+    "height": 0.62,
+    "carbon_footprint_kg": 0.70,
+    "recycled_content_percentage": 0.70,
+    "sustainability_score": 0.70,
+    "ethical_sourcing_notes": 0.72,
+    "eco_certifications": 0.66,
+    "meta_title": 0.72,
+    "meta_description": 0.72,
+}
+
 
 DECIMAL_FIELDS = {"price", "sale_price", "cost", "weight", "length", "width", "height", "recycled_content_percentage"}
 INTEGER_FIELDS = {"stock_quantity", "low_stock_threshold"}
@@ -219,12 +240,38 @@ def compute_sustainability_score(carbon_kg: float | None, recycled_pct: Decimal 
     return round(max(0.0, min(1.0, score)), 4)
 
 
-def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confidence_threshold: float) -> list[FieldSuggestionPayload]:
+def _context_hint_text(context_hints: dict[str, Any], key: str, *, max_chars: int = 600) -> str:
+    value = context_hints.get(key)
+    if not isinstance(value, str):
+        return ""
+    text = clean_text_value(value, max_chars=max_chars)
+    return text or ""
+
+
+def _context_hint_list(context_hints: dict[str, Any], key: str, *, limit: int = 20) -> list[str]:
+    values = context_hints.get(key)
+    if not isinstance(values, list):
+        return []
+    out: list[str] = []
+    for item in values[:limit]:
+        cleaned = clean_text_value(item, max_chars=180)
+        if cleaned:
+            out.append(cleaned)
+    return out
+
+
+def normalize_raw_suggestions(
+    raw_suggestions: dict[str, dict[str, Any]],
+    confidence_threshold: float,
+    *,
+    context_hints: dict[str, Any] | None = None,
+) -> list[FieldSuggestionPayload]:
     """
     Normalize all raw provider output into validated field suggestions.
     """
     from apps.catalog.models import EcoCertification, Tag
 
+    context_hints = context_hints or {}
     normalized: list[FieldSuggestionPayload] = []
     raw = dict(raw_suggestions or {})
     resolved_name_value: str | None = None
@@ -267,6 +314,7 @@ def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confid
         metadata = payload.get("metadata") or {}
         low_confidence = bool(payload.get("low_confidence", False))
         is_null = False
+        effective_threshold = FIELD_CONFIDENCE_THRESHOLDS.get(field, confidence_threshold)
 
         if field in DECIMAL_FIELDS:
             value = quantize_decimal(value)
@@ -283,19 +331,42 @@ def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confid
 
         if field == "primary_category":
             category, mapped_conf = map_category_value(value)
+            if not category:
+                hint_category_id = _context_hint_text(context_hints, "primary_category_id", max_chars=64)
+                hint_category_name = _context_hint_text(context_hints, "primary_category_name", max_chars=200)
+                if hint_category_id:
+                    category, mapped_conf = map_category_value({"id": hint_category_id, "name": hint_category_name})
+                elif hint_category_name:
+                    category, mapped_conf = map_category_value(hint_category_name)
             if category:
                 value = str(category.id)
                 confidence = max(confidence, mapped_conf)
                 metadata["name"] = category.name
+                if mapped_conf >= 0.95:
+                    rationale = rationale or "Mapped directly from selected category context hint."
             else:
                 value = None
 
         if field == "categories":
             from apps.catalog.models import Category
 
+            candidates = list(value or [])
+            if not candidates:
+                hint_ids = _context_hint_list(context_hints, "category_ids", limit=16)
+                hint_names = _context_hint_list(context_hints, "category_names", limit=16)
+                if hint_ids:
+                    candidates = [
+                        {
+                            "id": hint_id,
+                            "name": hint_names[index] if index < len(hint_names) else "",
+                        }
+                        for index, hint_id in enumerate(hint_ids)
+                    ]
+                elif hint_names:
+                    candidates = hint_names
             categories = []
             confidence_accumulator = []
-            for candidate in (value or []):
+            for candidate in candidates:
                 cat, mapped_conf = map_category_value(candidate)
                 if cat and cat.id not in {c.id for c in categories}:
                     categories.append(cat)
@@ -306,14 +377,20 @@ def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confid
             metadata["names"] = list(Category.objects.filter(id__in=value).values_list("name", flat=True))
 
         if field == "tags":
-            tag_matches, mapped_conf = map_many_to_many_by_name(Tag, value or [])
+            tag_candidates = value or []
+            if not tag_candidates:
+                tag_candidates = _context_hint_list(context_hints, "tag_names", limit=20)
+            tag_matches, mapped_conf = map_many_to_many_by_name(Tag, tag_candidates)
             value = [str(tag.id) for tag in tag_matches]
             if tag_matches:
                 confidence = max(confidence, mapped_conf)
                 metadata["names"] = [tag.name for tag in tag_matches]
 
         if field == "eco_certifications":
-            cert_matches, mapped_conf = map_many_to_many_by_name(EcoCertification, value or [])
+            cert_candidates = value or []
+            if not cert_candidates:
+                cert_candidates = _context_hint_list(context_hints, "eco_certification_names", limit=16)
+            cert_matches, mapped_conf = map_many_to_many_by_name(EcoCertification, cert_candidates)
             value = [str(cert.id) for cert in cert_matches]
             if cert_matches:
                 confidence = max(confidence, mapped_conf)
@@ -351,6 +428,12 @@ def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confid
                 confidence = max(confidence, 0.7)
 
         if field == "name":
+            if not value:
+                hint_name = _context_hint_text(context_hints, "name", max_chars=220)
+                if hint_name:
+                    value = hint_name
+                    confidence = max(confidence, 0.9)
+                    rationale = rationale or "Used name from current form context."
             if value:
                 token_count = len(re.findall(r"[A-Za-z]{2,}", value))
                 if token_count == 0:
@@ -370,7 +453,20 @@ def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confid
                 rationale = (rationale + " " if rationale else "") + "Text content too short for reliable enrichment."
 
         if field == "description":
+            if not value:
+                hint_description = _context_hint_text(context_hints, "description", max_chars=2000)
+                if hint_description:
+                    value = hint_description
+                    confidence = max(confidence, 0.88)
+                    rationale = rationale or "Used description from current form context."
             resolved_description_value = value
+
+        if field == "short_description" and not value:
+            hint_short = _context_hint_text(context_hints, "short_description", max_chars=600)
+            if hint_short:
+                value = hint_short
+                confidence = max(confidence, 0.85)
+                rationale = rationale or "Used short description from current form context."
 
         if field in {"description", "short_description", "meta_description"} and value and resolved_name_value:
             if slugify(str(value)) == slugify(str(resolved_name_value)):
@@ -394,7 +490,7 @@ def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confid
             is_null = True
             rationale = (rationale + " " if rationale else "") + "SEO fields require a reliable product name."
 
-        if field in NULL_IF_LOW_CONFIDENCE_FIELDS and confidence < confidence_threshold:
+        if field in NULL_IF_LOW_CONFIDENCE_FIELDS and confidence < effective_threshold:
             value = None if field not in {"tags", "categories", "eco_certifications"} else []
             is_null = True
             rationale = rationale or f"Insufficient evidence for {field} (confidence below threshold)."
@@ -414,7 +510,7 @@ def normalize_raw_suggestions(raw_suggestions: dict[str, dict[str, Any]], confid
                 source_urls=source_urls,
                 metadata=metadata,
                 is_null=is_null,
-                low_confidence=low_confidence or confidence < confidence_threshold,
+                low_confidence=low_confidence or confidence < effective_threshold,
             )
         )
     return normalized
@@ -443,6 +539,13 @@ def apply_suggestions_to_product(product, suggestions, force_overwrite: bool = F
         if field not in AUTOFILL_FIELDS:
             continue
         value = suggestion.value_json
+
+        # Never apply null/empty autofill values to model fields. These
+        # suggestions are informational (e.g., low-confidence or insufficient
+        # evidence) and should not overwrite existing DB values.
+        if value in (None, "", []):
+            skipped += 1
+            continue
 
         if not force_overwrite and field not in {"categories", "tags", "eco_certifications"} and not is_blank_model_field(product, field):
             skipped += 1

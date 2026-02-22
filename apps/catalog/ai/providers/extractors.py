@@ -92,7 +92,7 @@ def _sanitize_name_candidate(value: Any) -> str:
     if not text:
         return ""
     # Drop trailing site-brand segment often present in page titles.
-    text = re.split(r"\s+[|–—]\s+", text, maxsplit=1)[0]
+    text = re.split(r"\s+[|\-]\s+", text, maxsplit=1)[0]
     tokens = []
     for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9&'().+\-_/]*", text):
         token = token.strip("._-/")
@@ -103,6 +103,58 @@ def _sanitize_name_candidate(value: Any) -> str:
     if not _is_meaningful_text(candidate, min_alpha_tokens=1):
         return ""
     return candidate[:160]
+
+
+def _collect_structured_signals(research_docs: list[Any]) -> dict[str, list[str]]:
+    signals = {
+        "names": [],
+        "descriptions": [],
+        "sku_candidates": [],
+        "price_amounts": [],
+        "brand_names": [],
+        "category_names": [],
+        "material_hints": [],
+    }
+
+    def _add_unique(bucket: str, value: Any, *, max_chars: int = 240):
+        cleaned = _clean_text(value, max_chars=max_chars)
+        if cleaned and cleaned not in signals[bucket]:
+            signals[bucket].append(cleaned)
+
+    for doc in research_docs:
+        metadata = getattr(doc, "metadata", {}) or {}
+        structured = metadata.get("structured") or {}
+        if not isinstance(structured, dict):
+            continue
+        for key in signals:
+            raw_values = structured.get(key) or []
+            if not isinstance(raw_values, list):
+                continue
+            for value in raw_values:
+                _add_unique(key, value)
+
+    for key, values in signals.items():
+        signals[key] = values[:12]
+    return signals
+
+
+def _context_field_text(context_hints: dict[str, Any], key: str, *, max_chars: int = 400) -> str:
+    value = context_hints.get(key)
+    if not isinstance(value, str):
+        return ""
+    return _clean_text(value, max_chars=max_chars)
+
+
+def _context_list_text(context_hints: dict[str, Any], key: str, *, limit: int = 12) -> list[str]:
+    values = context_hints.get(key)
+    if not isinstance(values, list):
+        return []
+    out = []
+    for value in values[:limit]:
+        cleaned = _clean_text(value, max_chars=220)
+        if cleaned:
+            out.append(cleaned)
+    return out
 
 
 def _best_name_from_ocr(ocr: dict[str, Any]) -> tuple[str, float, str]:
@@ -251,13 +303,41 @@ def build_field_candidates(
     research_docs: list[Any],
     internal_similar_products: list[Any],
     personalization_hints: dict[str, Any],
+    context_hints: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
+    context_hints = context_hints or {}
+    structured = _collect_structured_signals(research_docs)
+
     full_text = _collect_text(vision, ocr, research_docs)
+    context_text = " ".join(
+        chunk
+        for chunk in [
+            _context_field_text(context_hints, "name", max_chars=220),
+            _context_field_text(context_hints, "short_description", max_chars=600),
+            _context_field_text(context_hints, "description", max_chars=1800),
+            _context_field_text(context_hints, "primary_category_name", max_chars=180),
+            " ".join(_context_list_text(context_hints, "category_names", limit=10)),
+            " ".join(_context_list_text(context_hints, "tag_names", limit=10)),
+            " ".join(_context_list_text(context_hints, "eco_certification_names", limit=10)),
+            " ".join(_context_list_text(context_hints, "image_names", limit=8)),
+        ]
+        if chunk
+    ).strip()
+    if context_text:
+        full_text = " ".join([context_text, full_text]).strip()
     source_urls = [doc.url for doc in research_docs][:8]
 
-    name_candidate = _sanitize_name_candidate(vision.get("candidate_name"))
-    name_confidence = 0.60 if name_candidate else 0.0
-    name_rationale = "Derived from visual evidence."
+    name_candidate = _sanitize_name_candidate(context_hints.get("name"))
+    name_confidence = 0.92 if name_candidate else 0.0
+    name_rationale = "Derived from merchant-provided context hints."
+    if not name_candidate and structured.get("names"):
+        name_candidate = _sanitize_name_candidate(structured["names"][0])
+        name_confidence = 0.84 if name_candidate else 0.0
+        name_rationale = "Derived from structured product metadata."
+    if not name_candidate:
+        name_candidate = _sanitize_name_candidate(vision.get("candidate_name"))
+        name_confidence = 0.60 if name_candidate else 0.0
+        name_rationale = "Derived from visual evidence."
     if not name_candidate:
         name_candidate, name_confidence, name_rationale = _best_name_from_ocr(ocr)
     if not name_candidate:
@@ -265,6 +345,13 @@ def build_field_candidates(
 
     description_parts = []
     evidence_parts = []
+    context_description = _context_field_text(context_hints, "description", max_chars=2000)
+    context_short_description = _context_field_text(context_hints, "short_description", max_chars=800)
+    structured_description = _clean_text((structured.get("descriptions") or [""])[0], max_chars=1600)
+    if context_description:
+        evidence_parts.append(context_description)
+    elif structured_description and _is_meaningful_text(structured_description, min_alpha_tokens=6):
+        evidence_parts.append(structured_description)
     if _is_meaningful_text(full_text, min_alpha_tokens=6):
         evidence_parts.append(full_text[:1400])
     ocr_text = _clean_text(ocr.get("text"), max_chars=900)
@@ -276,22 +363,65 @@ def build_field_candidates(
     description = "\n\n".join(part for part in description_parts if part).strip()
     if len(description) < 48:
         description = ""
-    short_description = ""
+    short_description = context_short_description if context_short_description else ""
     if description and len(description.split()) >= 8:
-        short_description = description[:320].rsplit(" ", 1)[0]
+        short_description = short_description or description[:320].rsplit(" ", 1)[0]
     description_confidence = 0.25
     if description:
-        if research_docs:
+        if context_description:
+            description_confidence = 0.9
+        elif structured_description:
+            description_confidence = 0.84
+        elif research_docs:
             description_confidence = 0.82
         elif _is_meaningful_text(ocr_text, min_alpha_tokens=5):
             description_confidence = 0.70
         else:
             description_confidence = 0.58
 
+    from apps.catalog.models import Category
+
     category, category_score = _best_category_name(full_text)
+    hint_category_id = _context_field_text(context_hints, "primary_category_id", max_chars=64)
+    hint_category_name = _context_field_text(context_hints, "primary_category_name", max_chars=180)
+    if hint_category_id:
+        hinted_category = Category.objects.filter(id=hint_category_id, is_deleted=False).only("id", "name").first()
+        if hinted_category:
+            category = hinted_category
+            category_score = max(category_score, 0.99)
+    if not category and hint_category_name:
+        category, category_score = _best_category_name(hint_category_name)
+    if not category and internal_similar_products:
+        first_similar_category = getattr(internal_similar_products[0], "primary_category", None)
+        if first_similar_category:
+            category = first_similar_category
+            category_score = max(category_score, 0.62)
+
+    hint_category_ids = _context_list_text(context_hints, "category_ids", limit=12)
+    hint_category_names = _context_list_text(context_hints, "category_names", limit=12)
+    categories_value = []
+    if hint_category_ids:
+        for index, category_id in enumerate(hint_category_ids):
+            categories_value.append(
+                {
+                    "id": category_id,
+                    "name": hint_category_names[index] if index < len(hint_category_names) else "",
+                }
+            )
+    elif category:
+        categories_value = [{"id": str(category.id), "name": category.name}]
+
     tag_names = _match_tags(full_text)
+    for tag_name in _context_list_text(context_hints, "tag_names", limit=16):
+        if tag_name not in tag_names:
+            tag_names.append(tag_name)
     cert_names = _match_certifications(full_text)
+    for cert_name in _context_list_text(context_hints, "eco_certification_names", limit=16):
+        if cert_name not in cert_names:
+            cert_names.append(cert_name)
     shipping_material_hint = _shipping_material_hint(full_text)
+    if not shipping_material_hint and structured.get("material_hints"):
+        shipping_material_hint = structured["material_hints"][0]
     ethical_notes = ""
     if re.search(r"\b(ethically sourced|fair trade|artisan made|handmade)\b", full_text, re.I):
         ethical_notes = "Evidence indicates ethical or artisan sourcing claims in cited sources."
@@ -308,6 +438,11 @@ def build_field_candidates(
         seo_title = f"{name_candidate} - {category.name} | Bunoraa"
     seo_description = short_description[:500] if short_description else ""
 
+    sku_candidates = list(ocr.get("sku_candidates") or [])
+    for candidate in structured.get("sku_candidates", []):
+        if candidate and candidate not in sku_candidates:
+            sku_candidates.append(candidate)
+
     return {
         "name": {
             "value": name_candidate or None,
@@ -316,9 +451,9 @@ def build_field_candidates(
             "source_urls": source_urls,
         },
         "sku": {
-            "value": (ocr.get("sku_candidates") or [None])[0],
-            "confidence": 0.78 if ocr.get("sku_candidates") else 0.35,
-            "rationale": "OCR-derived SKU candidate." if ocr.get("sku_candidates") else "No reliable OCR SKU found.",
+            "value": (sku_candidates or [None])[0],
+            "confidence": 0.86 if sku_candidates else 0.35,
+            "rationale": "Structured/OCR-derived SKU candidate." if sku_candidates else "No reliable SKU evidence found.",
             "source_urls": [],
         },
         "description": {
@@ -340,14 +475,14 @@ def build_field_candidates(
             "source_urls": source_urls,
         },
         "categories": {
-            "value": [{"id": str(category.id), "name": category.name}] if category else [],
-            "confidence": max(0.0, category_score - 0.02),
+            "value": categories_value,
+            "confidence": 0.95 if hint_category_ids else max(0.0, category_score - 0.02),
             "rationale": "Primary category and close taxonomy match.",
             "source_urls": source_urls,
         },
         "tags": {
             "value": tag_names,
-            "confidence": 0.76 if tag_names else 0.25,
+            "confidence": 0.82 if _context_list_text(context_hints, "tag_names", limit=1) else (0.76 if tag_names else 0.25),
             "rationale": "Mapped from extracted keywords to existing tags.",
             "source_urls": source_urls,
         },
@@ -377,7 +512,7 @@ def build_field_candidates(
         },
         "shipping_material": {
             "value": shipping_material_hint,
-            "confidence": 0.68 if shipping_material_hint else 0.22,
+            "confidence": 0.74 if shipping_material_hint else 0.22,
             "rationale": "Material cue inferred from description keywords.",
             "source_urls": source_urls,
         },
@@ -407,7 +542,7 @@ def build_field_candidates(
         },
         "eco_certifications": {
             "value": cert_names,
-            "confidence": 0.78 if cert_names else 0.22,
+            "confidence": 0.84 if _context_list_text(context_hints, "eco_certification_names", limit=1) else (0.78 if cert_names else 0.22),
             "rationale": "Certification labels matched from web evidence.",
             "source_urls": source_urls,
         },

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from decimal import Decimal, ROUND_HALF_UP
 from statistics import mean
 from typing import Any
@@ -14,6 +15,38 @@ def _to_decimal(value: Any) -> Decimal | None:
         return None
 
 
+def _extract_price_candidates(text: str) -> list[Decimal]:
+    content = str(text or "")
+    if not content:
+        return []
+
+    patterns = (
+        r"(?:\$|€|£|₹|৳)\s*([0-9]{1,6}(?:[.,][0-9]{1,2})?)",
+        r"\b(?:usd|bdt|eur|gbp|inr|cad|aud|taka|tk)\s*([0-9]{1,6}(?:[.,][0-9]{1,2})?)\b",
+        r"\b(?:price|sale price|our price|list price|mrp|msrp)\s*[:=]?\s*([0-9]{1,6}(?:[.,][0-9]{1,2})?)\b",
+    )
+
+    values: list[Decimal] = []
+    for pattern in patterns:
+        for raw in re.findall(pattern, content, flags=re.I):
+            candidate = str(raw).strip()
+            if candidate.count(",") == 1 and "." not in candidate:
+                left, right = candidate.split(",", 1)
+                if len(right) <= 2:
+                    candidate = f"{left}.{right}"
+                else:
+                    candidate = candidate.replace(",", "")
+            else:
+                candidate = candidate.replace(",", "")
+            parsed = _to_decimal(candidate)
+            if parsed is None:
+                continue
+            if parsed <= 0 or parsed > Decimal("100000"):
+                continue
+            values.append(parsed)
+    return values
+
+
 class PricingProvider:
     """
     Estimate pricing/inventory fields from internal + market comparison signals.
@@ -26,12 +59,14 @@ class PricingProvider:
         primary_category,
         research_docs,
         similar_products,
+        context_hints=None,
     ) -> dict[str, dict[str, Any]]:
         from apps.catalog.models import CategoryPricingProfile
 
         profile = None
         if primary_category:
             profile = CategoryPricingProfile.objects.filter(category=primary_category, is_active=True).first()
+        context_hints = context_hints or {}
 
         internal_prices = []
         for similar in similar_products:
@@ -41,16 +76,16 @@ class PricingProvider:
 
         market_prices = []
         for doc in research_docs:
-            for token in doc.text.split():
-                cleaned = token.replace(",", "")
-                if cleaned.startswith("$"):
-                    try:
-                        market_prices.append(Decimal(cleaned.replace("$", "")))
-                    except Exception:
-                        continue
+            market_prices.extend(_extract_price_candidates(getattr(doc, "text", "")))
+            market_prices.extend(_extract_price_candidates(getattr(doc, "snippet", "")))
+            structured = getattr(doc, "metadata", {}).get("structured", {}) if getattr(doc, "metadata", None) else {}
+            for amount in structured.get("price_amounts", [])[:5]:
+                parsed = _to_decimal(amount)
+                if parsed and parsed > 0:
+                    market_prices.append(parsed)
 
         baseline = None
-        confidence = 0.32
+        confidence = 0.28
         rationale_parts = []
 
         if internal_prices:
@@ -73,6 +108,15 @@ class PricingProvider:
             baseline = max(baseline, profile.price_floor)
             confidence += 0.1
             rationale_parts.append("category price floor")
+        elif product and getattr(product, "price", None):
+            existing_price = _to_decimal(getattr(product, "price", None))
+            if existing_price and existing_price > 0:
+                baseline = max(baseline, existing_price)
+                confidence = max(confidence, 0.45)
+                rationale_parts.append("existing product baseline")
+        if context_hints.get("name"):
+            confidence = min(1.0, confidence + 0.02)
+            rationale_parts.append("merchant context hints")
 
         baseline = baseline.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
@@ -88,8 +132,16 @@ class PricingProvider:
         if cost <= 0:
             cost = (baseline * Decimal("0.65")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        stock_default = int(getattr(profile, "stock_default", 12))
-        low_stock_default = int(getattr(profile, "low_stock_threshold_default", 5))
+        stock_default = int(
+            getattr(profile, "stock_default", None)
+            or getattr(product, "stock_quantity", 0)
+            or 12
+        )
+        low_stock_default = int(
+            getattr(profile, "low_stock_threshold_default", None)
+            or getattr(product, "low_stock_threshold", 0)
+            or 5
+        )
 
         rationale = "Estimated from " + ", ".join(rationale_parts)
         confidence = max(0.0, min(1.0, confidence))

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from urllib.parse import quote_plus
+from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -43,10 +43,45 @@ class SearchProvider:
                 else:
                     continue
                 if results:
-                    return results, provider
+                    return self._dedupe_results(results, max_results=max_results), provider
             except Exception as exc:
                 logger.warning("Search provider failed (%s): %s", provider, exc)
         return [], "none"
+
+    @staticmethod
+    def _dedupe_results(results: list[dict[str, Any]], *, max_results: int) -> list[dict[str, Any]]:
+        normalized = []
+        seen = set()
+        for item in results:
+            raw_url = item.get("url") or ""
+            cleaned = SearchProvider._normalize_result_url(raw_url)
+            if not cleaned or cleaned in seen:
+                continue
+            seen.add(cleaned)
+            record = dict(item)
+            record["url"] = cleaned
+            normalized.append(record)
+            if len(normalized) >= max_results:
+                break
+        return normalized
+
+    @staticmethod
+    def _normalize_result_url(url: str) -> str:
+        if not url:
+            return ""
+        candidate = str(url).strip()
+        if candidate.startswith("/l/"):
+            candidate = f"https://duckduckgo.com{candidate}"
+        try:
+            parsed = urlparse(candidate)
+        except Exception:
+            return candidate
+        if parsed.path.startswith("/l/") and "duckduckgo.com" in (parsed.netloc or ""):
+            params = parse_qs(parsed.query)
+            target = params.get("uddg", [None])[0]
+            if target:
+                return unquote(target)
+        return candidate
 
     def _search_serpapi(self, query: str, max_results: int) -> list[dict[str, Any]]:
         response = requests.get(
@@ -116,7 +151,7 @@ class SearchProvider:
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
         results = []
-        for link in soup.select("a.result__a")[:max_results]:
+        for link in soup.select("a.result__a")[: max_results * 2]:
             url = link.get("href") or ""
             if not url:
                 continue

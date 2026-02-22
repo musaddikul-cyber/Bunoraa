@@ -61,6 +61,13 @@
     return values.filter(Boolean).slice(0, limit || 12);
   }
 
+  function getMultiSelectElement(fieldName) {
+    return (
+      document.getElementById("id_" + fieldName + "_to") ||
+      document.getElementById("id_" + fieldName)
+    );
+  }
+
   function selectedPrimaryCategoryLabel() {
     var selectedNode = document.querySelector(
       ".category-tree-widget-container .category-tree-node.is-selected span:last-child"
@@ -106,7 +113,7 @@
       hints.primary_category_name = primaryCategoryName;
     }
 
-    var categoriesSelect = document.getElementById("id_categories");
+    var categoriesSelect = getMultiSelectElement("categories");
     var categoryIds = selectedOptionValues(categoriesSelect, 12);
     var categoryNames = selectedOptionTexts(categoriesSelect, 12);
     if (categoryIds.length) {
@@ -116,13 +123,13 @@
       hints.category_names = categoryNames;
     }
 
-    var tagsSelect = document.getElementById("id_tags");
+    var tagsSelect = getMultiSelectElement("tags");
     var tagNames = selectedOptionTexts(tagsSelect, 12);
     if (tagNames.length) {
       hints.tag_names = tagNames;
     }
 
-    var certSelect = document.getElementById("id_eco_certifications");
+    var certSelect = getMultiSelectElement("eco_certifications");
     var certNames = selectedOptionTexts(certSelect, 8);
     if (certNames.length) {
       hints.eco_certification_names = certNames;
@@ -207,6 +214,18 @@
     Array.prototype.forEach.call(selectEl.options, function (option) {
       option.selected = selectedSet.has(option.value);
     });
+    if (/_to$/.test(String(selectEl.id || "")) && typeof window.SelectFilter !== "undefined") {
+      var fieldId = String(selectEl.id).replace(/_to$/, "");
+      if (typeof window.SelectFilter.refresh_icons === "function") {
+        window.SelectFilter.refresh_icons(fieldId);
+      }
+      if (typeof window.SelectFilter.refresh_filtered_selects === "function") {
+        window.SelectFilter.refresh_filtered_selects(fieldId);
+      }
+      if (typeof window.SelectFilter.refresh_filtered_warning === "function") {
+        window.SelectFilter.refresh_filtered_warning(fieldId);
+      }
+    }
     selectEl.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
@@ -217,7 +236,7 @@
         return;
       }
       if (fieldName === "categories" || fieldName === "tags" || fieldName === "eco_certifications") {
-        var select = document.getElementById("id_" + fieldName);
+        var select = getMultiSelectElement(fieldName);
         setSelectValues(select, value);
         return;
       }

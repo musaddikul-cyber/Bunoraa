@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import re
 import socket
@@ -135,7 +136,6 @@ class ResearchProvider:
 
     def _fetch_one(self, result: dict[str, Any]) -> ResearchDocument | None:
         url = result.get("url", "")
-        domain = _to_domain(url)
         title = result.get("title", "")
         snippet = result.get("snippet", "")
         provider = result.get("provider", "")
@@ -151,6 +151,11 @@ class ResearchProvider:
             logger.debug("research fetch failed for %s: %s", url, exc)
             return None
 
+        final_url = response.url or url
+        if not is_safe_public_url(final_url):
+            return None
+        domain = _to_domain(final_url)
+
         content_type = (response.headers.get("Content-Type") or "").lower()
         if "text/html" not in content_type and "application/xhtml+xml" not in content_type:
             return None
@@ -161,9 +166,15 @@ class ResearchProvider:
         if not text:
             return None
 
-        trust = self._trust_score(domain=domain, content=text, has_schema=bool(soup.find(attrs={"itemtype": True})))
+        structured = self._extract_structured_product_data(soup)
+        trust = self._trust_score(
+            domain=domain,
+            content=text,
+            has_schema=bool(soup.find(attrs={"itemtype": True})),
+            structured=structured,
+        )
         return ResearchDocument(
-            url=url,
+            url=final_url,
             domain=domain,
             title=page_title or title,
             snippet=snippet,
@@ -172,8 +183,101 @@ class ResearchProvider:
             metadata={
                 "provider": provider,
                 "content_type": content_type,
+                "structured": structured,
             },
         )
+
+    @staticmethod
+    def _extract_structured_product_data(soup: BeautifulSoup) -> dict[str, Any]:
+        names: list[str] = []
+        descriptions: list[str] = []
+        sku_candidates: list[str] = []
+        price_amounts: list[str] = []
+        brand_names: list[str] = []
+        category_names: list[str] = []
+        material_hints: list[str] = []
+
+        def _add_unique(target: list[str], value: Any, *, max_chars: int = 280):
+            cleaned = _safe_text(str(value or ""), max_chars=max_chars)
+            if cleaned and cleaned not in target:
+                target.append(cleaned)
+
+        def _extract_from_product_node(node: dict[str, Any]):
+            _add_unique(names, node.get("name"))
+            _add_unique(descriptions, node.get("description"), max_chars=1200)
+            _add_unique(sku_candidates, node.get("sku"), max_chars=80)
+            _add_unique(category_names, node.get("category"), max_chars=180)
+            _add_unique(material_hints, node.get("material"), max_chars=180)
+
+            brand = node.get("brand")
+            if isinstance(brand, dict):
+                _add_unique(brand_names, brand.get("name"))
+            else:
+                _add_unique(brand_names, brand)
+
+            offers = node.get("offers")
+            offer_nodes = offers if isinstance(offers, list) else [offers]
+            for offer in offer_nodes:
+                if not isinstance(offer, dict):
+                    continue
+                for key in ("price", "lowPrice", "highPrice"):
+                    value = offer.get(key)
+                    if value not in (None, ""):
+                        _add_unique(price_amounts, value, max_chars=40)
+
+        def _walk_json_ld(payload: Any):
+            if isinstance(payload, list):
+                for item in payload:
+                    _walk_json_ld(item)
+                return
+            if not isinstance(payload, dict):
+                return
+            if "@graph" in payload:
+                _walk_json_ld(payload.get("@graph"))
+            node_type = payload.get("@type")
+            types = node_type if isinstance(node_type, list) else [node_type]
+            lowered = {str(item).lower() for item in types if item}
+            if any("product" in value for value in lowered):
+                _extract_from_product_node(payload)
+
+        for node in soup.find_all("script", attrs={"type": re.compile(r"ld\+json", re.I)}):
+            raw = node.string or node.get_text() or ""
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                payload = json.loads(raw)
+            except Exception:
+                continue
+            _walk_json_ld(payload)
+
+        meta_extract_map = {
+            "og:title": (names, 280),
+            "twitter:title": (names, 280),
+            "description": (descriptions, 1200),
+            "og:description": (descriptions, 1200),
+            "product:price:amount": (price_amounts, 40),
+            "product:retailer_item_id": (sku_candidates, 80),
+            "product:brand": (brand_names, 180),
+            "product:category": (category_names, 180),
+        }
+        for tag in soup.find_all("meta"):
+            key = (tag.get("property") or tag.get("name") or "").strip().lower()
+            if key not in meta_extract_map:
+                continue
+            value = tag.get("content")
+            target, max_chars = meta_extract_map[key]
+            _add_unique(target, value, max_chars=max_chars)
+
+        return {
+            "names": names[:5],
+            "descriptions": descriptions[:3],
+            "sku_candidates": sku_candidates[:6],
+            "price_amounts": price_amounts[:8],
+            "brand_names": brand_names[:4],
+            "category_names": category_names[:6],
+            "material_hints": material_hints[:6],
+        }
 
     @staticmethod
     def _extract_main_text(soup: BeautifulSoup) -> str:
@@ -192,7 +296,7 @@ class ResearchProvider:
         candidates = [candidate for candidate in candidates if candidate]
         return max(candidates, key=len) if candidates else ""
 
-    def _trust_score(self, domain: str, content: str, has_schema: bool) -> float:
+    def _trust_score(self, domain: str, content: str, has_schema: bool, structured: dict[str, Any]) -> float:
         score = 0.25
         if domain in TRUSTED_CERTIFICATION_DOMAINS:
             score += 0.4
@@ -200,6 +304,12 @@ class ResearchProvider:
             score += 0.2
         if has_schema:
             score += 0.15
+        structured_signals = 0
+        for key in ("names", "price_amounts", "sku_candidates", "category_names"):
+            if structured.get(key):
+                structured_signals += 1
+        if structured_signals:
+            score += min(0.2, structured_signals * 0.06)
         if len(content) > 800:
             score += 0.1
         if re.search(r"\b(certificate|certification|material|specification|model)\b", content, re.I):

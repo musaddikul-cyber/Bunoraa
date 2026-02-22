@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from PIL import Image
@@ -18,8 +19,10 @@ from apps.catalog.forms import ProductAdminForm
 from apps.catalog.ai.schemas import FieldSuggestionPayload
 from apps.catalog.ai.providers.personalization import PersonalizationProvider
 from apps.catalog.ai.providers.pricing import PricingProvider
+from apps.catalog.ai.providers.research import ResearchProvider
 from apps.catalog.ai.providers.research import is_safe_public_url
-from apps.catalog.ai.validators import normalize_raw_suggestions
+from apps.catalog.ai.providers.search import SearchProvider
+from apps.catalog.ai.validators import apply_suggestions_to_product, normalize_raw_suggestions
 from apps.catalog.models import (
     AspectRatioChoice,
     Category,
@@ -79,6 +82,31 @@ class CatalogRegressionTests(TestCase):
         product_admin = ProductAdmin(Product, django_admin.site)
         media_js = tuple(getattr(product_admin.media, "_js", ()))
         self.assertIn("js/admin/product_image_live_preview.js", media_js)
+
+    def test_search_provider_normalizes_duckduckgo_redirect_urls(self):
+        url = "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fproducts%2Fitem-1"
+        normalized = SearchProvider._normalize_result_url(url)
+        self.assertEqual(normalized, "https://example.com/products/item-1")
+
+    def test_research_provider_extracts_structured_product_data(self):
+        from bs4 import BeautifulSoup
+
+        html = """
+        <html>
+          <head>
+            <script type="application/ld+json">
+              {"@context":"https://schema.org","@type":"Product","name":"Eco Bottle","sku":"ECO-100","offers":{"@type":"Offer","price":"19.99"}}
+            </script>
+            <meta property="product:price:amount" content="18.99" />
+          </head>
+          <body><main>Reusable insulated bottle</main></body>
+        </html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        structured = ResearchProvider._extract_structured_product_data(soup)
+        self.assertIn("Eco Bottle", structured["names"])
+        self.assertIn("ECO-100", structured["sku_candidates"])
+        self.assertIn("19.99", structured["price_amounts"])
 
     def test_celery_task_names_are_current(self):
         from core.celery import app
@@ -281,6 +309,52 @@ class ProductAutofillValidationTests(TestCase):
         hints = PersonalizationProvider().get_hints(user=user, category=self.category, locale="en")
         self.assertIn("[en]", hints["description_style"])
 
+    def test_context_hints_can_resolve_name_and_categories(self):
+        raw = {
+            "name": {"value": None, "confidence": 0.1},
+            "primary_category": {"value": None, "confidence": 0.0},
+            "categories": {"value": [], "confidence": 0.0},
+            "price": {"value": "20.00", "confidence": 0.9},
+        }
+        result = normalize_raw_suggestions(
+            raw,
+            confidence_threshold=0.8,
+            context_hints={
+                "name": "Handmade Home Vase",
+                "primary_category_id": str(self.category.id),
+                "primary_category_name": self.category.name,
+                "category_ids": [str(self.category.id)],
+                "category_names": [self.category.name],
+            },
+        )
+        mapped = {item.field_name: item for item in result}
+        self.assertEqual(mapped["name"].value, "Handmade Home Vase")
+        self.assertEqual(mapped["primary_category"].value, str(self.category.id))
+        self.assertEqual(mapped["categories"].value, [str(self.category.id)])
+
+    def test_apply_suggestions_skips_null_text_values(self):
+        product = Product.objects.create(
+            name="Existing",
+            slug="existing",
+            price=Decimal("15.00"),
+            primary_category=self.category,
+            ethical_sourcing_notes="Already set",
+        )
+        suggestions = [
+            SimpleNamespace(field_name="ethical_sourcing_notes", value_json=None),
+            SimpleNamespace(field_name="name", value_json=None),
+        ]
+        result = apply_suggestions_to_product(
+            product=product,
+            suggestions=suggestions,
+            force_overwrite=False,
+        )
+        product.refresh_from_db()
+        self.assertEqual(product.ethical_sourcing_notes, "Already set")
+        self.assertEqual(product.name, "Existing")
+        self.assertEqual(result["applied"], 0)
+        self.assertEqual(result["skipped"], 2)
+
 
 @override_settings(
     PRODUCT_AI_ENABLED=True,
@@ -316,6 +390,14 @@ class ProductAutofillAdminEndpointTests(TestCase):
                 "currency": "USD",
                 "locale": "en",
                 "allow_external": "true",
+                "context_hints": json.dumps(
+                    {
+                        "name": "Decor Lamp",
+                        "primary_category_id": str(self.category.id),
+                        "category_ids": [str(self.category.id)],
+                        "tag_names": ["eco"],
+                    }
+                ),
                 "images": _image_upload(),
             },
         )
@@ -324,7 +406,10 @@ class ProductAutofillAdminEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = json.loads(response.content.decode("utf-8"))
         self.assertTrue(payload["ok"])
-        self.assertTrue(ProductAutofillJob.objects.filter(id=payload["job_id"]).exists())
+        job = ProductAutofillJob.objects.filter(id=payload["job_id"]).first()
+        self.assertIsNotNone(job)
+        self.assertEqual(job.input_payload["context_hints"]["name"], "Decor Lamp")
+        self.assertEqual(job.input_payload["context_hints"]["category_ids"], [str(self.category.id)])
         mock_delay.assert_called_once()
 
     @patch("apps.catalog.ai.engine.ProductAutofillEngine")

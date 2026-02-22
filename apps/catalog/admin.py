@@ -492,6 +492,68 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             return value
         return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
+    def _clean_hint_text(self, value, *, max_chars=300):
+        if value is None:
+            return ""
+        text = " ".join(str(value).split()).strip()
+        if not text:
+            return ""
+        return text[:max_chars]
+
+    def _parse_context_hints(self, payload):
+        raw_hints = payload.get("context_hints") if hasattr(payload, "get") else None
+        if not raw_hints:
+            return {}
+
+        parsed = {}
+        if isinstance(raw_hints, str):
+            try:
+                parsed = json.loads(raw_hints)
+            except Exception:
+                return {}
+        elif isinstance(raw_hints, dict):
+            parsed = dict(raw_hints)
+        else:
+            return {}
+
+        if not isinstance(parsed, dict):
+            return {}
+
+        scalar_keys = {
+            "name": 220,
+            "short_description": 500,
+            "description": 1500,
+            "primary_category_id": 64,
+            "primary_category_name": 200,
+        }
+        list_keys = {
+            "image_names": 12,
+            "category_ids": 20,
+            "category_names": 20,
+            "tag_names": 24,
+            "eco_certification_names": 16,
+        }
+        sanitized = {}
+
+        for key, max_chars in scalar_keys.items():
+            value = self._clean_hint_text(parsed.get(key), max_chars=max_chars)
+            if value:
+                sanitized[key] = value
+
+        for key, max_items in list_keys.items():
+            raw_values = parsed.get(key)
+            if not isinstance(raw_values, list):
+                continue
+            values = []
+            for item in raw_values[:max_items]:
+                text = self._clean_hint_text(item, max_chars=180)
+                if text:
+                    values.append(text)
+            if values:
+                sanitized[key] = values
+
+        return sanitized
+
     def _rate_limited(self, request):
         limit = int(getattr(settings, "PRODUCT_AI_START_RATE_LIMIT_PER_MIN", 6))
         key = f"catalog:autofill:start:{request.user.id}"
@@ -581,6 +643,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             return JsonResponse({"ok": False, "error": "Rate limit exceeded."}, status=429)
 
         payload = self._parse_payload(request)
+        context_hints = self._parse_context_hints(payload)
         product_id = payload.get("product_id") if hasattr(payload, "get") else None
         currency = (payload.get("currency") if hasattr(payload, "get") else None) or getattr(settings, "DEFAULT_CURRENCY", "BDT")
         allow_external = self._parse_bool(payload.get("allow_external") if hasattr(payload, "get") else None, default=getattr(settings, "PRODUCT_AI_ALLOW_EXTERNAL_DEFAULT", True))
@@ -633,6 +696,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 "temp_images": temp_paths,
                 "requested_ip": request.META.get("REMOTE_ADDR"),
                 "requested_at": timezone.now().isoformat(),
+                "context_hints": context_hints,
             }
             job.save(update_fields=["image_count", "input_payload", "updated_at"])
 

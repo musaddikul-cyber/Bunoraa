@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { PageDetail } from "@/lib/types";
+import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { absoluteUrl, buildBreadcrumbList, buildPageMetadata, cleanObject } from "@/lib/seo";
 import {
@@ -8,6 +9,7 @@ import {
   renderCategoryPageForPath,
   type CategorySearchParams,
 } from "@/app/categories/[...slug]/page";
+import { categoryPathExists, publishedPageSlugExists } from "@/lib/routeLookup";
 
 export const revalidate = 300;
 
@@ -15,6 +17,8 @@ async function getPage(slug: string) {
   try {
     const response = await apiFetch<PageDetail>(`/pages/${slug}/`, {
       next: { revalidate },
+      suppressError: true,
+      suppressErrorStatus: [404],
     });
     return response.data;
   } catch (error) {
@@ -33,10 +37,27 @@ export async function generateMetadata({
   searchParams: Promise<CategorySearchParams>;
 }): Promise<Metadata> {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
-  const page = await getPage(slug);
-  if (!page) {
+  if (await categoryPathExists(slug)) {
     return buildCategoryMetadataForPath(slug, resolvedSearchParams);
   }
+
+  if (!(await publishedPageSlugExists(slug))) {
+    return buildPageMetadata({
+      title: "Page",
+      description: "Read this page on Bunoraa.",
+      path: `/${slug}/`,
+    });
+  }
+
+  const page = await getPage(slug);
+  if (!page) {
+    return buildPageMetadata({
+      title: "Page",
+      description: "Read this page on Bunoraa.",
+      path: `/${slug}/`,
+    });
+  }
+
   return buildPageMetadata({
     title: page.meta_title || page.title,
     description: page.meta_description || page.excerpt || "Read this page on Bunoraa.",
@@ -52,10 +73,19 @@ export default async function PageDetail({
   searchParams: Promise<CategorySearchParams>;
 }) {
   const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
-  const page = await getPage(slug);
-  if (!page) {
+  if (await categoryPathExists(slug)) {
     return renderCategoryPageForPath(slug, resolvedSearchParams);
   }
+
+  if (!(await publishedPageSlugExists(slug))) {
+    notFound();
+  }
+
+  const page = await getPage(slug);
+  if (!page) {
+    notFound();
+  }
+
   const pageUrl = `/${page.slug}/`;
   const pageSchema = cleanObject({
     "@context": "https://schema.org",

@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { ProductListItem } from "@/lib/types";
 import { ProductCard } from "@/components/products/ProductCard";
+import { ProductCardVariant, type ProductCardVariantName } from "@/components/products/ProductCardVariants";
 import { ProductCardSkeleton } from "@/components/products/ProductCardSkeleton";
 import { QuickViewModal } from "@/components/products/QuickViewModal";
 import { cn } from "@/lib/utils";
@@ -10,11 +11,13 @@ import { cn } from "@/lib/utils";
 export function ProductGrid({
   products,
   view = "grid",
+  cardVariant,
   isLoading = false,
   emptyMessage = "We could not find any products matching your current filters.",
 }: {
   products: ProductListItem[];
   view?: "grid" | "list";
+  cardVariant?: ProductCardVariantName;
   isLoading?: boolean;
   emptyMessage?: string;
 }) {
@@ -53,13 +56,22 @@ export function ProductGrid({
         )}
       >
         {products.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-            variant={view === "list" ? "list" : "grid"}
-            showQuickView
-            onQuickView={setQuickViewSlug}
-          />
+          cardVariant ? (
+            <ProductCardVariant
+              key={product.id}
+              product={product}
+              variant={cardVariant}
+              onQuickView={setQuickViewSlug}
+            />
+          ) : (
+            <ProductCard
+              key={product.id}
+              product={product}
+              variant={view === "list" ? "list" : "grid"}
+              showQuickView
+              onQuickView={setQuickViewSlug}
+            />
+          )
         ))}
       </div>
       <QuickViewModal

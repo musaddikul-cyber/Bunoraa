@@ -108,7 +108,13 @@ export function useTheme() {
   return ctx;
 }
 
-export function ThemeSwitcher({ className }: { className?: string }) {
+export function ThemeSwitcher({
+  className,
+  selectClassName,
+}: {
+  className?: string;
+  selectClassName?: string;
+}) {
   const { theme, setTheme } = useTheme();
 
   return (
@@ -122,7 +128,10 @@ export function ThemeSwitcher({ className }: { className?: string }) {
       <select
         value={theme}
         onChange={(event) => setTheme(event.target.value as ThemeName)}
-        className="h-10 min-h-10 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground sm:w-32 sm:text-sm"
+        className={cn(
+          "h-10 min-h-10 w-[10.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground sm:w-44 sm:text-sm",
+          selectClassName
+        )}
       >
         {THEME_CLASSES.map((option) => (
           <option key={option} value={option}>

@@ -13,6 +13,7 @@ import {
   renderCategoryPageForPath,
   type CategorySearchParams,
 } from "@/app/categories/[...slug]/page";
+import { categoryPathExists } from "@/lib/routeLookup";
 
 export const revalidate = 900;
 
@@ -21,6 +22,8 @@ async function getProduct(slug: string) {
     const response = await apiFetch<ProductDetail>(`/catalog/products/${slug}/`, {
       headers: await getServerLocaleHeaders(),
       next: { revalidate },
+      suppressError: true,
+      suppressErrorStatus: [404],
     });
     return response.data;
   } catch (error) {
@@ -58,8 +61,13 @@ export async function generateMetadata({
     params,
     searchParams,
   ]);
-  const productSlug = toProductSlug(rest || []);
   const requestedPath = [rootCategory, ...(rest || [])].filter(Boolean).join("/");
+
+  if (requestedPath && (await categoryPathExists(requestedPath))) {
+    return buildCategoryMetadataForPath(requestedPath, resolvedSearchParams);
+  }
+
+  const productSlug = toProductSlug(rest || []);
 
   if (!productSlug || !rest?.length) {
     return buildCategoryMetadataForPath(requestedPath || rootCategory, resolvedSearchParams);
@@ -103,6 +111,11 @@ export default async function NestedCategoryProductDetailPage({
     params,
     searchParams,
   ]);
+  const requestedCategoryListingPath = [rootCategory, ...(rest || [])].join("/");
+  if (requestedCategoryListingPath && (await categoryPathExists(requestedCategoryListingPath))) {
+    return renderCategoryPageForPath(requestedCategoryListingPath, resolvedSearchParams);
+  }
+
   if (!rest?.length) {
     notFound();
   }
@@ -112,10 +125,9 @@ export default async function NestedCategoryProductDetailPage({
     notFound();
   }
 
-  const requestedCategoryListingPath = [rootCategory, ...rest].join("/");
   const product = await getProduct(productSlug);
   if (!product) {
-    return renderCategoryPageForPath(requestedCategoryListingPath, resolvedSearchParams);
+    notFound();
   }
   const relatedProducts = await getRelated(productSlug).catch(() => []);
 

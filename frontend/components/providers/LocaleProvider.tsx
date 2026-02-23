@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import { getStoredLocale, setStoredLocale, type LocaleState } from "@/lib/locale";
 
+type LocaleApiPayload = Record<string, unknown>;
+
 type LocaleContextValue = {
   locale: LocaleState;
   setLocale: (next: Partial<LocaleState>) => void;
@@ -17,18 +19,95 @@ const LocaleContext = React.createContext<LocaleContextValue | undefined>(
 );
 
 async function fetchPreferences() {
-  const response = await apiFetch<Record<string, unknown>>("/i18n/preferences/", {
+  const response = await apiFetch<LocaleApiPayload>("/i18n/preferences/", {
     method: "GET",
   });
   return response.data;
 }
 
+function normalizeText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+
+function normalizeCode(value: string, length: number): string {
+  const normalized = value.trim();
+  const upper = normalized.toUpperCase();
+  if (new RegExp(`^[A-Z]{${length}}$`).test(upper)) {
+    return upper;
+  }
+  return normalized;
+}
+
+function readLocaleValue(
+  value: unknown,
+  nestedKeys: string[] = ["code", "name"]
+): string | undefined {
+  const direct = normalizeText(value);
+  if (direct) return direct;
+  if (!value || typeof value !== "object") return undefined;
+
+  const record = value as Record<string, unknown>;
+  for (const key of nestedKeys) {
+    const nested = normalizeText(record[key]);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+function parseLocalePreferences(data: LocaleApiPayload): Partial<LocaleState> {
+  const language =
+    readLocaleValue(data.language_code, ["code"]) ||
+    readLocaleValue(data.language, ["code"]);
+  const currencyRaw =
+    readLocaleValue(data.currency_code, ["code"]) ||
+    readLocaleValue(data.currency, ["code"]);
+  const timezone =
+    readLocaleValue(data.timezone_name, ["name"]) ||
+    readLocaleValue(data.timezone, ["name"]);
+  const countryRaw =
+    readLocaleValue(data.country_code, ["code"]) ||
+    readLocaleValue(data.country, ["code", "name"]);
+
+  const next: Partial<LocaleState> = {};
+  if (language) next.language = language;
+  if (currencyRaw) next.currency = normalizeCode(currencyRaw, 3);
+  if (timezone) next.timezone = timezone;
+  if (countryRaw) next.country = normalizeCode(countryRaw, 2);
+  return next;
+}
+
+function buildPreferenceUpdateBody(payload: Partial<LocaleState>): Record<string, string> {
+  const body: Record<string, string> = {};
+
+  const language = normalizeText(payload.language);
+  const currency = normalizeText(payload.currency);
+  const timezone = normalizeText(payload.timezone);
+  const country = normalizeText(payload.country);
+
+  if (language) body.language_code = language;
+  if (currency) body.currency_code = normalizeCode(currency, 3);
+  if (timezone) body.timezone_name = timezone;
+  if (country) body.country_code = normalizeCode(country, 2);
+
+  return body;
+}
+
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [, startTransition] = React.useTransition();
-  const [locale, setLocaleState] = React.useState<LocaleState>(() =>
-    typeof window !== "undefined" ? getStoredLocale() : {}
-  );
+  const [locale, setLocaleState] = React.useState<LocaleState>({});
+
+  React.useEffect(() => {
+    const stored = getStoredLocale();
+    if (Object.keys(stored).length === 0) return;
+    setLocaleState((prev) => {
+      const merged = { ...stored, ...prev };
+      setStoredLocale(merged);
+      return merged;
+    });
+  }, []);
 
   const prefsQuery = useQuery({
     queryKey: ["locale", "preferences"],
@@ -46,13 +125,8 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (!prefsQuery.data) return;
-    const data = prefsQuery.data as Record<string, unknown>;
-    const next: LocaleState = {
-      language: (data.language_code as string) || (data.language as string),
-      currency: (data.currency_code as string) || (data.currency as string),
-      timezone: (data.timezone_name as string) || (data.timezone as string),
-      country: (data.country_code as string) || (data.country as string),
-    };
+    const next = parseLocalePreferences(prefsQuery.data as LocaleApiPayload);
+    if (Object.keys(next).length === 0) return;
     setLocaleState((prev) => {
       const merged = { ...prev, ...next };
       setStoredLocale(merged);
@@ -62,13 +136,9 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   const updatePrefs = useMutation({
     mutationFn: async (payload: Partial<LocaleState>) => {
-      const body = {
-        language: payload.language,
-        currency_code: payload.currency,
-        timezone: payload.timezone,
-        country: payload.country,
-      };
-      const response = await apiFetch<Record<string, unknown>>(
+      const body = buildPreferenceUpdateBody(payload);
+      if (Object.keys(body).length === 0) return {};
+      const response = await apiFetch<LocaleApiPayload>(
         "/i18n/preferences/",
         {
           method: "PUT",
@@ -81,12 +151,20 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
   const setLocale = React.useCallback(
     (next: Partial<LocaleState>) => {
+      const sanitized = buildPreferenceUpdateBody(next);
+      const normalizedNext: Partial<LocaleState> = {};
+      if (sanitized.language_code) normalizedNext.language = sanitized.language_code;
+      if (sanitized.currency_code) normalizedNext.currency = sanitized.currency_code;
+      if (sanitized.timezone_name) normalizedNext.timezone = sanitized.timezone_name;
+      if (sanitized.country_code) normalizedNext.country = sanitized.country_code;
+      if (Object.keys(normalizedNext).length === 0) return;
+
       setLocaleState((prev) => {
-        const merged = { ...prev, ...next };
+        const merged = { ...prev, ...normalizedNext };
         setStoredLocale(merged);
         return merged;
       });
-      updatePrefs.mutate(next);
+      updatePrefs.mutate(normalizedNext);
       startTransition(() => {
         router.refresh();
       });

@@ -2,15 +2,13 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type {
   Category,
-  Collection,
   ContactSettings,
   MenuPage,
   SiteSettings,
   SocialLink,
 } from "@/lib/types";
-import { ThemeSwitcher } from "@/components/theme/ThemeProvider";
-import { LocaleSwitcher } from "@/components/locale/LocaleSwitcher";
 import { FooterNewsletter } from "@/components/layout/FooterNewsletter";
+import { FooterPreferencesDialog } from "@/components/layout/FooterPreferencesDialog";
 import { asArray } from "@/lib/array";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 
@@ -59,18 +57,6 @@ async function getTopCategories() {
   }
 }
 
-async function getCollections() {
-  try {
-    const response = await apiFetch<Collection[]>("/catalog/collections/", {
-      params: { page_size: 6 },
-      next: { revalidate: 600 },
-    });
-    return asArray<Collection>(response.data);
-  } catch {
-    return [];
-  }
-}
-
 const SOCIAL_LABELS: Record<string, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
@@ -97,19 +83,125 @@ const pickText = (...values: Array<string | null | undefined>) => {
   return "";
 };
 
+type FooterSocialLink = SocialLink & {
+  platform: string;
+};
+
+type FooterLinkItem = {
+  key: string;
+  label: string;
+  href: string;
+};
+
+const normalizeSlug = (value?: string | null) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const normalizeHref = (href: string) =>
+  href.trim().toLowerCase().replace(/\/+$/, "");
+
+const normalizeSocialPlatform = (value?: string | null) => {
+  const normalized = normalizeSlug(value).replace(/-url$/, "");
+  if (normalized === "x") return "twitter";
+  return normalized;
+};
+
+const dedupeLinks = <T extends FooterLinkItem>(items: T[]) => {
+  const seenHref = new Set<string>();
+  const seenLabel = new Set<string>();
+  return items.filter((item) => {
+    const hrefKey = normalizeHref(item.href);
+    const labelKey = normalizeSlug(item.label);
+    if (seenHref.has(hrefKey) || seenLabel.has(labelKey)) {
+      return false;
+    }
+    seenHref.add(hrefKey);
+    seenLabel.add(labelKey);
+    return true;
+  });
+};
+
+const dedupeSocialLinks = (items: FooterSocialLink[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.url.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+function SocialIcon({ platform }: { platform: string }) {
+  const iconClass = "h-4 w-4";
+  switch (normalizeSocialPlatform(platform)) {
+    case "facebook":
+      return (
+        <svg viewBox="0 0 24 24" className={iconClass} fill="currentColor" aria-hidden="true">
+          <path d="M13.5 21v-7h2.4l.4-3h-2.8V9.2c0-.9.3-1.5 1.6-1.5h1.3V5c-.2 0-.9-.1-1.8-.1-1.8 0-3.1 1.1-3.1 3.2V11H9v3h2.6v7h1.9z" />
+        </svg>
+      );
+    case "instagram":
+      return (
+        <svg viewBox="0 0 24 24" className={iconClass} fill="none" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="17" height="17" rx="5" stroke="currentColor" strokeWidth="1.8" />
+          <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+          <circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" />
+        </svg>
+      );
+    case "twitter":
+      return (
+        <svg viewBox="0 0 24 24" className={iconClass} fill="currentColor" aria-hidden="true">
+          <path d="M18.9 2H22l-6.8 7.7L23 22h-6.1l-4.8-6.2L6.7 22H3.6l7.3-8.3L3.4 2h6.3l4.4 5.8L18.9 2zm-1.1 18h1.7L8.2 3.9H6.5L17.8 20z" />
+        </svg>
+      );
+    case "linkedin":
+      return (
+        <svg viewBox="0 0 24 24" className={iconClass} fill="currentColor" aria-hidden="true">
+          <path d="M6.4 8.8a1.9 1.9 0 1 1 0-3.8 1.9 1.9 0 0 1 0 3.8zM4.8 10.3H8V20H4.8zM10 10.3h3v1.4h.1c.4-.8 1.4-1.6 2.9-1.6 3.1 0 3.7 2 3.7 4.7V20h-3.2v-4.4c0-1-.1-2.4-1.5-2.4s-1.7 1.1-1.7 2.3V20H10z" />
+        </svg>
+      );
+    case "youtube":
+      return (
+        <svg viewBox="0 0 24 24" className={iconClass} fill="currentColor" aria-hidden="true">
+          <path d="M21.6 7.2a2.7 2.7 0 0 0-1.9-1.9C18 4.8 12 4.8 12 4.8s-6 0-7.7.5A2.7 2.7 0 0 0 2.4 7.2 28.4 28.4 0 0 0 2 12c0 1.6.1 3.2.4 4.8a2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.7.5 7.7.5s6 0 7.7-.5a2.7 2.7 0 0 0 1.9-1.9A28.4 28.4 0 0 0 22 12c0-1.6-.1-3.2-.4-4.8zM10 15.8V8.2L16 12z" />
+        </svg>
+      );
+    case "tiktok":
+      return (
+        <svg viewBox="0 0 24 24" className={iconClass} fill="currentColor" aria-hidden="true">
+          <path d="M15.7 3c.5 1.6 1.4 2.6 3.1 3V8a7 7 0 0 1-3.1-1v6.5a5.1 5.1 0 1 1-5.1-5.1h.6v2a3.1 3.1 0 1 0 2.5 3V3h2z" />
+        </svg>
+      );
+    case "pinterest":
+      return (
+        <svg viewBox="0 0 24 24" className={iconClass} fill="currentColor" aria-hidden="true">
+          <path d="M12 2a10 10 0 0 0-3.6 19.3c0-.8 0-2 .3-2.9l1.7-7.2s-.4-.9-.4-2.2c0-2.1 1.2-3.6 2.7-3.6 1.3 0 1.9 1 1.9 2.1 0 1.3-.8 3.3-1.2 5.1-.3 1.5.7 2.7 2.2 2.7 2.6 0 4.4-3.3 4.4-7.2 0-3-2-5.3-5.7-5.3-4.2 0-6.8 3.1-6.8 6.5 0 1.2.3 2.1.8 2.8.2.2.2.3.1.6l-.3 1.2c-.1.4-.4.5-.8.4-2-.8-2.9-2.9-2.9-5.3 0-3.9 3.3-8.6 9.8-8.6 5.2 0 8.6 3.8 8.6 7.8 0 5.3-3 9.2-7.5 9.2-1.5 0-2.8-.8-3.3-1.8l-.9 3.5c-.3 1.1-.8 2.1-1.2 2.9.9.3 1.9.5 2.9.5A10 10 0 0 0 12 2z" />
+        </svg>
+      );
+    default:
+      return (
+        <svg viewBox="0 0 24 24" className={iconClass} fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M7.5 12h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
+  }
+}
+
 export async function Footer() {
   const [
     pagesResult,
     siteSettingsResult,
     contactSettingsResult,
     categoriesResult,
-    collectionsResult,
   ] = await Promise.allSettled([
     getFooterPages(),
     getSiteSettings(),
     getContactSettings(),
     getTopCategories(),
-    getCollections(),
   ]);
 
   const pages = pagesResult.status === "fulfilled" ? pagesResult.value : [];
@@ -117,7 +209,6 @@ export async function Footer() {
   const contactSettings =
     contactSettingsResult.status === "fulfilled" ? contactSettingsResult.value : null;
   const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : [];
-  const collections = collectionsResult.status === "fulfilled" ? collectionsResult.value : [];
 
   const brandName = pickText(siteSettings?.site_name) || "Bunoraa";
   const brandDescription =
@@ -142,43 +233,109 @@ export async function Footer() {
   const phone = pickText(siteSettings?.contact_phone);
   const address = pickText(siteSettings?.address, siteSettings?.contact_address);
 
-  const contactSocialLinks: SocialLink[] = contactSettings?.social_links
+  const contactSocialLinks: FooterSocialLink[] = contactSettings?.social_links
     ? Object.entries(contactSettings.social_links)
         .filter(([, url]) => url && String(url).trim())
-        .map(([key, url]) => ({
-          label: SOCIAL_LABELS[key] || key.replace(/_/g, " "),
-          url: String(url),
-        }))
+        .map(([key, url]) => {
+          const platform = normalizeSocialPlatform(key);
+          return {
+            platform,
+            label: SOCIAL_LABELS[platform] || key.replace(/_/g, " "),
+            url: String(url),
+          };
+        })
     : [];
 
-  const siteSocialLinks: SocialLink[] = siteSettings
-    ? SOCIAL_SITE_FIELDS.map((field) => ({
-        label: field.label,
-        url: pickText(siteSettings[field.key] as string | null | undefined),
-      })).filter((item) => item.url)
+  const siteSocialLinks: FooterSocialLink[] = siteSettings
+    ? SOCIAL_SITE_FIELDS.map((field) => {
+        const platform = normalizeSocialPlatform(String(field.key).replace(/_url$/, ""));
+        return {
+          platform,
+          label: field.label,
+          url: pickText(siteSettings[field.key] as string | null | undefined),
+        };
+      })
+        .filter((item) => item.url)
     : [];
 
-  const socialLinks = contactSocialLinks.length ? contactSocialLinks : siteSocialLinks;
+  const socialLinks = dedupeSocialLinks(
+    contactSocialLinks.length ? contactSocialLinks : siteSocialLinks
+  );
   const copyrightText =
     pickText(siteSettings?.copyright_text) || `${brandName}. All rights reserved.`;
-  const fallbackCompanyLinks = [
-    { label: "About Bunoraa", href: "/about/" },
-    { label: "FAQ", href: "/faq/" },
-  ];
-  const companyLinks = pages.length
-    ? pages.map((page) => ({ label: page.title, href: `/pages/${page.slug}/` }))
-    : fallbackCompanyLinks;
-  const supportLinks = [
-    { label: "Contact", href: "/contact/" },
-    { label: "FAQ", href: "/faq/" },
-    { label: "Shipping", href: "/pages/shipping/" },
-    { label: "Returns", href: "/pages/returns/" },
-  ];
-  const mergedCompanyLinks = Array.from(
-    new Map(
-      [...companyLinks, ...supportLinks].map((item) => [item.href, item])
-    ).values()
+  const footerPageHrefBySlug = new Map(
+    pages.map((page) => [normalizeSlug(page.slug), `/pages/${page.slug}/`])
   );
+  const resolveFooterPageHref = (candidates: string[], fallback: string) => {
+    for (const candidate of candidates) {
+      const href = footerPageHrefBySlug.get(normalizeSlug(candidate));
+      if (href) return href;
+    }
+    return fallback;
+  };
+  const companySupportLinks = dedupeLinks([
+    {
+      key: "about",
+      label: "About Bunoraa",
+      href: resolveFooterPageHref(["about-bunoraa", "about"], "/about/"),
+    },
+    {
+      key: "faq",
+      label: "FAQ",
+      href: resolveFooterPageHref(["faq", "faqs"], "/faq/"),
+    },
+    {
+      key: "contact",
+      label: "Contact",
+      href: "/contact/",
+    },
+    {
+      key: "shipping",
+      label: "Shipping",
+      href: resolveFooterPageHref(["shipping", "shipping-policy"], "/pages/shipping/"),
+    },
+    {
+      key: "returns",
+      label: "Returns",
+      href: resolveFooterPageHref(
+        ["returns", "returns-policy", "refund-policy"],
+        "/pages/returns/"
+      ),
+    },
+  ]);
+  const footerLegalLinks = dedupeLinks([
+    {
+      key: "terms",
+      label: "Terms of Use",
+      href: resolveFooterPageHref(
+        ["terms-of-use", "terms", "terms-and-conditions"],
+        "/pages/terms-of-use/"
+      ),
+    },
+    {
+      key: "privacy",
+      label: "Privacy",
+      href: resolveFooterPageHref(["privacy", "privacy-policy"], "/pages/privacy/"),
+    },
+    {
+      key: "contact",
+      label: "Contact",
+      href: "/contact/",
+    },
+    {
+      key: "shipping",
+      label: "Shipping",
+      href: resolveFooterPageHref(["shipping", "shipping-policy"], "/pages/shipping/"),
+    },
+    {
+      key: "returns",
+      label: "Returns",
+      href: resolveFooterPageHref(
+        ["returns", "returns-policy", "refund-policy"],
+        "/pages/returns/"
+      ),
+    },
+  ]);
   const shopLinks = categories.length
     ? categories.map((category) => ({
         key: category.id,
@@ -190,19 +347,13 @@ export async function Footer() {
         { key: "all-products", label: "All products", href: "/products/" },
       ];
 
-  const collectionLinks = [
-    ...(collections.length
-      ? collections.slice(0, 4).map((collection) => ({
-          key: collection.id,
-          label: collection.name,
-          href: `/collections/${collection.slug}/`,
-        }))
-      : [{ key: "all-collections", label: "All collections", href: "/collections/" }]),
+  const collectionLinks = dedupeLinks([
+    { key: "all-collections", label: "All collections", href: "/collections/" },
     { key: "collections-all-products", label: "All products", href: "/products/" },
     { key: "collections-bundles", label: "Bundles", href: "/bundles/" },
     { key: "collections-artisans", label: "Artisans", href: "/artisans/" },
     { key: "collections-preorders", label: "Preorders", href: "/preorders/" },
-  ];
+  ]);
 
   const contactItems = [
     ...emailItems.map((item) => ({
@@ -238,10 +389,12 @@ export async function Footer() {
   const footerSummaryClass =
     "flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground/90 [&::-webkit-details-marker]:hidden";
   const footerListClass = "space-y-2 border-t border-border px-4 pb-4 pt-3 text-sm text-foreground/70";
+  const socialIconLinkClass =
+    "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground/75 transition hover:border-foreground/40 hover:text-foreground";
 
   return (
     <footer id="footer" className="border-t border-border bg-card">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-12">
+      <div className="mx-auto w-full max-w-7xl px-4 pb-4 pt-12 sm:px-6">
         <div className="space-y-8 lg:hidden">
           <div className="space-y-4">
             <div>
@@ -251,20 +404,6 @@ export async function Footer() {
               <p className="mt-2 text-sm text-foreground/70">{brandDescription}</p>
             </div>
             <FooterNewsletter />
-            {socialLinks.length ? (
-              <div>
-                <p className="text-sm font-semibold">Follow along</p>
-                <ul className="mt-3 flex flex-wrap gap-3 text-sm text-foreground/70">
-                  {socialLinks.map((link) => (
-                    <li key={link.url}>
-                      <Link className="hover:text-foreground" href={link.url}>
-                        {link.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
           </div>
 
           <div className="space-y-3">
@@ -335,7 +474,7 @@ export async function Footer() {
                 </svg>
               </summary>
               <ul className={footerListClass}>
-                {mergedCompanyLinks.map((item) => (
+                {companySupportLinks.map((item) => (
                   <li key={item.href}>
                     <Link href={item.href}>{item.label}</Link>
                   </li>
@@ -372,6 +511,25 @@ export async function Footer() {
                     )}
                   </li>
                 ))}
+                {socialLinks.length ? (
+                  <li className="pt-1">
+                    <div className="flex items-center gap-2">
+                      {socialLinks.map((link) => (
+                        <Link
+                          key={`mobile-social-${link.platform}-${link.url}`}
+                          href={link.url}
+                          className={socialIconLinkClass}
+                          aria-label={link.label}
+                          title={link.label}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <SocialIcon platform={link.platform} />
+                        </Link>
+                      ))}
+                    </div>
+                  </li>
+                ) : null}
               </ul>
             </details>
           </div>
@@ -386,20 +544,6 @@ export async function Footer() {
               <p className="mt-2 text-sm text-foreground/70">{brandDescription}</p>
             </div>
             <FooterNewsletter />
-            {socialLinks.length ? (
-              <div>
-                <p className="text-sm font-semibold">Follow along</p>
-                <ul className="mt-3 flex flex-wrap gap-3 text-sm text-foreground/70">
-                  {socialLinks.map((link) => (
-                    <li key={link.url}>
-                      <Link className="hover:text-foreground" href={link.url}>
-                        {link.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
           </div>
 
           <div>
@@ -427,7 +571,7 @@ export async function Footer() {
           <div>
             <p className="text-sm font-semibold">Company & Support</p>
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
-              {mergedCompanyLinks.map((item) => (
+              {companySupportLinks.map((item) => (
                 <li key={item.href}>
                   <Link href={item.href}>{item.label}</Link>
                 </li>
@@ -450,21 +594,44 @@ export async function Footer() {
                   )}
                 </li>
               ))}
+              {socialLinks.length ? (
+                <li className="pt-1">
+                  <div className="flex items-center gap-2">
+                    {socialLinks.map((link) => (
+                      <Link
+                        key={`desktop-social-${link.platform}-${link.url}`}
+                        href={link.url}
+                        className={socialIconLinkClass}
+                        aria-label={link.label}
+                        title={link.label}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <SocialIcon platform={link.platform} />
+                      </Link>
+                    ))}
+                  </div>
+                </li>
+              ) : null}
             </ul>
           </div>
         </div>
 
-        <div className="mt-10 border-t border-border pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-center text-xs leading-relaxed text-foreground/60 sm:text-left">
+        <div className="mt-8 border-t border-border pb-[max(0.2rem,env(safe-area-inset-bottom))] pt-4">
+          <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <FooterPreferencesDialog />
+            <p className="text-center text-xs leading-normal text-foreground/60 lg:text-left">
               &copy; {new Date().getFullYear()} {copyrightText}
             </p>
-            <div className="w-full rounded-2xl border border-border/70 bg-background/60 p-3 shadow-soft sm:w-auto sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
-              <div className="flex w-full flex-wrap items-start justify-center gap-2 text-sm text-foreground/70 sm:w-auto sm:items-center sm:justify-end sm:gap-3">
-                <ThemeSwitcher className="shrink-0" />
-                <LocaleSwitcher className="shrink-0" />
-              </div>
-            </div>
+            <ul className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-foreground/70 lg:justify-end">
+              {footerLegalLinks.map((item) => (
+                <li key={item.key}>
+                  <Link href={item.href} className="hover:text-foreground">
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>

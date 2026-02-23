@@ -355,6 +355,25 @@ class ProductAutofillValidationTests(TestCase):
         self.assertEqual(result["applied"], 0)
         self.assertEqual(result["skipped"], 2)
 
+    def test_apply_suggestions_skips_unchanged_m2m_updates(self):
+        product = Product.objects.create(
+            name="Tagged",
+            slug="tagged",
+            price=Decimal("15.00"),
+            primary_category=self.category,
+        )
+        product.tags.add(self.tag)
+        suggestions = [
+            SimpleNamespace(field_name="tags", value_json=[str(self.tag.id)]),
+        ]
+        result = apply_suggestions_to_product(
+            product=product,
+            suggestions=suggestions,
+            force_overwrite=True,
+        )
+        self.assertEqual(result["applied"], 0)
+        self.assertNotIn("tags", result["changed_fields"])
+
 
 @override_settings(
     PRODUCT_AI_ENABLED=True,
@@ -519,6 +538,61 @@ class ProductAutofillAdminEndpointTests(TestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.name, "Base Product")
         self.assertEqual(self.product.description, "AI generated description")
+
+    def test_apply_endpoint_force_overwrite_updates_existing_field(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+        )
+        ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="name",
+            value_json="Overwritten Name",
+            display_value="Overwritten Name",
+            confidence=0.9,
+        )
+        request = self.factory.post(
+            f"/admin/catalog/product/ai/autofill/{job.id}/apply/",
+            data={"force_overwrite": "true"},
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_apply_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertTrue(payload["ok"])
+        self.assertGreaterEqual(payload["result"]["applied"], 1)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, "Overwritten Name")
+
+    def test_apply_endpoint_returns_conflict_when_lock_exists(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+        )
+        ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="description",
+            value_json="AI generated description",
+            display_value="AI generated description",
+            confidence=0.9,
+        )
+        lock_key = f"catalog:autofill:apply:{job.id}"
+        cache.set(lock_key, "busy", timeout=30)
+        request = self.factory.post(
+            f"/admin/catalog/product/ai/autofill/{job.id}/apply/",
+            data={"force_overwrite": "true"},
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_apply_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 409)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertFalse(payload["ok"])
 
     def test_apply_endpoint_for_new_product_returns_client_mode(self):
         job = ProductAutofillJob.objects.create(

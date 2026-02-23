@@ -7,6 +7,7 @@ import Link from "next/link";
 import { WishlistIconButton } from "@/components/wishlist/WishlistIconButton";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { absoluteUrl, buildBreadcrumbList, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
+import { buildProductPath } from "@/lib/productPaths";
 
 export const revalidate = 600;
 
@@ -78,7 +79,7 @@ export default async function ArtisanDetailPage({
   const productList = buildItemList(
     products.slice(0, 50).map((product) => ({
       name: product.name,
-      url: `/products/${product.slug}/`,
+      url: buildProductPath(product),
       image: (product.primary_image as string | undefined) || undefined,
       description: product.short_description || undefined,
     })),
@@ -119,7 +120,7 @@ export default async function ArtisanDetailPage({
                 <p className="text-sm text-foreground/70">{product.short_description}</p>
               </div>
               <Button asChild size="sm" variant="secondary">
-                <Link href={`/products/${product.slug}/`}>View product</Link>
+                <Link href={buildProductPath(product)}>View product</Link>
               </Button>
             </Card>
           ))}

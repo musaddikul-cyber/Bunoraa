@@ -2,7 +2,7 @@ from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Sum, Count, F, Q
-from django.db import transaction
+from django.db import OperationalError, transaction
 from django.urls import reverse, path
 from django.http import HttpResponse, JsonResponse, HttpResponseNotAllowed, Http404
 from django.core.cache import cache
@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from urllib.parse import parse_qsl, urlparse
@@ -563,6 +564,31 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         cache.set(key, current + 1, timeout=60)
         return False
 
+    def _run_with_sqlite_lock_retry(self, operation, *, context: str):
+        """
+        Retry short-lived SQLite write-lock conflicts.
+        """
+        retries = int(getattr(settings, "PRODUCT_AI_SQLITE_LOCK_RETRIES", 3))
+        base_backoff = float(getattr(settings, "PRODUCT_AI_SQLITE_LOCK_BACKOFF_SECONDS", 0.15))
+        attempt = 0
+        while True:
+            try:
+                return operation()
+            except OperationalError as exc:
+                message = str(exc).lower()
+                if "database is locked" not in message or attempt >= retries:
+                    raise
+                delay = base_backoff * (2 ** attempt)
+                logger.warning(
+                    "Retrying %s due to SQLite lock (attempt %s/%s, delay=%.3fs)",
+                    context,
+                    attempt + 1,
+                    retries,
+                    delay,
+                )
+                time.sleep(delay)
+                attempt += 1
+
     def _check_upload_file(self, uploaded):
         allowed_mime = {"image/jpeg", "image/png", "image/webp"}
         max_size_mb = int(getattr(settings, "PRODUCT_AI_MAX_IMAGE_SIZE_MB", 8))
@@ -806,26 +832,69 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 }
             )
 
-        result = apply_suggestions_to_product(
-            product=job.product,
-            suggestions=suggestions,
-            force_overwrite=force_overwrite,
-        )
+        lock_key = f"catalog:autofill:apply:{job.id}"
+        lock_timeout = int(getattr(settings, "PRODUCT_AI_APPLY_LOCK_TIMEOUT_SECONDS", 30))
+        if not cache.add(lock_key, str(request.user.id), timeout=lock_timeout):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "Apply is already in progress for this job. Please wait a moment and retry.",
+                },
+                status=409,
+            )
 
-        changed_fields = set(result.get("changed_fields", []))
-        for suggestion in suggestions:
-            if suggestion.field_name in changed_fields:
-                suggestion.status = ProductFieldSuggestion.STATUS_APPLIED
-                suggestion.save(update_fields=["status", "updated_at"])
-                ProductAutofillFeedback.objects.create(
-                    job=job,
-                    suggestion=suggestion,
-                    user=request.user,
-                    field_name=suggestion.field_name,
-                    feedback_type=ProductAutofillFeedback.TYPE_ACCEPTED,
-                    final_value=suggestion.value_json,
-                    metadata={"source": "apply_endpoint", "force_overwrite": force_overwrite},
+        try:
+            def _apply_once():
+                with transaction.atomic():
+                    fresh_job = ProductAutofillJob.objects.select_related("product").get(id=job.id)
+                    fresh_suggestions = list(fresh_job.suggestions.order_by("field_name"))
+                    result = apply_suggestions_to_product(
+                        product=fresh_job.product,
+                        suggestions=fresh_suggestions,
+                        force_overwrite=force_overwrite,
+                    )
+
+                    changed_fields = set(result.get("changed_fields", []))
+                    if changed_fields:
+                        now = timezone.now()
+                        applied_suggestions = []
+                        feedback_entries = []
+                        for suggestion in fresh_suggestions:
+                            if suggestion.field_name not in changed_fields:
+                                continue
+                            suggestion.status = ProductFieldSuggestion.STATUS_APPLIED
+                            suggestion.updated_at = now
+                            applied_suggestions.append(suggestion)
+                            feedback_entries.append(
+                                ProductAutofillFeedback(
+                                    job=fresh_job,
+                                    suggestion=suggestion,
+                                    user=request.user,
+                                    field_name=suggestion.field_name,
+                                    feedback_type=ProductAutofillFeedback.TYPE_ACCEPTED,
+                                    final_value=suggestion.value_json,
+                                    metadata={"source": "apply_endpoint", "force_overwrite": force_overwrite},
+                                )
+                            )
+                        if applied_suggestions:
+                            ProductFieldSuggestion.objects.bulk_update(applied_suggestions, ["status", "updated_at"])
+                        if feedback_entries:
+                            ProductAutofillFeedback.objects.bulk_create(feedback_entries)
+                    return result
+
+            result = self._run_with_sqlite_lock_retry(_apply_once, context=f"autofill apply job={job.id}")
+        except OperationalError as exc:
+            if "database is locked" in str(exc).lower():
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": "Database is busy. Please retry apply in a few seconds.",
+                    },
+                    status=503,
                 )
+            raise
+        finally:
+            cache.delete(lock_key)
 
         return JsonResponse(
             {

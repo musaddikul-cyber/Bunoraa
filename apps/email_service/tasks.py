@@ -38,8 +38,13 @@ def process_email_queue(self, batch_size=100):
     from .services import QueueManager
     
     try:
-        QueueManager.process_queue(batch_size=batch_size)
-        logger.info(f"Processed email queue batch of {batch_size}")
+        processed = QueueManager.process_queue(batch_size=batch_size)
+        logger.info(
+            "Processed email queue batch: requested=%s processed=%s",
+            batch_size,
+            processed,
+        )
+        return {'processed': processed}
     except Exception as e:
         logger.exception(f"Email queue processing failed: {e}")
         raise self.retry(exc=e)

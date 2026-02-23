@@ -6,7 +6,6 @@ import logging
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
-from django.template.loader import render_to_string
 from .models import NotificationChannel
 
 logger = logging.getLogger('bunoraa.notifications')
@@ -506,11 +505,7 @@ def send_abandoned_cart_email(self, cart_id):
         }
         
         # Render email
-        subject = f"You left {cart.item_count} beautiful items behind! 🧵"
-        try:
-            html_message = render_to_string('emails/abandoned_cart.html', context)
-        except:
-            html_message = None
+        subject = f"You left {cart.item_count} beautiful items behind!"
         
         # Send email
         send_mail(
@@ -518,7 +513,7 @@ def send_abandoned_cart_email(self, cart_id):
             message=f"Complete your embroidered items purchase at {settings.SITE_URL}/cart/",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[cart.user.email],
-            html_message=html_message,
+            html_message=None,
             fail_silently=False,
         )
         
@@ -553,3 +548,4 @@ def check_abandoned_carts():
     
     logger.info(f"Queued {sent_count} abandoned cart reminder emails")
     return sent_count
+

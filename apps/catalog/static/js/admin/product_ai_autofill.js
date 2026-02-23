@@ -282,6 +282,7 @@
 
     var currentJobId = null;
     var currentSuggestions = [];
+    var applyInFlight = false;
 
     function pollJob(jobId) {
       var statusUrl = formatJobUrl(statusTemplate, jobId);
@@ -367,6 +368,9 @@
     });
 
     applyBtn.addEventListener("click", function () {
+      if (applyInFlight) {
+        return;
+      }
       if (!currentJobId) {
         setStatus("No completed AI job found to apply.", true);
         return;
@@ -375,6 +379,9 @@
       var payload = {
         force_overwrite: Boolean(forceCheckbox && forceCheckbox.checked),
       };
+      applyInFlight = true;
+      applyBtn.disabled = true;
+      setStatus("Applying suggestions...", false);
       fetch(applyUrl, {
         method: "POST",
         credentials: "same-origin",
@@ -397,11 +404,28 @@
             setStatus("Suggestions applied to form fields.", false);
           } else {
             var count = (data.result && data.result.applied) || 0;
-            setStatus("Applied " + count + " field suggestions.", false);
+            var skipped = (data.result && data.result.skipped) || 0;
+            if (count === 0 && !payload.force_overwrite) {
+              setStatus(
+                "No blank fields were eligible. Enable 'Overwrite existing values' and apply again.",
+                true
+              );
+            } else {
+              setStatus(
+                "Applied " + count + " field suggestions" + (skipped ? " (" + skipped + " skipped)." : "."),
+                false
+              );
+            }
           }
         })
         .catch(function () {
           setStatus("Failed to apply suggestions.", true);
+        })
+        .finally(function () {
+          applyInFlight = false;
+          if (currentJobId) {
+            applyBtn.disabled = false;
+          }
         });
     });
   }

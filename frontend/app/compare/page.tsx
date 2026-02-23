@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ProductPrice } from "@/components/products/ProductPrice";
 import { RatingStars } from "@/components/products/RatingStars";
+import { buildProductPath } from "@/lib/productPaths";
 
 export default function ComparePage() {
   const [items, setItems] = React.useState(getCompareItems());
@@ -97,7 +98,7 @@ export default function ComparePage() {
                     ) : null}
                   </div>
                   <div>
-                    <Link href={`/products/${item.slug}/`} className="text-lg font-semibold">
+                    <Link href={buildProductPath(detail || item)} className="text-lg font-semibold">
                       {item.name}
                     </Link>
                     <ProductPrice

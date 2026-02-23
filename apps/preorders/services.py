@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Tuple, Any
 from django.db import transaction
 from django.utils import timezone
 from django.core.mail import send_mail
-from django.template.loader import render_to_string
 from django.conf import settings
 from django.db.models import Q, Sum, Count
 
@@ -579,20 +578,26 @@ class PreOrderService:
     
     # Email notification methods
     @staticmethod
+    def _render_email_or_fallback(fallback_text: str) -> tuple[str, str]:
+        """
+        Return plain-text-first email content without file template dependency.
+        """
+        return "", fallback_text
+
+    @staticmethod
     def send_submission_notification(preorder: PreOrder):
         """Send notification when a pre-order is submitted."""
         try:
             # Email to customer
             subject = f"Pre-Order #{preorder.preorder_number} Submitted Successfully"
-            html_message = render_to_string('emails/preorder/submitted_customer.html', {
-                'preorder': preorder,
-                'site_name': getattr(settings, 'SITE_NAME', 'Bunoraa')
-            })
+            html_message, text_message = PreOrderService._render_email_or_fallback(
+                f"Your pre-order #{preorder.preorder_number} has been submitted successfully.",
+            )
             
             send_mail(
                 subject=subject,
-                message='',
-                html_message=html_message,
+                message=text_message,
+                html_message=html_message or None,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[preorder.email],
                 fail_silently=True
@@ -600,15 +605,15 @@ class PreOrderService:
             
             # Email to admin
             admin_subject = f"New Pre-Order Submitted: {preorder.preorder_number}"
-            admin_html = render_to_string('emails/preorder/submitted_admin.html', {
-                'preorder': preorder
-            })
+            admin_html, admin_text = PreOrderService._render_email_or_fallback(
+                f"New pre-order submitted: {preorder.preorder_number}",
+            )
             
             admin_emails = getattr(settings, 'PREORDER_ADMIN_EMAILS', [settings.DEFAULT_FROM_EMAIL])
             send_mail(
                 subject=admin_subject,
-                message='',
-                html_message=admin_html,
+                message=admin_text,
+                html_message=admin_html or None,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=admin_emails,
                 fail_silently=True
@@ -622,17 +627,18 @@ class PreOrderService:
         """Send notification when status changes."""
         try:
             subject = f"Pre-Order #{preorder.preorder_number} Status Update"
-            html_message = render_to_string('emails/preorder/status_update.html', {
-                'preorder': preorder,
-                'old_status': dict(PreOrder.STATUS_CHOICES).get(old_status, old_status),
-                'new_status': preorder.get_status_display(),
-                'site_name': getattr(settings, 'SITE_NAME', 'Bunoraa')
-            })
+            html_message, text_message = PreOrderService._render_email_or_fallback(
+                (
+                    f"Your pre-order #{preorder.preorder_number} status changed "
+                    f"from {dict(PreOrder.STATUS_CHOICES).get(old_status, old_status)} "
+                    f"to {preorder.get_status_display()}."
+                ),
+            )
             
             send_mail(
                 subject=subject,
-                message='',
-                html_message=html_message,
+                message=text_message,
+                html_message=html_message or None,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[preorder.email],
                 fail_silently=True
@@ -656,16 +662,17 @@ class PreOrderService:
         """Send payment confirmation email."""
         try:
             subject = f"Payment Confirmed - Pre-Order #{preorder.preorder_number}"
-            html_message = render_to_string('emails/preorder/payment_confirmation.html', {
-                'preorder': preorder,
-                'payment': payment,
-                'site_name': getattr(settings, 'SITE_NAME', 'Bunoraa')
-            })
+            html_message, text_message = PreOrderService._render_email_or_fallback(
+                (
+                    f"Payment confirmed for pre-order #{preorder.preorder_number}. "
+                    f"Amount: {payment.amount} {payment.currency or preorder.currency}"
+                ),
+            )
             
             send_mail(
                 subject=subject,
-                message='',
-                html_message=html_message,
+                message=text_message,
+                html_message=html_message or None,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[preorder.email],
                 fail_silently=True
@@ -683,16 +690,18 @@ class PreOrderService:
         """Notify admin of new customer message."""
         try:
             subject = f"New Message on Pre-Order #{preorder.preorder_number}"
-            html_message = render_to_string('emails/preorder/new_message_admin.html', {
-                'preorder': preorder,
-                'message': message
-            })
+            html_message, text_message = PreOrderService._render_email_or_fallback(
+                (
+                    f"New message on pre-order #{preorder.preorder_number}: "
+                    f"{message.message}"
+                ),
+            )
             
             admin_emails = getattr(settings, 'PREORDER_ADMIN_EMAILS', [settings.DEFAULT_FROM_EMAIL])
             send_mail(
                 subject=subject,
-                message='',
-                html_message=html_message,
+                message=text_message,
+                html_message=html_message or None,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=admin_emails,
                 fail_silently=True
@@ -706,16 +715,17 @@ class PreOrderService:
         """Notify customer of new admin message."""
         try:
             subject = f"New Message on Your Pre-Order #{preorder.preorder_number}"
-            html_message = render_to_string('emails/preorder/new_message_customer.html', {
-                'preorder': preorder,
-                'message': message,
-                'site_name': getattr(settings, 'SITE_NAME', 'Bunoraa')
-            })
+            html_message, text_message = PreOrderService._render_email_or_fallback(
+                (
+                    f"New message on your pre-order #{preorder.preorder_number}: "
+                    f"{message.message}"
+                ),
+            )
             
             send_mail(
                 subject=subject,
-                message='',
-                html_message=html_message,
+                message=text_message,
+                html_message=html_message or None,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[preorder.email],
                 fail_silently=True

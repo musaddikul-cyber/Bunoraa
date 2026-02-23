@@ -32,6 +32,7 @@ import socket
 from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
+from django.db.models import Q
 from django.template import Template, Context
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -654,7 +655,9 @@ class QueueManager:
         from .models import EmailMessage
         
         email_message.status = EmailMessage.Status.QUEUED
-        email_message.save(update_fields=['status'])
+        email_message.next_retry_at = None
+        email_message.error_message = ''
+        email_message.save(update_fields=['status', 'next_retry_at', 'error_message'])
         
         # Trigger async task if Celery is available
         celery_available = False
@@ -681,21 +684,27 @@ class QueueManager:
         
         Args:
             batch_size: Number of emails to process at once
+
+        Returns:
+            Number of messages attempted in this run
         """
-        from .models import EmailMessage, EmailEvent, DailyStats
+        from .models import EmailMessage, EmailEvent
         
         engine = DeliveryEngine()
+        now = timezone.now()
+        processed_count = 0
         
-        # Get queued messages
+        # Process only messages that are due now. This avoids future-scheduled
+        # messages blocking the current batch window.
         messages = EmailMessage.objects.filter(
             status=EmailMessage.Status.QUEUED
-        ).select_related('api_key', 'user', 'template')[:batch_size]
+        ).filter(
+            Q(scheduled_at__isnull=True) | Q(scheduled_at__lte=now)
+        ).filter(
+            Q(next_retry_at__isnull=True) | Q(next_retry_at__lte=now)
+        ).order_by('created_at').select_related('api_key', 'user', 'template')[:batch_size]
         
         for msg in messages:
-            # Check if scheduled for later
-            if msg.scheduled_at and msg.scheduled_at > timezone.now():
-                continue
-            
             # Build envelope
             envelope = EmailEnvelope(
                 message_id=msg.message_id,
@@ -717,6 +726,7 @@ class QueueManager:
             msg.attempt_count += 1
             msg.last_attempt_at = timezone.now()
             msg.save(update_fields=['status', 'attempt_count', 'last_attempt_at'])
+            processed_count += 1
             
             # Send
             result = engine.send(envelope)
@@ -726,7 +736,9 @@ class QueueManager:
                 msg.status = EmailMessage.Status.SENT
                 msg.sent_at = timezone.now()
                 msg.smtp_response = result.response
-                msg.save(update_fields=['status', 'sent_at', 'smtp_response'])
+                msg.next_retry_at = None
+                msg.error_message = ''
+                msg.save(update_fields=['status', 'sent_at', 'smtp_response', 'next_retry_at', 'error_message'])
                 
                 # Create event
                 EmailEvent.objects.create(
@@ -738,7 +750,7 @@ class QueueManager:
                 QueueManager._update_stats(msg.user_id, 'sent')
                 
             else:
-                msg.error_message = result.error
+                msg.error_message = result.error or 'Unknown delivery error'
                 
                 # Check if should retry
                 if msg.attempt_count < 3:
@@ -746,8 +758,11 @@ class QueueManager:
                     msg.next_retry_at = timezone.now() + timedelta(
                         minutes=5 * msg.attempt_count
                     )
+                    msg.save(update_fields=['status', 'next_retry_at', 'error_message'])
                 else:
                     msg.status = EmailMessage.Status.FAILED
+                    msg.next_retry_at = None
+                    msg.save(update_fields=['status', 'next_retry_at', 'error_message'])
                     
                     # Create event
                     EmailEvent.objects.create(
@@ -757,16 +772,19 @@ class QueueManager:
                     )
                     
                     QueueManager._update_stats(msg.user_id, 'dropped')
-                
-                msg.save()
+
+        return processed_count
     
     @staticmethod
     def _update_stats(user_id: int, stat_type: str):
         """Update daily statistics."""
         from .models import DailyStats
+
+        if not user_id:
+            return
         
         today = timezone.now().date()
-        stats, created = DailyStats.objects.get_or_create(
+        stats, _ = DailyStats.objects.get_or_create(
             user_id=user_id,
             date=today
         )
@@ -801,7 +819,7 @@ class QueueManager:
             created_at__gte=cutoff
         )
         
-        messages.update(
+        return messages.update(
             status=EmailMessage.Status.QUEUED,
             next_retry_at=None
         )

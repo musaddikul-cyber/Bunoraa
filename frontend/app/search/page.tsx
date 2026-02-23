@@ -14,6 +14,7 @@ import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildItemList, buildNoIndexMetadata, buildSearchResultsPage } from "@/lib/seo";
+import { buildProductPath } from "@/lib/productPaths";
 
 export const revalidate = 60;
 
@@ -152,7 +153,7 @@ export default async function SearchPage({
   const productList = buildItemList(
     products.slice(0, 50).map((product) => ({
       name: product.name,
-      url: `/products/${product.slug}/`,
+      url: buildProductPath(product),
       image: (product.primary_image as string | undefined) || undefined,
       description: product.short_description || undefined,
     })),

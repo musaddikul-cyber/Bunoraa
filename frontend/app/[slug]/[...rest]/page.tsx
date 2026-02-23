@@ -33,17 +33,37 @@ async function getRelated(slug: string) {
   return response.data;
 }
 
+function toRequestedCategoryPath(rootCategory: string, rest: string[]) {
+  return [rootCategory, ...rest.slice(0, -1)].filter(Boolean).join("/");
+}
+
+function toProductSlug(rest: string[]) {
+  return rest.at(-1) || "";
+}
+
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ slug: string; rest: string[] }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
-  const product = await getProduct(slug);
+  const { slug: rootCategory, rest } = await params;
+  const productSlug = toProductSlug(rest || []);
+  if (!productSlug || !rest?.length) {
+    return buildPageMetadata({
+      title: "Product",
+      description: "Explore product details on Bunoraa.",
+      path: `/${rootCategory}/`,
+    });
+  }
+
+  const product = await getProduct(productSlug);
+  const canonicalCategoryPath = getProductCategoryPath(product);
+  const requestedCategoryPath = toRequestedCategoryPath(rootCategory, rest);
   const metadataImages = [
     product.primary_image || undefined,
     ...(product.images?.slice(0, 5).map((image) => image.image) || []),
   ];
+
   return buildPageMetadata({
     title: product.meta_title || product.name,
     description:
@@ -51,44 +71,49 @@ export async function generateMetadata({
       product.short_description ||
       product.description ||
       "Explore product details on Bunoraa.",
-    path: buildProductPath(product),
+    path:
+      canonicalCategoryPath === requestedCategoryPath
+        ? `/${requestedCategoryPath}/${product.slug}/`
+        : buildProductPath(product),
     images: metadataImages,
   });
 }
 
-export default async function ProductDetailPage({
+export default async function NestedCategoryProductDetailPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ slug: string; rest: string[] }>;
 }) {
-  const { slug } = await params;
+  const { slug: rootCategory, rest } = await params;
+  if (!rest?.length) {
+    notFound();
+  }
+
+  const productSlug = toProductSlug(rest);
+  if (!productSlug) {
+    notFound();
+  }
+
   const [product, relatedProducts] = await Promise.all([
-    getProduct(slug),
-    getRelated(slug).catch(() => []),
+    getProduct(productSlug),
+    getRelated(productSlug).catch(() => []),
   ]);
 
+  const requestedCategoryPath = toRequestedCategoryPath(rootCategory, rest);
+  const canonicalCategoryPath = getProductCategoryPath(product);
   const canonicalPath = buildProductPath(product);
-  const legacyPath = `/products/${product.slug}/`;
-  if (canonicalPath !== legacyPath) {
+
+  if (requestedCategoryPath !== canonicalCategoryPath) {
     redirect(canonicalPath);
   }
 
-  const canonicalCategoryPath = getProductCategoryPath(product);
   const categoryTrail = buildProductCategoryTrail(product);
   const breadcrumbItems = [{ name: "Home", url: "/" }];
-  if (categoryTrail.length) {
-    categoryTrail.forEach((crumb) => {
-      breadcrumbItems.push({ name: crumb.name, url: `/categories/${crumb.slugPath}/` });
-    });
-  } else if (product.primary_category) {
-    breadcrumbItems.push({
-      name: product.primary_category.name,
-      url: `/categories/${canonicalCategoryPath}/`,
-    });
-  } else {
-    breadcrumbItems.push({ name: "Products", url: "/products/" });
-  }
+  categoryTrail.forEach((crumb) => {
+    breadcrumbItems.push({ name: crumb.name, url: `/categories/${crumb.slugPath}/` });
+  });
   breadcrumbItems.push({ name: product.name, url: canonicalPath });
+
   const breadcrumbs = buildBreadcrumbList(breadcrumbItems);
   const productSchema = product.schema_org || buildProductSchema(product);
   const jsonLd = [breadcrumbs, ...(productSchema ? [productSchema] : [])];

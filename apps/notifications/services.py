@@ -7,7 +7,6 @@ from django.core.mail import send_mail, EmailMultiAlternatives
 from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 from django.db import transaction
 from django.template import Template, Context
-from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils import timezone
 
@@ -1152,19 +1151,7 @@ class DigestService:
         
         user = digest['user']
         
-        # Render templates
-        try:
-            html_content = render_to_string('emails/digest/daily_digest.html', {
-                'digest': digest,
-                'user': user,
-                'site_name': 'Bunoraa',
-                'site_url': getattr(settings, 'SITE_URL', 'https://bunoraa.com'),
-                'unsubscribe_url': f"{getattr(settings, 'SITE_URL', '')}/account/notifications/unsubscribe/"
-            })
-        except Exception as e:
-            logger.error(f"Failed to render digest template: {e}")
-            # Fallback to simple format
-            html_content = DigestService._generate_simple_digest_html(digest)
+        html_content = DigestService._generate_simple_digest_html(digest)
         
         text_content = DigestService._generate_digest_text(digest)
         

@@ -13,7 +13,6 @@ from typing import Optional, Dict, Any, Iterable, Tuple
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
-from django.template.loader import render_to_string
 from django.core import signing
 from django.contrib.auth.hashers import make_password, check_password
 
@@ -65,6 +64,11 @@ class EmailServiceIntegration:
         )
         site_url = frontend or getattr(settings, "SITE_URL", "https://bunoraa.com")
         return site_url.rstrip("/")
+
+    @staticmethod
+    def _render_email_content(fallback_text: str) -> Tuple[str, str]:
+        """Return plain-text-first email content without file template dependency."""
+        return "", fallback_text
 
     @staticmethod
     def _send_fallback_email(subject: str, to_email: str, text_content: str, html_content: str) -> bool:
@@ -122,14 +126,8 @@ class EmailServiceIntegration:
     def send_verification_email(user: User, token: str) -> bool:
         site_url = EmailServiceIntegration._get_site_url()
         verification_url = f"{site_url}/account/verify-email/{token}/"
-        context = {
-            "user": user,
-            "verification_url": verification_url,
-            "site_name": "Bunoraa",
-            "token_expires_hours": 24,
-        }
-        html_content = render_to_string("emails/verify_email.html", context)
-        text_content = f"Verify your email: {verification_url}"
+        fallback_text = f"Verify your email: {verification_url}"
+        html_content, text_content = EmailServiceIntegration._render_email_content(fallback_text)
         queued = EmailServiceIntegration._queue_message(
             user=user,
             to_email=user.email,
@@ -155,14 +153,8 @@ class EmailServiceIntegration:
     def send_password_reset_email(user: User, token: str) -> bool:
         site_url = EmailServiceIntegration._get_site_url()
         reset_url = f"{site_url}/account/reset-password/{token}/"
-        context = {
-            "user": user,
-            "reset_url": reset_url,
-            "site_name": "Bunoraa",
-            "token_expires_hours": 1,
-        }
-        html_content = render_to_string("emails/reset_password.html", context)
-        text_content = f"Reset your password: {reset_url}"
+        fallback_text = f"Reset your password: {reset_url}"
+        html_content, text_content = EmailServiceIntegration._render_email_content(fallback_text)
         queued = EmailServiceIntegration._queue_message(
             user=user,
             to_email=user.email,
@@ -187,13 +179,11 @@ class EmailServiceIntegration:
     @staticmethod
     def send_welcome_email(user: User) -> bool:
         site_url = EmailServiceIntegration._get_site_url()
-        context = {
-            "user": user,
-            "site_name": "Bunoraa",
-            "dashboard_url": f"{site_url}/account/",
-        }
-        html_content = render_to_string("emails/welcome.html", context)
-        text_content = f"Welcome to Bunoraa, {user.get_short_name()}!"
+        fallback_text = (
+            f"Welcome to Bunoraa, {user.get_short_name() or user.email}! "
+            f"Visit {site_url}/account/ to get started."
+        )
+        html_content, text_content = EmailServiceIntegration._render_email_content(fallback_text)
         queued = EmailServiceIntegration._queue_message(
             user=user,
             to_email=user.email,
@@ -216,12 +206,8 @@ class EmailServiceIntegration:
 
     @staticmethod
     def send_account_deleted_email(user: User) -> bool:
-        context = {
-            "user": user,
-            "site_name": "Bunoraa",
-        }
-        html_content = render_to_string("emails/account_deleted.html", context)
-        text_content = "Your Bunoraa account has been deleted."
+        fallback_text = "Your Bunoraa account has been deleted."
+        html_content, text_content = EmailServiceIntegration._render_email_content(fallback_text)
         queued = EmailServiceIntegration._queue_message(
             user=user,
             to_email=user.email,
@@ -246,14 +232,8 @@ class EmailServiceIntegration:
     def send_email_change_verification(user: User, new_email: str, token: str) -> bool:
         site_url = EmailServiceIntegration._get_site_url()
         verification_url = f"{site_url}/account/verify-new-email/{token}/"
-        context = {
-            "user": user,
-            "new_email": new_email,
-            "verification_url": verification_url,
-            "site_name": "Bunoraa",
-        }
-        html_content = render_to_string("emails/verify_new_email.html", context)
-        text_content = f"Verify your new email: {verification_url}"
+        fallback_text = f"Verify your new email: {verification_url}"
+        html_content, text_content = EmailServiceIntegration._render_email_content(fallback_text)
         queued = EmailServiceIntegration._queue_message(
             user=user,
             to_email=new_email,
@@ -566,10 +546,10 @@ class UserService:
                 logger.info(f"Password reset email queued for {user.email}")
             else:
                 logger.error(f"Failed to queue password reset email for {user.email}")
+            return bool(success)
         except Exception as e:
             logger.error(f"Failed to send reset email to {user.email}: {e}")
-        
-        return True
+            return False
     
     @staticmethod
     def reset_password(token: str, new_password: str) -> Optional[User]:

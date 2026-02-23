@@ -302,7 +302,6 @@ def send_abandoned_cart_email(checkout_session_id: str):
 def _send_abandoned_cart_email(session, email):
     """Send abandoned cart email."""
     from django.core.mail import send_mail
-    from django.template.loader import render_to_string
     from django.conf import settings
     
     context = {
@@ -312,13 +311,15 @@ def _send_abandoned_cart_email(session, email):
         'recovery_url': f"{settings.SITE_URL}/checkout/recover/{session.id}/",
     }
     
-    html_content = render_to_string('emails/abandoned_cart.html', context)
-    text_content = render_to_string('emails/abandoned_cart.txt', context)
-    
+    text_content = (
+        "You left items in your cart. "
+        f"Complete your order at {context['recovery_url']}"
+    )
+
     send_mail(
         subject='You left something behind! Complete your order',
         message=text_content,
-        html_message=html_content,
+        html_message=None,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[email],
         fail_silently=False

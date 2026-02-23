@@ -12,6 +12,7 @@ import { ProductBadges } from "@/components/products/ProductBadges";
 import { ProductPrice } from "@/components/products/ProductPrice";
 import { cn } from "@/lib/utils";
 import { compareItemFromProduct, useCompareToggle } from "@/components/products/compareHelpers";
+import { buildProductPath } from "@/lib/productPaths";
 
 export function ProductCard({
   product,
@@ -29,6 +30,7 @@ export function ProductCard({
     typeof product.primary_image === "string"
       ? product.primary_image
       : (product.primary_image as unknown as { image?: string | null })?.image || null;
+  const productHref = buildProductPath(product);
 
   return (
     <Card
@@ -45,7 +47,7 @@ export function ProductCard({
         )}
       >
         <Link
-          href={`/products/${product.slug}/`}
+          href={productHref}
           className="absolute inset-0 z-0"
           aria-label={`View ${product.name}`}
         />
@@ -89,7 +91,7 @@ export function ProductCard({
             {product.primary_category_name || "Featured"}
           </p>
           <Link
-            href={`/products/${product.slug}/`}
+            href={productHref}
             className="block text-base font-semibold leading-snug sm:text-lg"
           >
             {product.name}

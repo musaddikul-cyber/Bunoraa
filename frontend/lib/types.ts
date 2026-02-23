@@ -55,6 +55,7 @@ export type ProductListItem = {
   views_count?: number | null;
   primary_image?: string | null;
   primary_category_name?: string | null;
+  primary_category_slug_path?: string | null;
 };
 
 export type ProductImage = {

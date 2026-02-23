@@ -529,8 +529,9 @@ def apply_suggestions_to_product(product, suggestions, force_overwrite: bool = F
     """
     from apps.catalog.models import Category, EcoCertification, ShippingMaterial, Tag
 
-    changed_fields = []
+    changed_fields: set[str] = set()
     m2m_updates: dict[str, list[str]] = {}
+    m2m_changed_fields: set[str] = set()
     applied = 0
     skipped = 0
 
@@ -554,9 +555,12 @@ def apply_suggestions_to_product(product, suggestions, force_overwrite: bool = F
         if field == "primary_category":
             category = Category.objects.filter(id=value, is_deleted=False).first() if value else None
             if category:
-                product.primary_category = category
-                changed_fields.append("primary_category")
-                applied += 1
+                if str(product.primary_category_id or "") != str(category.id):
+                    product.primary_category = category
+                    changed_fields.add("primary_category")
+                    applied += 1
+                else:
+                    skipped += 1
             else:
                 skipped += 1
             continue
@@ -567,15 +571,17 @@ def apply_suggestions_to_product(product, suggestions, force_overwrite: bool = F
                 continue
             ids = [str(v) for v in (value or [])]
             m2m_updates[field] = ids
-            applied += 1
             continue
 
         if field == "shipping_material":
             material = ShippingMaterial.objects.filter(id=value).first() if value else None
             if material:
-                product.shipping_material = material
-                changed_fields.append("shipping_material")
-                applied += 1
+                if str(product.shipping_material_id or "") != str(material.id):
+                    product.shipping_material = material
+                    changed_fields.add("shipping_material")
+                    applied += 1
+                else:
+                    skipped += 1
             else:
                 skipped += 1
             continue
@@ -585,55 +591,101 @@ def apply_suggestions_to_product(product, suggestions, force_overwrite: bool = F
             if quantized is None:
                 skipped += 1
                 continue
-            setattr(product, field, quantized)
-            changed_fields.append(field)
-            applied += 1
+            if getattr(product, field) != quantized:
+                setattr(product, field, quantized)
+                changed_fields.add(field)
+                applied += 1
+            else:
+                skipped += 1
             continue
 
         if field in INTEGER_FIELDS and value is not None:
-            setattr(product, field, int(value))
-            changed_fields.append(field)
-            applied += 1
+            numeric_value = int(value)
+            if getattr(product, field) != numeric_value:
+                setattr(product, field, numeric_value)
+                changed_fields.add(field)
+                applied += 1
+            else:
+                skipped += 1
             continue
 
         if field == "aspect_ratio":
             if value not in _allowed_aspect_codes(include_code=str(value) if value else None):
                 value = get_default_aspect_ratio_code()
-            setattr(product, field, value)
-            changed_fields.append(field)
-            applied += 1
+            if getattr(product, field) != value:
+                setattr(product, field, value)
+                changed_fields.add(field)
+                applied += 1
+            else:
+                skipped += 1
             continue
 
         if field == "sustainability_score":
             # Derived from material fields; do not directly force if absent.
             continue
 
-        setattr(product, field, value)
-        changed_fields.append(field)
-        applied += 1
+        if getattr(product, field) != value:
+            setattr(product, field, value)
+            changed_fields.add(field)
+            applied += 1
+        else:
+            skipped += 1
 
     if changed_fields:
-        update_fields = sorted(set(changed_fields + ["updated_at"]))
+        update_fields = sorted(changed_fields | {"updated_at"})
         product.save(update_fields=update_fields)
 
     if "categories" in m2m_updates:
         categories = Category.objects.filter(id__in=m2m_updates["categories"], is_deleted=False)
-        product.categories.set(categories)
-        if not product.primary_category and categories.exists():
-            product.primary_category = categories.first()
-            product.save(update_fields=["primary_category", "updated_at"])
+        current_ids = {str(v) for v in product.categories.values_list("id", flat=True)}
+        target_ids = {str(v) for v in categories.values_list("id", flat=True)}
+        if current_ids != target_ids:
+            product.categories.set(categories)
+            m2m_changed_fields.add("categories")
+            applied += 1
+        else:
+            skipped += 1
+        if not product.primary_category_id:
+            first_category = categories.first()
+            if first_category:
+                product.primary_category = first_category
+                product.save(update_fields=["primary_category", "updated_at"])
+                changed_fields.add("primary_category")
+                applied += 1
     if "tags" in m2m_updates:
         tags = Tag.objects.filter(id__in=m2m_updates["tags"])
-        product.tags.set(tags)
+        current_ids = {str(v) for v in product.tags.values_list("id", flat=True)}
+        target_ids = {str(v) for v in tags.values_list("id", flat=True)}
+        if current_ids != target_ids:
+            product.tags.set(tags)
+            m2m_changed_fields.add("tags")
+            applied += 1
+        else:
+            skipped += 1
     if "eco_certifications" in m2m_updates:
         certs = EcoCertification.objects.filter(id__in=m2m_updates["eco_certifications"])
-        product.eco_certifications.set(certs)
+        current_ids = {str(v) for v in product.eco_certifications.values_list("id", flat=True)}
+        target_ids = {str(v) for v in certs.values_list("id", flat=True)}
+        if current_ids != target_ids:
+            product.eco_certifications.set(certs)
+            m2m_changed_fields.add("eco_certifications")
+            applied += 1
+        else:
+            skipped += 1
 
-    # Recompute score after eco data changes.
-    product.compute_sustainability_score(save=True)
+    # Recompute only when sustainability inputs actually changed.
+    sustainability_deps = {"carbon_footprint_kg", "recycled_content_percentage", "eco_certifications"}
+    if changed_fields.intersection(sustainability_deps) or m2m_changed_fields.intersection(sustainability_deps):
+        previous_score = product.sustainability_score
+        recomputed_score = product.compute_sustainability_score(save=False)
+        if previous_score != recomputed_score:
+            product.sustainability_score = recomputed_score
+            product.save(update_fields=["sustainability_score", "updated_at"])
+            changed_fields.add("sustainability_score")
+            applied += 1
 
     return {
         "applied": applied,
         "skipped": skipped,
-        "changed_fields": sorted(set(changed_fields + list(m2m_updates.keys()))),
+        "changed_fields": sorted(changed_fields | m2m_changed_fields),
     }

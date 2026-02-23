@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/ToastProvider";
 import { cn } from "@/lib/utils";
+import { buildProductPath } from "@/lib/productPaths";
 
 type ValidationIssue = {
   type?: string;
@@ -1159,7 +1160,7 @@ export function CartPage() {
                       Add to cart
                     </Button>
                     <Button asChild size="sm" variant="ghost" className="w-full">
-                      <Link href={`/products/${product.slug}/`}>View</Link>
+                      <Link href={buildProductPath(product)}>View</Link>
                     </Button>
                   </div>
                 </Card>

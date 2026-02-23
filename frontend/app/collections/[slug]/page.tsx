@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildBreadcrumbList, buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
+import { buildProductPath } from "@/lib/productPaths";
 
 export const revalidate = 600;
 
@@ -70,7 +71,7 @@ export default async function CollectionDetailPage({
   const productList = buildItemList(
     products.slice(0, 50).map((product) => ({
       name: product.name,
-      url: `/products/${product.slug}/`,
+      url: buildProductPath(product),
       image: (product.primary_image as string | undefined) || undefined,
       description: product.short_description || undefined,
     })),

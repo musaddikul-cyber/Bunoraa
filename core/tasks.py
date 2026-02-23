@@ -967,9 +967,7 @@ def send_templated_email_task(
     **kwargs
 ):
     """
-    Send a templated email (convenience task).
-    
-    Template names are mapped to actual template paths.
+    Send a text-first transactional email (convenience task).
     
     Args:
         to: Recipient(s)
@@ -979,35 +977,44 @@ def send_templated_email_task(
     """
     from core.utils.email_service import EmailService
     
-    # Template mapping
     TEMPLATE_MAP = {
-        'welcome': ('Welcome to Bunoraa!', 'emails/welcome.html'),
-        'order_confirmation': ('Order Confirmation', 'emails/order_confirmation.html'),
-        'order_shipped': ('Your Order Has Shipped!', 'emails/order_shipped.html'),
-        'password_reset': ('Reset Your Password', 'emails/password_reset.html'),
-        'account_verified': ('Account Verified', 'emails/account_verified.html'),
-        'newsletter': ('Bunoraa Newsletter', 'emails/newsletter.html'),
-        'contact_reply': ('Re: Your Inquiry', 'emails/contact_reply.html'),
-        'review_request': ('Share Your Feedback', 'emails/review_request.html'),
-        'abandoned_cart': ('You Left Something Behind', 'emails/abandoned_cart.html'),
-        'price_drop': ('Price Drop Alert!', 'emails/price_drop.html'),
-        'back_in_stock': ('Back in Stock!', 'emails/back_in_stock.html'),
+        'welcome': 'Welcome to Bunoraa!',
+        'order_confirmation': 'Order Confirmation',
+        'order_shipped': 'Your Order Has Shipped!',
+        'password_reset': 'Reset Your Password',
+        'account_verified': 'Account Verified',
+        'newsletter': 'Bunoraa Newsletter',
+        'contact_reply': 'Re: Your Inquiry',
+        'review_request': 'Share Your Feedback',
+        'abandoned_cart': 'You Left Something Behind',
+        'price_drop': 'Price Drop Alert!',
+        'back_in_stock': 'Back in Stock!',
     }
     
     if template_name not in TEMPLATE_MAP:
         raise ValueError(f"Unknown template: {template_name}")
     
-    subject, template = TEMPLATE_MAP[template_name]
+    subject = TEMPLATE_MAP[template_name]
+    context = context or {}
     
     # Allow subject override
     if 'subject' in kwargs:
         subject = kwargs.pop('subject')
+
+    if 'template' in kwargs:
+        kwargs.pop('template')
+
+    text_body = kwargs.pop('text_body', None)
+    if not text_body:
+        default_message = context.get('message') or context.get('body') or ''
+        if not default_message:
+            default_message = f"{subject}\n\nThis is an automated message from Bunoraa."
+        text_body = default_message
     
     result = EmailService.send(
         to=to,
         subject=subject,
-        template=template,
-        context=context or {},
+        text_body=text_body,
         tags=[template_name],
         **kwargs
     )

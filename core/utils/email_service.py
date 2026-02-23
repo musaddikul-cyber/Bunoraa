@@ -960,7 +960,7 @@ class EmailService:
     
     @classmethod
     def _render_template(cls, template: str, context: Dict) -> Tuple[str, str]:
-        """Render email template and return (html, text) tuple."""
+        """Render template when available; always return a non-empty text fallback."""
         html_body = ''
         text_body = ''
         
@@ -968,7 +968,7 @@ class EmailService:
         try:
             html_body = render_to_string(template, context)
         except TemplateDoesNotExist:
-            logger.warning(f"Email template not found: {template}")
+            html_body = ''
         
         # Try to render text version (template_name.txt)
         text_template = template.replace('.html', '.txt')
@@ -978,6 +978,19 @@ class EmailService:
             # Generate text from HTML
             if html_body:
                 text_body = strip_tags(html_body)
+
+        if not text_body:
+            fallback = (
+                context.get('message')
+                or context.get('body')
+                or context.get('title')
+                or ''
+            )
+            if isinstance(fallback, str) and fallback.strip():
+                text_body = fallback.strip()
+            else:
+                site_name = context.get('site_name') or getattr(settings, 'SITE_NAME', 'Bunoraa')
+                text_body = f"This is an automated message from {site_name}."
         
         return html_body, text_body
     

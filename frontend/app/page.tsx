@@ -20,6 +20,7 @@ import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, absoluteUrl, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
+import { buildProductPath } from "@/lib/productPaths";
 
 export const revalidate = 300;
 export const metadata: Metadata = buildPageMetadata({
@@ -337,7 +338,7 @@ export default async function Home() {
   const featuredList = buildItemList(
     featuredProducts.slice(0, 10).map((product) => ({
       name: product.name,
-      url: `/products/${product.slug}/`,
+      url: buildProductPath(product),
       image: getImage(product) || undefined,
       description: product.short_description || undefined,
     })),
@@ -625,7 +626,7 @@ export default async function Home() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <Link
-                        href={`/products/${product.slug}/`}
+                        href={buildProductPath(product)}
                         className="block truncate text-sm font-semibold"
                       >
                         {product.name}

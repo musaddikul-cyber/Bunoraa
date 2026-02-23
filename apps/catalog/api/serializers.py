@@ -222,6 +222,7 @@ class ProductListSerializer(ContentTranslationMixin, PriceConversionMixin, seria
     is_on_sale = serializers.BooleanField(read_only=True)
     is_in_stock = serializers.SerializerMethodField()
     primary_category_name = serializers.CharField(source='primary_category.name', read_only=True)
+    primary_category_slug_path = serializers.SerializerMethodField()
 
     content_type = "product"
     translatable_fields = ["name", "short_description"]
@@ -234,7 +235,7 @@ class ProductListSerializer(ContentTranslationMixin, PriceConversionMixin, seria
             'discount_percentage', 'is_on_sale', 'is_in_stock',
             'is_featured', 'is_bestseller', 'is_new_arrival',
             'average_rating', 'reviews_count', 'views_count',
-            'primary_image', 'primary_category_name'
+            'primary_image', 'primary_category_name', 'primary_category_slug_path'
         )
     
     def get_primary_image(self, obj):
@@ -248,6 +249,19 @@ class ProductListSerializer(ContentTranslationMixin, PriceConversionMixin, seria
     
     def get_is_in_stock(self, obj):
         return obj.is_in_stock()
+
+    def get_primary_category_slug_path(self, obj):
+        category = getattr(obj, 'primary_category', None)
+        if not category:
+            return None
+        cache = self.context.setdefault('_category_slug_path_cache', {})
+        key = str(category.id)
+        if key in cache:
+            return cache[key]
+        ancestors = category.get_ancestors(include_self=True)
+        slug_path = '/'.join([c.slug for c in ancestors])
+        cache[key] = slug_path
+        return slug_path
     
     def to_representation(self, instance):
         """Convert prices to user's selected currency."""
@@ -344,6 +358,7 @@ class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializ
     is_on_sale = serializers.BooleanField(read_only=True)
     is_in_stock = serializers.SerializerMethodField()
     badges = serializers.SerializerMethodField()
+    primary_category_slug_path = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
@@ -351,7 +366,7 @@ class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializ
             'id', 'name', 'slug', 'sku', 'short_description',
             'price', 'sale_price', 'current_price', 'currency',
             'is_on_sale', 'is_bestseller', 'is_new_arrival',
-            'is_in_stock', 'primary_image', 'badges',
+            'is_in_stock', 'primary_image', 'badges', 'primary_category_slug_path',
             'average_rating', 'reviews_count'
         )
     
@@ -366,6 +381,19 @@ class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializ
     
     def get_is_in_stock(self, obj):
         return obj.is_in_stock()
+
+    def get_primary_category_slug_path(self, obj):
+        category = getattr(obj, 'primary_category', None)
+        if not category:
+            return None
+        cache = self.context.setdefault('_category_slug_path_cache', {})
+        key = str(category.id)
+        if key in cache:
+            return cache[key]
+        ancestors = category.get_ancestors(include_self=True)
+        slug_path = '/'.join([c.slug for c in ancestors])
+        cache[key] = slug_path
+        return slug_path
     
     def get_badges(self, obj):
         from apps.catalog.services import BadgeService

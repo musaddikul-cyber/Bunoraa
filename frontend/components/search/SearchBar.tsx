@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { ProductListItem } from "@/lib/types";
+import { buildProductPath } from "@/lib/productPaths";
 
 function useDebouncedValue<T>(value: T, delay = 300) {
   const [debounced, setDebounced] = React.useState(value);
@@ -53,7 +54,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
     ...productSuggestions.slice(0, 5).map((item) => ({
       id: `product-${item.id}`,
       label: item.name,
-      href: `/products/${item.slug}/`,
+      href: buildProductPath(item),
     })),
     ...categorySuggestions.slice(0, 5).map((item) => ({
       id: `category-${item.id}`,
@@ -115,7 +116,9 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
         </label>
         <input
           id={inputId}
-          className={`h-11 w-full min-h-11 rounded-full border border-border bg-card px-4 py-1 text-sm shadow-sm transition focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+          className={`${
+            hideSubmitButtonOnDesktop ? "h-11 min-h-11 lg:h-10 lg:min-h-10" : "h-11 min-h-11"
+          } w-full rounded-full border border-border bg-card px-4 py-1 text-sm shadow-sm transition focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
             hideSubmitButtonOnDesktop ? "pr-24 lg:pr-4" : "pr-24"
           }`}
           placeholder="Search products"
@@ -188,7 +191,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                           ? "bg-muted text-foreground"
                           : "text-foreground/80 hover:bg-muted hover:text-foreground"
                       }`}
-                      onClick={() => handleSelection(`/products/${item.slug}/`)}
+                      onClick={() => handleSelection(buildProductPath(item))}
                       onMouseEnter={() => setActiveIndex(index)}
                     >
                       {item.name}

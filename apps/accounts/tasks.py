@@ -87,26 +87,21 @@ def send_welcome_email(user_id: int):
     try:
         from apps.accounts.models import User
         from django.core.mail import send_mail
-        from django.template.loader import render_to_string
         from django.conf import settings
         
         user = User.objects.get(pk=user_id)
         
-        context = {
-            'user': user,
-            'site_name': 'Bunoraa',
-            'site_url': settings.SITE_URL,
-        }
-        
-        html_message = render_to_string('emails/welcome.html', context)
-        plain_message = render_to_string('emails/welcome.txt', context)
-        
+        plain_message = (
+            f"Welcome to Bunoraa, {user.get_short_name() or user.email}! "
+            f"Visit {settings.SITE_URL} to get started."
+        )
+
         send_mail(
             subject='Welcome to Bunoraa!',
             message=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
-            html_message=html_message,
+            html_message=None,
             fail_silently=False,
         )
         

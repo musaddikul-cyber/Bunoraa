@@ -1,5 +1,6 @@
 import type { ProductDetail } from "@/lib/types";
 import type { Metadata } from "next";
+import { buildProductPath } from "@/lib/productPaths";
 
 type UrlLike = string | null | undefined;
 
@@ -193,28 +194,111 @@ export function buildSearchResultsPage({
 }
 
 export function buildProductSchema(product: ProductDetail) {
-  const url = absoluteUrl(`/products/${product.slug}/`);
+  const url = absoluteUrl(buildProductPath(product));
   const images = [
     product.primary_image || undefined,
     ...(product.images?.map((image) => image.image) || []),
   ].filter(Boolean) as string[];
 
-  const price =
-    product.current_price ||
-    product.sale_price ||
-    product.price ||
-    undefined;
-  const offers =
-    price && product.currency
+  const parsePrice = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === "") return null;
+    const parsed =
+      typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const fallbackPrice = product.current_price || product.sale_price || product.price || undefined;
+
+  const variantOffers = (product.variants || [])
+    .map((variant) => {
+      const variantPrice = variant.current_price || variant.price || fallbackPrice || undefined;
+      if (!variantPrice || !product.currency) return null;
+      const optionLabel =
+        variant.option_values?.map((item) => `${item.option.name}: ${item.value}`).join(" / ") ||
+        undefined;
+      return cleanObject({
+        "@type": "Offer",
+        sku: variant.sku || undefined,
+        name: optionLabel ? `${product.name} - ${optionLabel}` : undefined,
+        price: variantPrice,
+        priceCurrency: product.currency,
+        availability:
+          typeof variant.stock_quantity === "number"
+            ? variant.stock_quantity > 0
+              ? "https://schema.org/InStock"
+              : "https://schema.org/OutOfStock"
+            : product.is_in_stock
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock",
+        itemCondition: "https://schema.org/NewCondition",
+        seller: {
+          "@type": "Organization",
+          name: SITE_NAME,
+        },
+        url,
+      });
+    })
+    .filter(Boolean);
+
+  const variantPrices = variantOffers
+    .map((offer) => parsePrice((offer as { price?: string | number }).price))
+    .filter((value): value is number => typeof value === "number");
+
+  const offerFallback =
+    fallbackPrice && product.currency
       ? cleanObject({
           "@type": "Offer",
-          price,
+          price: fallbackPrice,
           priceCurrency: product.currency,
           availability: product.is_in_stock
             ? "https://schema.org/InStock"
             : "https://schema.org/OutOfStock",
+          itemCondition: "https://schema.org/NewCondition",
+          seller: {
+            "@type": "Organization",
+            name: SITE_NAME,
+          },
           url,
         })
+      : undefined;
+
+  const offers =
+    variantOffers.length > 1 && variantPrices.length
+      ? cleanObject({
+          "@type": "AggregateOffer",
+          priceCurrency: product.currency || undefined,
+          lowPrice: Math.min(...variantPrices).toFixed(2),
+          highPrice: Math.max(...variantPrices).toFixed(2),
+          offerCount: variantOffers.length,
+          offers: variantOffers.slice(0, 20),
+          availability: product.is_in_stock
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock",
+        })
+      : variantOffers[0] || offerFallback;
+
+  const attributeBySlug = new Map<string, string>();
+  (product.attributes || []).forEach((item) => {
+    if (!item.attribute?.slug || !item.value) return;
+    attributeBySlug.set(item.attribute.slug.toLowerCase(), item.value);
+  });
+  const color = attributeBySlug.get("color") || attributeBySlug.get("colour") || undefined;
+  const size = attributeBySlug.get("size") || undefined;
+  const pattern = attributeBySlug.get("pattern") || undefined;
+
+  const additionalProperty =
+    product.attributes?.length
+      ? product.attributes.slice(0, 20).map((item) =>
+          cleanObject({
+            "@type": "PropertyValue",
+            name: item.attribute.name,
+            value: item.value,
+          })
+        )
+      : undefined;
+  const material =
+    product.material_breakdown && Object.keys(product.material_breakdown).length
+      ? Object.keys(product.material_breakdown).join(", ")
       : undefined;
 
   const aggregateRating =
@@ -224,6 +308,26 @@ export function buildProductSchema(product: ProductDetail) {
           ratingValue: product.average_rating,
           reviewCount: product.reviews_count,
         })
+      : undefined;
+
+  const hasVariant =
+    product.variants?.length
+      ? product.variants.slice(0, 20).map((variant) =>
+          cleanObject({
+            "@type": "ProductModel",
+            sku: variant.sku || undefined,
+            name: variant.option_values?.length
+              ? `${product.name} - ${variant.option_values
+                  .map((value) => `${value.option.name}: ${value.value}`)
+                  .join(" / ")}`
+              : undefined,
+            offers: variantOffers.find((offer) => {
+              const sku = (offer as { sku?: string }).sku;
+              if (sku && variant.sku) return sku === variant.sku;
+              return false;
+            }),
+          })
+        )
       : undefined;
 
   return cleanObject({
@@ -236,10 +340,22 @@ export function buildProductSchema(product: ProductDetail) {
       product.description ||
       undefined,
     sku: product.sku || undefined,
+    mpn: product.sku || undefined,
     image: images.length ? images.map((image) => absoluteUrl(image)) : undefined,
     url,
+    mainEntityOfPage: url,
     category: product.primary_category?.name,
+    brand: {
+      "@type": "Brand",
+      name: SITE_NAME,
+    },
+    color,
+    size,
+    pattern,
+    material,
+    additionalProperty,
     offers,
     aggregateRating,
+    hasVariant,
   });
 }

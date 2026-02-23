@@ -1063,6 +1063,7 @@ ENV_REGISTRY_SCHEMA_PATH = os.environ.get(
 )
 ENV_REGISTRY_AUTOSEED = os.environ.get('ENV_REGISTRY_AUTOSEED', 'True').lower() in ('1', 'true', 'yes')
 ENV_REGISTRY_AUTOSYNC_RUNTIME = os.environ.get('ENV_REGISTRY_AUTOSYNC_RUNTIME', 'True').lower() in ('1', 'true', 'yes')
+ENV_REGISTRY_SYNC_ON_REQUEST = os.environ.get('ENV_REGISTRY_SYNC_ON_REQUEST', 'True').lower() in ('1', 'true', 'yes')
 ENV_REGISTRY_AUTOEXPORT = os.environ.get('ENV_REGISTRY_AUTOEXPORT', 'False').lower() in ('1', 'true', 'yes')
 
 # Admin site customization

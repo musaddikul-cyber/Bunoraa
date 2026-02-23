@@ -12,6 +12,7 @@ import Link from "next/link";
 import { RatingStars } from "@/components/products/RatingStars";
 import { ProductBadges } from "@/components/products/ProductBadges";
 import { ProductPrice } from "@/components/products/ProductPrice";
+import { buildProductPath } from "@/lib/productPaths";
 
 type QuickViewData = ProductListItem & {
   badges?: ProductBadge[];
@@ -131,7 +132,7 @@ export function QuickViewModal({
                     size="sm"
                     className="h-11 w-full px-4 sm:w-auto"
                   >
-                    <Link href={`/products/${data.slug}/`}>View details</Link>
+                    <Link href={buildProductPath(data)}>View details</Link>
                   </Button>
                 </div>
               </div>

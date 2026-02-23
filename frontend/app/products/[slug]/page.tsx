@@ -6,6 +6,7 @@ import { ProductDetailClient } from "@/components/products/ProductDetailClient";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildBreadcrumbList, buildPageMetadata, buildProductSchema } from "@/lib/seo";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductCategoryTrail, buildProductPath, getProductCategoryPath } from "@/lib/productPaths";
 
 export const revalidate = 900;
@@ -78,12 +79,12 @@ export default async function ProductDetailPage({
   const breadcrumbItems = [{ name: "Home", url: "/" }];
   if (categoryTrail.length) {
     categoryTrail.forEach((crumb) => {
-      breadcrumbItems.push({ name: crumb.name, url: `/categories/${crumb.slugPath}/` });
+      breadcrumbItems.push({ name: crumb.name, url: buildCategoryPath(crumb.slugPath) });
     });
   } else if (product.primary_category) {
     breadcrumbItems.push({
       name: product.primary_category.name,
-      url: `/categories/${canonicalCategoryPath}/`,
+      url: buildCategoryPath(canonicalCategoryPath),
     });
   } else {
     breadcrumbItems.push({ name: "Products", url: "/products/" });

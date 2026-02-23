@@ -7,6 +7,12 @@ import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildBreadcrumbList, buildPageMetadata, buildProductSchema } from "@/lib/seo";
 import { buildProductCategoryTrail, buildProductPath, getProductCategoryPath } from "@/lib/productPaths";
+import { buildCategoryPath } from "@/lib/categoryPaths";
+import {
+  buildCategoryMetadataForPath,
+  renderCategoryPageForPath,
+  type CategorySearchParams,
+} from "@/app/categories/[...slug]/page";
 
 export const revalidate = 900;
 
@@ -19,7 +25,7 @@ async function getProduct(slug: string) {
     return response.data;
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
-      notFound();
+      return null;
     }
     throw error;
   }
@@ -43,20 +49,27 @@ function toProductSlug(rest: string[]) {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; rest: string[] }>;
+  searchParams: Promise<CategorySearchParams>;
 }): Promise<Metadata> {
-  const { slug: rootCategory, rest } = await params;
+  const [{ slug: rootCategory, rest }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   const productSlug = toProductSlug(rest || []);
+  const requestedPath = [rootCategory, ...(rest || [])].filter(Boolean).join("/");
+
   if (!productSlug || !rest?.length) {
-    return buildPageMetadata({
-      title: "Product",
-      description: "Explore product details on Bunoraa.",
-      path: `/${rootCategory}/`,
-    });
+    return buildCategoryMetadataForPath(requestedPath || rootCategory, resolvedSearchParams);
   }
 
   const product = await getProduct(productSlug);
+  if (!product) {
+    return buildCategoryMetadataForPath(requestedPath, resolvedSearchParams);
+  }
+
   const canonicalCategoryPath = getProductCategoryPath(product);
   const requestedCategoryPath = toRequestedCategoryPath(rootCategory, rest);
   const metadataImages = [
@@ -81,10 +94,15 @@ export async function generateMetadata({
 
 export default async function NestedCategoryProductDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; rest: string[] }>;
+  searchParams: Promise<CategorySearchParams>;
 }) {
-  const { slug: rootCategory, rest } = await params;
+  const [{ slug: rootCategory, rest }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   if (!rest?.length) {
     notFound();
   }
@@ -94,10 +112,12 @@ export default async function NestedCategoryProductDetailPage({
     notFound();
   }
 
-  const [product, relatedProducts] = await Promise.all([
-    getProduct(productSlug),
-    getRelated(productSlug).catch(() => []),
-  ]);
+  const requestedCategoryListingPath = [rootCategory, ...rest].join("/");
+  const product = await getProduct(productSlug);
+  if (!product) {
+    return renderCategoryPageForPath(requestedCategoryListingPath, resolvedSearchParams);
+  }
+  const relatedProducts = await getRelated(productSlug).catch(() => []);
 
   const requestedCategoryPath = toRequestedCategoryPath(rootCategory, rest);
   const canonicalCategoryPath = getProductCategoryPath(product);
@@ -110,7 +130,7 @@ export default async function NestedCategoryProductDetailPage({
   const categoryTrail = buildProductCategoryTrail(product);
   const breadcrumbItems = [{ name: "Home", url: "/" }];
   categoryTrail.forEach((crumb) => {
-    breadcrumbItems.push({ name: crumb.name, url: `/categories/${crumb.slugPath}/` });
+    breadcrumbItems.push({ name: crumb.name, url: buildCategoryPath(crumb.slugPath) });
   });
   breadcrumbItems.push({ name: product.name, url: canonicalPath });
 

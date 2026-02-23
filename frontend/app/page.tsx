@@ -20,6 +20,7 @@ import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, absoluteUrl, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
 
 export const revalidate = 300;
@@ -420,7 +421,7 @@ export default async function Home() {
                 {featuredCategories.slice(0, 5).map((category) => (
                   <Link
                     key={category.id}
-                    href={`/categories/${category.slug}/`}
+                    href={buildCategoryPath(category.slug)}
                     className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
                   >
                     {category.name}
@@ -591,7 +592,7 @@ export default async function Home() {
                   Curated pieces selected for quality and delivery readiness.
                 </p>
                 <Button asChild size="sm" variant="secondary" className={compactActionClass}>
-                  <Link href={`/categories/${category.slug}/`}>Shop category</Link>
+                  <Link href={buildCategoryPath(category.slug)}>Shop category</Link>
                 </Button>
               </Card>
             ))

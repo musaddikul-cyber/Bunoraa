@@ -9,12 +9,13 @@ import { AppliedFilters } from "@/components/products/AppliedFilters";
 import { SortMenu } from "@/components/products/SortMenu";
 import { ViewToggle } from "@/components/products/ViewToggle";
 import { Button } from "@/components/ui/Button";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildBreadcrumbList, buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
 
 export const revalidate = 300;
@@ -34,14 +35,14 @@ type Category = {
   }>;
 };
 
-type SearchParams = Record<string, string | string[] | undefined>;
+export type CategorySearchParams = Record<string, string | string[] | undefined>;
 
 function firstValue(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
 }
 
-function hasIndexBustingFilters(searchParams: SearchParams): boolean {
+function hasIndexBustingFilters(searchParams: CategorySearchParams): boolean {
   return Object.entries(searchParams).some(([key, value]) => {
     if (key === "page" || key === "view") return false;
     if (Array.isArray(value)) return value.some((entry) => entry.trim() !== "");
@@ -49,7 +50,7 @@ function hasIndexBustingFilters(searchParams: SearchParams): boolean {
   });
 }
 
-function parsePageNumber(searchParams: SearchParams): number {
+function parsePageNumber(searchParams: CategorySearchParams): number {
   const rawPage = firstValue(searchParams.page);
   const page = Number(rawPage || 1);
   return Number.isFinite(page) && page > 1 ? Math.floor(page) : 1;
@@ -70,7 +71,7 @@ async function getCategory(slug: string) {
   }
 }
 
-async function getCategoryProducts(slug: string, searchParams: SearchParams) {
+async function getCategoryProducts(slug: string, searchParams: CategorySearchParams) {
   const params: Record<string, string | number | boolean | Array<string | number | boolean> | undefined> = {};
   Object.entries(searchParams).forEach(([key, value]) => {
     if (key === "view") return;
@@ -95,7 +96,7 @@ async function getCategoryProducts(slug: string, searchParams: SearchParams) {
   return response;
 }
 
-async function getFilters(slug: string, searchParams: SearchParams) {
+async function getFilters(slug: string, searchParams: CategorySearchParams) {
   const params: Record<string, string> = { category: slug };
   if (searchParams.q && typeof searchParams.q === "string") {
     params.q = searchParams.q;
@@ -116,19 +117,14 @@ async function getCategoryFacets(slug: string) {
   return response.data;
 }
 
-export async function generateMetadata({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string[] }>;
-  searchParams: Promise<SearchParams>;
-}): Promise<Metadata> {
-  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
-  const slugPath = slug.join("/");
+export async function buildCategoryMetadataForPath(
+  slugPath: string,
+  resolvedSearchParams: CategorySearchParams
+): Promise<Metadata> {
   const category = await getCategory(slugPath);
   const page = parsePageNumber(resolvedSearchParams);
   const hasFilters = hasIndexBustingFilters(resolvedSearchParams);
-  const basePath = `/categories/${slugPath}/`;
+  const basePath = buildCategoryPath(slugPath);
   const metadata = buildPageMetadata({
     title: category.meta_title || category.name,
     description:
@@ -161,15 +157,10 @@ export async function generateMetadata({
   };
 }
 
-export default async function CategoryPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ slug: string[] }>;
-  searchParams: Promise<SearchParams>;
-}) {
-  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
-  const slugPath = slug.join("/");
+export async function renderCategoryPageForPath(
+  slugPath: string,
+  resolvedSearchParams: CategorySearchParams
+) {
   const page = Number(resolvedSearchParams.page || 1) || 1;
   const view = resolvedSearchParams.view === "list" ? "list" : "grid";
   const filterParams: Record<string, string> = { category: slugPath };
@@ -235,10 +226,9 @@ export default async function CategoryPage({
     return `?${params.toString()}`;
   };
 
-  const categoryUrl = `/categories/${slugPath}/`;
+  const categoryUrl = buildCategoryPath(slugPath);
   const breadcrumbs = buildBreadcrumbList([
     { name: "Home", url: "/" },
-    { name: "Categories", url: "/categories/" },
     { name: category.name, url: categoryUrl },
   ]);
   const itemListId = `${categoryUrl}#itemlist`;
@@ -267,10 +257,6 @@ export default async function CategoryPage({
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-foreground/60">
               <Link href="/" className="hover:text-foreground">
                 Home
-              </Link>
-              <span aria-hidden="true">/</span>
-              <Link href="/categories/" className="hover:text-foreground">
-                Categories
               </Link>
               <span aria-hidden="true">/</span>
               <span className="text-foreground/80">{category.name}</span>
@@ -358,4 +344,26 @@ export default async function CategoryPage({
       <JsonLd data={[collectionPage, breadcrumbs, productList]} />
     </div>
   );
+}
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string[] }>;
+  searchParams: Promise<CategorySearchParams>;
+}): Promise<Metadata> {
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
+  return buildCategoryMetadataForPath(slug.join("/"), resolvedSearchParams);
+}
+
+export default async function CategoryPage({
+  params,
+}: {
+  params: Promise<{ slug: string[] }>;
+  searchParams: Promise<CategorySearchParams>;
+}) {
+  const { slug } = await params;
+  const slugPath = slug.join("/");
+  redirect(buildCategoryPath(slugPath));
 }

@@ -7,6 +7,7 @@ import { SearchBar } from "@/components/search/SearchBar";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import type { MenuPage } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 
 type Category = { id: string; name: string; slug: string };
 
@@ -205,8 +206,8 @@ export function MobileNav({
                 {categories.slice(0, 10).map((category) => (
                   <Link
                     key={category.id}
-                    className={navLinkClass(`/categories/${category.slug}/`)}
-                    href={`/categories/${category.slug}/`}
+                    className={navLinkClass(buildCategoryPath(category.slug))}
+                    href={buildCategoryPath(category.slug)}
                     onClick={closeNav}
                   >
                     {category.name}

@@ -12,6 +12,7 @@ import { ThemeSwitcher } from "@/components/theme/ThemeProvider";
 import { LocaleSwitcher } from "@/components/locale/LocaleSwitcher";
 import { FooterNewsletter } from "@/components/layout/FooterNewsletter";
 import { asArray } from "@/lib/array";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 
 async function getFooterPages() {
   try {
@@ -182,7 +183,7 @@ export async function Footer() {
     ? categories.map((category) => ({
         key: category.id,
         label: category.name,
-        href: `/categories/${category.slug}/`,
+        href: buildCategoryPath(category.slug),
       }))
     : [
         { key: "browse-categories", label: "Browse categories", href: "/categories/" },

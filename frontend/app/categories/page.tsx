@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 
 export const revalidate = 300;
 export const metadata: Metadata = buildPageMetadata({
@@ -36,7 +37,7 @@ export default async function CategoriesPage() {
   const list = buildItemList(
     categories.map((category) => ({
       name: category.name,
-      url: `/categories/${category.slug}/`,
+      url: buildCategoryPath(category.slug),
       image: category.image || undefined,
       description: undefined,
     })),
@@ -83,7 +84,7 @@ export default async function CategoriesPage() {
                 </div>
                 <Link
                   className="text-sm font-medium text-primary"
-                  href={`/categories/${category.slug}/`}
+                  href={buildCategoryPath(category.slug)}
                 >
                   View
                 </Link>

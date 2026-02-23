@@ -6,6 +6,7 @@ import { SearchBar } from "@/components/search/SearchBar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeaderVisibility } from "@/components/layout/MobileHeaderVisibility";
 import { asArray } from "@/lib/array";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 
 type Category = { id: string; name: string; slug: string };
 
@@ -66,7 +67,7 @@ export async function Header() {
                 <Link
                   key={category.id}
                   className="text-foreground/70 hover:text-foreground"
-                  href={`/categories/${category.slug}/`}
+                  href={buildCategoryPath(category.slug)}
                 >
                   {category.name}
                 </Link>

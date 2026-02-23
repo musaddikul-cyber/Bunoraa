@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { PageDetail } from "@/lib/types";
-import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { absoluteUrl, buildBreadcrumbList, buildPageMetadata, cleanObject } from "@/lib/seo";
+import {
+  buildCategoryMetadataForPath,
+  renderCategoryPageForPath,
+  type CategorySearchParams,
+} from "@/app/categories/[...slug]/page";
 
 export const revalidate = 300;
 
@@ -15,7 +19,7 @@ async function getPage(slug: string) {
     return response.data;
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
-      notFound();
+      return null;
     }
     throw error;
   }
@@ -23,11 +27,16 @@ async function getPage(slug: string) {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<CategorySearchParams>;
 }): Promise<Metadata> {
-  const { slug } = await params;
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
   const page = await getPage(slug);
+  if (!page) {
+    return buildCategoryMetadataForPath(slug, resolvedSearchParams);
+  }
   return buildPageMetadata({
     title: page.meta_title || page.title,
     description: page.meta_description || page.excerpt || "Read this page on Bunoraa.",
@@ -37,11 +46,16 @@ export async function generateMetadata({
 
 export default async function PageDetail({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<CategorySearchParams>;
 }) {
-  const { slug } = await params;
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams]);
   const page = await getPage(slug);
+  if (!page) {
+    return renderCategoryPageForPath(slug, resolvedSearchParams);
+  }
   const pageUrl = `/${page.slug}/`;
   const pageSchema = cleanObject({
     "@context": "https://schema.org",

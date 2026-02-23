@@ -14,6 +14,7 @@ import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildItemList, buildNoIndexMetadata, buildSearchResultsPage } from "@/lib/seo";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
 
 export const revalidate = 60;
@@ -237,7 +238,7 @@ export default async function SearchPage({
               <Link
                 key={category.id}
                 className="rounded-full border border-border px-4 py-2 text-sm"
-                href={`/categories/${category.slug}/`}
+                href={buildCategoryPath(category.slug)}
               >
                 {category.name}
               </Link>

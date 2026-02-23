@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { ProductListItem } from "@/lib/types";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
 
 function useDebouncedValue<T>(value: T, delay = 300) {
@@ -59,7 +60,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
     ...categorySuggestions.slice(0, 5).map((item) => ({
       id: `category-${item.id}`,
       label: item.name,
-      href: `/categories/${item.slug}/`,
+      href: buildCategoryPath(item.slug),
     })),
   ];
   const trimmedQuery = query.trim();
@@ -219,7 +220,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                             ? "bg-muted text-foreground"
                             : "text-foreground/80 hover:bg-muted hover:text-foreground"
                         }`}
-                        onClick={() => handleSelection(`/categories/${item.slug}/`)}
+                        onClick={() => handleSelection(buildCategoryPath(item.slug))}
                         onMouseEnter={() => setActiveIndex(optionIndex)}
                       >
                         {item.name}

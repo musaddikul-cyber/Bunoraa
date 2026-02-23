@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
 import { getStoredLocale } from "@/lib/locale";
+import { buildCategoryPath } from "@/lib/categoryPaths";
 
 export type CategoryFacet = {
   id: string;
@@ -235,7 +236,7 @@ export function FilterPanel({
               <Link
                 key={category.id}
                 className="inline-flex min-h-10 items-center rounded-full border border-border px-3.5 py-1.5 text-sm text-foreground/70 transition hover:border-primary/40 hover:text-foreground"
-                href={`/categories/${category.slug}/${categorySuffix}`}
+                href={`${buildCategoryPath(category.slug)}${categorySuffix}`}
               >
                 {category.name}
                 {typeof category.product_count === "number"

@@ -12,6 +12,8 @@ import { FooterPreferencesDialog } from "@/components/layout/FooterPreferencesDi
 import { asArray } from "@/lib/array";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 
+const FOOTER_CATEGORY_LIMIT = 5;
+
 async function getFooterPages() {
   try {
     const response = await apiFetch<MenuPage[]>("/pages/footer/", {
@@ -48,7 +50,8 @@ async function getContactSettings() {
 async function getTopCategories() {
   try {
     const response = await apiFetch<Category[]>("/catalog/categories/", {
-      params: { page_size: 6 },
+      // Request one extra so we can decide whether to show "Browse all categories".
+      params: { page_size: FOOTER_CATEGORY_LIMIT + 1 },
       next: { revalidate: 600 },
     });
     return asArray<Category>(response.data);
@@ -91,6 +94,7 @@ type FooterLinkItem = {
   key: string;
   label: string;
   href: string;
+  isCta?: boolean;
 };
 
 const normalizeSlug = (value?: string | null) =>
@@ -221,14 +225,11 @@ export async function Footer() {
     "Discover handcrafted fashion, home, and lifestyle essentials curated by Bunoraa artisans.";
 
   const emailItems = [
-    { label: "Support", value: pickText(siteSettings?.support_email) },
-    { label: "Email", value: pickText(siteSettings?.contact_email) },
-  ]
-    .filter((item) => item.value)
-    .filter(
-      (item, index, self) =>
-        self.findIndex((entry) => entry.value === item.value) === index
-    );
+    {
+      label: "Support",
+      value: pickText(siteSettings?.support_email, siteSettings?.contact_email),
+    },
+  ].filter((item) => item.value);
 
   const phone = pickText(siteSettings?.contact_phone);
   const address = pickText(siteSettings?.address, siteSettings?.contact_address);
@@ -273,36 +274,6 @@ export async function Footer() {
     }
     return fallback;
   };
-  const companySupportLinks = dedupeLinks([
-    {
-      key: "about",
-      label: "About Bunoraa",
-      href: resolveFooterPageHref(["about-bunoraa", "about"], "/about/"),
-    },
-    {
-      key: "faq",
-      label: "FAQ",
-      href: resolveFooterPageHref(["faq", "faqs"], "/faq/"),
-    },
-    {
-      key: "contact",
-      label: "Contact",
-      href: "/contact/",
-    },
-    {
-      key: "shipping",
-      label: "Shipping",
-      href: resolveFooterPageHref(["shipping", "shipping-policy"], "/pages/shipping/"),
-    },
-    {
-      key: "returns",
-      label: "Returns",
-      href: resolveFooterPageHref(
-        ["returns", "returns-policy", "refund-policy"],
-        "/pages/returns/"
-      ),
-    },
-  ]);
   const footerLegalLinks = dedupeLinks([
     {
       key: "terms",
@@ -336,16 +307,54 @@ export async function Footer() {
       ),
     },
   ]);
-  const shopLinks = categories.length
-    ? categories.map((category) => ({
-        key: category.id,
-        label: category.name,
-        href: buildCategoryPath(category.slug),
-      }))
-    : [
-        { key: "browse-categories", label: "Browse categories", href: "/categories/" },
-        { key: "all-products", label: "All products", href: "/products/" },
-      ];
+  const footerLegalHrefSet = new Set(
+    footerLegalLinks.map((item) => normalizeHref(item.href))
+  );
+  const reservedCompanySlugs = new Set([
+    "terms-of-use",
+    "terms",
+    "terms-and-conditions",
+    "privacy",
+    "privacy-policy",
+    "contact",
+    "shipping",
+    "shipping-policy",
+    "returns",
+    "returns-policy",
+    "refund-policy",
+  ]);
+  const hasMoreCategories = categories.length > FOOTER_CATEGORY_LIMIT;
+  const shopLinks = dedupeLinks(
+    categories.length
+      ? [
+          ...categories.slice(0, FOOTER_CATEGORY_LIMIT).map((category) => ({
+            key: `category-${category.id}`,
+            label: category.name,
+            href: buildCategoryPath(category.slug),
+            isCta: false,
+          })),
+          ...(hasMoreCategories
+            ? [
+                {
+                  key: "browse-all-categories",
+                  label: "Browse all categories",
+                  href: "/categories/",
+                  isCta: true,
+                },
+              ]
+            : []),
+        ]
+      : [
+          {
+            key: "browse-all-categories",
+            label: "Browse all categories",
+            href: "/categories/",
+            isCta: true,
+          },
+          { key: "all-products", label: "All products", href: "/products/", isCta: false },
+        ]
+  );
+  const shopHrefSet = new Set(shopLinks.map((item) => normalizeHref(item.href)));
 
   const collectionLinks = dedupeLinks([
     { key: "all-collections", label: "All collections", href: "/collections/" },
@@ -353,7 +362,63 @@ export async function Footer() {
     { key: "collections-bundles", label: "Bundles", href: "/bundles/" },
     { key: "collections-artisans", label: "Artisans", href: "/artisans/" },
     { key: "collections-preorders", label: "Preorders", href: "/preorders/" },
+  ]).filter((item) => !shopHrefSet.has(normalizeHref(item.href)));
+  const collectionHrefSet = new Set(collectionLinks.map((item) => normalizeHref(item.href)));
+  const blockedCompanyHrefSet = new Set([
+    ...footerLegalHrefSet,
+    ...shopHrefSet,
+    ...collectionHrefSet,
   ]);
+  const companyPrimaryLinks = dedupeLinks([
+    {
+      key: "about",
+      label: "About Bunoraa",
+      href: resolveFooterPageHref(["about-bunoraa", "about"], "/about/"),
+    },
+    {
+      key: "faq",
+      label: "FAQ",
+      href: resolveFooterPageHref(["faq", "faqs"], "/faq/"),
+    },
+    {
+      key: "contact",
+      label: "Contact",
+      href: "/contact/",
+    },
+    {
+      key: "shipping",
+      label: "Shipping",
+      href: resolveFooterPageHref(["shipping", "shipping-policy"], "/pages/shipping/"),
+    },
+    {
+      key: "returns",
+      label: "Returns",
+      href: resolveFooterPageHref(
+        ["returns", "returns-policy", "refund-policy"],
+        "/pages/returns/"
+      ),
+    },
+  ]).filter((item) => {
+    const hrefKey = normalizeHref(item.href);
+    return !blockedCompanyHrefSet.has(hrefKey);
+  });
+  const companyPrimaryHrefSet = new Set(
+    companyPrimaryLinks.map((item) => normalizeHref(item.href))
+  );
+  const companySupplementalLinks = dedupeLinks(
+    pages
+      .filter((page) => !reservedCompanySlugs.has(normalizeSlug(page.slug)))
+      .map((page) => ({
+        key: `company-page-${page.id}`,
+        label: page.title,
+        href: pickText(page.url) || `/pages/${page.slug}/`,
+      }))
+      .filter((item) => item.label && item.href)
+  ).filter((item) => {
+    const hrefKey = normalizeHref(item.href);
+    return !blockedCompanyHrefSet.has(hrefKey) && !companyPrimaryHrefSet.has(hrefKey);
+  });
+  const companySupportLinks = [...companyPrimaryLinks, ...companySupplementalLinks].slice(0, 5);
 
   const contactItems = [
     ...emailItems.map((item) => ({
@@ -389,6 +454,9 @@ export async function Footer() {
   const footerSummaryClass =
     "flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-foreground/90 [&::-webkit-details-marker]:hidden";
   const footerListClass = "space-y-2 border-t border-border px-4 pb-4 pt-3 text-sm text-foreground/70";
+  const footerListLinkClass = "transition-colors hover:text-foreground";
+  const shopBrowseAllCtaClass =
+    "inline-flex items-center rounded-md border border-border bg-muted/30 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground";
   const socialIconLinkClass =
     "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-foreground/75 transition hover:border-foreground/40 hover:text-foreground";
 
@@ -426,7 +494,28 @@ export async function Footer() {
               <ul className={footerListClass}>
                 {shopLinks.map((item) => (
                   <li key={item.key}>
-                    <Link href={item.href}>{item.label}</Link>
+                    <Link
+                      href={item.href}
+                      className={
+                        item.isCta ? `${shopBrowseAllCtaClass} group` : footerListLinkClass
+                      }
+                    >
+                      <span>{item.label}</span>
+                      {item.isCta ? (
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 20 20"
+                          className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M7 5l5 5-5 5" />
+                        </svg>
+                      ) : null}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -451,7 +540,9 @@ export async function Footer() {
               <ul className={footerListClass}>
                 {collectionLinks.map((item) => (
                   <li key={item.key}>
-                    <Link href={item.href}>{item.label}</Link>
+                    <Link href={item.href} className={footerListLinkClass}>
+                      {item.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -476,7 +567,9 @@ export async function Footer() {
               <ul className={footerListClass}>
                 {companySupportLinks.map((item) => (
                   <li key={item.href}>
-                    <Link href={item.href}>{item.label}</Link>
+                    <Link href={item.href} className={footerListLinkClass}>
+                      {item.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -551,7 +644,28 @@ export async function Footer() {
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
               {shopLinks.map((item) => (
                 <li key={item.key}>
-                  <Link href={item.href}>{item.label}</Link>
+                  <Link
+                    href={item.href}
+                    className={
+                      item.isCta ? `${shopBrowseAllCtaClass} group` : footerListLinkClass
+                    }
+                  >
+                    <span>{item.label}</span>
+                    {item.isCta ? (
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 20 20"
+                        className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M7 5l5 5-5 5" />
+                      </svg>
+                    ) : null}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -562,7 +676,9 @@ export async function Footer() {
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
               {collectionLinks.map((item) => (
                 <li key={item.key}>
-                  <Link href={item.href}>{item.label}</Link>
+                  <Link href={item.href} className={footerListLinkClass}>
+                    {item.label}
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -573,7 +689,9 @@ export async function Footer() {
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
               {companySupportLinks.map((item) => (
                 <li key={item.href}>
-                  <Link href={item.href}>{item.label}</Link>
+                  <Link href={item.href} className={footerListLinkClass}>
+                    {item.label}
+                  </Link>
                 </li>
               ))}
             </ul>

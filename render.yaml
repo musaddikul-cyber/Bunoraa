@@ -219,9 +219,13 @@ services:
     startCommand: "python scripts/warmup.py"
     envVars:
       - key: WARMUP_URLS
-        value: "https://api.bunoraa.com/healthz,https://bunoraa.com/file.svg"
+        value: "https://bunoraa-django.onrender.com/health/,https://bunoraa-pl26.onrender.com/"
       - key: WARMUP_TIMEOUT
-        value: "10"
+        value: "45"
+      - key: WARMUP_RETRIES
+        value: "2"
+      - key: WARMUP_RETRY_DELAY_MS
+        value: "1200"
     plan: free
 
 databases:

@@ -154,6 +154,31 @@
     statusNode.style.color = isError ? "#b91c1c" : "#374151";
   }
 
+  function resolveSuggestionDisplayValue(item) {
+    var metadata = (item && item.metadata) || {};
+
+    if (metadata && typeof metadata.name === "string" && metadata.name.trim()) {
+      return metadata.name.trim();
+    }
+    if (metadata && Array.isArray(metadata.names) && metadata.names.length) {
+      return metadata.names
+        .map(function (value) {
+          return String(value || "").trim();
+        })
+        .filter(Boolean)
+        .join(", ");
+    }
+    if (
+      item &&
+      item.display_value !== null &&
+      item.display_value !== undefined &&
+      String(item.display_value).trim() !== ""
+    ) {
+      return item.display_value;
+    }
+    return item ? item.value : "";
+  }
+
   function renderSuggestions(suggestions) {
     var container = document.getElementById("product-ai-suggestions-container");
     if (!container) return;
@@ -169,9 +194,11 @@
       "<th>Field</th><th>Value</th><th>Confidence</th><th>Rationale</th><th>Sources</th>" +
       "</tr></thead><tbody>";
     suggestions.forEach(function (item) {
-      var value = item.value;
+      var value = resolveSuggestionDisplayValue(item);
       if (Array.isArray(value)) {
         value = value.join(", ");
+      } else if (value && typeof value === "object") {
+        value = JSON.stringify(value);
       } else if (value === null || value === undefined || value === "") {
         value = "<em>null</em>";
       } else {
@@ -279,10 +306,20 @@
     var statusTemplate = config.dataset.statusTemplate;
     var applyTemplate = config.dataset.applyTemplate;
     var maxImages = parseInt(config.dataset.maxImages || "4", 10);
+    var aiEnabled = config.dataset.enabled === "true";
+    var disabledReason = config.dataset.disabledReason || "AI autofill is disabled.";
 
     var currentJobId = null;
     var currentSuggestions = [];
     var applyInFlight = false;
+
+    if (!aiEnabled) {
+      startBtn.disabled = true;
+      applyBtn.disabled = true;
+      setStatus(disabledReason, true);
+      renderSuggestions([]);
+      return;
+    }
 
     function pollJob(jobId) {
       var statusUrl = formatJobUrl(statusTemplate, jobId);

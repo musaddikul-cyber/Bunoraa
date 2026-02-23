@@ -74,10 +74,54 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     products: Get products in a category
     facets: Get available facets for filtering
     """
-    queryset = Category.objects.filter(is_visible=True, is_deleted=False).order_by('path')
+    queryset = Category.objects.filter(
+        is_active=True,
+        is_visible=True,
+        is_deleted=False,
+    ).order_by("sort_order", "name", "path")
     serializer_class = CategorySerializer
     lookup_field = 'slug'
     permission_classes = [AllowAny]
+
+    @staticmethod
+    def _parse_bool_param(value):
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+        return None
+
+    def _category_list_queryset(self, request):
+        ordering_param = (request.query_params.get("ordering") or "").strip()
+        ordering_map = {
+            "": ("sort_order", "name", "path"),
+            "sort_order": ("sort_order", "name", "path"),
+            "-sort_order": ("-sort_order", "name", "path"),
+            "name": ("name", "path"),
+            "-name": ("-name", "path"),
+            "product_count": ("product_count", "sort_order", "name", "path"),
+            "-product_count": ("-product_count", "sort_order", "name", "path"),
+            "created_at": ("created_at", "sort_order", "name", "path"),
+            "-created_at": ("-created_at", "sort_order", "name", "path"),
+        }
+        order_by_fields = ordering_map.get(ordering_param, ordering_map[""])
+
+        qs = Category.objects.filter(is_visible=True, is_deleted=False)
+        include_disabled = self._parse_bool_param(request.query_params.get("include_disabled"))
+        active_raw = request.query_params.get("is_active")
+        active_filter = self._parse_bool_param(active_raw)
+
+        if active_raw is not None:
+            if active_filter is None:
+                return qs.none().order_by(*order_by_fields)
+            qs = qs.filter(is_active=active_filter)
+        elif include_disabled is not True:
+            qs = qs.filter(is_active=True)
+
+        return qs.order_by(*order_by_fields)
     
     def get_serializer_class(self):
         if self.action == 'list':
@@ -105,18 +149,18 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         """Return categories, optionally filtered by parent_id."""
         # Support filtering by parent_id or parent (for consistency)
         parent_id = request.query_params.get('parent_id') or request.query_params.get('parent')
+        base_qs = self._category_list_queryset(request)
         
         try:
             # If parent_id is 'null' or not provided, get root categories
             if parent_id == 'null' or parent_id is None:
-                categories = CategoryService.get_root_categories()
+                categories = base_qs.filter(parent__isnull=True)
             else:
                 # Get children of specified parent
-                try:
-                    parent = Category.objects.get(id=parent_id, is_visible=True, is_deleted=False)
-                    categories = parent.children.filter(is_visible=True, is_deleted=False).order_by('path')
-                except Category.DoesNotExist:
+                parent = base_qs.filter(id=parent_id).first()
+                if parent is None:
                     return Response([])
+                categories = base_qs.filter(parent=parent)
             
             # Respect pagination if specified
             page_size = request.query_params.get('page_size')
@@ -141,14 +185,18 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         max_depth = request.query_params.get('max_depth')
         if max_depth:
             max_depth = int(max_depth)
-        tree = CategoryService.get_category_tree(max_depth=max_depth)
+        include_disabled = self._parse_bool_param(request.query_params.get("include_disabled")) is True
+        tree = CategoryService.get_category_tree(
+            max_depth=max_depth,
+            include_disabled=include_disabled,
+        )
         return Response(tree)
     
     @action(detail=True, methods=['get'])
     def children(self, request, slug=None):
         """Get direct children of a category."""
         category = self.get_object()
-        children = category.children.filter(is_visible=True, is_deleted=False)
+        children = self._category_list_queryset(request).filter(parent=category)
         serializer = CategoryListSerializer(children, many=True, context={'request': request})
         return Response(serializer.data)
     
@@ -216,7 +264,9 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         if not query:
             return Response([])
         
-        categories = CategoryService.search_categories(query, limit=10)
+        categories = self._category_list_queryset(request).filter(
+            Q(name__icontains=query) | Q(slug__icontains=query)
+        )[:10]
         serializer = CategoryListSerializer(categories, many=True, context={'request': request})
         return Response(serializer.data)
 

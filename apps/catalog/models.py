@@ -195,8 +195,14 @@ class Category(TimeStampedMixin):
     parent = models.ForeignKey("self", null=True, blank=True, related_name="children", on_delete=models.PROTECT)
     path = models.CharField(max_length=2000, db_index=True, editable=False)
     depth = models.PositiveSmallIntegerField(default=0, db_index=True)
+    sort_order = models.PositiveIntegerField(default=0, db_index=True)
 
-    # Visibility & soft-delete
+    # Availability, visibility & soft-delete
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Disabled categories are excluded from catalog APIs and storefront listings.",
+    )
     is_visible = models.BooleanField(default=True, db_index=True)
     is_deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -234,7 +240,14 @@ class Category(TimeStampedMixin):
         constraints = [
             models.UniqueConstraint(Lower("slug"), "parent", name="unique_category_parent_slug_ci"),
         ]
-        indexes = [models.Index(fields=["slug"]), models.Index(fields=["is_visible"]), models.Index(fields=["path"]), models.Index(fields=["product_count"])]
+        indexes = [
+            models.Index(fields=["slug"]),
+            models.Index(fields=["sort_order"]),
+            models.Index(fields=["is_active"]),
+            models.Index(fields=["is_visible"]),
+            models.Index(fields=["path"]),
+            models.Index(fields=["product_count"]),
+        ]
         ordering = ["path"]
         verbose_name = "category"
         verbose_name_plural = "categories"
@@ -323,7 +336,11 @@ class Category(TimeStampedMixin):
             tree = cache.get(cache_key)
             if tree is not None:
                 return tree
-        qs = cls.objects.filter(is_visible=True, is_deleted=False).order_by("path").select_related("parent")
+        qs = (
+            cls.objects.filter(is_active=True, is_visible=True, is_deleted=False)
+            .order_by("depth", "sort_order", "name", "path")
+            .select_related("parent")
+        )
         nodes = {}
         roots = []
         for c in qs:

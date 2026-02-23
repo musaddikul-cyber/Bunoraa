@@ -103,7 +103,11 @@ class CategoryDetailView(DetailView):
                 'num_pages': products_data['total_pages'],
             },
             'breadcrumbs': CategoryService.get_breadcrumbs(category),
-            'subcategories': category.children.filter(is_visible=True, is_deleted=False),
+            'subcategories': category.children.filter(
+                is_active=True,
+                is_visible=True,
+                is_deleted=False,
+            ).order_by("sort_order", "name", "path"),
             'facets': CategoryService.get_category_facets(category, self.request.GET),
             'price_range': ProductService.get_price_range(category),
             'current_sort': sort,

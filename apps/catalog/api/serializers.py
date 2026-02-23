@@ -99,7 +99,18 @@ class CategoryListSerializer(ContentTranslationMixin, serializers.ModelSerialize
     
     class Meta:
         model = Category
-        fields = ('id', 'name', 'slug', 'depth', 'path', 'image', 'icon', 'product_count')
+        fields = (
+            'id',
+            'name',
+            'slug',
+            'depth',
+            'path',
+            'sort_order',
+            'image',
+            'icon',
+            'product_count',
+            'is_active',
+        )
 
 
 class CategorySerializer(ContentTranslationMixin, serializers.ModelSerializer):
@@ -113,14 +124,14 @@ class CategorySerializer(ContentTranslationMixin, serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = (
-            'id', 'name', 'slug', 'parent', 'path', 'depth',
-            'is_visible', 'meta_title', 'meta_description', 'meta_keywords',
+            'id', 'name', 'slug', 'parent', 'path', 'depth', 'sort_order',
+            'is_active', 'is_visible', 'meta_title', 'meta_description', 'meta_keywords',
             'image', 'icon', 'aspect_ratio', 'product_count',
             'children', 'breadcrumbs', 'created_at', 'updated_at'
         )
     
     def get_children(self, obj):
-        children = obj.children.filter(is_deleted=False, is_visible=True)
+        children = obj.children.filter(is_active=True, is_deleted=False, is_visible=True)
         return CategoryListSerializer(children, many=True, context=self.context).data
     
     def get_breadcrumbs(self, obj):
@@ -135,6 +146,8 @@ class CategoryTreeSerializer(serializers.Serializer):
     slug = serializers.CharField()
     depth = serializers.IntegerField()
     path = serializers.CharField()
+    sort_order = serializers.IntegerField()
+    is_active = serializers.BooleanField()
     image = serializers.CharField(allow_null=True)
     icon = serializers.CharField(allow_blank=True)
     product_count = serializers.IntegerField()

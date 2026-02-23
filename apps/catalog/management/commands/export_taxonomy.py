@@ -24,7 +24,7 @@ from apps.catalog.models import (
 # CSV headers for export
 HEADERS = [
     'node_id', 'name', 'slug', 'parent_slug', 'path', 'depth',
-    'is_visible', 'is_deleted', 'meta_title', 'meta_description',
+    'sort_order', 'is_active', 'is_visible', 'is_deleted', 'meta_title', 'meta_description',
     'allowed_facets', 'aspect_ratio', 'product_count'
 ]
 
@@ -60,7 +60,7 @@ class Command(BaseCommand):
                 output_format = 'csv'
 
         # Query categories
-        qs = Category.objects.all().order_by('path')
+        qs = Category.objects.all().order_by("depth", "sort_order", "name", "path")
         if not include_deleted:
             qs = qs.filter(is_deleted=False)
 
@@ -82,6 +82,8 @@ class Command(BaseCommand):
                 'parent_slug': parent_slug,
                 'path': c.path,
                 'depth': c.depth,
+                'sort_order': c.sort_order,
+                'is_active': str(c.is_active),
                 'is_visible': str(c.is_visible),
                 'is_deleted': str(c.is_deleted),
                 'meta_title': c.meta_title or '',
@@ -160,10 +162,19 @@ class Command(BaseCommand):
         
         # Clean up: remove empty children lists and internal fields
         def clean_node(node):
+            def as_bool(value: Any) -> bool:
+                return str(value).strip().lower() in {'true', '1', 'yes', 'y', 'on'}
+
             cleaned = {
                 'name': node['name'],
                 'slug': node['slug'],
             }
+            if int(node.get("sort_order") or 0) > 0:
+                cleaned['sort_order'] = int(node['sort_order'])
+            if not as_bool(node.get('is_active', True)):
+                cleaned['is_active'] = False
+            if not as_bool(node.get('is_visible', True)):
+                cleaned['is_visible'] = False
             if node.get('aspect_ratio'):
                 cleaned['aspect_ratio'] = node['aspect_ratio']
             if node.get('allowed_facets'):

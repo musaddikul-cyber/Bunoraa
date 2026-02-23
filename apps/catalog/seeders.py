@@ -61,13 +61,25 @@ class CategorySeedSpec(SeedSpec):
         desired_keys: set[tuple[str | None, str]] = set()
         taxonomy_default_aspect = str(data.get("default_aspect_ratio") or "").strip() or get_default_aspect_ratio_code()
 
-        def create_node(node: dict[str, Any], parent: Category | None = None) -> Category | None:
+        def create_node(
+            node: dict[str, Any],
+            parent: Category | None = None,
+            sibling_index: int = 0,
+        ) -> Category | None:
             name = node.get("name") or node.get("display_name")
             if not name:
                 return None
             slug = node.get("slug") or slugify(name)
+            raw_sort_order = node.get("sort_order", sibling_index)
+            try:
+                sort_order = int(raw_sort_order)
+            except (TypeError, ValueError):
+                sort_order = sibling_index
+            sort_order = max(sort_order, 0)
             defaults = {
                 "name": name,
+                "sort_order": sort_order,
+                "is_active": node.get("is_active", True),
                 "is_visible": node.get("is_visible", True),
                 "is_deleted": False,
                 "meta_title": node.get("meta_title", ""),
@@ -90,8 +102,8 @@ class CategorySeedSpec(SeedSpec):
                     if changed:
                         result.updated += 1
                 desired_keys.add((str(parent.id) if parent else None, slug))
-                for child in node.get("children", []) or []:
-                    create_node(child, parent=cat)
+                for idx, child in enumerate(node.get("children", []) or []):
+                    create_node(child, parent=cat, sibling_index=idx)
                 return cat
 
             cat, created = Category.objects.get_or_create(**lookup, defaults=defaults)
@@ -113,12 +125,12 @@ class CategorySeedSpec(SeedSpec):
 
             desired_keys.add((str(parent.id) if parent else None, slug))
 
-            for child in node.get("children", []) or []:
-                create_node(child, parent=cat)
+            for idx, child in enumerate(node.get("children", []) or []):
+                create_node(child, parent=cat, sibling_index=idx)
             return cat
 
-        for node in tree:
-            create_node(node, parent=None)
+        for idx, node in enumerate(tree):
+            create_node(node, parent=None, sibling_index=idx)
 
         if ctx.prune and not ctx.dry_run:
             to_prune = []

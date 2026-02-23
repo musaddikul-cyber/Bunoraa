@@ -53,6 +53,7 @@ from .models import (
     Facet,
     CategoryFacet,
     Tag,
+    EcoCertification,
     ProductAutofillJob,
     ProductAutofillSource,
     ProductFieldSuggestion,
@@ -154,11 +155,23 @@ from .forms import CategoryAdminForm, ProductAdminForm
 @admin.register(Category)
 class CategoryAdmin(ImportExportEnhancedModelAdmin):
     form = CategoryAdminForm
-    list_display = ("name", "slug", "parent", "display_path", "depth", "product_count", "is_visible", "aspect_ratio")
+    list_display = (
+        "name",
+        "slug",
+        "parent",
+        "display_path",
+        "depth",
+        "sort_order",
+        "product_count",
+        "is_active",
+        "is_visible",
+        "aspect_ratio",
+    )
     search_fields = ("name", "slug")
-    list_filter = ("is_visible", "is_deleted", "aspect_ratio", "parent", "depth")
+    list_filter = ("is_active", "is_visible", "is_deleted", "aspect_ratio", "parent", "depth")
     prepopulated_fields = {"slug": ("name",)}
-    ordering = ["depth", "name"]
+    ordering = ["depth", "sort_order", "name"]
+    list_editable = ("sort_order",)
     
     actions = [
         "seed_default_tree",
@@ -168,6 +181,8 @@ class CategoryAdmin(ImportExportEnhancedModelAdmin):
         "export_taxonomy_json",
         "export_taxonomy_csv",
         "rebuild_paths",
+        "make_enabled",
+        "make_disabled",
         "make_visible",
         "make_hidden",
         "export_selected_csv",
@@ -302,6 +317,18 @@ class CategoryAdmin(ImportExportEnhancedModelAdmin):
         self.message_user(request, f"Marked {updated} categories as visible.")
     make_visible.short_description = "Mark selected as visible"
 
+    def make_enabled(self, request, queryset):
+        """Mark selected categories as enabled/active."""
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f"Marked {updated} categories as enabled.")
+    make_enabled.short_description = "Mark selected as enabled"
+
+    def make_disabled(self, request, queryset):
+        """Mark selected categories as disabled/inactive."""
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f"Marked {updated} categories as disabled.")
+    make_disabled.short_description = "Mark selected as disabled"
+
     def make_hidden(self, request, queryset):
         """Mark selected categories as hidden."""
         updated = queryset.update(is_visible=False)
@@ -316,10 +343,14 @@ class CategoryAdmin(ImportExportEnhancedModelAdmin):
         fd, path = tempfile.mkstemp(prefix="categories_", suffix=".csv")
         with open(path, "w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
-            writer.writerow(["id", "name", "slug", "parent_id", "depth", "is_visible"])
-            for c in queryset.order_by("depth", "name"):
+            writer.writerow(
+                ["id", "name", "slug", "parent_id", "depth", "sort_order", "is_active", "is_visible"]
+            )
+            for c in queryset.order_by("depth", "sort_order", "name"):
                 parent_id = c.parent_id if c.parent_id else ""
-                writer.writerow([c.id, c.name, c.slug, parent_id, c.depth, c.is_visible])
+                writer.writerow(
+                    [c.id, c.name, c.slug, parent_id, c.depth, c.sort_order, c.is_active, c.is_visible]
+                )
 
         self.message_user(request, f"Exported {queryset.count()} categories to {path}")
     export_selected_csv.short_description = "Export selected categories as CSV"
@@ -642,10 +673,44 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         job.refresh_from_db(fields=["status", "progress", "error_message", "updated_at"])
 
     def _serialize_suggestion(self, suggestion):
+        metadata = suggestion.metadata or {}
+        display_value = suggestion.display_value
+
+        if suggestion.field_name in {"primary_category", "shipping_material"}:
+            label = metadata.get("name")
+            if isinstance(label, str) and label.strip():
+                display_value = label.strip()
+            elif suggestion.field_name == "primary_category" and suggestion.value_json:
+                category = Category.objects.filter(id=suggestion.value_json).only("name").first()
+                if category:
+                    display_value = category.name
+            elif suggestion.field_name == "shipping_material" and suggestion.value_json:
+                material = ShippingMaterial.objects.filter(id=suggestion.value_json).only("name").first()
+                if material:
+                    display_value = material.name
+
+        if suggestion.field_name in {"categories", "tags", "eco_certifications"}:
+            labels = metadata.get("names")
+            if isinstance(labels, list):
+                cleaned = [str(value).strip() for value in labels if str(value).strip()]
+                if cleaned:
+                    display_value = ", ".join(cleaned)
+            elif isinstance(suggestion.value_json, list) and suggestion.value_json:
+                ids = [str(value) for value in suggestion.value_json if str(value).strip()]
+                model = {
+                    "categories": Category,
+                    "tags": Tag,
+                    "eco_certifications": EcoCertification,
+                }.get(suggestion.field_name)
+                if model:
+                    names = list(model.objects.filter(id__in=ids).values_list("name", flat=True))
+                    if names:
+                        display_value = ", ".join(names)
+
         return {
             "field_name": suggestion.field_name,
             "value": suggestion.value_json,
-            "display_value": suggestion.display_value,
+            "display_value": display_value,
             "confidence": suggestion.confidence,
             "is_null": suggestion.is_null_suggestion,
             "low_confidence": suggestion.low_confidence,

@@ -12,6 +12,7 @@ from django.core.files.storage import default_storage
 from django.utils import timezone
 
 from .providers.extractors import build_field_candidates, get_internal_similar_products
+from .providers.deep_research import ProductDeepResearchProvider
 from .providers.ocr import OCRProvider
 from .providers.personalization import PersonalizationProvider
 from .providers.pricing import PricingProvider
@@ -28,7 +29,29 @@ def _looks_query_noise(token: str) -> bool:
     token = (token or "").strip().lower()
     if not token:
         return True
+    if token in {
+        "requirements",
+        "requirement",
+        "guideline",
+        "guidelines",
+        "guide",
+        "tutorial",
+        "policy",
+        "policies",
+        "help",
+        "lounge",
+        "seller",
+        "sellers",
+        "listings",
+    }:
+        return True
     if token in {"tmp", "temp", "image", "img", "upload", "file"}:
+        return True
+    if any(token.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic")):
+        return True
+    if token.startswith("image(") or re.match(r"^img[_-]?\d+$", token):
+        return True
+    if "image" in token and any(ch.isdigit() for ch in token):
         return True
     if re.fullmatch(r"[0-9a-f]{8,}", token):
         return True
@@ -67,6 +90,10 @@ class ProductAutofillEngine:
         self.product_ai_enabled = bool(getattr(settings, "PRODUCT_AI_ENABLED", False))
         self.search_provider = SearchProvider()
         self.research_provider = ResearchProvider()
+        self.deep_research_provider = ProductDeepResearchProvider(
+            search_provider=self.search_provider,
+            research_provider=self.research_provider,
+        )
         self.ocr_provider = OCRProvider()
         self.vision_provider = VisionProvider()
         self.pricing_provider = PricingProvider()
@@ -98,6 +125,7 @@ class ProductAutofillEngine:
                 chunk
                 for chunk in [
                     vision.get("candidate_name"),
+                    vision.get("scene_summary"),
                     ocr.get("text"),
                     getattr(self.job.product, "name", ""),
                     context_text,
@@ -111,6 +139,7 @@ class ProductAutofillEngine:
             used_provider = "none"
             research_docs = []
             query = ""
+            deep_research_summary: dict[str, Any] = {}
             if self.job.allow_external and bool(getattr(settings, "PRODUCT_AI_ALLOW_EXTERNAL_DEFAULT", True)):
                 query = self._build_search_query(
                     candidate_text,
@@ -119,8 +148,25 @@ class ProductAutofillEngine:
                     context_hints=context_hints,
                 )
                 if query:
-                    search_results, used_provider = self.search_provider.search(query=query, max_results=10)
-                    research_docs = self.research_provider.fetch_documents(search_results, max_docs=8)
+                    if bool(getattr(settings, "PRODUCT_AI_DEEP_RESEARCH_ENABLED", True)):
+                        deep_result = self.deep_research_provider.run(
+                            query=query,
+                            candidate_text=candidate_text,
+                            ocr=ocr,
+                            vision=vision,
+                            context_hints=context_hints,
+                        )
+                        search_results = deep_result.get("search_results", [])
+                        research_docs = deep_result.get("documents", [])
+                        used_provider = deep_result.get("primary_provider", "none")
+                        deep_research_summary = {
+                            key: value
+                            for key, value in deep_result.items()
+                            if key not in {"search_results", "documents"}
+                        }
+                    else:
+                        search_results, used_provider = self.search_provider.search(query=query, max_results=10)
+                        research_docs = self.research_provider.fetch_documents(search_results, max_docs=8)
                 else:
                     used_provider = "none"
             self._set_progress(72)
@@ -174,6 +220,7 @@ class ProductAutofillEngine:
                     "search_result_count": len(search_results),
                     "research_docs_count": len(research_docs),
                     "internal_similar_count": len(similar_products),
+                    "deep_research": deep_research_summary,
                     "confidence_threshold": self.confidence_threshold,
                     "context_hint_keys": sorted(context_hints.keys()),
                     "non_null_suggestions": sum(1 for item in normalized_suggestions if item.value not in (None, "", [])),
@@ -215,9 +262,13 @@ class ProductAutofillEngine:
             vision_tokens = [token for token in vision["tokens"][:4] if not _looks_query_noise(str(token))]
             if vision_tokens:
                 parts.append(" ".join(vision_tokens))
+
+        # Avoid broad web search when we do not have enough product-identifying anchors.
+        if not any([hint_name, primary_category_name, sku_candidates]) and len(text_tokens) < 3:
+            return ""
         if not parts:
             return ""
-        parts.append("product specifications")
+        parts.append("product details")
         return " ".join(part for part in parts if part).strip()
 
     def _get_context_hints(self) -> dict[str, Any]:
@@ -227,11 +278,11 @@ class ProductAutofillEngine:
 
     def _context_hint_text(self, context_hints: dict[str, Any]) -> str:
         chunks = []
-        for key in ("name", "short_description", "description", "primary_category_name"):
+        for key in ("name", "primary_category_name"):
             value = context_hints.get(key)
             if isinstance(value, str) and value.strip():
                 chunks.append(value.strip())
-        for key in ("image_names", "category_names", "tag_names", "eco_certification_names"):
+        for key in ("category_names", "tag_names", "eco_certification_names"):
             values = context_hints.get(key)
             if not isinstance(values, list):
                 continue

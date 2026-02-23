@@ -43,6 +43,23 @@ NOISE_WORDS = {
 }
 UUIDISH_RE = re.compile(r"^[0-9a-f]{8,}$", re.I)
 TMP_TOKEN_RE = re.compile(r"^(tmp|temp)[a-z0-9_-]{3,}$", re.I)
+NON_PRODUCT_PAGE_RE = re.compile(
+    r"\b(requirements?|guidelines?|policy|policies|help(?:\s*center)?|support|how\s+to|tutorial|forum|community|lounge|documentation|seller(?:\s+central)?)\b",
+    re.I,
+)
+PRODUCT_CUE_RE = re.compile(
+    r"\b(product|price|sku|model|size|material|fabric|cotton|linen|silk|embroid|kurti|dress|shirt|pant|trouser|set|buy|cart|artisan|handmade)\b",
+    re.I,
+)
+PRODUCT_ENTITY_RE = re.compile(
+    r"\b(kurti|dress|shirt|pant|trouser|set|saree|blouse|bottle|bag|lamp|table|chair|sofa|mug|vase|shoe|sandal|watch|jewelry|necklace|earring|ring|bracelet|fabric|cotton|linen|silk|artisan|handmade)\b",
+    re.I,
+)
+APPAREL_TEXT_RE = re.compile(
+    r"\b(apparel|fashion|clothing|wear|outfit|dress|kurti|saree|shirt|blouse|top|pant|palazzo|women|men)\b",
+    re.I,
+)
+SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 
 def _clean_text(value: Any, max_chars: int = 4000) -> str:
@@ -102,7 +119,77 @@ def _sanitize_name_candidate(value: Any) -> str:
     candidate = " ".join(tokens[:10]).strip()
     if not _is_meaningful_text(candidate, min_alpha_tokens=1):
         return ""
+    if NON_PRODUCT_PAGE_RE.search(candidate) and not PRODUCT_ENTITY_RE.search(candidate):
+        return ""
     return candidate[:160]
+
+
+def _structured_signal_count(structured: dict[str, Any]) -> int:
+    signal_keys = ("names", "sku_candidates", "price_amounts", "category_names", "brand_names", "material_hints")
+    return sum(1 for key in signal_keys if structured.get(key))
+
+
+def _doc_structured_payload(doc: Any) -> dict[str, Any]:
+    metadata = getattr(doc, "metadata", {}) or {}
+    if not isinstance(metadata, dict):
+        return {}
+    structured = metadata.get("structured") or {}
+    return structured if isinstance(structured, dict) else {}
+
+
+def _doc_is_likely_product_page(doc: Any) -> bool:
+    structured = _doc_structured_payload(doc)
+    signal_count = _structured_signal_count(structured)
+    if signal_count >= 1:
+        return True
+
+    combined = _clean_text(
+        " ".join(
+            [
+                str(getattr(doc, "title", "") or ""),
+                str(getattr(doc, "snippet", "") or ""),
+                str(getattr(doc, "text", "") or "")[:420],
+            ]
+        ),
+        max_chars=900,
+    )
+    if not _is_meaningful_text(combined, min_alpha_tokens=5):
+        return False
+
+    if NON_PRODUCT_PAGE_RE.search(combined) and signal_count == 0:
+        return False
+    return True
+
+
+def _filter_research_docs(research_docs: list[Any]) -> list[Any]:
+    filtered = [doc for doc in research_docs if _doc_is_likely_product_page(doc)]
+    return filtered[:8]
+
+
+def _compact_description_text(value: Any, *, max_chars: int = 800) -> str:
+    text = _clean_text(value, max_chars=max_chars * 3)
+    if not text:
+        return ""
+
+    sentences = []
+    for sentence in SENTENCE_SPLIT_RE.split(text):
+        cleaned = _clean_text(sentence, max_chars=260)
+        if not cleaned:
+            continue
+        if NON_PRODUCT_PAGE_RE.search(cleaned) and not PRODUCT_CUE_RE.search(cleaned):
+            continue
+        sentences.append(cleaned)
+        if len(" ".join(sentences)) >= max_chars:
+            break
+
+    if not sentences:
+        fallback = _clean_text(text, max_chars=max_chars)
+        return fallback
+
+    compact = " ".join(sentences).strip()
+    if len(compact) <= max_chars:
+        return compact
+    return compact[:max_chars].rsplit(" ", 1)[0]
 
 
 def _collect_structured_signals(research_docs: list[Any]) -> dict[str, list[str]]:
@@ -166,7 +253,7 @@ def _best_name_from_ocr(ocr: dict[str, Any]) -> tuple[str, float, str]:
 
 
 def _best_name_from_research(research_docs: list[Any]) -> tuple[str, float, str]:
-    for doc in research_docs[:5]:
+    for doc in _filter_research_docs(research_docs)[:5]:
         candidate = _sanitize_name_candidate(getattr(doc, "title", ""))
         if candidate:
             return candidate, 0.74, "Derived from trusted source title agreement."
@@ -178,18 +265,29 @@ def _collect_text(vision: dict[str, Any], ocr: dict[str, Any], research_docs: li
     candidate_name = _sanitize_name_candidate(vision.get("candidate_name"))
     if candidate_name and _is_meaningful_text(candidate_name, min_alpha_tokens=1):
         chunks.append(candidate_name)
+    scene_summary = _compact_description_text(
+        _clean_text(vision.get("scene_summary"), max_chars=700),
+        max_chars=420,
+    )
+    if _is_meaningful_text(scene_summary, min_alpha_tokens=4):
+        chunks.append(scene_summary)
     ocr_text = _clean_text(ocr.get("text"), max_chars=1600)
     if _is_meaningful_text(ocr_text, min_alpha_tokens=3):
         chunks.append(ocr_text)
-    for doc in research_docs:
+    for doc in _filter_research_docs(research_docs):
+        structured = _doc_structured_payload(doc)
+        include_body_text = _structured_signal_count(structured) >= 1
         for part, limit in (
             (getattr(doc, "title", ""), 220),
-            (getattr(doc, "snippet", ""), 420),
-            (getattr(doc, "text", ""), 1200),
+            (getattr(doc, "snippet", ""), 320),
         ):
             cleaned = _clean_text(part, max_chars=limit)
             if _is_meaningful_text(cleaned, min_alpha_tokens=3):
                 chunks.append(cleaned)
+        if include_body_text:
+            body = _compact_description_text(getattr(doc, "text", ""), max_chars=520)
+            if _is_meaningful_text(body, min_alpha_tokens=6):
+                chunks.append(body)
     return " ".join(chunk for chunk in chunks if chunk).strip()
 
 
@@ -246,7 +344,8 @@ def _best_category_name(full_text: str):
     best = None
     best_score = 0.0
     tokens = set(slugify(full_text).split("-"))
-    for category in Category.objects.filter(is_deleted=False).only("id", "name"):
+    categories = list(Category.objects.filter(is_deleted=False).only("id", "name"))
+    for category in categories:
         score = 0.0
         for token in slugify(category.name).split("-"):
             if token and token in tokens:
@@ -254,6 +353,36 @@ def _best_category_name(full_text: str):
         if score > best_score:
             best = category
             best_score = min(1.0, score)
+
+    if best_score >= 0.7:
+        return best, best_score
+
+    if APPAREL_TEXT_RE.search(full_text):
+        apparel_category_tokens = {
+            "apparel",
+            "fashion",
+            "clothing",
+            "wear",
+            "womens",
+            "mens",
+            "dresses",
+            "sarees",
+            "tops",
+            "bottoms",
+        }
+        fallback_best = best
+        fallback_score = best_score
+        for category in categories:
+            category_tokens = set(slugify(category.name).split("-"))
+            overlap = category_tokens.intersection(apparel_category_tokens)
+            if not overlap:
+                continue
+            score = min(0.82, 0.70 + (0.03 * len(overlap)))
+            if score > fallback_score:
+                fallback_best = category
+                fallback_score = score
+        best = fallback_best
+        best_score = fallback_score
     return best, best_score
 
 
@@ -306,9 +435,10 @@ def build_field_candidates(
     context_hints: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     context_hints = context_hints or {}
-    structured = _collect_structured_signals(research_docs)
+    filtered_research_docs = _filter_research_docs(research_docs)
+    structured = _collect_structured_signals(filtered_research_docs)
 
-    full_text = _collect_text(vision, ocr, research_docs)
+    full_text = _collect_text(vision, ocr, filtered_research_docs)
     context_text = " ".join(
         chunk
         for chunk in [
@@ -319,13 +449,12 @@ def build_field_candidates(
             " ".join(_context_list_text(context_hints, "category_names", limit=10)),
             " ".join(_context_list_text(context_hints, "tag_names", limit=10)),
             " ".join(_context_list_text(context_hints, "eco_certification_names", limit=10)),
-            " ".join(_context_list_text(context_hints, "image_names", limit=8)),
         ]
         if chunk
     ).strip()
     if context_text:
         full_text = " ".join([context_text, full_text]).strip()
-    source_urls = [doc.url for doc in research_docs][:8]
+    source_urls = [doc.url for doc in filtered_research_docs][:8]
 
     name_candidate = _sanitize_name_candidate(context_hints.get("name"))
     name_confidence = 0.92 if name_candidate else 0.0
@@ -336,44 +465,61 @@ def build_field_candidates(
         name_rationale = "Derived from structured product metadata."
     if not name_candidate:
         name_candidate = _sanitize_name_candidate(vision.get("candidate_name"))
-        name_confidence = 0.60 if name_candidate else 0.0
-        name_rationale = "Derived from visual evidence."
+        if name_candidate:
+            vision_tokens = [str(token).lower() for token in (vision.get("tokens") or [])]
+            apparel_cues = {"apparel", "fashion", "clothing", "outfit", "dress", "kurti", "saree"}
+            strong_visual = bool(apparel_cues.intersection(vision_tokens))
+            name_confidence = 0.76 if strong_visual else 0.68
+            name_rationale = "Derived from visual evidence."
+        else:
+            name_confidence = 0.0
+            name_rationale = ""
     if not name_candidate:
         name_candidate, name_confidence, name_rationale = _best_name_from_ocr(ocr)
     if not name_candidate:
-        name_candidate, name_confidence, name_rationale = _best_name_from_research(research_docs)
+        name_candidate, name_confidence, name_rationale = _best_name_from_research(filtered_research_docs)
 
     description_parts = []
     evidence_parts = []
-    context_description = _context_field_text(context_hints, "description", max_chars=2000)
+    context_description = _compact_description_text(
+        _context_field_text(context_hints, "description", max_chars=2000),
+        max_chars=900,
+    )
     context_short_description = _context_field_text(context_hints, "short_description", max_chars=800)
-    structured_description = _clean_text((structured.get("descriptions") or [""])[0], max_chars=1600)
+    structured_description = _compact_description_text(
+        _clean_text((structured.get("descriptions") or [""])[0], max_chars=1600),
+        max_chars=900,
+    )
     if context_description:
         evidence_parts.append(context_description)
     elif structured_description and _is_meaningful_text(structured_description, min_alpha_tokens=6):
         evidence_parts.append(structured_description)
     if _is_meaningful_text(full_text, min_alpha_tokens=6):
-        evidence_parts.append(full_text[:1400])
-    ocr_text = _clean_text(ocr.get("text"), max_chars=900)
+        evidence_parts.append(_compact_description_text(full_text, max_chars=900))
+    ocr_text = _compact_description_text(_clean_text(ocr.get("text"), max_chars=900), max_chars=700)
     if _is_meaningful_text(ocr_text, min_alpha_tokens=5):
         evidence_parts.append(ocr_text)
     if evidence_parts and personalization_hints.get("description_style"):
         description_parts.append(personalization_hints["description_style"])
     description_parts.extend(evidence_parts[:2])
-    description = "\n\n".join(part for part in description_parts if part).strip()
+    description = _compact_description_text("\n\n".join(part for part in description_parts if part).strip(), max_chars=1000)
     if len(description) < 48:
         description = ""
     short_description = context_short_description if context_short_description else ""
     if description and len(description.split()) >= 8:
         short_description = short_description or description[:320].rsplit(" ", 1)[0]
+    short_description = _compact_description_text(short_description, max_chars=320) if short_description else ""
     description_confidence = 0.25
+    scene_summary = _clean_text(vision.get("scene_summary"), max_chars=700)
     if description:
         if context_description:
             description_confidence = 0.9
         elif structured_description:
             description_confidence = 0.84
-        elif research_docs:
+        elif filtered_research_docs:
             description_confidence = 0.82
+        elif _is_meaningful_text(scene_summary, min_alpha_tokens=5):
+            description_confidence = 0.74
         elif _is_meaningful_text(ocr_text, min_alpha_tokens=5):
             description_confidence = 0.70
         else:
@@ -382,6 +528,12 @@ def build_field_candidates(
     from apps.catalog.models import Category
 
     category, category_score = _best_category_name(full_text)
+    structured_category_names = " ".join(structured.get("category_names") or [])
+    if (not category or category_score < 0.7) and structured_category_names:
+        structured_category, structured_score = _best_category_name(structured_category_names)
+        if structured_category and structured_score >= category_score:
+            category = structured_category
+            category_score = max(structured_score, 0.74)
     hint_category_id = _context_field_text(context_hints, "primary_category_id", max_chars=64)
     hint_category_name = _context_field_text(context_hints, "primary_category_name", max_chars=180)
     if hint_category_id:

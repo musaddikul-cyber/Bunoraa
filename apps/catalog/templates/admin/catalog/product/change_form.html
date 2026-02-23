@@ -5,7 +5,6 @@
 {% for inline_admin_formset in top_inline_admin_formsets %}
   {% include inline_admin_formset.opts.template %}
 {% endfor %}
-{% if product_ai_enabled %}
 <fieldset class="module aligned" id="product-ai-autofill-panel">
   <h2>{% trans "AI Product Autofill" %}</h2>
   <div class="form-row">
@@ -15,7 +14,12 @@
         Analyze up to {{ max_images }} images and generate confidence-scored field suggestions with citations.
         {% endblocktrans %}
       </p>
-      <button type="button" class="button" id="product-ai-analyze-btn">{% trans "Analyze Images" %}</button>
+      {% if not product_ai_enabled %}
+      <p class="help" style="color: #92400e;">
+        {% trans "AI autofill is disabled. Set PRODUCT_AI_ENABLED=true to enable it." %}
+      </p>
+      {% endif %}
+      <button type="button" class="button" id="product-ai-analyze-btn"{% if not product_ai_enabled %} disabled{% endif %}>{% trans "Analyze Images" %}</button>
       <label style="margin-left: 12px;">
         <input type="checkbox" id="product-ai-force-overwrite" checked />
         {% trans "Overwrite existing values" %}
@@ -35,10 +39,11 @@
       data-apply-template="{{ product_ai_endpoints.apply_template }}"
       data-feedback-template="{{ product_ai_endpoints.feedback_template }}"
       data-max-images="{{ product_ai_max_images }}"
+      data-enabled="{{ product_ai_enabled|yesno:'true,false' }}"
+      data-disabled-reason="{% if not product_ai_enabled %}{% trans 'AI autofill is disabled in settings.' %}{% endif %}"
     ></div>
     <div id="product-ai-suggestions-container"></div>
   </div>
 </fieldset>
-{% endif %}
 {{ block.super }}
 {% endblock %}

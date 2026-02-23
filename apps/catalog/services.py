@@ -35,14 +35,28 @@ class CategoryService:
     
     TREE_CACHE_KEY = "catalog:category_tree"
     TREE_CACHE_TTL = 60 * 60  # 1 hour
+
+    @classmethod
+    def public_queryset(cls):
+        """Categories visible to storefront/API consumers."""
+        return Category.objects.filter(is_active=True, is_visible=True, is_deleted=False)
     
     @classmethod
-    def get_category_tree(cls, parent_id=None, max_depth=None, use_cache=True) -> List[Dict]:
+    def get_category_tree(
+        cls,
+        parent_id=None,
+        max_depth=None,
+        use_cache=True,
+        include_disabled=False,
+    ) -> List[Dict]:
         """
         Get category tree structure.
         If parent_id is provided, returns subtree starting from that category.
         """
-        cache_key = f"{cls.TREE_CACHE_KEY}:{parent_id or 'root'}:{max_depth or 'all'}"
+        cache_key = (
+            f"{cls.TREE_CACHE_KEY}:{parent_id or 'root'}:{max_depth or 'all'}:"
+            f"{'all' if include_disabled else 'active'}"
+        )
         
         if use_cache:
             cached = cache.get(cache_key)
@@ -50,10 +64,13 @@ class CategoryService:
                 return cached
         
         queryset = Category.objects.filter(
+            parent_id=parent_id,
             is_visible=True,
             is_deleted=False,
-            parent_id=parent_id
-        ).order_by('path')
+        )
+        if not include_disabled:
+            queryset = queryset.filter(is_active=True)
+        queryset = queryset.order_by("sort_order", "name", "path")
         
         def build_tree(categories, current_depth=0):
             result = []
@@ -64,6 +81,8 @@ class CategoryService:
                     'slug': category.slug,
                     'depth': category.depth,
                     'path': category.path,
+                    'sort_order': category.sort_order,
+                    'is_active': category.is_active,
                     'image': category.image.url if category.image else None,
                     'icon': category.icon,
                     'product_count': category.product_count,
@@ -71,10 +90,14 @@ class CategoryService:
                 }
                 
                 if max_depth is None or current_depth < max_depth:
-                    children = category.children.filter(
+                    children = Category.objects.filter(
+                        parent=category,
                         is_visible=True,
-                        is_deleted=False
-                    ).order_by('path')
+                        is_deleted=False,
+                    )
+                    if not include_disabled:
+                        children = children.filter(is_active=True)
+                    children = children.order_by("sort_order", "name", "path")
                     node['children'] = build_tree(children, current_depth + 1)
                 
                 result.append(node)
@@ -97,14 +120,16 @@ class CategoryService:
         """Get all root (top-level) categories."""
         return Category.objects.filter(
             parent__isnull=True,
+            is_active=True,
             is_visible=True,
             is_deleted=False
-        ).order_by('path')
+        ).order_by("sort_order", "name", "path")
     
     @classmethod
     def get_featured_categories(cls, limit=6):
         """Get categories with most products for homepage."""
         return Category.objects.filter(
+            is_active=True,
             is_visible=True,
             is_deleted=False
         ).order_by('-product_count')[:limit]
@@ -112,21 +137,17 @@ class CategoryService:
     @classmethod
     def get_category_by_slug(cls, slug: str) -> Optional[Category]:
         """Get category by slug with related data."""
-        qs = Category.objects.filter(
-            slug=slug,
-            is_visible=True,
-            is_deleted=False
-        )
+        qs = cls.public_queryset().filter(slug=slug)
         if not qs.exists():
             return None
 
         # Prefer top-level category when slugs collide across parents.
-        root_match = qs.filter(parent__isnull=True).order_by("path").first()
+        root_match = qs.filter(parent__isnull=True).order_by("sort_order", "name", "path").first()
         if root_match:
             return root_match
 
         # Fall back to a deterministic choice (shallowest, then path).
-        return qs.order_by("depth", "path").first()
+        return qs.order_by("depth", "sort_order", "path").first()
     
     @classmethod
     def get_category_by_path(cls, path: str) -> Optional[Category]:
@@ -138,6 +159,7 @@ class CategoryService:
                 current = Category.objects.get(
                     slug=slug,
                     parent=current,
+                    is_active=True,
                     is_visible=True,
                     is_deleted=False
                 )
@@ -149,7 +171,11 @@ class CategoryService:
     def get_category_products(cls, category: Category, include_descendants=True, limit=None):
         """Get products in a category with optional descendant inclusion."""
         if include_descendants:
-            categories = category.get_descendants(include_self=True)
+            categories = category.get_descendants(include_self=True).filter(
+                is_active=True,
+                is_visible=True,
+                is_deleted=False,
+            )
             qs = Product.objects.filter(
                 categories__in=categories,
                 is_active=True,
@@ -275,9 +301,10 @@ class CategoryService:
         """Search categories by name."""
         return Category.objects.filter(
             Q(name__icontains=query) | Q(slug__icontains=query),
+            is_active=True,
             is_visible=True,
             is_deleted=False
-        ).order_by('path')[:limit]
+        ).order_by("sort_order", "name", "path")[:limit]
     
     @classmethod
     def get_breadcrumbs(cls, category: Category) -> List[Dict]:
@@ -328,17 +355,38 @@ class ProductService:
                 all_cats = []
                 for cat in categories:
                     if isinstance(cat, Category):
-                        all_cats.extend(cat.get_descendants(include_self=True))
+                        all_cats.extend(
+                            cat.get_descendants(include_self=True).filter(
+                                is_active=True,
+                                is_visible=True,
+                                is_deleted=False,
+                            )
+                        )
                     else:
                         try:
-                            c = Category.objects.get(pk=cat)
-                            all_cats.extend(c.get_descendants(include_self=True))
+                            c = Category.objects.get(
+                                pk=cat,
+                                is_active=True,
+                                is_visible=True,
+                                is_deleted=False,
+                            )
+                            all_cats.extend(
+                                c.get_descendants(include_self=True).filter(
+                                    is_active=True,
+                                    is_visible=True,
+                                    is_deleted=False,
+                                )
+                            )
                         except Category.DoesNotExist:
                             pass
                 if all_cats:
                     queryset = queryset.filter(categories__in=all_cats)
             elif isinstance(categories, Category):
-                descendants = categories.get_descendants(include_self=True)
+                descendants = categories.get_descendants(include_self=True).filter(
+                    is_active=True,
+                    is_visible=True,
+                    is_deleted=False,
+                )
                 queryset = queryset.filter(categories__in=descendants)
         
         # Tag filter
@@ -649,7 +697,11 @@ class ProductService:
         qs = Product.objects.filter(is_active=True, is_deleted=False)
         
         if category:
-            descendants = category.get_descendants(include_self=True)
+            descendants = category.get_descendants(include_self=True).filter(
+                is_active=True,
+                is_visible=True,
+                is_deleted=False,
+            )
             qs = qs.filter(categories__in=descendants)
         
         result = qs.aggregate(
@@ -1090,11 +1142,11 @@ class ProductFilter(django_filters.FilterSet):
         cat = None
         try:
             UUID(str(value))
-            cat = Category.objects.filter(id=value).first()
+            cat = CategoryService.public_queryset().filter(id=value).first()
         except (ValueError, TypeError):
             cat = None
         if not cat:
-            cat = Category.objects.filter(slug=value).first()
+            cat = CategoryService.public_queryset().filter(slug=value).first()
         if not cat:
             try:
                 cat = CategoryService.get_category_by_path(str(value))
@@ -1102,7 +1154,11 @@ class ProductFilter(django_filters.FilterSet):
                 cat = None
         if not cat:
             return qs.none()
-        descendants = cat.get_descendants(include_self=True)
+        descendants = cat.get_descendants(include_self=True).filter(
+            is_active=True,
+            is_visible=True,
+            is_deleted=False,
+        )
         return qs.filter(categories__in=descendants).distinct()
 
     def filter_price_min(self, qs, name, value):
@@ -1329,14 +1385,18 @@ class ProductFilterService:
                 cat = None
                 try:
                     UUID(str(params['category']))
-                    cat = Category.objects.filter(id=params['category']).first()
+                    cat = CategoryService.public_queryset().filter(id=params['category']).first()
                 except (ValueError, TypeError):
                     cat = None
                 if not cat:
-                    cat = Category.objects.filter(slug=params['category']).first()
+                    cat = CategoryService.public_queryset().filter(slug=params['category']).first()
                 if not cat:
                     cat = CategoryService.get_category_by_path(str(params['category']))
-                descendants = cat.get_descendants(include_self=True)
+                descendants = cat.get_descendants(include_self=True).filter(
+                    is_active=True,
+                    is_visible=True,
+                    is_deleted=False,
+                )
                 qs = qs.filter(categories__in=descendants)
             except (Category.DoesNotExist, ValueError, AttributeError):
                 pass
@@ -1405,7 +1465,11 @@ class ProductFilterService:
         base_qs = base_queryset or Product.objects.filter(is_active=True, is_deleted=False)
         
         if category:
-            descendants = category.get_descendants(include_self=True)
+            descendants = category.get_descendants(include_self=True).filter(
+                is_active=True,
+                is_visible=True,
+                is_deleted=False,
+            )
             base_qs = base_qs.filter(categories__in=descendants)
 
         if query:

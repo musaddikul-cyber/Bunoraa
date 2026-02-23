@@ -2,25 +2,38 @@ name: Warmup Bunoraa Services
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "2-59/5 * * * *"
   workflow_dispatch:
 
 jobs:
   warmup:
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
-      - name: Ping endpoints
+      - name: Ping Render origins
         shell: bash
         run: |
           set -u
           failed=0
+          ts="$(date +%s)"
           urls=(
-            "https://api.bunoraa.com/healthz"
+            "https://bunoraa-django.onrender.com/health/"
+            "https://bunoraa-pl26.onrender.com/"
           )
           for url in "${urls[@]}"; do
-            echo "Pinging $url"
-            if ! curl -fsS --max-time 10 -H "User-Agent: BunoraaWarmup/1.0" "$url" >/dev/null; then
-              echo "Failed: $url"
+            if [[ "$url" == *\?* ]]; then
+              warmup_url="${url}&warmup_ts=${ts}"
+            else
+              warmup_url="${url}?warmup_ts=${ts}"
+            fi
+            echo "Pinging $warmup_url"
+            if ! curl -fsS --connect-timeout 10 --max-time 45 \
+              --retry 2 --retry-delay 2 --retry-connrefused \
+              -H "User-Agent: BunoraaWarmup/1.1" \
+              -H "Cache-Control: no-cache, no-store, max-age=0" \
+              -H "Pragma: no-cache" \
+              "$warmup_url" >/dev/null; then
+              echo "Failed: $warmup_url"
               failed=1
             fi
           done

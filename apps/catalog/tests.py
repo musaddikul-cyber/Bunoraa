@@ -12,17 +12,22 @@ from django.contrib import admin as django_admin
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings, RequestFactory
+from django.test import TestCase, SimpleTestCase, override_settings, RequestFactory
 
 from apps.catalog.admin import ProductAdmin
+from apps.catalog.ai.engine import _query_seed_tokens
+from apps.catalog.ai.providers.extractors import build_field_candidates
 from apps.catalog.forms import ProductAdminForm
 from apps.catalog.ai.schemas import FieldSuggestionPayload
 from apps.catalog.ai.providers.personalization import PersonalizationProvider
+from apps.catalog.ai.providers.deep_research import ProductDeepResearchProvider
 from apps.catalog.ai.providers.pricing import PricingProvider
-from apps.catalog.ai.providers.research import ResearchProvider
+from apps.catalog.ai.providers.research import ResearchDocument, ResearchProvider
 from apps.catalog.ai.providers.research import is_safe_public_url
 from apps.catalog.ai.providers.search import SearchProvider
 from apps.catalog.ai.validators import apply_suggestions_to_product, normalize_raw_suggestions
+from apps.catalog.api.views import CategoryViewSet
+from apps.catalog.services import CategoryService
 from apps.catalog.models import (
     AspectRatioChoice,
     Category,
@@ -87,6 +92,13 @@ class CatalogRegressionTests(TestCase):
         url = "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fproducts%2Fitem-1"
         normalized = SearchProvider._normalize_result_url(url)
         self.assertEqual(normalized, "https://example.com/products/item-1")
+
+    def test_query_seed_tokens_drop_upload_filename_noise(self):
+        tokens = _query_seed_tokens("image(7).jpg product requirements kurti set")
+        lowered = [token.lower() for token in tokens]
+        self.assertNotIn("image(7).jpg", lowered)
+        self.assertNotIn("requirements", lowered)
+        self.assertIn("kurti", lowered)
 
     def test_research_provider_extracts_structured_product_data(self):
         from bs4 import BeautifulSoup
@@ -168,6 +180,164 @@ class CatalogRegressionTests(TestCase):
         cleaned = form.clean()
         selected_ids = set(cleaned["categories"].values_list("id", flat=True))
         self.assertEqual(selected_ids, {root.id, parent.id, child.id})
+
+    def test_root_categories_exclude_disabled_by_default(self):
+        active = Category.objects.create(name="Active Root", slug="active-root", is_active=True)
+        Category.objects.create(name="Disabled Root", slug="disabled-root", is_active=False)
+
+        roots = CategoryService.get_root_categories()
+        self.assertIn(active, roots)
+        self.assertFalse(roots.filter(slug="disabled-root").exists())
+
+    def test_category_api_list_supports_disabled_filter(self):
+        Category.objects.create(name="Active Root", slug="active-root", is_active=True)
+        Category.objects.create(name="Disabled Root", slug="disabled-root", is_active=False)
+
+        factory = RequestFactory()
+        list_view = CategoryViewSet.as_view({"get": "list"})
+
+        default_response = list_view(factory.get("/api/v1/catalog/categories/"))
+        self.assertEqual(default_response.status_code, 200)
+        default_slugs = {item["slug"] for item in default_response.data}
+        self.assertIn("active-root", default_slugs)
+        self.assertNotIn("disabled-root", default_slugs)
+
+        include_disabled_response = list_view(
+            factory.get("/api/v1/catalog/categories/", {"include_disabled": "true"})
+        )
+        self.assertEqual(include_disabled_response.status_code, 200)
+        include_disabled_slugs = {item["slug"] for item in include_disabled_response.data}
+        self.assertIn("active-root", include_disabled_slugs)
+        self.assertIn("disabled-root", include_disabled_slugs)
+
+        disabled_only_response = list_view(
+            factory.get("/api/v1/catalog/categories/", {"is_active": "false"})
+        )
+        self.assertEqual(disabled_only_response.status_code, 200)
+        disabled_only_slugs = {item["slug"] for item in disabled_only_response.data}
+        self.assertEqual(disabled_only_slugs, {"disabled-root"})
+
+    def test_category_api_list_orders_by_sort_order(self):
+        Category.objects.create(name="Zulu", slug="zulu", sort_order=30, is_active=True)
+        Category.objects.create(name="Alpha", slug="alpha", sort_order=10, is_active=True)
+        Category.objects.create(name="Beta", slug="beta", sort_order=10, is_active=True)
+
+        factory = RequestFactory()
+        list_view = CategoryViewSet.as_view({"get": "list"})
+
+        default_response = list_view(factory.get("/api/v1/catalog/categories/"))
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual([item["slug"] for item in default_response.data], ["alpha", "beta", "zulu"])
+
+        by_name_desc_response = list_view(
+            factory.get("/api/v1/catalog/categories/", {"ordering": "-name"})
+        )
+        self.assertEqual(by_name_desc_response.status_code, 200)
+        self.assertEqual(
+            [item["slug"] for item in by_name_desc_response.data],
+            ["zulu", "beta", "alpha"],
+        )
+
+
+class CatalogDeepResearchProviderTests(SimpleTestCase):
+    @override_settings(PRODUCT_AI_DEEP_RESEARCH_MAX_SUBQUERIES=3)
+    def test_product_deep_research_builds_focused_query_plan(self):
+        provider = ProductDeepResearchProvider(
+            search_provider=SimpleNamespace(provider_order=["duckduckgo"]),
+            research_provider=SimpleNamespace(),
+        )
+        plan = provider._build_query_plan(
+            query="pink embroidered kurti palazzo set product details",
+            candidate_text="pink embroidered kurti palazzo set",
+            ocr={"sku_candidates": ["KRT-2201"]},
+            vision={"tokens": ["embroidered", "kurti"]},
+            context_hints={"name": "Pink Embroidered Kurti Palazzo Set", "primary_category_name": "Fashion Apparel"},
+        )
+        self.assertTrue(plan)
+        self.assertLessEqual(len(plan), 3)
+        self.assertTrue(any("KRT-2201" in query for query in plan))
+
+    @override_settings(
+        PRODUCT_AI_DEEP_RESEARCH_MAX_SUBQUERIES=2,
+        PRODUCT_AI_DEEP_RESEARCH_MAX_RESULTS_PER_QUERY=4,
+        PRODUCT_AI_DEEP_RESEARCH_MAX_SEARCH_RESULTS=8,
+        PRODUCT_AI_DEEP_RESEARCH_MAX_DOCS=6,
+        PRODUCT_AI_DEEP_RESEARCH_MAX_SOURCES=4,
+        PRODUCT_AI_DEEP_RESEARCH_MIN_SCORE=0.2,
+    )
+    def test_product_deep_research_filters_help_pages(self):
+        class FakeSearchProvider:
+            def __init__(self):
+                self.provider_order = ["duckduckgo"]
+
+            def search(self, query, max_results=8):  # noqa: ARG002
+                return (
+                    [
+                        {
+                            "url": "https://seller.example.com/help/product-image-requirements",
+                            "title": "Listings Lounge: Product Image Requirements",
+                            "snippet": "Help center listing image requirements for sellers.",
+                        },
+                        {
+                            "url": "https://shop.example.com/pink-embroidered-kurti-palazzo-set",
+                            "title": "Pink Embroidered Kurti Palazzo Set",
+                            "snippet": "Buy pink embroidered kurti palazzo set in cotton fabric.",
+                        },
+                    ],
+                    "duckduckgo",
+                )
+
+        class FakeResearchProvider:
+            def fetch_documents(self, search_results, max_docs=8):  # noqa: ARG002
+                return [
+                    ResearchDocument(
+                        url="https://seller.example.com/help/product-image-requirements",
+                        domain="seller.example.com",
+                        title="Listings Lounge: Product Image Requirements",
+                        snippet="Help center listing image requirements for sellers.",
+                        text=(
+                            "Product image requirements and listing policies for marketplace uploads. "
+                            "Help center guidance for sellers and support workflows."
+                        ),
+                        trust_score=0.5,
+                        metadata={"provider": "duckduckgo", "structured": {}},
+                    ),
+                    ResearchDocument(
+                        url="https://shop.example.com/pink-embroidered-kurti-palazzo-set",
+                        domain="shop.example.com",
+                        title="Pink Embroidered Kurti Palazzo Set",
+                        snippet="Buy pink embroidered kurti palazzo set in cotton fabric.",
+                        text=(
+                            "Pink embroidered kurti palazzo set with cotton fabric and floral motifs. "
+                            "Available sizes S to XL. Price 2199 with in stock inventory."
+                        ),
+                        trust_score=0.62,
+                        metadata={
+                            "provider": "duckduckgo",
+                            "structured": {
+                                "names": ["Pink Embroidered Kurti Palazzo Set"],
+                                "price_amounts": ["2199"],
+                                "category_names": ["Fashion Apparel"],
+                            },
+                        },
+                    ),
+                ]
+
+        provider = ProductDeepResearchProvider(
+            search_provider=FakeSearchProvider(),
+            research_provider=FakeResearchProvider(),
+        )
+        result = provider.run(
+            query="pink embroidered kurti palazzo set product details",
+            candidate_text="pink embroidered kurti palazzo set",
+            ocr={"sku_candidates": []},
+            vision={"tokens": []},
+            context_hints={"primary_category_name": "Fashion Apparel"},
+        )
+        urls = [doc.url for doc in result["documents"]]
+        self.assertIn("https://shop.example.com/pink-embroidered-kurti-palazzo-set", urls)
+        self.assertNotIn("https://seller.example.com/help/product-image-requirements", urls)
+        self.assertEqual(result["primary_provider"], "duckduckgo")
 
 
 class ProductAutofillValidationTests(TestCase):
@@ -331,6 +501,54 @@ class ProductAutofillValidationTests(TestCase):
         self.assertEqual(mapped["name"].value, "Handmade Home Vase")
         self.assertEqual(mapped["primary_category"].value, str(self.category.id))
         self.assertEqual(mapped["categories"].value, [str(self.category.id)])
+
+    def test_extractors_ignore_non_product_help_pages(self):
+        noisy_doc = SimpleNamespace(
+            url="https://seller.example.com/help/product-image-requirements",
+            title="Listings Lounge: Product Image Requirements",
+            snippet="Learn image specs and listing policy updates.",
+            text=(
+                "Product image requirements and listing policies for marketplace uploads. "
+                "Help center guidance for sellers and support workflows."
+            ),
+            metadata={"structured": {}},
+        )
+
+        suggestions = build_field_candidates(
+            product=None,
+            vision={"candidate_name": "", "aspect_ratio": "1:1"},
+            ocr={"text": "", "lines": [], "sku_candidates": []},
+            research_docs=[noisy_doc],
+            internal_similar_products=[],
+            personalization_hints={},
+            context_hints={},
+        )
+
+        self.assertIsNone(suggestions["name"]["value"])
+        self.assertIsNone(suggestions["description"]["value"])
+
+    def test_extractors_use_vision_scene_summary_for_apparel_fallback(self):
+        fashion_category = Category.objects.create(name="Fashion & Apparel", slug="fashion-apparel")
+        suggestions = build_field_candidates(
+            product=None,
+            vision={
+                "candidate_name": "Pink Women's Apparel Set",
+                "scene_summary": "Model wearing a pink apparel outfit in a product-style photo.",
+                "aspect_ratio": "1:1",
+                "tokens": ["pink", "women", "apparel", "fashion", "outfit", "set"],
+            },
+            ocr={"text": "", "lines": [], "sku_candidates": []},
+            research_docs=[],
+            internal_similar_products=[],
+            personalization_hints={},
+            context_hints={},
+        )
+        self.assertEqual(suggestions["name"]["value"], "Pink Women's Apparel Set")
+        self.assertGreaterEqual(suggestions["name"]["confidence"], 0.75)
+        self.assertIsNotNone(suggestions["description"]["value"])
+        self.assertGreaterEqual(suggestions["description"]["confidence"], 0.72)
+        self.assertEqual(suggestions["primary_category"]["value"]["id"], str(fashion_category.id))
+        self.assertGreaterEqual(suggestions["primary_category"]["confidence"], 0.70)
 
     def test_apply_suggestions_skips_null_text_values(self):
         product = Product.objects.create(
@@ -505,6 +723,39 @@ class ProductAutofillAdminEndpointTests(TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["status"], ProductAutofillJob.STATUS_COMPLETED)
         self.assertEqual(len(payload["suggestions"]), 1)
+
+    def test_status_endpoint_resolves_display_names_for_taxonomy_ids(self):
+        tag = Tag.objects.create(name="Summer")
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+        )
+        ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="primary_category",
+            value_json=str(self.category.id),
+            display_value=str(self.category.id),
+            confidence=0.91,
+        )
+        ProductFieldSuggestion.objects.create(
+            job=job,
+            field_name="tags",
+            value_json=[str(tag.id)],
+            display_value=str(tag.id),
+            confidence=0.88,
+        )
+
+        request = self.factory.get(f"/admin/catalog/product/ai/autofill/{job.id}/status/")
+        request.user = self.user
+        response = self.product_admin.ai_autofill_status_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        mapped = {item["field_name"]: item for item in payload["suggestions"]}
+        self.assertEqual(mapped["primary_category"]["display_value"], self.category.name)
+        self.assertEqual(mapped["tags"]["display_value"], "Summer")
 
     def test_apply_endpoint_fill_blanks_only(self):
         job = ProductAutofillJob.objects.create(

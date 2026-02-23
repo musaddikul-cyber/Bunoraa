@@ -21,6 +21,97 @@
     return template.replace(/[0-9a-fA-F-]{36}/, jobId);
   }
 
+  function parseJsonResponse(resp) {
+    return resp
+      .text()
+      .then(function (body) {
+        var payload = {};
+        if (body) {
+          try {
+            payload = JSON.parse(body);
+          } catch (error) {
+            payload = {
+              ok: false,
+              error: "Unexpected response format from server.",
+            };
+          }
+        }
+        return {
+          ok: resp.ok,
+          status: resp.status,
+          data: payload || {},
+        };
+      })
+      .catch(function () {
+        return {
+          ok: false,
+          status: 0,
+          data: {
+            ok: false,
+            error: "Unable to read server response.",
+          },
+        };
+      });
+  }
+
+  function shouldEnableDebug(config) {
+    if (!config) return false;
+    if (String(config.dataset.debug || "").toLowerCase() === "true") {
+      return true;
+    }
+    try {
+      if (window.localStorage && window.localStorage.getItem("product_ai_debug") === "1") {
+        return true;
+      }
+    } catch (e) {}
+    return /(?:\?|&)product_ai_debug=1(?:&|$)/.test(String(window.location.search || ""));
+  }
+
+  function createLogger(enabled) {
+    function emit(level, args) {
+      if (!enabled || !window.console) return;
+      var prefix = "[ProductAI]";
+      var fn =
+        level === "error"
+          ? console.error
+          : level === "warn"
+          ? console.warn
+          : console.log;
+      if (typeof fn === "function") {
+        fn.apply(console, [prefix].concat(Array.prototype.slice.call(args)));
+      }
+    }
+    return {
+      info: function () {
+        emit("info", arguments);
+      },
+      warn: function () {
+        emit("warn", arguments);
+      },
+      error: function () {
+        emit("error", arguments);
+      },
+      enabled: enabled,
+    };
+  }
+
+  function buildClientDiagnostics(files) {
+    return {
+      page: "product_admin",
+      url_path: String(window.location.pathname || ""),
+      user_agent: String((window.navigator && window.navigator.userAgent) || "").slice(0, 200),
+      timestamp: new Date().toISOString(),
+      file_count: Array.isArray(files) ? files.length : 0,
+      files: (files || []).map(function (file) {
+        return {
+          name: String((file && file.name) || "").slice(0, 120),
+          size: Number((file && file.size) || 0),
+          type: String((file && file.type) || "").slice(0, 80),
+        };
+      }),
+    };
+  }
+
   function collectImageFiles(maxImages) {
     var inputs = Array.prototype.slice.call(
       document.querySelectorAll('input[type="file"]')
@@ -294,6 +385,7 @@
   function initialize() {
     var config = document.getElementById("product-ai-config");
     if (!config) return;
+    var debugLogger = createLogger(shouldEnableDebug(config));
 
     var startBtn = document.getElementById("product-ai-analyze-btn");
     var applyBtn = document.getElementById("product-ai-apply-btn");
@@ -312,12 +404,18 @@
     var currentJobId = null;
     var currentSuggestions = [];
     var applyInFlight = false;
+    debugLogger.info("Initialized", {
+      aiEnabled: aiEnabled,
+      productIdPresent: Boolean(productId),
+      maxImages: maxImages,
+    });
 
     if (!aiEnabled) {
       startBtn.disabled = true;
       applyBtn.disabled = true;
       setStatus(disabledReason, true);
       renderSuggestions([]);
+      debugLogger.warn("AI disabled", { reason: disabledReason });
       return;
     }
 
@@ -325,30 +423,68 @@
       var statusUrl = formatJobUrl(statusTemplate, jobId);
       fetch(statusUrl, { credentials: "same-origin" })
         .then(function (resp) {
-          return resp.json();
+          return parseJsonResponse(resp);
         })
-        .then(function (data) {
+        .then(function (result) {
+          var data = result.data || {};
           if (!data.ok) {
-            setStatus(data.error || "Unable to fetch AI status", true);
+            debugLogger.warn("Status request returned error", {
+              jobId: jobId,
+              statusCode: result.status,
+              payload: data,
+            });
+            setStatus(data.error || "Unable to fetch AI status.", true);
             return;
           }
           currentSuggestions = data.suggestions || [];
           renderSuggestions(currentSuggestions);
+          var summary = data.summary || {};
+          var nonNullSuggestions = Number(summary.non_null_suggestions || 0);
+          var imagesAnalyzed = Number(summary.images_analyzed || 0);
+          var lowCount = currentSuggestions.filter(function (item) {
+            return Boolean(item && item.low_confidence);
+          }).length;
+          debugLogger.info("Job status", {
+            jobId: jobId,
+            status: data.status,
+            progress: data.progress,
+            suggestions: currentSuggestions.length,
+            lowConfidence: lowCount,
+            nonNullSuggestions: nonNullSuggestions,
+            imagesAnalyzed: imagesAnalyzed,
+          });
           setStatus("Status: " + data.status + " (" + data.progress + "%)", false);
           if (data.status === "completed") {
             applyBtn.disabled = false;
+            if (!nonNullSuggestions) {
+              setStatus(
+                "Analysis completed, but no reliable fields were extracted. Check image quality and see console logs.",
+                true
+              );
+              debugLogger.warn("Completed with zero non-null suggestions", {
+                summary: summary,
+                error: data.error_message || "",
+              });
+            }
             return;
           }
           if (data.status === "failed" || data.status === "cancelled") {
             applyBtn.disabled = true;
             setStatus(data.error_message || "AI analysis failed.", true);
+            debugLogger.error("Job failed/cancelled", {
+              jobId: jobId,
+              status: data.status,
+              error: data.error_message || "",
+              summary: summary,
+            });
             return;
           }
           window.setTimeout(function () {
             pollJob(jobId);
           }, 2000);
         })
-        .catch(function () {
+        .catch(function (error) {
+          debugLogger.error("Polling failed", { jobId: jobId, error: String(error || "") });
           setStatus("Failed to poll AI status endpoint.", true);
         });
     }
@@ -371,6 +507,24 @@
       formData.append("allow_external", "true");
 
       var files = collectImageFiles(maxImages);
+      if (!productId && !files.length) {
+        setStatus("Upload at least one image before running analysis.", true);
+        debugLogger.warn("Analyze blocked: new product has no selected image files");
+        return;
+      }
+
+      var fileSummary = files.map(function (file) {
+        return {
+          name: file && file.name ? String(file.name) : "",
+          size: Number((file && file.size) || 0),
+          type: file && file.type ? String(file.type) : "",
+        };
+      });
+      debugLogger.info("Starting analysis request", {
+        productId: productId || "",
+        files: fileSummary,
+      });
+
       files.forEach(function (file) {
         formData.append("images", file);
       });
@@ -378,6 +532,10 @@
       if (Object.keys(contextHints).length) {
         formData.append("context_hints", JSON.stringify(contextHints));
       }
+      var diagnostics = buildClientDiagnostics(files);
+      diagnostics.context_hint_keys = Object.keys(contextHints || {});
+      formData.append("client_diagnostics", JSON.stringify(diagnostics));
+      debugLogger.info("Client diagnostics attached", diagnostics);
 
       fetch(startUrl, {
         method: "POST",
@@ -388,18 +546,29 @@
         },
       })
         .then(function (resp) {
-          return resp.json();
+          return parseJsonResponse(resp);
         })
-        .then(function (data) {
+        .then(function (result) {
+          var data = result.data || {};
           if (!data.ok) {
+            debugLogger.warn("Start request failed", {
+              statusCode: result.status,
+              payload: data,
+            });
             setStatus(data.error || "Failed to start AI analysis", true);
             return;
           }
           currentJobId = data.job_id;
+          debugLogger.info("Analysis job created", {
+            jobId: currentJobId,
+            dispatchMode: data.dispatch_mode || "",
+            imageCount: Number(data.image_count || 0),
+          });
           setStatus("AI job created. Processing...", false);
           pollJob(currentJobId);
         })
-        .catch(function () {
+        .catch(function (error) {
+          debugLogger.error("Start request failed", { error: String(error || "") });
           setStatus("Failed to start AI analysis.", true);
         });
     });
@@ -419,6 +588,10 @@
       applyInFlight = true;
       applyBtn.disabled = true;
       setStatus("Applying suggestions...", false);
+      debugLogger.info("Applying suggestions", {
+        jobId: currentJobId,
+        forceOverwrite: payload.force_overwrite,
+      });
       fetch(applyUrl, {
         method: "POST",
         credentials: "same-origin",
@@ -429,16 +602,26 @@
         body: JSON.stringify(payload),
       })
         .then(function (resp) {
-          return resp.json();
+          return parseJsonResponse(resp);
         })
-        .then(function (data) {
+        .then(function (result) {
+          var data = result.data || {};
           if (!data.ok) {
+            debugLogger.warn("Apply request failed", {
+              jobId: currentJobId,
+              statusCode: result.status,
+              payload: data,
+            });
             setStatus(data.error || "Failed to apply suggestions", true);
             return;
           }
           if (data.mode === "client_apply") {
             applyToForm(data.fields || {});
             setStatus("Suggestions applied to form fields.", false);
+            debugLogger.info("Applied suggestions in client mode", {
+              jobId: currentJobId,
+              fieldCount: Object.keys(data.fields || {}).length,
+            });
           } else {
             var count = (data.result && data.result.applied) || 0;
             var skipped = (data.result && data.result.skipped) || 0;
@@ -453,9 +636,18 @@
                 false
               );
             }
+            debugLogger.info("Apply completed in server mode", {
+              jobId: currentJobId,
+              applied: count,
+              skipped: skipped,
+            });
           }
         })
-        .catch(function () {
+        .catch(function (error) {
+          debugLogger.error("Apply request failed", {
+            jobId: currentJobId,
+            error: String(error || ""),
+          });
           setStatus("Failed to apply suggestions.", true);
         })
         .finally(function () {

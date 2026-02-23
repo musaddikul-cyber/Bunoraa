@@ -39,6 +39,7 @@
       data-apply-template="{{ product_ai_endpoints.apply_template }}"
       data-feedback-template="{{ product_ai_endpoints.feedback_template }}"
       data-max-images="{{ product_ai_max_images }}"
+      data-debug="{{ product_ai_frontend_debug|yesno:'true,false' }}"
       data-enabled="{{ product_ai_enabled|yesno:'true,false' }}"
       data-disabled-reason="{% if not product_ai_enabled %}{% trans 'AI autofill is disabled in settings.' %}{% endif %}"
     ></div>

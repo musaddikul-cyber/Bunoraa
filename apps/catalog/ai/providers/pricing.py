@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal, ROUND_HALF_UP
-from statistics import mean
+from statistics import median
 from typing import Any
 
 
@@ -21,7 +21,7 @@ def _extract_price_candidates(text: str) -> list[Decimal]:
         return []
 
     patterns = (
-        r"(?:\$|€|£|₹|৳)\s*([0-9]{1,6}(?:[.,][0-9]{1,2})?)",
+        r"(?:\$)\s*([0-9]{1,6}(?:[.,][0-9]{1,2})?)",
         r"\b(?:usd|bdt|eur|gbp|inr|cad|aud|taka|tk)\s*([0-9]{1,6}(?:[.,][0-9]{1,2})?)\b",
         r"\b(?:price|sale price|our price|list price|mrp|msrp)\s*[:=]?\s*([0-9]{1,6}(?:[.,][0-9]{1,2})?)\b",
     )
@@ -47,6 +47,25 @@ def _extract_price_candidates(text: str) -> list[Decimal]:
     return values
 
 
+def _robust_center(values: list[Decimal]) -> Decimal | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) <= 2:
+        return median(ordered)
+
+    trimmed = ordered[1:-1] if len(ordered) >= 5 else ordered
+    return median(trimmed) if trimmed else median(ordered)
+
+
+def _quantize_price_for_currency(value: Decimal, currency_code: str) -> Decimal:
+    code = str(currency_code or "").upper()
+    if code in {"BDT", "INR", "PKR", "NPR"}:
+        rounded_to_ten = (value / Decimal("10")).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * Decimal("10")
+        return rounded_to_ten.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
 class PricingProvider:
     """
     Estimate pricing/inventory fields from internal + market comparison signals.
@@ -60,6 +79,7 @@ class PricingProvider:
         research_docs,
         similar_products,
         context_hints=None,
+        currency: str = "",
     ) -> dict[str, dict[str, Any]]:
         from apps.catalog.models import CategoryPricingProfile
 
@@ -68,13 +88,13 @@ class PricingProvider:
             profile = CategoryPricingProfile.objects.filter(category=primary_category, is_active=True).first()
         context_hints = context_hints or {}
 
-        internal_prices = []
+        internal_prices: list[Decimal] = []
         for similar in similar_products:
             price = _to_decimal(getattr(similar, "current_price", None) or getattr(similar, "price", None))
             if price:
                 internal_prices.append(price)
 
-        market_prices = []
+        market_prices: list[Decimal] = []
         for doc in research_docs:
             market_prices.extend(_extract_price_candidates(getattr(doc, "text", "")))
             market_prices.extend(_extract_price_candidates(getattr(doc, "snippet", "")))
@@ -84,22 +104,25 @@ class PricingProvider:
                 if parsed and parsed > 0:
                     market_prices.append(parsed)
 
-        baseline = None
+        baseline: Decimal | None = None
         confidence = 0.28
-        rationale_parts = []
+        rationale_parts: list[str] = []
 
-        if internal_prices:
-            baseline = Decimal(str(mean(internal_prices)))
+        internal_center = _robust_center(internal_prices)
+        if internal_center is not None:
+            baseline = internal_center
             confidence += 0.24
             rationale_parts.append("internal similar-product pricing")
-        if market_prices:
-            market_avg = Decimal(str(mean(market_prices)))
+
+        market_center = _robust_center(market_prices)
+        if market_center is not None:
             if baseline is None:
-                baseline = market_avg
+                baseline = market_center
             else:
-                baseline = (baseline + market_avg) / 2
+                baseline = (baseline + market_center) / Decimal("2")
             confidence += 0.2
             rationale_parts.append("market comparison pricing")
+
         if baseline is None:
             baseline = Decimal("10.00")
             rationale_parts.append("fallback floor estimate")
@@ -114,23 +137,34 @@ class PricingProvider:
                 baseline = max(baseline, existing_price)
                 confidence = max(confidence, 0.45)
                 rationale_parts.append("existing product baseline")
+
         if context_hints.get("name"):
             confidence = min(1.0, confidence + 0.02)
             rationale_parts.append("merchant context hints")
 
-        baseline = baseline.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        currency_code = currency or getattr(product, "currency", "")
+        baseline = _quantize_price_for_currency(baseline, currency_code)
 
         min_discount = Decimal(str(getattr(profile, "sale_discount_min_percentage", 5)))
         max_discount = Decimal(str(getattr(profile, "sale_discount_max_percentage", 15)))
         discount = ((min_discount + max_discount) / 2) / Decimal("100")
-        sale_price = (baseline * (Decimal("1.0") - discount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        sale_price = _quantize_price_for_currency(
+            baseline * (Decimal("1.0") - discount),
+            currency_code,
+        )
         if sale_price <= 0 or sale_price >= baseline:
             sale_price = None
 
         min_margin = Decimal(str(getattr(profile, "min_margin_percentage", 35))) / Decimal("100")
-        cost = (baseline * (Decimal("1.0") - min_margin)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        cost = _quantize_price_for_currency(
+            baseline * (Decimal("1.0") - min_margin),
+            currency_code,
+        )
         if cost <= 0:
-            cost = (baseline * Decimal("0.65")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            cost = _quantize_price_for_currency(
+                baseline * Decimal("0.65"),
+                currency_code,
+            )
 
         stock_default = int(
             getattr(profile, "stock_default", None)

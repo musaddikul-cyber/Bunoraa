@@ -71,6 +71,15 @@ TEXT_FIELDS = {
 }
 TMP_TOKEN_RE = re.compile(r"^(tmp|temp)[a-z0-9_-]{3,}$", re.I)
 UUIDISH_RE = re.compile(r"^[0-9a-f]{8,}$", re.I)
+NON_PRODUCT_TEXT_RE = re.compile(
+    r"\b(requirements?|guidelines?|policy|help(?:\s*center)?|tutorial|forum|community|lounge|documentation)\b",
+    re.I,
+)
+UI_NOISE_TEXT_RE = re.compile(
+    r"\b(open\s+media|in\s+modal|skip\s+to|cookie|javascript|sign\s*in|sign\s*up|wishlist|share|"
+    r"seller\s+central|product\s+image\s+requirements?)\b",
+    re.I,
+)
 
 
 def _allowed_aspect_codes(*, include_code: str | None = None) -> set[str]:
@@ -107,6 +116,16 @@ def text_looks_like_noise(value: Any) -> bool:
     text = clean_text_value(value, max_chars=220)
     if not text:
         return True
+    lowered = text.lower()
+    if UI_NOISE_TEXT_RE.search(lowered):
+        return True
+    if NON_PRODUCT_TEXT_RE.search(lowered) and not re.search(
+        r"\b(price|size|material|fabric|cotton|linen|silk|kurti|dress|shirt|pant|trouser|set|buy|cart)\b",
+        lowered,
+    ):
+        return True
+    if re.search(r"\b\d+\s*/\s*(?:of\s+)?\d+\b", lowered):
+        return True
     tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9&'().+\-_]*", text)
     if not tokens:
         return True
@@ -136,7 +155,23 @@ def text_looks_like_noise(value: Any) -> bool:
         token for token in tokens
         if any(ch.isalpha() for ch in token)
     ]
-    return len(alpha_tokens) == 0
+    if len(alpha_tokens) == 0:
+        return True
+
+    normalized = slugify(text).replace("-", " ").strip()
+    words = [word for word in normalized.split() if len(word) >= 2]
+    if len(words) >= 10:
+        windows = [" ".join(words[index : index + 5]) for index in range(0, max(0, len(words) - 4))]
+        seen: set[str] = set()
+        repeats = 0
+        for window in windows:
+            if window in seen:
+                repeats += 1
+                if repeats >= 2:
+                    return True
+            else:
+                seen.add(window)
+    return False
 
 
 def _string_similarity(a: str, b: str) -> float:
@@ -330,6 +365,10 @@ def normalize_raw_suggestions(
                 rationale = (rationale + " " if rationale else "") + "Rejected placeholder/noise text."
 
         if field == "primary_category":
+            raw_primary_value = value
+            raw_primary_id = ""
+            if isinstance(raw_primary_value, dict):
+                raw_primary_id = str(raw_primary_value.get("id") or "").strip()
             category, mapped_conf = map_category_value(value)
             if not category:
                 hint_category_id = _context_hint_text(context_hints, "primary_category_id", max_chars=64)
@@ -340,10 +379,16 @@ def normalize_raw_suggestions(
                     category, mapped_conf = map_category_value(hint_category_name)
             if category:
                 value = str(category.id)
-                confidence = max(confidence, mapped_conf)
-                metadata["name"] = category.name
-                if mapped_conf >= 0.95:
+                hint_category_id = _context_hint_text(context_hints, "primary_category_id", max_chars=64)
+                if hint_category_id and str(category.id) == str(hint_category_id):
+                    confidence = max(confidence, 0.99)
                     rationale = rationale or "Mapped directly from selected category context hint."
+                elif raw_primary_id:
+                    # A raw AI-proposed UUID is not high-confidence evidence by itself.
+                    confidence = max(confidence, min(mapped_conf, 0.62))
+                else:
+                    confidence = max(confidence, mapped_conf)
+                metadata["name"] = category.name
             else:
                 value = None
 
@@ -366,11 +411,20 @@ def normalize_raw_suggestions(
                     candidates = hint_names
             categories = []
             confidence_accumulator = []
+            hint_ids = set(_context_hint_list(context_hints, "category_ids", limit=20))
             for candidate in candidates:
                 cat, mapped_conf = map_category_value(candidate)
                 if cat and cat.id not in {c.id for c in categories}:
                     categories.append(cat)
-                    confidence_accumulator.append(mapped_conf)
+                    candidate_id = ""
+                    if isinstance(candidate, dict):
+                        candidate_id = str(candidate.get("id") or "").strip()
+                    if hint_ids and candidate_id and candidate_id in hint_ids:
+                        confidence_accumulator.append(max(mapped_conf, 0.95))
+                    elif candidate_id and not hint_ids:
+                        confidence_accumulator.append(min(mapped_conf, 0.62))
+                    else:
+                        confidence_accumulator.append(mapped_conf)
             value = [str(c.id) for c in categories]
             if confidence_accumulator:
                 confidence = max(confidence, sum(confidence_accumulator) / len(confidence_accumulator))

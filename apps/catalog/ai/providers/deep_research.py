@@ -5,6 +5,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 from django.conf import settings
 
@@ -20,6 +21,19 @@ NON_PRODUCT_RE = re.compile(
 )
 PRODUCT_CUE_RE = re.compile(
     r"\b(product|price|sku|model|size|material|fabric|cotton|linen|silk|embroid|kurti|dress|shirt|pant|trouser|set|buy|cart|artisan|handmade|in stock|add to cart)\b",
+    re.I,
+)
+UI_NOISE_RE = re.compile(
+    r"\b(open\s+media|in\s+modal|skip\s+to|listings?\s+lounge|help\s*center|seller\s+central|"
+    r"image\s+requirements?|cookie|javascript)\b",
+    re.I,
+)
+HELP_PATH_RE = re.compile(
+    r"/(help|support|policy|policies|guides?|blog|forum|community|docs?|documentation|faq|kb|knowledge-base)(?:/|$)",
+    re.I,
+)
+COMMERCE_PATH_HINT_RE = re.compile(
+    r"/(product|products|shop|item|items|p|collections?)/",
     re.I,
 )
 STOPWORDS = {
@@ -158,9 +172,10 @@ class ProductDeepResearchProvider:
                 continue
             provider_name = (provider or "none").strip() or "none"
             provider_counts[provider_name] += 1
-            query_result_counts[planned_query] = len(results or [])
+            filtered_results = [item for item in (results or []) if self._result_is_likely_product(item)]
+            query_result_counts[planned_query] = len(filtered_results)
 
-            for result in results or []:
+            for result in filtered_results:
                 item = dict(result)
                 item["query"] = planned_query
                 aggregated_results.append(item)
@@ -240,6 +255,11 @@ class ProductDeepResearchProvider:
             variants.append(f"{category_name} {' '.join(base_terms[:4])} product")
         if vision_terms:
             variants.append(f"{' '.join(vision_terms[:4])} product details")
+        variants = [
+            f"{variant} -requirements -guidelines -policy -help -forum"
+            for variant in variants
+            if variant
+        ]
 
         deduped: list[str] = []
         seen: set[str] = set()
@@ -270,6 +290,29 @@ class ProductDeepResearchProvider:
                 break
         return deduped
 
+    @staticmethod
+    def _result_is_likely_product(result: dict[str, Any]) -> bool:
+        title = str(result.get("title") or "")
+        snippet = str(result.get("snippet") or "")
+        url = str(result.get("url") or "")
+        parsed = urlparse(url)
+        path = (parsed.path or "").lower()
+        combined = f"{title} {snippet} {path}".strip()
+        lowered = combined.lower()
+
+        has_product_cues = bool(PRODUCT_CUE_RE.search(lowered))
+        has_non_product_cues = bool(NON_PRODUCT_RE.search(lowered))
+        has_help_path = bool(HELP_PATH_RE.search(path))
+        has_commerce_path = bool(COMMERCE_PATH_HINT_RE.search(path))
+
+        if UI_NOISE_RE.search(lowered) and not has_product_cues:
+            return False
+        if has_help_path and not has_commerce_path and not has_product_cues:
+            return False
+        if has_non_product_cues and not has_product_cues:
+            return False
+        return True
+
     def _rank_documents(
         self,
         docs: list[ResearchDocument],
@@ -292,6 +335,8 @@ class ProductDeepResearchProvider:
             lowered = combined_text.lower()
             if not lowered.strip():
                 continue
+            if UI_NOISE_RE.search(lowered) and not PRODUCT_CUE_RE.search(lowered):
+                continue
 
             hits = sum(1 for term in terms if term in lowered)
             relevance = (hits / len(terms)) if terms else 0.0
@@ -303,8 +348,11 @@ class ProductDeepResearchProvider:
                 product_likelihood += 0.30
             if re.search(r"\b(size|color|material|fabric|price|sku|model)\b", lowered):
                 product_likelihood += 0.12
-            if NON_PRODUCT_RE.search(lowered) and structured_signals == 0:
-                product_likelihood -= 0.38
+            has_non_product = bool(NON_PRODUCT_RE.search(lowered))
+            if has_non_product and structured_signals == 0:
+                product_likelihood -= 0.45
+            if has_non_product and structured_signals < 2 and product_likelihood < 0.62:
+                continue
             product_likelihood = max(0.0, min(1.0, product_likelihood))
 
             trust = float(getattr(doc, "trust_score", 0.0) or 0.0)

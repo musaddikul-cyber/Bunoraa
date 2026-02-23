@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ from .schemas import FieldSuggestionPayload, SourceRecord
 from .validators import normalize_raw_suggestions
 
 logger = logging.getLogger(__name__)
+autofill_logger = logging.getLogger("bunoraa.catalog.autofill")
 
 
 def _looks_query_noise(token: str) -> bool:
@@ -111,13 +113,74 @@ class ProductAutofillEngine:
             return {"status": "running", "job_id": str(self.job.id), "reused": True}
 
         self._mark_running()
+        started_at = time.monotonic()
         try:
             context_hints = self._get_context_hints()
+            payload = self.job.input_payload or {}
+            requested_temp_images = payload.get("temp_images") if isinstance(payload.get("temp_images"), list) else []
+            autofill_logger.info(
+                "Autofill engine started job_id=%s product_id=%s allow_external=%s temp_images=%s locale=%s currency=%s",
+                self.job.id,
+                getattr(self.job, "product_id", "") or "",
+                bool(self.job.allow_external),
+                len(requested_temp_images),
+                self.job.locale or "",
+                self.job.currency or "",
+            )
+            if context_hints:
+                autofill_logger.debug(
+                    "Autofill engine context hints job_id=%s keys=%s",
+                    self.job.id,
+                    sorted(context_hints.keys()),
+                )
+
             image_paths = self._collect_image_paths()
+            autofill_logger.info(
+                "Autofill image collection job_id=%s requested_temp=%s resolved_images=%s",
+                self.job.id,
+                len(requested_temp_images),
+                len(image_paths),
+            )
+            if requested_temp_images and not image_paths:
+                message = (
+                    "Uploaded images could not be read for analysis. "
+                    "Please retry with a clear JPEG/PNG/WebP image."
+                )
+                autofill_logger.error(
+                    "Autofill engine failed job_id=%s reason=no_readable_uploaded_images temp_paths=%s",
+                    self.job.id,
+                    requested_temp_images[: self.max_images],
+                )
+                self._fail(message)
+                return {"status": "failed", "job_id": str(self.job.id), "error": message}
+
+            if not image_paths:
+                autofill_logger.warning(
+                    "Autofill engine continuing without images job_id=%s product_id=%s",
+                    self.job.id,
+                    getattr(self.job, "product_id", "") or "",
+                )
+
             self._set_progress(15)
             vision = self.vision_provider.analyze(image_paths)
+            autofill_logger.debug(
+                "Autofill vision summary job_id=%s image_count=%s aspect_ratio=%s colors=%s people_present=%s",
+                self.job.id,
+                vision.get("image_count", 0),
+                vision.get("aspect_ratio", ""),
+                vision.get("dominant_colors", []),
+                bool(vision.get("people_present")),
+            )
             self._set_progress(30)
             ocr = self.ocr_provider.extract(image_paths)
+            ocr_text = str(ocr.get("text") or "")
+            autofill_logger.debug(
+                "Autofill OCR summary job_id=%s text_chars=%s lines=%s sku_candidates=%s",
+                self.job.id,
+                len(ocr_text),
+                len(ocr.get("lines") or []),
+                len(ocr.get("sku_candidates") or []),
+            )
             self._set_progress(45)
 
             context_text = self._context_hint_text(context_hints)
@@ -133,6 +196,12 @@ class ProductAutofillEngine:
                 if chunk
             )
             similar_products = get_internal_similar_products(self.job.product, candidate_text, limit=6)
+            autofill_logger.debug(
+                "Autofill similarity summary job_id=%s similar_products=%s candidate_text_chars=%s",
+                self.job.id,
+                len(similar_products),
+                len(candidate_text or ""),
+            )
             self._set_progress(55)
 
             search_results = []
@@ -169,6 +238,14 @@ class ProductAutofillEngine:
                         research_docs = self.research_provider.fetch_documents(search_results, max_docs=8)
                 else:
                     used_provider = "none"
+            autofill_logger.info(
+                "Autofill research summary job_id=%s provider=%s query_present=%s search_results=%s docs=%s",
+                self.job.id,
+                used_provider,
+                bool(query),
+                len(search_results),
+                len(research_docs),
+            )
             self._set_progress(72)
 
             category = getattr(self.job.product, "primary_category", None)
@@ -195,6 +272,7 @@ class ProductAutofillEngine:
                 research_docs=research_docs,
                 similar_products=similar_products,
                 context_hints=context_hints,
+                currency=self.job.currency,
             )
             raw_suggestions = {**extracted, **pricing}
 
@@ -202,6 +280,21 @@ class ProductAutofillEngine:
                 raw_suggestions=raw_suggestions,
                 confidence_threshold=self.confidence_threshold,
                 context_hints=context_hints,
+            )
+            non_null_suggestions = sum(
+                1 for item in normalized_suggestions if item.value not in (None, "", [])
+            )
+            high_confidence_suggestions = sum(
+                1 for item in normalized_suggestions if item.confidence >= self.confidence_threshold
+            )
+            low_confidence_suggestions = sum(1 for item in normalized_suggestions if item.low_confidence)
+            autofill_logger.info(
+                "Autofill suggestion summary job_id=%s total=%s non_null=%s high_confidence=%s low_confidence=%s",
+                self.job.id,
+                len(normalized_suggestions),
+                non_null_suggestions,
+                high_confidence_suggestions,
+                low_confidence_suggestions,
             )
             self._set_progress(88)
 
@@ -223,13 +316,23 @@ class ProductAutofillEngine:
                     "deep_research": deep_research_summary,
                     "confidence_threshold": self.confidence_threshold,
                     "context_hint_keys": sorted(context_hints.keys()),
-                    "non_null_suggestions": sum(1 for item in normalized_suggestions if item.value not in (None, "", [])),
-                    "high_confidence_suggestions": sum(1 for item in normalized_suggestions if item.confidence >= self.confidence_threshold),
+                    "non_null_suggestions": non_null_suggestions,
+                    "high_confidence_suggestions": high_confidence_suggestions,
                 }
+            )
+            autofill_logger.info(
+                "Autofill engine completed job_id=%s duration_ms=%s",
+                self.job.id,
+                int((time.monotonic() - started_at) * 1000),
             )
             return {"status": "completed", "job_id": str(self.job.id)}
         except Exception as exc:
             logger.exception("Product autofill failed for job %s", self.job.id)
+            autofill_logger.exception(
+                "Autofill engine exception job_id=%s error=%s",
+                self.job.id,
+                str(exc),
+            )
             self._fail(str(exc))
             return {"status": "failed", "job_id": str(self.job.id), "error": str(exc)}
         finally:
@@ -293,37 +396,77 @@ class ProductAutofillEngine:
 
     def _collect_image_paths(self) -> list[str]:
         paths: list[str] = []
+        seen_paths: set[str] = set()
         payload = self.job.input_payload or {}
         temp_paths = payload.get("temp_images") or []
         for stored_path in temp_paths[: self.max_images]:
             local_path = self._materialize_storage_path(stored_path)
-            if local_path:
+            if local_path and self._is_image_readable(local_path) and local_path not in seen_paths:
                 paths.append(local_path)
+                seen_paths.add(local_path)
+            elif stored_path:
+                autofill_logger.warning(
+                    "Autofill temp image unavailable job_id=%s storage_path=%s",
+                    self.job.id,
+                    stored_path,
+                )
 
         if self.job.product_id and len(paths) < self.max_images:
             images = self.job.product.images.order_by("ordering", "-is_primary")[: self.max_images]
             for image in images:
                 local_path = self._materialize_file_field(image.image)
-                if local_path:
+                if local_path and self._is_image_readable(local_path) and local_path not in seen_paths:
                     paths.append(local_path)
+                    seen_paths.add(local_path)
                 if len(paths) >= self.max_images:
                     break
 
         return paths[: self.max_images]
 
+    def _is_image_readable(self, path: str) -> bool:
+        if not path:
+            return False
+        try:
+            from PIL import Image
+
+            with Image.open(path) as img:
+                img.verify()
+            return True
+        except Exception as exc:
+            autofill_logger.warning(
+                "Autofill unreadable image job_id=%s path=%s error=%s",
+                self.job.id,
+                path,
+                str(exc),
+            )
+            return False
+
     def _materialize_storage_path(self, path: str) -> str | None:
         if not path:
             return None
-        try:
-            with default_storage.open(path, "rb") as source:
-                suffix = Path(path).suffix or ".jpg"
-                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                    tmp.write(source.read())
-                    tmp.flush()
-                    self._local_temp_files.append(tmp.name)
-                    return tmp.name
-        except Exception:
-            return None
+        retries = max(1, int(getattr(settings, "PRODUCT_AI_STORAGE_OPEN_RETRIES", 3)))
+        delay_seconds = max(0.0, float(getattr(settings, "PRODUCT_AI_STORAGE_OPEN_RETRY_DELAY_SECONDS", 0.25)))
+        for attempt in range(1, retries + 1):
+            try:
+                with default_storage.open(path, "rb") as source:
+                    suffix = Path(path).suffix or ".jpg"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                        tmp.write(source.read())
+                        tmp.flush()
+                        self._local_temp_files.append(tmp.name)
+                        return tmp.name
+            except Exception as exc:
+                if attempt >= retries:
+                    autofill_logger.warning(
+                        "Autofill storage open failed job_id=%s path=%s attempts=%s error=%s",
+                        self.job.id,
+                        path,
+                        retries,
+                        str(exc),
+                    )
+                    return None
+                time.sleep(delay_seconds * attempt)
+        return None
 
     def _materialize_file_field(self, file_field) -> str | None:
         if not file_field:
@@ -331,8 +474,13 @@ class ProductAutofillEngine:
         try:
             if hasattr(file_field, "path") and file_field.path and os.path.exists(file_field.path):
                 return file_field.path
-        except Exception:
-            pass
+        except Exception as exc:
+            autofill_logger.debug(
+                "Autofill file path lookup failed job_id=%s file=%s error=%s",
+                self.job.id,
+                getattr(file_field, "name", ""),
+                str(exc),
+            )
         try:
             with file_field.open("rb") as source:
                 suffix = Path(file_field.name).suffix or ".jpg"
@@ -341,7 +489,13 @@ class ProductAutofillEngine:
                     tmp.flush()
                     self._local_temp_files.append(tmp.name)
                     return tmp.name
-        except Exception:
+        except Exception as exc:
+            autofill_logger.warning(
+                "Autofill file field open failed job_id=%s file=%s error=%s",
+                self.job.id,
+                getattr(file_field, "name", ""),
+                str(exc),
+            )
             return None
 
     def _persist_sources(self, *, research_docs, search_provider: str, vision: dict[str, Any], similar_products):
@@ -403,6 +557,11 @@ class ProductAutofillEngine:
             records.append(ProductFieldSuggestion(job=self.job, **payload))
         if records:
             ProductFieldSuggestion.objects.bulk_create(records, batch_size=100)
+        autofill_logger.debug(
+            "Autofill suggestions persisted job_id=%s count=%s",
+            self.job.id,
+            len(records),
+        )
 
     def _mark_running(self):
         self.job.status = self.job.STATUS_RUNNING
@@ -427,6 +586,11 @@ class ProductAutofillEngine:
         self.job.error_message = message[:3000]
         self.job.completed_at = timezone.now()
         self.job.save(update_fields=["status", "error_message", "completed_at", "updated_at"])
+        autofill_logger.error(
+            "Autofill job marked failed job_id=%s message=%s",
+            self.job.id,
+            self.job.error_message,
+        )
 
     def _cleanup_local_files(self):
         for path in self._local_temp_files:

@@ -2,6 +2,7 @@
 Catalog Celery tasks - Background jobs for catalog maintenance
 """
 import logging
+import time
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
@@ -10,6 +11,7 @@ from django.db.models import Q, F, Avg, Count
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+autofill_logger = logging.getLogger("bunoraa.catalog.autofill")
 
 
 @shared_task(
@@ -27,9 +29,18 @@ def run_product_autofill_job(self, job_id: str):
     from .ai.engine import ProductAutofillEngine
     from .models import ProductAutofillJob
 
+    started_at = time.monotonic()
+    autofill_logger.info(
+        "Autofill task started job_id=%s task_id=%s retries=%s",
+        job_id,
+        getattr(getattr(self, "request", None), "id", ""),
+        getattr(getattr(self, "request", None), "retries", 0),
+    )
+
     job = ProductAutofillJob.objects.filter(id=job_id).first()
     if not job:
         logger.warning("Autofill job not found: %s", job_id)
+        autofill_logger.warning("Autofill task missing job_id=%s", job_id)
         return {"status": "missing", "job_id": job_id}
 
     # Idempotent no-op for terminal jobs.
@@ -37,10 +48,32 @@ def run_product_autofill_job(self, job_id: str):
         ProductAutofillJob.STATUS_COMPLETED,
         ProductAutofillJob.STATUS_CANCELLED,
     }:
+        autofill_logger.info(
+            "Autofill task skipped terminal job_id=%s status=%s",
+            job_id,
+            job.status,
+        )
         return {"status": job.status, "job_id": job_id}
 
     engine = ProductAutofillEngine(job_id=job_id)
-    return engine.run()
+    result = engine.run()
+    final_status = result.get("status") if isinstance(result, dict) else "unknown"
+    progress = getattr(job, "progress", 0)
+    try:
+        job.refresh_from_db(fields=["status", "progress", "error_message", "updated_at"])
+        final_status = job.status or final_status
+        progress = job.progress
+    except Exception:
+        pass
+
+    autofill_logger.info(
+        "Autofill task finished job_id=%s status=%s progress=%s duration_ms=%s",
+        job_id,
+        final_status,
+        progress,
+        int((time.monotonic() - started_at) * 1000),
+    )
+    return result
 
 
 # =============================================================================

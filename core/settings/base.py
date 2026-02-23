@@ -510,6 +510,13 @@ PRODUCT_AI_MAX_CONCURRENT_JOBS = _env_int('PRODUCT_AI_MAX_CONCURRENT_JOBS', 2)
 PRODUCT_AI_START_RATE_LIMIT_PER_MIN = _env_int('PRODUCT_AI_START_RATE_LIMIT_PER_MIN', 6)
 PRODUCT_AI_ALLOW_EXTERNAL_DEFAULT = _env_bool('PRODUCT_AI_ALLOW_EXTERNAL_DEFAULT', True)
 PRODUCT_AI_RETENTION_DAYS = _env_int('PRODUCT_AI_RETENTION_DAYS', 365)
+PRODUCT_AI_DEBUG_LOGGING = _env_bool('PRODUCT_AI_DEBUG_LOGGING', DEBUG)
+PRODUCT_AI_FRONTEND_DEBUG = _env_bool('PRODUCT_AI_FRONTEND_DEBUG', DEBUG)
+PRODUCT_AI_REQUIRE_IMAGES_FOR_NEW_PRODUCT = _env_bool('PRODUCT_AI_REQUIRE_IMAGES_FOR_NEW_PRODUCT', True)
+PRODUCT_AI_FORCE_SYNC_ON_FILESYSTEM_STORAGE = _env_bool(
+    'PRODUCT_AI_FORCE_SYNC_ON_FILESYSTEM_STORAGE',
+    True,
+)
 PRODUCT_AI_SEARCH_PROVIDER_ORDER = os.environ.get(
     'PRODUCT_AI_SEARCH_PROVIDER_ORDER',
     'serpapi,google_cse,duckduckgo',
@@ -862,6 +869,11 @@ LOGGING = {
         'bunoraa.notifications': {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',
+            'propagate': False,
+        },
+        'bunoraa.catalog.autofill': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG' if PRODUCT_AI_DEBUG_LOGGING else 'INFO',
             'propagate': False,
         },
     },

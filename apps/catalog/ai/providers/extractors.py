@@ -60,6 +60,86 @@ APPAREL_TEXT_RE = re.compile(
     re.I,
 )
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+UI_NOISE_TEXT_RE = re.compile(
+    r"\b(open\s+media|in\s+modal|skip\s+to|cookie|javascript|sign\s*in|sign\s*up|wishlist|compare|share|"
+    r"listings?\s+lounge|help\s*center|seller\s+central|product\s+image\s+requirements?)\b",
+    re.I,
+)
+NAME_STOPWORDS = {
+    "limited",
+    "sale",
+    "new",
+    "exclusive",
+    "open",
+    "media",
+    "modal",
+    "skip",
+    "information",
+    "details",
+    "guide",
+    "requirements",
+}
+GENERIC_NAME_TERMS = {
+    "product",
+    "item",
+    "photo",
+    "image",
+    "picture",
+}
+GENERIC_COLOR_WORDS = {
+    "red",
+    "pink",
+    "orange",
+    "yellow",
+    "green",
+    "teal",
+    "blue",
+    "purple",
+    "brown",
+    "black",
+    "gray",
+    "grey",
+    "white",
+    "beige",
+}
+SIMILARITY_NOISE_TOKENS = {
+    "product",
+    "products",
+    "photo",
+    "image",
+    "images",
+    "dominant",
+    "color",
+    "colors",
+    "model",
+    "wearing",
+    "plain",
+    "background",
+    "style",
+    "catalog",
+    "item",
+}
+SIMILARITY_ANCHOR_TOKENS = {
+    "apparel",
+    "fashion",
+    "clothing",
+    "outfit",
+    "dress",
+    "kurti",
+    "saree",
+    "shirt",
+    "blouse",
+    "top",
+    "pant",
+    "palazzo",
+    "trouser",
+    "set",
+    "embroidered",
+}
+GENERIC_VISUAL_SUMMARY_RE = re.compile(
+    r"\b(product\s+photo\s+with\s+dominant|dominant\s+(?:gray|grey|white|black|beige)\s+color)\b",
+    re.I,
+)
 
 
 def _clean_text(value: Any, max_chars: int = 4000) -> str:
@@ -110,13 +190,30 @@ def _sanitize_name_candidate(value: Any) -> str:
         return ""
     # Drop trailing site-brand segment often present in page titles.
     text = re.split(r"\s+[|\-]\s+", text, maxsplit=1)[0]
+    chunks = [segment.strip() for segment in re.split(r"\s*(?:[|/]|-\s)\s*", text) if segment.strip()]
+    text = chunks[0] if chunks else text
     tokens = []
     for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9&'().+\-_/]*", text):
         token = token.strip("._-/")
         if not token or _looks_like_noise_token(token):
             continue
+        if token.lower() in NAME_STOPWORDS:
+            break
         tokens.append(token)
-    candidate = " ".join(tokens[:10]).strip()
+    candidate = " ".join(tokens[:8]).strip()
+    lowered_candidate = candidate.lower().strip()
+    if not lowered_candidate:
+        return ""
+    if lowered_candidate in GENERIC_NAME_TERMS:
+        return ""
+    if lowered_candidate in GENERIC_COLOR_WORDS:
+        return ""
+    if lowered_candidate.endswith(" product") or lowered_candidate.endswith(" item"):
+        return ""
+    if lowered_candidate.startswith("product "):
+        return ""
+    if UI_NOISE_TEXT_RE.search(candidate):
+        return ""
     if not _is_meaningful_text(candidate, min_alpha_tokens=1):
         return ""
     if NON_PRODUCT_PAGE_RE.search(candidate) and not PRODUCT_ENTITY_RE.search(candidate):
@@ -124,9 +221,29 @@ def _sanitize_name_candidate(value: Any) -> str:
     return candidate[:160]
 
 
+def _looks_generic_visual_summary(value: Any) -> bool:
+    text = _clean_text(value, max_chars=420)
+    if not text:
+        return True
+    lowered = text.lower()
+    if GENERIC_VISUAL_SUMMARY_RE.search(lowered):
+        return True
+    if "product-style photo" in lowered and not APPAREL_TEXT_RE.search(lowered):
+        return True
+    return False
+
+
+def _structured_signal_breakdown(structured: dict[str, Any]) -> tuple[int, int]:
+    strong_keys = ("sku_candidates", "price_amounts", "category_names", "material_hints", "brand_names")
+    weak_keys = ("names", "descriptions")
+    strong = sum(1 for key in strong_keys if structured.get(key))
+    weak = sum(1 for key in weak_keys if structured.get(key))
+    return strong, weak
+
+
 def _structured_signal_count(structured: dict[str, Any]) -> int:
-    signal_keys = ("names", "sku_candidates", "price_amounts", "category_names", "brand_names", "material_hints")
-    return sum(1 for key in signal_keys if structured.get(key))
+    strong, weak = _structured_signal_breakdown(structured)
+    return strong + weak
 
 
 def _doc_structured_payload(doc: Any) -> dict[str, Any]:
@@ -139,8 +256,9 @@ def _doc_structured_payload(doc: Any) -> dict[str, Any]:
 
 def _doc_is_likely_product_page(doc: Any) -> bool:
     structured = _doc_structured_payload(doc)
-    signal_count = _structured_signal_count(structured)
-    if signal_count >= 1:
+    strong_signals, weak_signals = _structured_signal_breakdown(structured)
+    signal_count = strong_signals + weak_signals
+    if strong_signals >= 1:
         return True
 
     combined = _clean_text(
@@ -156,7 +274,13 @@ def _doc_is_likely_product_page(doc: Any) -> bool:
     if not _is_meaningful_text(combined, min_alpha_tokens=5):
         return False
 
-    if NON_PRODUCT_PAGE_RE.search(combined) and signal_count == 0:
+    if UI_NOISE_TEXT_RE.search(combined) and signal_count == 0:
+        return False
+    if NON_PRODUCT_PAGE_RE.search(combined) and strong_signals == 0:
+        return False
+    if not PRODUCT_CUE_RE.search(combined):
+        return False
+    if weak_signals == 0 and not PRODUCT_ENTITY_RE.search(combined):
         return False
     return True
 
@@ -166,30 +290,84 @@ def _filter_research_docs(research_docs: list[Any]) -> list[Any]:
     return filtered[:8]
 
 
+def _normalize_sentence_key(value: str) -> str:
+    return re.sub(r"\s+", " ", slugify(value or "").replace("-", " ")).strip()
+
+
+def _has_repeated_phrases(value: str) -> bool:
+    key = _normalize_sentence_key(value)
+    if not key:
+        return False
+    words = key.split()
+    if len(words) < 8:
+        return False
+    windows = [" ".join(words[index : index + 5]) for index in range(0, max(0, len(words) - 4))]
+    seen: set[str] = set()
+    repeats = 0
+    for window in windows:
+        if window in seen:
+            repeats += 1
+            if repeats >= 2:
+                return True
+        else:
+            seen.add(window)
+    return False
+
+
+def _looks_like_ui_noise_text(value: str) -> bool:
+    if not value:
+        return False
+    if UI_NOISE_TEXT_RE.search(value):
+        return True
+    if re.search(r"\b\d+\s*/\s*(?:of\s+)?\d+\b", value, re.I):
+        return True
+    return _has_repeated_phrases(value)
+
+
 def _compact_description_text(value: Any, *, max_chars: int = 800) -> str:
     text = _clean_text(value, max_chars=max_chars * 3)
     if not text:
         return ""
 
     sentences = []
+    seen_sentence_keys: set[str] = set()
     for sentence in SENTENCE_SPLIT_RE.split(text):
         cleaned = _clean_text(sentence, max_chars=260)
         if not cleaned:
             continue
+        if _looks_like_ui_noise_text(cleaned):
+            continue
         if NON_PRODUCT_PAGE_RE.search(cleaned) and not PRODUCT_CUE_RE.search(cleaned):
             continue
+        sentence_key = _normalize_sentence_key(cleaned)
+        if sentence_key and sentence_key in seen_sentence_keys:
+            continue
+        if sentence_key:
+            seen_sentence_keys.add(sentence_key)
         sentences.append(cleaned)
         if len(" ".join(sentences)) >= max_chars:
             break
 
     if not sentences:
         fallback = _clean_text(text, max_chars=max_chars)
+        if _looks_like_ui_noise_text(fallback):
+            return ""
         return fallback
 
     compact = " ".join(sentences).strip()
+    if _looks_like_ui_noise_text(compact):
+        return ""
     if len(compact) <= max_chars:
         return compact
     return compact[:max_chars].rsplit(" ", 1)[0]
+
+
+def _best_structured_description(structured_descriptions: list[str]) -> str:
+    for raw in structured_descriptions[:4]:
+        candidate = _compact_description_text(raw, max_chars=760)
+        if _is_meaningful_text(candidate, min_alpha_tokens=8) and not _looks_like_ui_noise_text(candidate):
+            return candidate
+    return ""
 
 
 def _collect_structured_signals(research_docs: list[Any]) -> dict[str, list[str]]:
@@ -269,19 +447,20 @@ def _collect_text(vision: dict[str, Any], ocr: dict[str, Any], research_docs: li
         _clean_text(vision.get("scene_summary"), max_chars=700),
         max_chars=420,
     )
-    if _is_meaningful_text(scene_summary, min_alpha_tokens=4):
+    if _is_meaningful_text(scene_summary, min_alpha_tokens=4) and not _looks_generic_visual_summary(scene_summary):
         chunks.append(scene_summary)
     ocr_text = _clean_text(ocr.get("text"), max_chars=1600)
     if _is_meaningful_text(ocr_text, min_alpha_tokens=3):
         chunks.append(ocr_text)
     for doc in _filter_research_docs(research_docs):
         structured = _doc_structured_payload(doc)
-        include_body_text = _structured_signal_count(structured) >= 1
+        strong_signals, _weak_signals = _structured_signal_breakdown(structured)
+        include_body_text = strong_signals >= 1
         for part, limit in (
             (getattr(doc, "title", ""), 220),
             (getattr(doc, "snippet", ""), 320),
         ):
-            cleaned = _clean_text(part, max_chars=limit)
+            cleaned = _compact_description_text(part, max_chars=limit)
             if _is_meaningful_text(cleaned, min_alpha_tokens=3):
                 chunks.append(cleaned)
         if include_body_text:
@@ -446,6 +625,7 @@ def build_field_candidates(
             _context_field_text(context_hints, "short_description", max_chars=600),
             _context_field_text(context_hints, "description", max_chars=1800),
             _context_field_text(context_hints, "primary_category_name", max_chars=180),
+            " ".join(_context_list_text(context_hints, "image_names", limit=10)),
             " ".join(_context_list_text(context_hints, "category_names", limit=10)),
             " ".join(_context_list_text(context_hints, "tag_names", limit=10)),
             " ".join(_context_list_text(context_hints, "eco_certification_names", limit=10)),
@@ -468,8 +648,8 @@ def build_field_candidates(
         if name_candidate:
             vision_tokens = [str(token).lower() for token in (vision.get("tokens") or [])]
             apparel_cues = {"apparel", "fashion", "clothing", "outfit", "dress", "kurti", "saree"}
-            strong_visual = bool(apparel_cues.intersection(vision_tokens))
-            name_confidence = 0.76 if strong_visual else 0.68
+            strong_visual = bool(apparel_cues.intersection(vision_tokens)) or bool(vision.get("apparel_item"))
+            name_confidence = 0.82 if strong_visual else 0.68
             name_rationale = "Derived from visual evidence."
         else:
             name_confidence = 0.0
@@ -483,34 +663,41 @@ def build_field_candidates(
     evidence_parts = []
     context_description = _compact_description_text(
         _context_field_text(context_hints, "description", max_chars=2000),
-        max_chars=900,
+        max_chars=760,
     )
     context_short_description = _context_field_text(context_hints, "short_description", max_chars=800)
-    structured_description = _compact_description_text(
-        _clean_text((structured.get("descriptions") or [""])[0], max_chars=1600),
-        max_chars=900,
-    )
+    structured_description = _best_structured_description(structured.get("descriptions") or [])
     if context_description:
         evidence_parts.append(context_description)
     elif structured_description and _is_meaningful_text(structured_description, min_alpha_tokens=6):
         evidence_parts.append(structured_description)
-    if _is_meaningful_text(full_text, min_alpha_tokens=6):
-        evidence_parts.append(_compact_description_text(full_text, max_chars=900))
+    compact_full_text = _compact_description_text(full_text, max_chars=760)
+    if _is_meaningful_text(compact_full_text, min_alpha_tokens=8) and not _looks_like_ui_noise_text(compact_full_text):
+        evidence_parts.append(compact_full_text)
     ocr_text = _compact_description_text(_clean_text(ocr.get("text"), max_chars=900), max_chars=700)
     if _is_meaningful_text(ocr_text, min_alpha_tokens=5):
         evidence_parts.append(ocr_text)
     if evidence_parts and personalization_hints.get("description_style"):
         description_parts.append(personalization_hints["description_style"])
     description_parts.extend(evidence_parts[:2])
-    description = _compact_description_text("\n\n".join(part for part in description_parts if part).strip(), max_chars=1000)
+    description = _compact_description_text(
+        "\n\n".join(part for part in description_parts if part).strip(),
+        max_chars=760,
+    )
+    if description and _looks_like_ui_noise_text(description):
+        description = ""
     if len(description) < 48:
         description = ""
     short_description = context_short_description if context_short_description else ""
     if description and len(description.split()) >= 8:
         short_description = short_description or description[:320].rsplit(" ", 1)[0]
     short_description = _compact_description_text(short_description, max_chars=320) if short_description else ""
+    if short_description and _looks_like_ui_noise_text(short_description):
+        short_description = ""
     description_confidence = 0.25
     scene_summary = _clean_text(vision.get("scene_summary"), max_chars=700)
+    if _looks_generic_visual_summary(scene_summary):
+        scene_summary = ""
     if description:
         if context_description:
             description_confidence = 0.9
@@ -543,7 +730,26 @@ def build_field_candidates(
             category_score = max(category_score, 0.99)
     if not category and hint_category_name:
         category, category_score = _best_category_name(hint_category_name)
-    if not category and internal_similar_products:
+    visual_anchor_tokens = {
+        "apparel",
+        "fashion",
+        "clothing",
+        "outfit",
+        "dress",
+        "kurti",
+        "saree",
+        "shirt",
+        "blouse",
+        "top",
+        "pant",
+        "palazzo",
+        "trouser",
+        "set",
+        "embroidered",
+    }
+    vision_tokens = {str(token).lower() for token in (vision.get("tokens") or [])}
+    has_visual_anchor = bool(vision.get("apparel_item")) or bool(vision_tokens.intersection(visual_anchor_tokens))
+    if not category and internal_similar_products and has_visual_anchor:
         first_similar_category = getattr(internal_similar_products[0], "primary_category", None)
         if first_similar_category:
             category = first_similar_category
@@ -718,8 +924,15 @@ def get_internal_similar_products(product, candidate_text: str, limit: int = 5):
 
     if not candidate_text:
         return []
-    tokens = [token for token in slugify(candidate_text).split("-") if len(token) > 2][:6]
+    raw_tokens = [token for token in slugify(candidate_text).split("-") if len(token) > 2]
+    tokens = [
+        token
+        for token in raw_tokens
+        if token not in SIMILARITY_NOISE_TOKENS and not token.isdigit()
+    ][:8]
     if not tokens:
+        return []
+    if not any(token in SIMILARITY_ANCHOR_TOKENS for token in tokens):
         return []
     query = Q()
     for token in tokens:

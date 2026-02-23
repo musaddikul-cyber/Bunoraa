@@ -16,7 +16,7 @@ from django.test import TestCase, SimpleTestCase, override_settings, RequestFact
 
 from apps.catalog.admin import ProductAdmin
 from apps.catalog.ai.engine import _query_seed_tokens
-from apps.catalog.ai.providers.extractors import build_field_candidates
+from apps.catalog.ai.providers.extractors import build_field_candidates, get_internal_similar_products
 from apps.catalog.forms import ProductAdminForm
 from apps.catalog.ai.schemas import FieldSuggestionPayload
 from apps.catalog.ai.providers.personalization import PersonalizationProvider
@@ -418,6 +418,64 @@ class ProductAutofillValidationTests(TestCase):
         self.assertEqual(mapped["eco_certifications"].value, [str(self.cert.id)])
         self.assertEqual(mapped["shipping_material"].value, str(self.material.id))
 
+    def test_category_uuid_without_context_is_not_treated_as_high_confidence(self):
+        raw = {
+            "primary_category": {
+                "value": {"id": str(self.category.id), "name": self.category.name},
+                "confidence": 0.4,
+            },
+            "categories": {
+                "value": [{"id": str(self.category.id), "name": self.category.name}],
+                "confidence": 0.4,
+            },
+            "price": {"value": "20.00", "confidence": 0.9},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.8, context_hints={})
+        mapped = {item.field_name: item for item in result}
+        self.assertIsNone(mapped["primary_category"].value)
+        self.assertEqual(mapped["categories"].value, [])
+
+    def test_context_category_id_keeps_high_confidence_mapping(self):
+        raw = {
+            "primary_category": {
+                "value": {"id": str(self.category.id), "name": self.category.name},
+                "confidence": 0.4,
+            },
+            "categories": {
+                "value": [{"id": str(self.category.id), "name": self.category.name}],
+                "confidence": 0.4,
+            },
+            "price": {"value": "20.00", "confidence": 0.9},
+        }
+        result = normalize_raw_suggestions(
+            raw,
+            confidence_threshold=0.8,
+            context_hints={
+                "primary_category_id": str(self.category.id),
+                "primary_category_name": self.category.name,
+                "category_ids": [str(self.category.id)],
+                "category_names": [self.category.name],
+            },
+        )
+        mapped = {item.field_name: item for item in result}
+        self.assertEqual(mapped["primary_category"].value, str(self.category.id))
+        self.assertEqual(mapped["categories"].value, [str(self.category.id)])
+
+    def test_internal_similarity_ignores_generic_visual_tokens(self):
+        Product.objects.create(
+            name="Generic Product Name",
+            slug="generic-product-name",
+            price=Decimal("15.00"),
+            primary_category=self.category,
+            description="A product with decorative style",
+        )
+        matches = get_internal_similar_products(
+            product=None,
+            candidate_text="gray product photo dominant color plain background",
+            limit=5,
+        )
+        self.assertEqual(matches, [])
+
     def test_ssrf_url_guard(self):
         self.assertFalse(is_safe_public_url("http://127.0.0.1/admin"))
         self.assertFalse(is_safe_public_url("http://localhost:8000"))
@@ -448,6 +506,26 @@ class ProductAutofillValidationTests(TestCase):
         self.assertGreater(Decimal(str(estimate["price"]["value"])), Decimal("0.00"))
         self.assertEqual(int(estimate["stock_quantity"]["value"]), 22)
         self.assertEqual(int(estimate["low_stock_threshold"]["value"]), 6)
+
+    def test_pricing_rounds_local_currency_to_clean_values(self):
+        provider = PricingProvider()
+        docs = [
+            SimpleNamespace(
+                url="https://shop.example.com/pink-kurti",
+                text="Price ৳3999.90 sale price ৳3890.40",
+                snippet="Buy now for ৳3999.90",
+                metadata={"structured": {"price_amounts": ["3999.90", "3890.40"]}},
+            )
+        ]
+        estimate = provider.estimate(
+            product=None,
+            primary_category=self.category,
+            research_docs=docs,
+            similar_products=[],
+            currency="BDT",
+        )
+        price = Decimal(str(estimate["price"]["value"]))
+        self.assertEqual(price % Decimal("10"), Decimal("0"))
 
     def test_field_suggestion_payload_is_json_safe_for_decimal(self):
         payload = FieldSuggestionPayload(
@@ -527,6 +605,25 @@ class ProductAutofillValidationTests(TestCase):
         self.assertIsNone(suggestions["name"]["value"])
         self.assertIsNone(suggestions["description"]["value"])
 
+    def test_validator_rejects_ui_navigation_text_dump(self):
+        raw = {
+            "name": {"value": "Emerald Bloom Embroidered Kurti Palazzo Set", "confidence": 0.92},
+            "description": {
+                "value": (
+                    "Open media 1 in modal Open media 2 in modal Skip to product information "
+                    "Emerald Bloom Embroidered Kurti Palazzo Set"
+                ),
+                "confidence": 0.9,
+            },
+            "short_description": {"value": "Open media 1 in modal", "confidence": 0.9},
+            "price": {"value": "3990.87", "confidence": 0.5},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.8)
+        mapped = {item.field_name: item for item in result}
+        self.assertIsNone(mapped["description"].value)
+        self.assertIsNone(mapped["short_description"].value)
+        self.assertEqual(mapped["name"].value, "Emerald Bloom Embroidered Kurti Palazzo Set")
+
     def test_extractors_use_vision_scene_summary_for_apparel_fallback(self):
         fashion_category = Category.objects.create(name="Fashion & Apparel", slug="fashion-apparel")
         suggestions = build_field_candidates(
@@ -549,6 +646,32 @@ class ProductAutofillValidationTests(TestCase):
         self.assertGreaterEqual(suggestions["description"]["confidence"], 0.72)
         self.assertEqual(suggestions["primary_category"]["value"]["id"], str(fashion_category.id))
         self.assertGreaterEqual(suggestions["primary_category"]["confidence"], 0.70)
+
+    def test_extractors_do_not_pick_internal_category_from_generic_visual_text(self):
+        nursery = Category.objects.create(name="Nursery Decor", slug="nursery-decor")
+        similar = Product.objects.create(
+            name="Nursery Product Example",
+            slug="nursery-product-example",
+            price=Decimal("30.00"),
+            primary_category=nursery,
+            description="Home decor item",
+        )
+        suggestions = build_field_candidates(
+            product=None,
+            vision={
+                "candidate_name": "Gray Product",
+                "scene_summary": "Product photo with dominant gray color.",
+                "aspect_ratio": "1:1",
+                "tokens": ["gray", "product", "photo", "dominant", "color"],
+                "apparel_item": False,
+            },
+            ocr={"text": "", "lines": [], "sku_candidates": []},
+            research_docs=[],
+            internal_similar_products=[similar],
+            personalization_hints={},
+            context_hints={},
+        )
+        self.assertIsNone(suggestions["primary_category"]["value"])
 
     def test_apply_suggestions_skips_null_text_values(self):
         product = Product.objects.create(
@@ -596,6 +719,7 @@ class ProductAutofillValidationTests(TestCase):
 @override_settings(
     PRODUCT_AI_ENABLED=True,
     PRODUCT_AI_MAX_IMAGES=4,
+    PRODUCT_AI_FORCE_SYNC_ON_FILESYSTEM_STORAGE=False,
 )
 class ProductAutofillAdminEndpointTests(TestCase):
     def setUp(self):
@@ -649,6 +773,41 @@ class ProductAutofillAdminEndpointTests(TestCase):
         self.assertEqual(job.input_payload["context_hints"]["category_ids"], [str(self.category.id)])
         mock_delay.assert_called_once()
 
+    def test_start_endpoint_requires_image_for_new_product(self):
+        request = self.factory.post(
+            "/admin/catalog/product/ai/autofill/start/",
+            data={
+                "currency": "USD",
+                "locale": "en",
+                "allow_external": "true",
+            },
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_start_view(request)
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertIn("Upload at least one image", payload.get("error", ""))
+
+    @patch("apps.catalog.admin.run_product_autofill_job.delay")
+    def test_start_endpoint_rejects_unreadable_image(self, mock_delay):
+        bad_upload = SimpleUploadedFile("broken.png", b"not-an-image", content_type="image/png")
+        request = self.factory.post(
+            "/admin/catalog/product/ai/autofill/start/",
+            data={
+                "product_id": str(self.product.id),
+                "currency": "USD",
+                "locale": "en",
+                "allow_external": "true",
+                "images": bad_upload,
+            },
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_start_view(request)
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertIn("readable image", payload.get("error", ""))
+        mock_delay.assert_not_called()
+
     @patch("apps.catalog.ai.engine.ProductAutofillEngine")
     @patch("apps.catalog.admin.run_product_autofill_job.delay")
     def test_start_endpoint_falls_back_when_celery_enqueue_fails(self, mock_delay, mock_engine):
@@ -696,6 +855,29 @@ class ProductAutofillAdminEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = json.loads(response.content.decode("utf-8"))
         self.assertEqual(payload["dispatch_mode"], "sync_fallback")
+        mock_delay.assert_not_called()
+        mock_engine.assert_called_once()
+
+    @override_settings(PRODUCT_AI_FORCE_SYNC_ON_FILESYSTEM_STORAGE=True)
+    @patch("apps.catalog.ai.engine.ProductAutofillEngine")
+    @patch("apps.catalog.admin.run_product_autofill_job.delay")
+    def test_start_endpoint_forces_sync_on_filesystem_storage(self, mock_delay, mock_engine):
+        mock_engine.return_value.run.return_value = {"status": "completed"}
+        request = self.factory.post(
+            "/admin/catalog/product/ai/autofill/start/",
+            data={
+                "product_id": str(self.product.id),
+                "currency": "USD",
+                "locale": "en",
+                "allow_external": "true",
+                "images": _image_upload(),
+            },
+        )
+        request.user = self.user
+        response = self.product_admin.ai_autofill_start_view(request)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertEqual(payload["dispatch_mode"], "sync_fallback_local_storage")
         mock_delay.assert_not_called()
         mock_engine.assert_called_once()
 

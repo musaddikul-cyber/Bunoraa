@@ -6,7 +6,7 @@ from django.db import OperationalError, transaction
 from django.urls import reverse, path
 from django.http import HttpResponse, JsonResponse, HttpResponseNotAllowed, Http404
 from django.core.cache import cache
-from django.core.files.storage import default_storage
+from django.core.files.storage import FileSystemStorage, default_storage
 from django.utils import timezone, translation
 import csv
 import json
@@ -64,6 +64,7 @@ from .ai.validators import apply_suggestions_to_product
 from .tasks import run_product_autofill_job
 
 logger = logging.getLogger(__name__)
+autofill_logger = logging.getLogger("bunoraa.catalog.autofill")
 
 
 # =============================================================================
@@ -490,6 +491,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         context["top_inline_admin_formsets"] = top_inline_formsets
         context["inline_admin_formsets"] = remaining_inline_formsets
         context["product_ai_enabled"] = bool(getattr(settings, "PRODUCT_AI_ENABLED", False))
+        context["product_ai_frontend_debug"] = bool(getattr(settings, "PRODUCT_AI_FRONTEND_DEBUG", False))
         context["product_ai_max_images"] = max_images
         context["product_ai_endpoints"] = {
             "start": reverse("admin:catalog_product_ai_autofill_start"),
@@ -586,6 +588,72 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
 
         return sanitized
 
+    def _parse_client_diagnostics(self, payload):
+        raw = payload.get("client_diagnostics") if hasattr(payload, "get") else None
+        if not raw:
+            return {}
+
+        parsed = {}
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                return {}
+        elif isinstance(raw, dict):
+            parsed = dict(raw)
+        else:
+            return {}
+
+        if not isinstance(parsed, dict):
+            return {}
+
+        sanitized = {}
+        scalar_keys = {
+            "page": 80,
+            "url_path": 200,
+            "user_agent": 200,
+            "timestamp": 40,
+            "file_count": 12,
+        }
+        for key, max_chars in scalar_keys.items():
+            value = parsed.get(key)
+            if value is None:
+                continue
+            text = self._clean_hint_text(value, max_chars=max_chars)
+            if text:
+                sanitized[key] = text
+
+        files = parsed.get("files")
+        if isinstance(files, list):
+            safe_files = []
+            for item in files[:10]:
+                if not isinstance(item, dict):
+                    continue
+                name = self._clean_hint_text(item.get("name"), max_chars=120)
+                size = self._clean_hint_text(item.get("size"), max_chars=24)
+                content_type = self._clean_hint_text(item.get("type"), max_chars=80)
+                safe_files.append(
+                    {
+                        "name": name,
+                        "size": size,
+                        "type": content_type,
+                    }
+                )
+            if safe_files:
+                sanitized["files"] = safe_files
+
+        hint_keys = parsed.get("context_hint_keys")
+        if isinstance(hint_keys, list):
+            cleaned_keys = []
+            for item in hint_keys[:20]:
+                text = self._clean_hint_text(item, max_chars=64)
+                if text:
+                    cleaned_keys.append(text)
+            if cleaned_keys:
+                sanitized["context_hint_keys"] = cleaned_keys
+
+        return sanitized
+
     def _rate_limited(self, request):
         limit = int(getattr(settings, "PRODUCT_AI_START_RATE_LIMIT_PER_MIN", 6))
         key = f"catalog:autofill:start:{request.user.id}"
@@ -621,16 +689,64 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 attempt += 1
 
     def _check_upload_file(self, uploaded):
-        allowed_mime = {"image/jpeg", "image/png", "image/webp"}
+        allowed_mime = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
         max_size_mb = int(getattr(settings, "PRODUCT_AI_MAX_IMAGE_SIZE_MB", 8))
         content_type = getattr(uploaded, "content_type", "").lower()
         if content_type not in allowed_mime:
+            autofill_logger.warning(
+                "Autofill upload rejected name=%s content_type=%s reason=unsupported_mime",
+                str(getattr(uploaded, "name", "") or "")[:120],
+                content_type or "unknown",
+            )
             return False, f"Unsupported file type: {content_type or 'unknown'}"
         if uploaded.size > (max_size_mb * 1024 * 1024):
+            autofill_logger.warning(
+                "Autofill upload rejected name=%s size=%s reason=file_too_large",
+                str(getattr(uploaded, "name", "") or "")[:120],
+                int(getattr(uploaded, "size", 0) or 0),
+            )
             return False, f"Image exceeds {max_size_mb}MB limit."
+        if not self._is_decodable_image(uploaded):
+            autofill_logger.warning(
+                "Autofill upload rejected name=%s content_type=%s reason=decode_failed",
+                str(getattr(uploaded, "name", "") or "")[:120],
+                content_type or "unknown",
+            )
+            return False, "Uploaded file is not a readable image."
         if not self._scan_upload(uploaded):
+            autofill_logger.warning(
+                "Autofill upload rejected name=%s reason=scan_blocked",
+                str(getattr(uploaded, "name", "") or "")[:120],
+            )
             return False, "File blocked by security scanning hook."
         return True, ""
+
+    def _is_decodable_image(self, uploaded):
+        cursor = None
+        try:
+            cursor = uploaded.tell()
+        except Exception:
+            cursor = None
+
+        try:
+            uploaded.seek(0)
+            from PIL import Image
+
+            with Image.open(uploaded) as img:
+                img.verify()
+            return True
+        except Exception as exc:
+            autofill_logger.warning(
+                "Autofill upload decode check failed name=%s error=%s",
+                str(getattr(uploaded, "name", "") or "")[:120],
+                str(exc),
+            )
+            return False
+        finally:
+            try:
+                uploaded.seek(cursor if cursor is not None else 0)
+            except Exception:
+                pass
 
     def _scan_upload(self, uploaded):
         """
@@ -641,7 +757,25 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     def _store_temp_upload(self, job_id, uploaded):
         filename = f"{uuid.uuid4()}-{uploaded.name}".replace(" ", "_")
         storage_path = f"catalog/autofill/{job_id}/{filename}"
-        return default_storage.save(storage_path, uploaded)
+        saved_path = default_storage.save(storage_path, uploaded)
+        autofill_logger.debug(
+            "Autofill upload stored job_id=%s storage_path=%s",
+            job_id,
+            saved_path,
+        )
+        return saved_path
+
+    def _uses_local_filesystem_storage(self):
+        try:
+            if isinstance(default_storage, FileSystemStorage):
+                return True
+        except Exception:
+            pass
+
+        storage_cls = getattr(default_storage, "__class__", None)
+        module_name = str(getattr(storage_cls, "__module__", "") or "").lower()
+        class_name = str(getattr(storage_cls, "__name__", "") or "").lower()
+        return ("filesystem" in module_name) or ("filesystem" in class_name)
 
     def _get_job_for_user(self, request, job_id):
         qs = ProductAutofillJob.objects.select_related("product", "requested_by")
@@ -735,6 +869,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
 
         payload = self._parse_payload(request)
         context_hints = self._parse_context_hints(payload)
+        client_diagnostics = self._parse_client_diagnostics(payload)
         product_id = payload.get("product_id") if hasattr(payload, "get") else None
         currency = (payload.get("currency") if hasattr(payload, "get") else None) or getattr(settings, "DEFAULT_CURRENCY", "BDT")
         allow_external = self._parse_bool(payload.get("allow_external") if hasattr(payload, "get") else None, default=getattr(settings, "PRODUCT_AI_ALLOW_EXTERNAL_DEFAULT", True))
@@ -750,6 +885,50 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         uploads = request.FILES.getlist("images")
         if len(uploads) > max_images:
             return JsonResponse({"ok": False, "error": f"Maximum {max_images} images allowed."}, status=400)
+        if (
+            not product
+            and not uploads
+            and bool(getattr(settings, "PRODUCT_AI_REQUIRE_IMAGES_FOR_NEW_PRODUCT", True))
+        ):
+            autofill_logger.warning(
+                "Autofill start rejected (missing uploaded images) user_id=%s product_id=%s",
+                getattr(request.user, "id", None),
+                product_id or "",
+            )
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "Upload at least one image to analyze a new product.",
+                },
+                status=400,
+            )
+
+        upload_overview = [
+            {
+                "name": str(getattr(uploaded, "name", "") or "")[:120],
+                "size": int(getattr(uploaded, "size", 0) or 0),
+                "content_type": str(getattr(uploaded, "content_type", "") or "")[:80],
+            }
+            for uploaded in uploads[:max_images]
+        ]
+        autofill_logger.info(
+            "Autofill start requested user_id=%s product_id=%s uploads=%s allow_external=%s locale=%s currency=%s hint_keys=%s",
+            getattr(request.user, "id", None),
+            product_id or "",
+            len(uploads),
+            allow_external,
+            locale,
+            currency,
+            sorted(context_hints.keys()),
+        )
+        if upload_overview:
+            autofill_logger.debug("Autofill upload overview user_id=%s files=%s", getattr(request.user, "id", None), upload_overview)
+        if client_diagnostics:
+            autofill_logger.debug(
+                "Autofill client diagnostics user_id=%s details=%s",
+                getattr(request.user, "id", None),
+                client_diagnostics,
+            )
 
         active_limit = int(getattr(settings, "PRODUCT_AI_MAX_CONCURRENT_JOBS", 2))
         active_jobs = ProductAutofillJob.objects.filter(
@@ -788,11 +967,41 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 "requested_ip": request.META.get("REMOTE_ADDR"),
                 "requested_at": timezone.now().isoformat(),
                 "context_hints": context_hints,
+                "client_diagnostics": client_diagnostics,
             }
             job.save(update_fields=["image_count", "input_payload", "updated_at"])
+        autofill_logger.info(
+            "Autofill job created job_id=%s product_id=%s temp_images=%s",
+            job.id,
+            product_id or "",
+            len(temp_paths),
+        )
 
         dispatch_mode = "async"
-        if self._rediss_ssl_param_missing():
+        force_sync_on_local_storage = bool(
+            getattr(settings, "PRODUCT_AI_FORCE_SYNC_ON_FILESYSTEM_STORAGE", True)
+        ) and self._uses_local_filesystem_storage()
+        if force_sync_on_local_storage:
+            dispatch_mode = "sync_fallback_local_storage"
+            autofill_logger.warning(
+                "Autofill dispatch forced sync job_id=%s reason=filesystem_storage",
+                job.id,
+            )
+            try:
+                self._run_autofill_job_sync(job)
+            except Exception as sync_exc:
+                logger.exception("Synchronous fallback failed for job %s: %s", job.id, sync_exc)
+                job.status = ProductAutofillJob.STATUS_FAILED
+                job.error_message = "Unable to run autofill synchronously on local storage."
+                job.save(update_fields=["status", "error_message", "updated_at"])
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": "Unable to run autofill job. Check storage/celery configuration and retry.",
+                    },
+                    status=500,
+                )
+        elif self._rediss_ssl_param_missing():
             logger.warning(
                 "Skipping Celery enqueue for autofill job %s because rediss URL is missing ssl_cert_reqs; running sync fallback.",
                 job.id,
@@ -839,9 +1048,20 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                             "ok": False,
                             "error": "Unable to dispatch autofill job. Fix Celery/Redis configuration and retry.",
                         },
-                        status=500,
-                    )
+                            status=500,
+                        )
 
+        try:
+            job.refresh_from_db(fields=["status", "progress", "error_message", "updated_at"])
+        except Exception:
+            pass
+
+        autofill_logger.info(
+            "Autofill job dispatch job_id=%s mode=%s status=%s",
+            job.id,
+            dispatch_mode,
+            job.status,
+        )
         return JsonResponse(
             {
                 "ok": True,
@@ -849,6 +1069,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 "status": job.status,
                 "image_count": job.image_count,
                 "dispatch_mode": dispatch_mode,
+                "error_message": job.error_message or "",
             }
         )
 
@@ -856,6 +1077,13 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
         job = self._get_job_for_user(request, job_id)
+        autofill_logger.debug(
+            "Autofill status requested job_id=%s user_id=%s status=%s progress=%s",
+            job.id,
+            getattr(request.user, "id", None),
+            job.status,
+            job.progress,
+        )
         suggestions = [
             self._serialize_suggestion(item)
             for item in job.suggestions.order_by("field_name")
@@ -882,6 +1110,13 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         payload = self._parse_payload(request)
         force_overwrite = self._parse_bool(payload.get("force_overwrite") if hasattr(payload, "get") else None, default=False)
         suggestions = list(job.suggestions.order_by("field_name"))
+        autofill_logger.info(
+            "Autofill apply requested job_id=%s user_id=%s force_overwrite=%s suggestion_count=%s",
+            job.id,
+            getattr(request.user, "id", None),
+            force_overwrite,
+            len(suggestions),
+        )
 
         if not job.product_id:
             suggestion_map = {
@@ -889,6 +1124,11 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 for item in suggestions
                 if item.value_json not in (None, "", [])
             }
+            autofill_logger.info(
+                "Autofill apply client mode job_id=%s fields=%s",
+                job.id,
+                len(suggestion_map),
+            )
             return JsonResponse(
                 {
                     "ok": True,
@@ -961,6 +1201,12 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         finally:
             cache.delete(lock_key)
 
+        autofill_logger.info(
+            "Autofill apply server mode job_id=%s applied=%s skipped=%s",
+            job.id,
+            int(result.get("applied", 0) or 0),
+            int(result.get("skipped", 0) or 0),
+        )
         return JsonResponse(
             {
                 "ok": True,

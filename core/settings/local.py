@@ -87,10 +87,21 @@ try:
         MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
     
     INTERNAL_IPS = ['127.0.0.1', 'localhost', '::1']
+
+    def _show_debug_toolbar(request):
+        if not DEBUG:
+            return False
+        if request.path.startswith(('/api/', '/ws/', '/static/', '/media/')):
+            return False
+        if request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            return False
+        return 'text/html' in request.META.get('HTTP_ACCEPT', '')
+
     DEBUG_TOOLBAR_CONFIG = {
-        'SHOW_TOOLBAR_CALLBACK': lambda request: DEBUG,
+        'SHOW_TOOLBAR_CALLBACK': _show_debug_toolbar,
         'RESULTS_CACHE_SIZE': 100,
         'IS_RUNNING_TESTS': False,
+        'RENDER_PANELS': True,
     }
 except ImportError:
     pass

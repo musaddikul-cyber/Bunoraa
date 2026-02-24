@@ -9,7 +9,7 @@ import { useMfa } from "@/components/account/useMfa";
 import { useSessions } from "@/components/account/useSessions";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import QRCode from "qrcode";
+import qrcodeGenerator from "qrcode-generator";
 import {
   decodeCreationOptions,
   encodeCredential,
@@ -176,17 +176,18 @@ export default function SecurityPage() {
       };
     }
 
-    QRCode.toDataURL(totpUri, {
-      width: 240,
-      margin: 1,
-      errorCorrectionLevel: "M",
-    })
-      .then((url) => {
-        if (active) setTotpQrDataUrl(url);
-      })
-      .catch(() => {
-        if (active) setTotpQrDataUrl(null);
-      });
+    try {
+      const qr = qrcodeGenerator(0, "M");
+      qr.addData(totpUri);
+      qr.make();
+      const svg = qr.createSvgTag(5, 1);
+      const dataUrl = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+        svg
+      )}`;
+      if (active) setTotpQrDataUrl(dataUrl);
+    } catch {
+      if (active) setTotpQrDataUrl(null);
+    }
 
     return () => {
       active = false;

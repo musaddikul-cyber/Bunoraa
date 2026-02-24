@@ -879,6 +879,12 @@ LOGGING = {
             'filters': ['ignore_cancelled_error'],
             'propagate': False,
         },
+        'asyncio': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'filters': ['ignore_cancelled_error'],
+            'propagate': False,
+        },
         'bunoraa.chat': {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',

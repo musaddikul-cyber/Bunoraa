@@ -3,6 +3,7 @@ Custom logging filters for suppressing expected errors.
 """
 import logging
 import asyncio
+import concurrent.futures
 
 
 class IgnoreCancelledErrorFilter(logging.Filter):
@@ -22,11 +23,15 @@ class IgnoreCancelledErrorFilter(logging.Filter):
             # Check the exception info
             if record.exc_info:
                 exc_type = record.exc_info[0]
-                if exc_type is asyncio.CancelledError:
+                if exc_type in (asyncio.CancelledError, concurrent.futures.CancelledError):
                     return False
             
             # Also check if CancelledError is in the message
-            if 'CancelledError' in record.getMessage():
+            message = record.getMessage()
+            if (
+                'CancelledError' in message
+                or 'exception in shielded future' in message
+            ):
                 return False
         
         return True

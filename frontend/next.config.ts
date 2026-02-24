@@ -75,6 +75,11 @@ const nextConfig: NextConfig = {
       { source: "/products/category/:path*", destination: "/categories/:path*", permanent: true },
       { source: "/categories/category/:path*", destination: "/categories/:path*", permanent: true },
       { source: "/account/", destination: "/account/dashboard/", permanent: false },
+      {
+        source: "/account/notifications/preferences/",
+        destination: "/account/notifications/",
+        permanent: false,
+      },
     ];
   },
   async rewrites() {

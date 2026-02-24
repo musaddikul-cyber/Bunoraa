@@ -14,6 +14,11 @@ export type NotificationFilters = {
   status?: string;
 };
 
+type UseNotificationsOptions = {
+  includeList?: boolean;
+  includeUnread?: boolean;
+};
+
 async function fetchNotifications(filters?: NotificationFilters) {
   const response = await apiFetch<NotificationItem[]>("/notifications/", {
     params: filters,
@@ -26,20 +31,31 @@ async function fetchUnreadCount() {
   return response.data;
 }
 
-export function useNotifications(filters?: NotificationFilters) {
+export function useNotifications(
+  filters?: NotificationFilters,
+  options?: UseNotificationsOptions
+) {
   const queryClient = useQueryClient();
   const { hasToken } = useAuthContext();
+  const includeList = options?.includeList ?? true;
+  const includeUnread = options?.includeUnread ?? true;
 
   const notificationsQuery = useQuery({
     queryKey: [...listKey, filters],
     queryFn: () => fetchNotifications(filters),
-    enabled: hasToken,
+    enabled: hasToken && includeList,
+    staleTime: 60_000,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   const unreadCountQuery = useQuery({
     queryKey: unreadKey,
     queryFn: fetchUnreadCount,
-    enabled: hasToken,
+    enabled: hasToken && includeUnread,
+    staleTime: 60_000,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   const markAllRead = useMutation({

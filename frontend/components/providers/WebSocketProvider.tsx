@@ -39,6 +39,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const socketsRef = React.useRef<Record<string, WebSocket | null>>({});
   const reconnectTimers = React.useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
+  const activeChannelsRef = React.useRef<string[]>([]);
+  const isMountedRef = React.useRef(true);
   const connectRef = React.useRef<(channel: string) => void>(() => {});
   const [status, setStatus] = React.useState<Record<string, "connecting" | "open" | "closed" | "error">>({});
   const [lastMessage, setLastMessage] = React.useState<Record<string, unknown>>({});
@@ -106,7 +108,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       };
 
       ws.onclose = () => {
+        if (socketsRef.current[channel] === ws) {
+          socketsRef.current[channel] = null;
+        }
         setStatus((prev) => ({ ...prev, [channel]: "closed" }));
+        if (!isMountedRef.current) return;
+        if (!activeChannelsRef.current.includes(channel)) return;
         if (reconnectTimers.current[channel]) {
           clearTimeout(reconnectTimers.current[channel] as ReturnType<typeof setTimeout>);
         }
@@ -124,14 +131,32 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   }, [connect]);
 
   React.useEffect(() => {
-    const sockets = socketsRef.current;
-    const timers = reconnectTimers.current;
+    activeChannelsRef.current = activeChannels;
     activeChannels.forEach((channel) => connect(channel));
-    return () => {
-      Object.values(sockets).forEach((socket) => socket?.close());
-      Object.values(timers).forEach((timer) => timer && clearTimeout(timer));
-    };
+    Object.keys(CHANNELS).forEach((channel) => {
+      if (activeChannels.includes(channel)) return;
+      if (reconnectTimers.current[channel]) {
+        clearTimeout(reconnectTimers.current[channel] as ReturnType<typeof setTimeout>);
+        reconnectTimers.current[channel] = null;
+      }
+      const socket = socketsRef.current[channel];
+      if (!socket) return;
+      socket.onclose = null;
+      socket.onerror = null;
+      socket.onmessage = null;
+      socket.close(1000, "Channel disabled");
+      socketsRef.current[channel] = null;
+      setStatus((prev) => ({ ...prev, [channel]: "closed" }));
+    });
   }, [activeChannels, connect]);
+
+  React.useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      Object.values(reconnectTimers.current).forEach((timer) => timer && clearTimeout(timer));
+      Object.values(socketsRef.current).forEach((socket) => socket?.close(1000, "Provider unmounted"));
+    };
+  }, []);
 
   const send = React.useCallback((channel: string, payload: unknown) => {
     const socket = socketsRef.current[channel];

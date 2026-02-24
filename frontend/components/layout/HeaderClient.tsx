@@ -99,7 +99,10 @@ export function HeaderClient() {
   const { cartQuery } = useCart();
   const { hasToken, profileQuery, logout } = useAuthContext();
   const { wishlistQuery } = useWishlist({ enabled: mounted });
-  const { unreadCountQuery } = useNotifications();
+  const { unreadCountQuery } = useNotifications(undefined, {
+    includeList: false,
+    includeUnread: true,
+  });
   const count = cartQuery.data?.item_count ?? 0;
   const wishlistCount =
     wishlistQuery.data?.meta?.pagination?.count ??

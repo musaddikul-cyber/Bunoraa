@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
+import { useAuthContext } from "@/components/providers/AuthProvider";
 import type { NotificationPreference } from "@/lib/types";
 
 const prefKey = ["notifications", "preferences"] as const;
@@ -13,10 +14,18 @@ async function fetchPreferences() {
 
 export function useNotificationPreferences() {
   const queryClient = useQueryClient();
+  const { hasToken } = useAuthContext();
 
   const preferencesQuery = useQuery({
     queryKey: prefKey,
     queryFn: fetchPreferences,
+    enabled: hasToken,
+    retry: (count, error) => {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        return false;
+      }
+      return count < 2;
+    },
   });
 
   const updatePreferences = useMutation({
@@ -27,8 +36,8 @@ export function useNotificationPreferences() {
       );
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: prefKey });
+    onSuccess: (data) => {
+      queryClient.setQueryData(prefKey, data);
     },
   });
 

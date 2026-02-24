@@ -20,10 +20,6 @@ type ApiFetchOptions = {
 
 const PUBLIC_API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
 const INTERNAL_API_BASE_URL = (process.env.NEXT_INTERNAL_API_BASE_URL || "").replace(/\/$/, "");
-const API_BASE_URL =
-  typeof window === "undefined" && INTERNAL_API_BASE_URL
-    ? INTERNAL_API_BASE_URL
-    : PUBLIC_API_BASE_URL;
 const FALLBACK_SITE_URL =
   (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || "http://localhost:3000";
 const DISABLE_BUILD_PRERENDER =
@@ -38,12 +34,47 @@ function ensureTrailingSlash(path: string) {
   return path;
 }
 
+function toPathBase(urlString: string) {
+  try {
+    const parsed = new URL(urlString);
+    return parsed.pathname.replace(/\/$/, "") || "/api";
+  } catch {
+    return urlString;
+  }
+}
+
+function getApiBaseUrl() {
+  if (typeof window === "undefined") {
+    return INTERNAL_API_BASE_URL || PUBLIC_API_BASE_URL;
+  }
+  if (!PUBLIC_API_BASE_URL) return "";
+  if (PUBLIC_API_BASE_URL.startsWith("/")) return PUBLIC_API_BASE_URL;
+
+  const forceProxy =
+    process.env.NEXT_PUBLIC_API_USE_PROXY === "true" ||
+    process.env.NEXT_PUBLIC_API_USE_PROXY === "1";
+  if (forceProxy) return toPathBase(PUBLIC_API_BASE_URL);
+
+  try {
+    const apiOrigin = new URL(PUBLIC_API_BASE_URL).origin;
+    const isLocalDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (isLocalDevHost && apiOrigin !== window.location.origin) {
+      // In local development, prefer the Next.js same-origin API rewrite to avoid CORS preflights.
+      return toPathBase(PUBLIC_API_BASE_URL);
+    }
+  } catch {
+    // Fall back to the configured public base.
+  }
+
+  return PUBLIC_API_BASE_URL;
+}
+
 function buildUrl(path: string, params?: ApiFetchOptions["params"]) {
   const normalizedPath = ensureTrailingSlash(path.startsWith("/") ? path : `/${path}`);
-  if (!API_BASE_URL) {
+  const base = getApiBaseUrl();
+  if (!base) {
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
   }
-  const base = API_BASE_URL;
   const url =
     base.startsWith("/")
       ? new URL(
@@ -196,7 +227,7 @@ async function parseJsonSafe(response: Response) {
 async function refreshAccessToken() {
   if (typeof window === "undefined") return null;
   const refresh = getRefreshToken();
-  if (!refresh || !API_BASE_URL) return null;
+  if (!refresh || !getApiBaseUrl()) return null;
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = fetch(buildUrl("/auth/token/refresh/"), {

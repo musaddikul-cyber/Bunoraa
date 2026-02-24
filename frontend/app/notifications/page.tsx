@@ -10,10 +10,16 @@ export default function NotificationsPage() {
   const [showUnread, setShowUnread] = React.useState(false);
   const [category, setCategory] = React.useState("all");
 
-  const { notificationsQuery, markAllRead, markRead } = useNotifications({
-    unread: showUnread || undefined,
-    category: category !== "all" ? category : undefined,
-  });
+  const { notificationsQuery, markAllRead, markRead } = useNotifications(
+    {
+      unread: showUnread || undefined,
+      category: category !== "all" ? category : undefined,
+    },
+    {
+      includeList: true,
+      includeUnread: false,
+    }
+  );
   const [selected, setSelected] = React.useState<string[]>([]);
 
   const notifications = notificationsQuery.data || [];

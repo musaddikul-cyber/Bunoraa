@@ -24,6 +24,12 @@ type CurrencyOption = {
 };
 
 type CountryOption = Country;
+type TimezoneOption = {
+  id: string;
+  name: string;
+  display_name?: string | null;
+  formatted_offset?: string | null;
+};
 
 async function fetchLanguages() {
   const response = await apiFetch<LanguageOption[]>("/i18n/languages/");
@@ -40,14 +46,21 @@ async function fetchCountries() {
   return response.data;
 }
 
+async function fetchTimezones() {
+  const response = await apiFetch<TimezoneOption[]>("/i18n/timezones/common/");
+  return response.data;
+}
+
 export function LocaleSwitcher({
   className,
   includeCountry = false,
+  includeTimezone = false,
   stacked = false,
   selectClassName,
 }: {
   className?: string;
   includeCountry?: boolean;
+  includeTimezone?: boolean;
   stacked?: boolean;
   selectClassName?: string;
 }) {
@@ -106,10 +119,25 @@ export function LocaleSwitcher({
       return failureCount < 2;
     },
   });
+  const timezonesQuery = useQuery({
+    queryKey: ["i18n", "timezones", "common"],
+    queryFn: fetchTimezones,
+    enabled: includeTimezone,
+    staleTime: 12 * 60 * 60 * 1000,
+    gcTime: 12 * 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 429) return false;
+      return failureCount < 2;
+    },
+  });
 
   const languages = mounted ? languagesQuery.data ?? [] : [];
   const currencies = mounted ? currenciesQuery.data ?? [] : [];
   const countries = mounted ? countriesQuery.data ?? [] : [];
+  const timezones = mounted ? timezonesQuery.data ?? [] : [];
   const language = mounted ? locale.language || languages[0]?.code || "" : "";
   const normalizedCurrency = mounted ? normalizeCurrencyCode(locale.currency) : "";
   const normalizedCountry = mounted ? normalizeCountryCode(locale.country) : "";
@@ -126,7 +154,8 @@ export function LocaleSwitcher({
     isLoading ||
     languagesQuery.isLoading ||
     currenciesQuery.isLoading ||
-    (includeCountry && countriesQuery.isLoading);
+    (includeCountry && countriesQuery.isLoading) ||
+    (includeTimezone && timezonesQuery.isLoading);
 
   const languageOptions = languages.map((option) => ({
     value: option.code,
@@ -173,14 +202,41 @@ export function LocaleSwitcher({
       ? [{ value: resolvedCountryCode, label: resolvedCountryCode }, ...countryOptions]
       : countryOptions;
   const country = resolvedCountryCode || resolvedCountryOptions[0]?.value || "";
+  const timezoneValue = mounted ? String(locale.timezone || "").trim() : "";
+  const timezoneMatch = timezones.find((option) => {
+    const current = timezoneValue.toLowerCase();
+    if (!current) return false;
+    const name = String(option.name || "").trim().toLowerCase();
+    const displayName = String(option.display_name || "").trim().toLowerCase();
+    return name === current || displayName === current;
+  });
+  const timezone = timezoneMatch?.name || timezoneValue || timezones[0]?.name || "";
+  const timezoneOptions = timezones.map((option) => {
+    const label = option.display_name || option.name;
+    const offset = String(option.formatted_offset || "").trim();
+    return {
+      value: option.name,
+      label: offset ? `${label} (${offset})` : label,
+    };
+  });
+  const resolvedTimezoneOptions =
+    timezone && !timezoneOptions.some((option) => option.value === timezone)
+      ? [{ value: timezone, label: timezone }, ...timezoneOptions]
+      : timezoneOptions;
 
   React.useEffect(() => {
     if (!mounted || isBusy) return;
-    const next: { language?: string; currency?: string; country?: string } = {};
+    const next: {
+      language?: string;
+      currency?: string;
+      country?: string;
+      timezone?: string;
+    } = {};
 
     if (!locale.language && language) next.language = language;
     if (!locale.currency && currency) next.currency = currency;
     if (includeCountry && !locale.country && country) next.country = country;
+    if (includeTimezone && !locale.timezone && timezone) next.timezone = timezone;
 
     if (Object.keys(next).length > 0) {
       setLocale(next);
@@ -189,23 +245,26 @@ export function LocaleSwitcher({
     mounted,
     isBusy,
     includeCountry,
+    includeTimezone,
     locale.language,
     locale.currency,
     locale.country,
+    locale.timezone,
     language,
     currency,
     country,
+    timezone,
     setLocale,
   ]);
 
   const wrapperClass = stacked
-    ? "flex w-full flex-col gap-3"
+    ? "flex w-full flex-col gap-4"
     : "flex w-auto flex-col gap-2 sm:flex-row sm:items-center";
   const rowClass = stacked
-    ? "flex w-full items-center justify-between gap-3 text-sm font-medium text-foreground/80"
+    ? "grid w-full gap-2 text-sm font-medium text-foreground/80 sm:grid-cols-[minmax(8rem,auto)_1fr] sm:items-center sm:gap-4"
     : "flex w-auto items-center gap-2 text-sm font-medium text-foreground/80";
   const selectClass = stacked
-    ? "h-10 min-h-10 w-48 rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+    ? "h-11 min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60"
     : "h-10 min-h-10 w-[8.5rem] rounded-lg border border-border bg-card px-2 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:w-32 sm:text-sm";
 
   return (
@@ -267,6 +326,29 @@ export function LocaleSwitcher({
               </option>
             ) : (
               resolvedCountryOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
+      ) : null}
+      {includeTimezone ? (
+        <label className={rowClass}>
+          <span className="whitespace-nowrap">Timezone</span>
+          <select
+            value={timezone}
+            onChange={(event) => setLocale({ timezone: event.target.value })}
+            disabled={isBusy || resolvedTimezoneOptions.length === 0}
+            className={cn(selectClass, selectClassName)}
+          >
+            {resolvedTimezoneOptions.length === 0 ? (
+              <option value="">
+                {isBusy ? "Loading..." : "No timezones"}
+              </option>
+            ) : (
+              resolvedTimezoneOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

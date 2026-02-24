@@ -31,47 +31,59 @@ export async function subscribeToBrowserPush(): Promise<PushSubscriptionResult> 
     return { status: "unsupported" };
   }
 
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+  if (
+    !("serviceWorker" in navigator) ||
+    !("PushManager" in window) ||
+    !("Notification" in window)
+  ) {
     return { status: "unsupported" };
   }
 
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") {
-    return { status: "denied" };
-  }
-
-  const registration = await navigator.serviceWorker.register("/notifications-sw.js");
-  let subscription = await registration.pushManager.getSubscription();
-
-  if (!subscription) {
-    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
-    if (!vapidPublicKey) {
-      return { status: "error", error: "Missing VAPID public key" };
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      return { status: "denied" };
     }
 
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+    const registration = await navigator.serviceWorker.register("/notifications-sw.js");
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+      if (!vapidPublicKey) {
+        return {
+          status: "unsupported",
+          error: "Browser notifications are not configured for this environment.",
+        };
+      }
+
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+    }
+
+    const token = JSON.stringify(subscription);
+    const userAgent = navigator.userAgent;
+
+    await apiFetch("/notifications/push-tokens/", {
+      method: "POST",
+      body: {
+        token,
+        device_type: "web",
+        device_name: "Browser",
+        platform: navigator.platform,
+        app_version: navigator.appVersion,
+        locale: navigator.language,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        browser: detectBrowser(userAgent),
+        user_agent: userAgent,
+      },
     });
+
+    return { status: "enabled" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to enable browser notifications";
+    return { status: "error", error: message };
   }
-
-  const token = JSON.stringify(subscription);
-  const userAgent = navigator.userAgent;
-
-  await apiFetch("/notifications/push-tokens/", {
-    method: "POST",
-    body: {
-      token,
-      device_type: "web",
-      device_name: "Browser",
-      platform: navigator.platform,
-      app_version: navigator.appVersion,
-      locale: navigator.language,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      browser: detectBrowser(userAgent),
-      user_agent: userAgent,
-    },
-  });
-
-  return { status: "enabled" };
 }

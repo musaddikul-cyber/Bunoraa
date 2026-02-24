@@ -3,14 +3,13 @@
 import { usePreferences } from "@/components/account/usePreferences";
 import type { UserPreferences } from "@/lib/types";
 import { useTheme } from "@/components/theme/ThemeProvider";
-import { useLocale } from "@/components/providers/LocaleProvider";
+import { LocaleSwitcher } from "@/components/locale/LocaleSwitcher";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 export default function PreferencesPage() {
   const { preferencesQuery, updatePreferences } = usePreferences();
   const { theme, setTheme } = useTheme();
-  const { locale, setLocale } = useLocale();
   const prefs: UserPreferences = preferencesQuery.data ?? {};
   type PreferenceToggleKey =
     | "reduce_motion"
@@ -67,33 +66,12 @@ export default function PreferencesPage() {
 
         <Card variant="bordered" className="space-y-4">
           <h2 className="text-lg font-semibold">Locale</h2>
-          <label className="block text-sm">
-            Language code
-            <input
-              className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
-              value={locale.language || ""}
-              onChange={(event) => setLocale({ language: event.target.value })}
-              placeholder="en"
-            />
-          </label>
-          <label className="block text-sm">
-            Currency
-            <input
-              className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
-              value={locale.currency || ""}
-              onChange={(event) => setLocale({ currency: event.target.value })}
-              placeholder="USD"
-            />
-          </label>
-          <label className="block text-sm">
-            Timezone
-            <input
-              className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
-              value={locale.timezone || ""}
-              onChange={(event) => setLocale({ timezone: event.target.value })}
-              placeholder="Asia/Dhaka"
-            />
-          </label>
+          <LocaleSwitcher
+            stacked
+            includeTimezone
+            className="w-full"
+            selectClassName="w-full max-w-full"
+          />
         </Card>
       </div>
 

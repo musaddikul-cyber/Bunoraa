@@ -9,6 +9,7 @@ import { useMfa } from "@/components/account/useMfa";
 import { useSessions } from "@/components/account/useSessions";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import QRCode from "qrcode";
 import {
   decodeCreationOptions,
   encodeCredential,
@@ -29,6 +30,19 @@ const passwordSchema = z
 
 type PasswordForm = z.infer<typeof passwordSchema>;
 
+function buildBackupCodesText(codes: string[]) {
+  const issuedOn = new Date().toISOString();
+  return [
+    "Bunoraa Backup Codes",
+    `Issued: ${issuedOn}`,
+    "",
+    "Each code can be used once. Keep these codes in a safe place.",
+    "",
+    ...codes,
+    "",
+  ].join("\n");
+}
+
 export default function SecurityPage() {
   const form = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
@@ -46,11 +60,21 @@ export default function SecurityPage() {
   } = useMfa();
   const { sessionsQuery, revokeSession, revokeOthers } = useSessions();
 
+  const [totpFlow, setTotpFlow] = React.useState<"idle" | "setup" | "disable">(
+    "idle"
+  );
   const [totpSecret, setTotpSecret] = React.useState<string | null>(null);
   const [totpUri, setTotpUri] = React.useState<string | null>(null);
-  const [totpCode, setTotpCode] = React.useState("");
+  const [totpQrDataUrl, setTotpQrDataUrl] = React.useState<string | null>(null);
+  const [totpSetupCode, setTotpSetupCode] = React.useState("");
+  const [totpDisableCode, setTotpDisableCode] = React.useState("");
   const [backupCodes, setBackupCodes] = React.useState<string[]>([]);
   const [passkeyName, setPasskeyName] = React.useState("");
+  const [mfaNotice, setMfaNotice] = React.useState<string | null>(null);
+
+  const mfaEnabled = Boolean(statusQuery.data?.enabled);
+  const passkeyPending =
+    registerPasskeyOptions.isPending || registerPasskeyVerify.isPending;
 
   const handlePasswordChange = async (values: PasswordForm) => {
     await apiFetch("/accounts/password/change/", {
@@ -64,22 +88,117 @@ export default function SecurityPage() {
     const response = await setupTotp.mutateAsync();
     setTotpSecret(response.secret);
     setTotpUri(response.otpauth_url);
+    setTotpSetupCode("");
+    setTotpFlow("setup");
+    setMfaNotice(null);
   };
 
   const handleTotpVerify = async () => {
-    const response = await verifyTotp.mutateAsync(totpCode);
+    const response = await verifyTotp.mutateAsync(totpSetupCode);
     setBackupCodes(response.backup_codes || []);
-    setTotpCode("");
+    setTotpSetupCode("");
+    setTotpSecret(null);
+    setTotpUri(null);
+    setTotpFlow("idle");
+    setMfaNotice("Authenticator app enabled. Download and store your backup codes.");
   };
 
   const handleTotpDisable = async () => {
-    await disableTotp.mutateAsync(totpCode);
-    setTotpCode("");
+    await disableTotp.mutateAsync(totpDisableCode);
+    setTotpDisableCode("");
+    setTotpFlow("idle");
+    setTotpSecret(null);
+    setTotpUri(null);
+    setMfaNotice("Multi-factor authentication disabled.");
   };
 
   const handleBackupCodes = async () => {
+    if (!mfaEnabled) {
+      setMfaNotice("Enable MFA first. Backup codes are only used with MFA.");
+      return;
+    }
+    setMfaNotice("Generating backup codes. This can take a few seconds...");
     const response = await regenerateBackupCodes.mutateAsync();
     setBackupCodes(response.backup_codes || []);
+    setMfaNotice("New backup codes generated. Download and store them now.");
+  };
+
+  const handleBackupCodesDownload = React.useCallback(() => {
+    if (typeof window === "undefined" || backupCodes.length === 0) return;
+    const blob = new Blob([buildBackupCodesText(backupCodes)], {
+      type: "text/plain;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bunoraa-backup-codes-${new Date()
+      .toISOString()
+      .slice(0, 10)}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [backupCodes]);
+
+  const copyMfaValue = React.useCallback(async (value: string, label: string) => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      setMfaNotice(`Unable to copy ${label.toLowerCase()} on this device.`);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(value);
+      setMfaNotice(`${label} copied.`);
+    } catch {
+      setMfaNotice(`Unable to copy ${label.toLowerCase()} on this device.`);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!mfaEnabled) return;
+    if (totpFlow !== "setup") return;
+    setTotpFlow("idle");
+    setTotpSecret(null);
+    setTotpUri(null);
+  }, [mfaEnabled, totpFlow]);
+
+  React.useEffect(() => {
+    if (!mfaNotice) return;
+    const timer = window.setTimeout(() => setMfaNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [mfaNotice]);
+
+  React.useEffect(() => {
+    let active = true;
+    if (!totpUri) {
+      setTotpQrDataUrl(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    QRCode.toDataURL(totpUri, {
+      width: 240,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    })
+      .then((url) => {
+        if (active) setTotpQrDataUrl(url);
+      })
+      .catch(() => {
+        if (active) setTotpQrDataUrl(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [totpUri]);
+
+  const showTotpSetupForm = totpFlow === "setup" && !mfaEnabled && Boolean(totpSecret);
+  const showTotpDisableForm = totpFlow === "disable" && mfaEnabled;
+
+  const handleToggleDisableForm = () => {
+    setTotpDisableCode("");
+    setTotpFlow((prev) => (prev === "disable" ? "idle" : "disable"));
   };
 
   const handleRegisterPasskey = async () => {
@@ -123,6 +242,7 @@ export default function SecurityPage() {
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
                 type="password"
+                autoComplete="current-password"
                 {...form.register("current_password")}
               />
             </label>
@@ -131,6 +251,7 @@ export default function SecurityPage() {
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
                 type="password"
+                autoComplete="new-password"
                 {...form.register("new_password")}
               />
             </label>
@@ -139,10 +260,13 @@ export default function SecurityPage() {
               <input
                 className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
                 type="password"
+                autoComplete="new-password"
                 {...form.register("new_password_confirm")}
               />
             </label>
-            <Button type="submit">Update password</Button>
+            <Button type="submit" className="w-full sm:w-auto">
+              Update password
+            </Button>
           </form>
         </Card>
 
@@ -152,48 +276,181 @@ export default function SecurityPage() {
             Add an authenticator app or passkey to protect your account.
           </p>
           <div className="rounded-lg border border-border bg-muted p-3 text-sm">
-            Status: {statusQuery.data?.enabled ? "Enabled" : "Not enabled"}
+            <p>Status: {mfaEnabled ? "Enabled" : "Not enabled"}</p>
+            <p className="mt-1 text-xs text-foreground/70">
+              Backup codes remaining: {statusQuery.data?.backup_codes_remaining ?? 0}
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={handleTotpSetup}>
-              Set up authenticator
-            </Button>
-            <Button variant="secondary" onClick={handleBackupCodes}>
-              Generate backup codes
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
+            {!mfaEnabled ? (
+              <Button
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={handleTotpSetup}
+                disabled={setupTotp.isPending}
+              >
+                {setupTotp.isPending ? "Preparing..." : "Set up authenticator"}
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={handleToggleDisableForm}
+              >
+                {showTotpDisableForm ? "Cancel disable" : "Disable MFA"}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={handleBackupCodes}
+              disabled={!mfaEnabled || regenerateBackupCodes.isPending}
+            >
+              {!mfaEnabled
+                ? "Backup codes require MFA"
+                : regenerateBackupCodes.isPending
+                ? "Generating..."
+                : "Generate backup codes"}
             </Button>
           </div>
-          {totpSecret ? (
+          {!mfaEnabled ? (
+            <p className="text-xs text-foreground/70">
+              Generate backup codes after enabling MFA. They are recovery codes for your
+              authenticator setup.
+            </p>
+          ) : null}
+          {mfaNotice ? (
+            <p className="rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground/75">
+              {mfaNotice}
+            </p>
+          ) : null}
+          {showTotpSetupForm ? (
             <div className="space-y-2 rounded-lg border border-border bg-muted p-3 text-sm">
-              <p>Secret: {totpSecret}</p>
-              {totpUri ? (
-                <a className="text-primary" href={totpUri}>
-                  Add to authenticator
-                </a>
+              <p className="font-semibold">Step 1: Scan QR code in your authenticator app</p>
+              {totpQrDataUrl ? (
+                <img
+                  src={totpQrDataUrl}
+                  alt="Authenticator setup QR code"
+                  className="mx-auto h-44 w-44 rounded-lg border border-border bg-card p-1 sm:mx-0"
+                  loading="lazy"
+                />
+              ) : totpUri ? (
+                <p className="text-xs text-foreground/70">
+                  Generating QR code...
+                </p>
               ) : null}
+              <p className="font-semibold">Step 2: Or enter this setup key manually</p>
+              <div className="rounded border border-border bg-card px-2 py-1 font-mono text-xs break-all">
+                {totpSecret}
+              </div>
+              <div className="grid gap-2 sm:flex sm:flex-wrap">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  onClick={() => copyMfaValue(totpSecret || "", "Setup key")}
+                >
+                  Copy setup key
+                </Button>
+                {totpUri ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                    onClick={() => copyMfaValue(totpUri, "Setup URI")}
+                  >
+                    Copy setup URI
+                  </Button>
+                ) : null}
+              </div>
+              <label className="block text-sm">
+                Step 3: Enter 6-digit code from app
+                <input
+                  className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
+                  value={totpSetupCode}
+                  onChange={(event) => setTotpSetupCode(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="123456"
+                />
+              </label>
+              <div className="grid gap-2 sm:flex sm:flex-wrap">
+                <Button
+                  className="w-full sm:w-auto"
+                  onClick={handleTotpVerify}
+                  disabled={verifyTotp.isPending || totpSetupCode.trim().length < 6}
+                >
+                  {verifyTotp.isPending ? "Enabling..." : "Enable MFA"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    setTotpFlow("idle");
+                    setTotpSecret(null);
+                    setTotpUri(null);
+                    setTotpSetupCode("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
           ) : null}
-          <label className="block text-sm">
-            Verification code
-            <input
-              className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
-              value={totpCode}
-              onChange={(event) => setTotpCode(event.target.value)}
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={handleTotpVerify} disabled={verifyTotp.isPending}>
-              Enable MFA
-            </Button>
-            <Button variant="ghost" onClick={handleTotpDisable}>
-              Disable MFA
-            </Button>
-          </div>
+          {showTotpDisableForm ? (
+            <div className="space-y-2 rounded-lg border border-border bg-muted p-3 text-sm">
+              <p className="font-semibold">
+                Confirm with your authenticator code to disable MFA
+              </p>
+              <label className="block text-sm">
+                Verification code
+                <input
+                  className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2"
+                  value={totpDisableCode}
+                  onChange={(event) => setTotpDisableCode(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="123456"
+                />
+              </label>
+              <div className="grid gap-2 sm:flex sm:flex-wrap">
+                <Button
+                  variant="ghost"
+                  className="w-full sm:w-auto"
+                  onClick={handleTotpDisable}
+                  disabled={disableTotp.isPending || totpDisableCode.trim().length < 6}
+                >
+                  {disableTotp.isPending ? "Disabling..." : "Disable MFA"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full sm:w-auto"
+                  onClick={() => setTotpFlow("idle")}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : null}
           {backupCodes.length ? (
             <div className="rounded-lg border border-border bg-muted p-3 text-sm">
-              <p className="font-semibold">Backup codes</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-semibold">Backup codes</p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  onClick={handleBackupCodesDownload}
+                >
+                  Download .txt
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-foreground/70">
+                Each code can be used once. Store them somewhere safe.
+              </p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {backupCodes.map((code) => (
-                  <span key={code} className="rounded bg-card px-2 py-1">
+                  <span key={code} className="rounded bg-card px-2 py-1 font-mono">
                     {code}
                   </span>
                 ))}
@@ -208,15 +465,19 @@ export default function SecurityPage() {
         <p className="text-sm text-foreground/70">
           Register a passkey to sign in quickly without a password.
         </p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
           <input
             className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
             placeholder="Passkey nickname (optional)"
             value={passkeyName}
             onChange={(event) => setPasskeyName(event.target.value)}
           />
-          <Button onClick={handleRegisterPasskey}>
-            Add passkey
+          <Button
+            className="w-full sm:min-w-[12rem] lg:min-w-[14rem]"
+            onClick={handleRegisterPasskey}
+            disabled={passkeyPending}
+          >
+            {passkeyPending ? "Adding passkey..." : "Add passkey"}
           </Button>
         </div>
         {passkeysQuery.data?.length ? (
@@ -237,6 +498,7 @@ export default function SecurityPage() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="w-full sm:w-auto"
                   onClick={() => removePasskey.mutate(passkey.id)}
                 >
                   Remove
@@ -257,7 +519,11 @@ export default function SecurityPage() {
               Manage devices currently signed in.
             </p>
           </div>
-          <Button variant="secondary" onClick={() => revokeOthers.mutate()}>
+          <Button
+            variant="secondary"
+            className="w-full sm:w-auto"
+            onClick={() => revokeOthers.mutate()}
+          >
             Sign out other devices
           </Button>
         </div>
@@ -286,6 +552,7 @@ export default function SecurityPage() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="w-full sm:w-auto"
                   onClick={() => revokeSession.mutate(session.id)}
                   disabled={session.is_current}
                 >

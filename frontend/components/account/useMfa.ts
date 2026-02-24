@@ -71,6 +71,17 @@ export function useMfa() {
       );
       return response.data;
     },
+    onSuccess: (data) => {
+      queryClient.setQueryData<MfaStatus | undefined>(mfaKey, (previous) =>
+        previous
+          ? {
+              ...previous,
+              backup_codes_remaining:
+                data.backup_codes?.length ?? previous.backup_codes_remaining,
+            }
+          : previous
+      );
+    },
   });
 
   const registerPasskeyOptions = useMutation({

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
@@ -25,7 +26,7 @@ PRODUCT_CUE_RE = re.compile(
 )
 UI_NOISE_RE = re.compile(
     r"\b(open\s+media|in\s+modal|skip\s+to|listings?\s+lounge|help\s*center|seller\s+central|"
-    r"image\s+requirements?|cookie|javascript)\b",
+    r"image\s+requirements?|cookie|javascript|captcha|access denied|verify you are human)\b",
     re.I,
 )
 HELP_PATH_RE = re.compile(
@@ -113,11 +114,11 @@ class RankedResearchDocument:
 class ProductDeepResearchProvider:
     """
     Product-focused web deep-research pipeline:
-    - Build multiple focused queries from product evidence.
-    - Search across providers (free-first default).
-    - Fetch crawlable pages with ResearchProvider safeguards.
-    - Rank for product-likelihood + relevance + trust.
-    - Return de-duplicated, domain-diverse source set.
+    - Build focused query variants from image/OCR/context evidence.
+    - Search across resilient providers (free-first by default).
+    - Fetch and filter pages with SSRF + quality checks.
+    - Rank by relevance + product-likelihood + trust.
+    - Select domain-diverse sources with diagnostics.
     """
 
     def __init__(
@@ -129,12 +130,12 @@ class ProductDeepResearchProvider:
         self.search_provider = search_provider or SearchProvider()
         self.research_provider = research_provider or ResearchProvider()
         raw_order = (
-            getattr(settings, "PRODUCT_AI_DEEP_RESEARCH_SEARCH_PROVIDER_ORDER", "duckduckgo")
-            or "duckduckgo"
+            getattr(settings, "PRODUCT_AI_DEEP_RESEARCH_SEARCH_PROVIDER_ORDER", "searxng,bing_html,duckduckgo")
+            or "searxng,bing_html,duckduckgo"
         )
         provider_order = [item.strip().lower() for item in raw_order.split(",") if item.strip()]
         if not provider_order:
-            provider_order = ["duckduckgo"]
+            provider_order = ["searxng", "bing_html", "duckduckgo"]
         if hasattr(self.search_provider, "provider_order"):
             self.search_provider.provider_order = provider_order
 
@@ -148,6 +149,13 @@ class ProductDeepResearchProvider:
         context_hints: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         context_hints = context_hints or {}
+        started_at = time.monotonic()
+        max_latency_seconds = max(
+            10,
+            int(getattr(settings, "PRODUCT_AI_MAX_RESEARCH_LATENCY_SECONDS", 90) or 90),
+        )
+        min_source_diversity = 2
+
         query_plan = self._build_query_plan(
             query=query,
             candidate_text=candidate_text,
@@ -163,27 +171,89 @@ class ProductDeepResearchProvider:
         aggregated_results: list[dict[str, Any]] = []
         provider_counts: Counter[str] = Counter()
         query_result_counts: dict[str, int] = {}
+        query_diagnostics: list[dict[str, Any]] = []
+        search_rejection_reasons: Counter[str] = Counter()
+        stopped_due_to_latency = False
+        search_phase_started = time.monotonic()
 
         for planned_query in query_plan:
+            if (time.monotonic() - started_at) > max_latency_seconds:
+                stopped_due_to_latency = True
+                break
             try:
                 results, provider = self.search_provider.search(planned_query, max_results=max_per_query)
             except Exception as exc:
                 logger.warning("Product deep research search failed for '%s': %s", planned_query, exc)
+                query_diagnostics.append(
+                    {
+                        "query": planned_query,
+                        "provider": "none",
+                        "status": "failed",
+                        "search_results_before_filter": 0,
+                        "search_results_after_filter": 0,
+                        "error": str(exc),
+                    }
+                )
                 continue
+
             provider_name = (provider or "none").strip() or "none"
             provider_counts[provider_name] += 1
+            provider_diag = {}
+            if hasattr(self.search_provider, "get_last_diagnostics"):
+                provider_diag = self.search_provider.get_last_diagnostics() or {}
+
+            before_filter = len(results or [])
             filtered_results = [item for item in (results or []) if self._result_is_likely_product(item)]
             query_result_counts[planned_query] = len(filtered_results)
+            after_filter = len(filtered_results)
+            if before_filter > after_filter:
+                search_rejection_reasons["non_product_or_noise"] += before_filter - after_filter
 
             for result in filtered_results:
                 item = dict(result)
                 item["query"] = planned_query
                 aggregated_results.append(item)
+            query_diagnostics.append(
+                {
+                    "query": planned_query,
+                    "provider": provider_name,
+                    "status": provider_diag.get("status", "ok" if provider_name != "none" else "none"),
+                    "search_results_before_filter": before_filter,
+                    "search_results_after_filter": after_filter,
+                    "provider_attempts": provider_diag.get("attempts", []),
+                }
+            )
             if len(aggregated_results) >= max_search_results:
                 break
 
         deduped_results = self._dedupe_results(aggregated_results, max_results=max_search_results)
-        research_docs = self.research_provider.fetch_documents(deduped_results, max_docs=max_docs * 2)
+        search_phase_duration_ms = int((time.monotonic() - search_phase_started) * 1000)
+        fetch_phase_started = time.monotonic()
+        try:
+            if hasattr(self.research_provider, "fetch_documents_with_diagnostics"):
+                research_docs, fetch_diag = self.research_provider.fetch_documents_with_diagnostics(
+                    deduped_results,
+                    max_docs=max_docs * 2,
+                )
+            else:
+                research_docs = self.research_provider.fetch_documents(deduped_results, max_docs=max_docs * 2)
+                fetch_diag = {
+                    "attempted_urls": len(deduped_results),
+                    "accepted_docs": len(research_docs),
+                    "rejected_docs": max(0, len(deduped_results) - len(research_docs)),
+                    "rejection_reasons": {},
+                }
+        except Exception as exc:  # pragma: no cover - safety net
+            logger.warning("Deep research fetch phase failed: %s", exc)
+            research_docs = []
+            fetch_diag = {
+                "attempted_urls": len(deduped_results),
+                "accepted_docs": 0,
+                "rejected_docs": len(deduped_results),
+                "rejection_reasons": {"fetch_exception": len(deduped_results)},
+                "error": str(exc),
+            }
+        fetch_phase_duration_ms = int((time.monotonic() - fetch_phase_started) * 1000)
 
         query_terms = _to_query_terms(" ".join(query_plan), limit=16)
         reference_terms = _to_query_terms(
@@ -197,8 +267,16 @@ class ProductDeepResearchProvider:
             ),
             limit=16,
         )
-        ranked = self._rank_documents(research_docs, query_terms=query_terms, reference_terms=reference_terms)
-        selected = self._select_diverse_sources(ranked, max_sources=max_sources)
+        rank_phase_started = time.monotonic()
+        ranked, rank_rejections = self._rank_documents(
+            research_docs,
+            query_terms=query_terms,
+            reference_terms=reference_terms,
+        )
+        rank_phase_duration_ms = int((time.monotonic() - rank_phase_started) * 1000)
+        selection_phase_started = time.monotonic()
+        selected, selection_rejections = self._select_diverse_sources(ranked, max_sources=max_sources)
+        selection_phase_duration_ms = int((time.monotonic() - selection_phase_started) * 1000)
         selected_docs = [ranked_item.document for ranked_item in selected][:max_docs]
 
         for ranked_item in selected:
@@ -215,6 +293,33 @@ class ProductDeepResearchProvider:
         if provider_counts:
             primary_provider = provider_counts.most_common(1)[0][0]
 
+        unique_domains = sorted({str(getattr(doc, "domain", "") or "") for doc in selected_docs if getattr(doc, "domain", "")})
+        diversity_ok = len(unique_domains) >= min_source_diversity or len(selected_docs) < min_source_diversity
+
+        diagnostics = {
+            "query_diagnostics": query_diagnostics,
+            "provider_counts": dict(provider_counts),
+            "search_results_before_dedupe": len(aggregated_results),
+            "search_results_after_dedupe": len(deduped_results),
+            "search_rejection_reasons": dict(search_rejection_reasons),
+            "fetch_attempted": int(fetch_diag.get("attempted_urls", 0) or 0),
+            "fetch_success": int(fetch_diag.get("accepted_docs", 0) or 0),
+            "fetch_failed": int(fetch_diag.get("rejected_docs", 0) or 0),
+            "fetch_rejection_reasons": fetch_diag.get("rejection_reasons", {}) or {},
+            "rank_rejection_reasons": dict(rank_rejections),
+            "selection_rejection_reasons": dict(selection_rejections),
+            "unique_domains": unique_domains,
+            "source_diversity_ok": diversity_ok,
+            "stopped_due_to_latency": stopped_due_to_latency,
+            "timings_ms": {
+                "search": search_phase_duration_ms,
+                "fetch": fetch_phase_duration_ms,
+                "rank": rank_phase_duration_ms,
+                "select": selection_phase_duration_ms,
+            },
+            "duration_ms": int((time.monotonic() - started_at) * 1000),
+        }
+
         return {
             "documents": selected_docs,
             "search_results": deduped_results,
@@ -226,6 +331,7 @@ class ProductDeepResearchProvider:
             "deduped_search_results_count": len(deduped_results),
             "fetched_docs_count": len(research_docs),
             "selected_docs_count": len(selected_docs),
+            "diagnostics": diagnostics,
         }
 
     def _build_query_plan(
@@ -319,9 +425,10 @@ class ProductDeepResearchProvider:
         *,
         query_terms: list[str],
         reference_terms: list[str],
-    ) -> list[RankedResearchDocument]:
+    ) -> tuple[list[RankedResearchDocument], Counter[str]]:
         min_score = float(getattr(settings, "PRODUCT_AI_DEEP_RESEARCH_MIN_SCORE", 0.20) or 0.20)
         ranked: list[RankedResearchDocument] = []
+        rejections: Counter[str] = Counter()
         terms = query_terms or reference_terms
 
         for doc in docs:
@@ -334,8 +441,10 @@ class ProductDeepResearchProvider:
             )
             lowered = combined_text.lower()
             if not lowered.strip():
+                rejections["empty_text"] += 1
                 continue
             if UI_NOISE_RE.search(lowered) and not PRODUCT_CUE_RE.search(lowered):
+                rejections["ui_noise"] += 1
                 continue
 
             hits = sum(1 for term in terms if term in lowered)
@@ -352,6 +461,7 @@ class ProductDeepResearchProvider:
             if has_non_product and structured_signals == 0:
                 product_likelihood -= 0.45
             if has_non_product and structured_signals < 2 and product_likelihood < 0.62:
+                rejections["non_product_signals"] += 1
                 continue
             product_likelihood = max(0.0, min(1.0, product_likelihood))
 
@@ -362,6 +472,7 @@ class ProductDeepResearchProvider:
                 score = max(score, min(1.0, 0.24 + (0.33 * product_likelihood) + (0.20 * trust)))
 
             if score < min_score:
+                rejections["below_min_score"] += 1
                 continue
 
             ranked.append(
@@ -374,30 +485,33 @@ class ProductDeepResearchProvider:
             )
 
         ranked.sort(key=lambda item: item.score, reverse=True)
-        return ranked
+        return ranked, rejections
 
     def _select_diverse_sources(
         self,
         ranked: list[RankedResearchDocument],
         *,
         max_sources: int,
-    ) -> list[RankedResearchDocument]:
+    ) -> tuple[list[RankedResearchDocument], Counter[str]]:
         max_domain_repeats = max(
             1,
             int(getattr(settings, "PRODUCT_AI_DEEP_RESEARCH_MAX_DOMAIN_REPEATS", 2) or 2),
         )
         selected: list[RankedResearchDocument] = []
+        rejections: Counter[str] = Counter()
         domain_counts: Counter[str] = Counter()
         for ranked_item in ranked:
             doc = ranked_item.document
             if not doc.url:
+                rejections["missing_url"] += 1
                 continue
             domain = str(getattr(doc, "domain", "") or "")
             if domain and domain_counts[domain] >= max_domain_repeats:
+                rejections["domain_repeat_limit"] += 1
                 continue
             selected.append(ranked_item)
             if domain:
                 domain_counts[domain] += 1
             if len(selected) >= max_sources:
                 break
-        return selected
+        return selected, rejections

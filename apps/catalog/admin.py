@@ -1088,6 +1088,12 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             self._serialize_suggestion(item)
             for item in job.suggestions.order_by("field_name")
         ]
+        summary = job.summary or {}
+        strict_mode = bool(summary.get("strict_mode", getattr(settings, "PRODUCT_AI_STRICT_EVIDENCE_MODE", True)))
+        min_required_sources = int(
+            summary.get("min_required_sources", getattr(settings, "PRODUCT_AI_MIN_WEB_SOURCES", 3)) or 0
+        )
+        validated_source_count = int(summary.get("validated_source_count", 0) or 0)
         return JsonResponse(
             {
                 "ok": True,
@@ -1095,7 +1101,12 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 "status": job.status,
                 "progress": job.progress,
                 "error_message": job.error_message,
-                "summary": job.summary or {},
+                "error_code": str(summary.get("error_code") or ""),
+                "strict_mode": strict_mode,
+                "min_required_sources": min_required_sources,
+                "validated_source_count": validated_source_count,
+                "research_diagnostics": summary.get("research_diagnostics") or {},
+                "summary": summary,
                 "suggestions": suggestions,
             }
         )

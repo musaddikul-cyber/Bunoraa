@@ -88,6 +88,7 @@ export const viewport: Viewport = {
 const disablePrerender =
   process.env.NEXT_DISABLE_PRERENDER === "true" ||
   process.env.NEXT_DISABLE_PRERENDER === "1";
+const shouldLoadCloudflareBeacon = process.env.NODE_ENV === "production";
 
 const themeBootstrapScript = `
 (() => {
@@ -167,11 +168,13 @@ export default function RootLayout({
           <ChatWidget />
         </Providers>
         <JsonLd data={[organizationSchema, websiteSchema]} />
-        <Script
-          src="https://static.cloudflareinsights.com/beacon.min.js"
-          strategy="afterInteractive"
-          data-cf-beacon='{"token": "99cd4569fd314a31bb530d46e16f26c9"}'
-        />
+        {shouldLoadCloudflareBeacon ? (
+          <Script
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            strategy="afterInteractive"
+            data-cf-beacon='{"token": "99cd4569fd314a31bb530d46e16f26c9"}'
+          />
+        ) : null}
       </body>
     </html>
   );

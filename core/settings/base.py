@@ -116,6 +116,7 @@ DJANGO_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'daphne',
     'django.contrib.staticfiles',
     'django.contrib.sites',
     'django.contrib.sitemaps',
@@ -519,12 +520,28 @@ PRODUCT_AI_FORCE_SYNC_ON_FILESYSTEM_STORAGE = _env_bool(
 )
 PRODUCT_AI_SEARCH_PROVIDER_ORDER = os.environ.get(
     'PRODUCT_AI_SEARCH_PROVIDER_ORDER',
-    'serpapi,google_cse,duckduckgo',
+    'searxng,bing_html,duckduckgo,brave_api,google_cse,serpapi',
 ).strip()
+PRODUCT_AI_STRICT_EVIDENCE_MODE = _env_bool('PRODUCT_AI_STRICT_EVIDENCE_MODE', True)
+PRODUCT_AI_FAIL_ON_RESEARCH_EMPTY = _env_bool('PRODUCT_AI_FAIL_ON_RESEARCH_EMPTY', True)
+PRODUCT_AI_MIN_WEB_SOURCES = _env_int('PRODUCT_AI_MIN_WEB_SOURCES', 1)
+PRODUCT_AI_MIN_HIGH_TRUST_DOCS = _env_int('PRODUCT_AI_MIN_HIGH_TRUST_DOCS', 1)
+PRODUCT_AI_MAX_RESEARCH_LATENCY_SECONDS = _env_int('PRODUCT_AI_MAX_RESEARCH_LATENCY_SECONDS', 90)
+PRODUCT_AI_ALLOW_HEURISTIC_PRICING = _env_bool('PRODUCT_AI_ALLOW_HEURISTIC_PRICING', False)
+PRODUCT_AI_ALLOW_INVENTORY_DEFAULTS = _env_bool('PRODUCT_AI_ALLOW_INVENTORY_DEFAULTS', False)
+PRODUCT_AI_ALLOW_PRICE_FALLBACK = _env_bool('PRODUCT_AI_ALLOW_PRICE_FALLBACK', False)
+PRODUCT_AI_ALLOW_SKU_FALLBACK = _env_bool('PRODUCT_AI_ALLOW_SKU_FALLBACK', True)
+PRODUCT_AI_PROVIDER_TIMEOUT_SECONDS = _env_float('PRODUCT_AI_PROVIDER_TIMEOUT_SECONDS', 8.0)
+PRODUCT_AI_PROVIDER_COOLDOWN_SECONDS = _env_int('PRODUCT_AI_PROVIDER_COOLDOWN_SECONDS', 180)
+PRODUCT_AI_SEARXNG_BASE_URLS = _env_csv(
+    'PRODUCT_AI_SEARXNG_BASE_URLS',
+    'https://searx.be,https://search.sapti.me',
+)
+PRODUCT_AI_SEARXNG_TIMEOUT_SECONDS = _env_float('PRODUCT_AI_SEARXNG_TIMEOUT_SECONDS', 8.0)
 PRODUCT_AI_DEEP_RESEARCH_ENABLED = _env_bool('PRODUCT_AI_DEEP_RESEARCH_ENABLED', True)
 PRODUCT_AI_DEEP_RESEARCH_SEARCH_PROVIDER_ORDER = os.environ.get(
     'PRODUCT_AI_DEEP_RESEARCH_SEARCH_PROVIDER_ORDER',
-    'duckduckgo',
+    'searxng,bing_html,duckduckgo,brave_api,google_cse,serpapi',
 ).strip()
 PRODUCT_AI_DEEP_RESEARCH_MAX_SUBQUERIES = _env_int('PRODUCT_AI_DEEP_RESEARCH_MAX_SUBQUERIES', 4)
 PRODUCT_AI_DEEP_RESEARCH_MAX_RESULTS_PER_QUERY = _env_int(
@@ -550,6 +567,7 @@ PRODUCT_AI_VISION_MODEL = os.environ.get(
 SERPAPI_KEY = os.environ.get('SERPAPI_KEY', '').strip()
 GOOGLE_CSE_API_KEY = os.environ.get('GOOGLE_CSE_API_KEY', '').strip()
 GOOGLE_CSE_CX = os.environ.get('GOOGLE_CSE_CX', '').strip()
+BRAVE_SEARCH_API_KEY = os.environ.get('BRAVE_SEARCH_API_KEY', '').strip()
 
 # Notification configuration
 NOTIFICATION_DEDUPE_TTL_SECONDS = int(os.environ.get('NOTIFICATION_DEDUPE_TTL_SECONDS', 3600))
@@ -593,7 +611,7 @@ def _split_csv(value: str) -> list[str]:
 
 CORS_ALLOWED_ORIGINS = _split_csv(os.environ.get(
     'CORS_ALLOWED_ORIGINS',
-    'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:8000,http://127.0.0.1:8000'
+    'http://bunoraa.com,http://www.bunoraa.com,http://api.bunoraa.com,http://media.bunoraa.com,http://bunoraa-pl26.onrender.com,http://bunoraa-django.onrender.com,https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000'
 ))
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
@@ -605,12 +623,12 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 # CSRF Settings
 CSRF_TRUSTED_ORIGINS = _split_csv(os.environ.get(
     'CSRF_TRUSTED_ORIGINS',
-    'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:8000,http://127.0.0.1:8000'
+    'https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000'
 ))
 
 # Next.js frontend origins
-NEXT_FRONTEND_ORIGIN = os.environ.get('NEXT_FRONTEND_ORIGIN', '').strip()
-NEXT_DEV_ORIGIN = 'http://localhost:3000'
+NEXT_FRONTEND_ORIGIN = os.environ.get('NEXT_FRONTEND_ORIGIN', 'https://bunoraa.com').strip()
+NEXT_DEV_ORIGIN = 'http://localhost:3000,http://127.0.0.1:3000'
 
 for origin in [NEXT_FRONTEND_ORIGIN, NEXT_DEV_ORIGIN]:
     if origin and origin not in CORS_ALLOWED_ORIGINS:

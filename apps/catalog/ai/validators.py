@@ -4,7 +4,9 @@ import difflib
 import re
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
+from urllib.parse import urlparse
 
+from django.conf import settings
 from django.utils.text import slugify
 
 from apps.catalog.models import (
@@ -56,6 +58,29 @@ FIELD_CONFIDENCE_THRESHOLDS = {
     "eco_certifications": 0.66,
     "meta_title": 0.72,
     "meta_description": 0.72,
+}
+
+STRICT_EVIDENCE_REQUIRED_FIELDS = {
+    "name",
+    "description",
+    "short_description",
+    "primary_category",
+    "categories",
+    "tags",
+    "price",
+    "sale_price",
+    "cost",
+    "weight",
+    "length",
+    "width",
+    "height",
+    "shipping_material",
+    "carbon_footprint_kg",
+    "recycled_content_percentage",
+    "ethical_sourcing_notes",
+    "eco_certifications",
+    "meta_title",
+    "meta_description",
 }
 
 
@@ -300,6 +325,7 @@ def normalize_raw_suggestions(
     confidence_threshold: float,
     *,
     context_hints: dict[str, Any] | None = None,
+    strict_mode: bool | None = None,
 ) -> list[FieldSuggestionPayload]:
     """
     Normalize all raw provider output into validated field suggestions.
@@ -307,6 +333,10 @@ def normalize_raw_suggestions(
     from apps.catalog.models import EcoCertification, Tag
 
     context_hints = context_hints or {}
+    if strict_mode is None:
+        strict_mode = bool(getattr(settings, "PRODUCT_AI_STRICT_EVIDENCE_MODE", True))
+    allow_price_fallback = bool(getattr(settings, "PRODUCT_AI_ALLOW_PRICE_FALLBACK", False))
+    allow_sku_fallback = bool(getattr(settings, "PRODUCT_AI_ALLOW_SKU_FALLBACK", True))
     normalized: list[FieldSuggestionPayload] = []
     raw = dict(raw_suggestions or {})
     resolved_name_value: str | None = None
@@ -314,12 +344,18 @@ def normalize_raw_suggestions(
 
     # Hard guarantees
     sku_value = raw.get("sku", {}).get("value")
-    if not sku_value:
+    if not sku_value and allow_sku_fallback:
         raw["sku"] = {
             "value": generate_sku("PRD"),
             "confidence": 0.6,
             "rationale": "Generated fallback SKU because no reliable OCR SKU was found.",
             "source_urls": [],
+            "metadata": {
+                "evidence_kind": "none",
+                "evidence_count": 0,
+                "provider_trace": [],
+                "strict_gate_passed": True,
+            },
         }
 
     default_aspect_code = get_default_aspect_ratio_code()
@@ -331,7 +367,11 @@ def normalize_raw_suggestions(
             "source_urls": [],
         }
 
-    if raw.get("price", {}).get("value") in (None, ""):
+    if (
+        raw.get("price", {}).get("value") in (None, "")
+        and allow_price_fallback
+        and not strict_mode
+    ):
         raw["price"] = {
             "value": "10.00",
             "confidence": 0.25,
@@ -346,10 +386,15 @@ def normalize_raw_suggestions(
         confidence = clamp_confidence(payload.get("confidence", 0.0))
         rationale = payload.get("rationale", "")
         source_urls = [u for u in (payload.get("source_urls") or []) if isinstance(u, str)]
-        metadata = payload.get("metadata") or {}
+        metadata = dict(payload.get("metadata") or {})
         low_confidence = bool(payload.get("low_confidence", False))
         is_null = False
         effective_threshold = FIELD_CONFIDENCE_THRESHOLDS.get(field, confidence_threshold)
+        context_evidence_used = False
+        provider_trace = metadata.get("provider_trace")
+        if not isinstance(provider_trace, list):
+            provider_trace = []
+        provider_trace = [str(item).strip() for item in provider_trace if str(item).strip()]
 
         if field in DECIMAL_FIELDS:
             value = quantize_decimal(value)
@@ -367,6 +412,7 @@ def normalize_raw_suggestions(
         if field == "primary_category":
             raw_primary_value = value
             raw_primary_id = ""
+            used_context_category = False
             if isinstance(raw_primary_value, dict):
                 raw_primary_id = str(raw_primary_value.get("id") or "").strip()
             category, mapped_conf = map_category_value(value)
@@ -375,20 +421,24 @@ def normalize_raw_suggestions(
                 hint_category_name = _context_hint_text(context_hints, "primary_category_name", max_chars=200)
                 if hint_category_id:
                     category, mapped_conf = map_category_value({"id": hint_category_id, "name": hint_category_name})
+                    used_context_category = bool(category)
                 elif hint_category_name:
                     category, mapped_conf = map_category_value(hint_category_name)
+                    used_context_category = bool(category)
             if category:
                 value = str(category.id)
                 hint_category_id = _context_hint_text(context_hints, "primary_category_id", max_chars=64)
                 if hint_category_id and str(category.id) == str(hint_category_id):
                     confidence = max(confidence, 0.99)
                     rationale = rationale or "Mapped directly from selected category context hint."
+                    used_context_category = True
                 elif raw_primary_id:
                     # A raw AI-proposed UUID is not high-confidence evidence by itself.
                     confidence = max(confidence, min(mapped_conf, 0.62))
                 else:
                     confidence = max(confidence, mapped_conf)
                 metadata["name"] = category.name
+                context_evidence_used = context_evidence_used or used_context_category
             else:
                 value = None
 
@@ -407,8 +457,10 @@ def normalize_raw_suggestions(
                         }
                         for index, hint_id in enumerate(hint_ids)
                     ]
+                    context_evidence_used = True
                 elif hint_names:
                     candidates = hint_names
+                    context_evidence_used = True
             categories = []
             confidence_accumulator = []
             hint_ids = set(_context_hint_list(context_hints, "category_ids", limit=20))
@@ -429,11 +481,14 @@ def normalize_raw_suggestions(
             if confidence_accumulator:
                 confidence = max(confidence, sum(confidence_accumulator) / len(confidence_accumulator))
             metadata["names"] = list(Category.objects.filter(id__in=value).values_list("name", flat=True))
+            if hint_ids and any(item in hint_ids for item in value):
+                context_evidence_used = True
 
         if field == "tags":
             tag_candidates = value or []
             if not tag_candidates:
                 tag_candidates = _context_hint_list(context_hints, "tag_names", limit=20)
+                context_evidence_used = bool(tag_candidates)
             tag_matches, mapped_conf = map_many_to_many_by_name(Tag, tag_candidates)
             value = [str(tag.id) for tag in tag_matches]
             if tag_matches:
@@ -444,6 +499,7 @@ def normalize_raw_suggestions(
             cert_candidates = value or []
             if not cert_candidates:
                 cert_candidates = _context_hint_list(context_hints, "eco_certification_names", limit=16)
+                context_evidence_used = bool(cert_candidates)
             cert_matches, mapped_conf = map_many_to_many_by_name(EcoCertification, cert_candidates)
             value = [str(cert.id) for cert in cert_matches]
             if cert_matches:
@@ -465,12 +521,8 @@ def normalize_raw_suggestions(
                 value = None
 
         if field == "cost":
-            if value is None:
-                price_value = quantize_decimal(raw.get("price", {}).get("value"))
-                if price_value is not None:
-                    value = (price_value * Decimal("0.65")).quantize(Decimal("0.01"))
-                    rationale = rationale or "Estimated from base margin profile."
-                    confidence = max(confidence, 0.45)
+            if value is not None and value <= Decimal("0.00"):
+                value = None
 
         if field == "sustainability_score":
             carbon = raw.get("carbon_footprint_kg", {}).get("value")
@@ -482,12 +534,15 @@ def normalize_raw_suggestions(
                 confidence = max(confidence, 0.7)
 
         if field == "name":
+            hint_name = _context_hint_text(context_hints, "name", max_chars=220)
+            if value and hint_name and slugify(str(value)) == slugify(str(hint_name)):
+                context_evidence_used = True
             if not value:
-                hint_name = _context_hint_text(context_hints, "name", max_chars=220)
                 if hint_name:
                     value = hint_name
                     confidence = max(confidence, 0.9)
                     rationale = rationale or "Used name from current form context."
+                    context_evidence_used = True
             if value:
                 token_count = len(re.findall(r"[A-Za-z]{2,}", value))
                 if token_count == 0:
@@ -507,12 +562,15 @@ def normalize_raw_suggestions(
                 rationale = (rationale + " " if rationale else "") + "Text content too short for reliable enrichment."
 
         if field == "description":
+            hint_description = _context_hint_text(context_hints, "description", max_chars=2000)
+            if value and hint_description and slugify(str(value)) == slugify(str(hint_description)):
+                context_evidence_used = True
             if not value:
-                hint_description = _context_hint_text(context_hints, "description", max_chars=2000)
                 if hint_description:
                     value = hint_description
                     confidence = max(confidence, 0.88)
                     rationale = rationale or "Used description from current form context."
+                    context_evidence_used = True
             resolved_description_value = value
 
         if field == "short_description" and not value:
@@ -521,6 +579,11 @@ def normalize_raw_suggestions(
                 value = hint_short
                 confidence = max(confidence, 0.85)
                 rationale = rationale or "Used short description from current form context."
+                context_evidence_used = True
+        if field == "short_description" and value:
+            hint_short = _context_hint_text(context_hints, "short_description", max_chars=600)
+            if hint_short and slugify(str(value)) == slugify(str(hint_short)):
+                context_evidence_used = True
 
         if field in {"description", "short_description", "meta_description"} and value and resolved_name_value:
             if slugify(str(value)) == slugify(str(resolved_name_value)):
@@ -544,16 +607,60 @@ def normalize_raw_suggestions(
             is_null = True
             rationale = (rationale + " " if rationale else "") + "SEO fields require a reliable product name."
 
+        existing_evidence_kind = str(metadata.get("evidence_kind") or "").strip().lower()
+        existing_evidence_count = metadata.get("evidence_count")
+        if field == "aspect_ratio" and value is not None:
+            evidence_kind = "image_deterministic"
+            evidence_count = int(existing_evidence_count or 1)
+        elif source_urls:
+            evidence_kind = "web"
+            evidence_count = len(source_urls)
+        elif context_evidence_used:
+            evidence_kind = "context_hint"
+            evidence_count = int(existing_evidence_count or 1)
+        elif existing_evidence_kind in {"web", "image_deterministic", "context_hint"}:
+            evidence_kind = existing_evidence_kind
+            if existing_evidence_count in (None, ""):
+                evidence_count = len(source_urls) if source_urls else 1
+            else:
+                evidence_count = int(existing_evidence_count)
+        else:
+            evidence_kind = "none"
+            evidence_count = 0
+
+        strict_gate_passed = True
+        if strict_mode and field in STRICT_EVIDENCE_REQUIRED_FIELDS:
+            if evidence_kind not in {"web", "context_hint"}:
+                value = None if field not in {"tags", "categories", "eco_certifications"} else []
+                confidence = min(confidence, 0.2)
+                low_confidence = True
+                is_null = True
+                strict_gate_passed = False
+                if not rationale:
+                    rationale = f"Strict evidence mode rejected {field}; no web/context evidence available."
+                elif "Strict evidence mode" not in rationale:
+                    rationale = f"{rationale} Strict evidence mode rejected non-evidence value."
+
         if field in NULL_IF_LOW_CONFIDENCE_FIELDS and confidence < effective_threshold:
             value = None if field not in {"tags", "categories", "eco_certifications"} else []
             is_null = True
+            strict_gate_passed = strict_gate_passed and not (strict_mode and field in STRICT_EVIDENCE_REQUIRED_FIELDS)
             rationale = rationale or f"Insufficient evidence for {field} (confidence below threshold)."
 
-        if field == "price" and value is None:
-            value = Decimal("10.00")
-            low_confidence = True
-            confidence = max(confidence, 0.25)
-            rationale = rationale or "Fallback price estimate."
+        if not provider_trace and source_urls:
+            provider_trace = sorted(
+                {
+                    (urlparse(url).netloc or "").lower()
+                    for url in source_urls
+                    if isinstance(url, str) and url.strip()
+                }
+            )
+            provider_trace = [item for item in provider_trace if item]
+
+        metadata["evidence_kind"] = evidence_kind
+        metadata["evidence_count"] = max(0, int(evidence_count or 0))
+        metadata["provider_trace"] = provider_trace
+        metadata["strict_gate_passed"] = bool(strict_gate_passed)
 
         normalized.append(
             FieldSuggestionPayload(

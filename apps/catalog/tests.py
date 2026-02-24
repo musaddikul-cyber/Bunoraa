@@ -15,7 +15,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, SimpleTestCase, override_settings, RequestFactory
 
 from apps.catalog.admin import ProductAdmin
-from apps.catalog.ai.engine import _query_seed_tokens
+from apps.catalog.ai.engine import ProductAutofillEngine, _query_seed_tokens
 from apps.catalog.ai.providers.extractors import build_field_candidates, get_internal_similar_products
 from apps.catalog.forms import ProductAdminForm
 from apps.catalog.ai.schemas import FieldSuggestionPayload
@@ -340,6 +340,93 @@ class CatalogDeepResearchProviderTests(SimpleTestCase):
         self.assertEqual(result["primary_provider"], "duckduckgo")
 
 
+class SearchProviderHardeningTests(SimpleTestCase):
+    @override_settings(PRODUCT_AI_SEARCH_PROVIDER_ORDER="duckduckgo")
+    @patch("apps.catalog.ai.providers.search.requests.Session.get")
+    def test_search_provider_skips_challenged_duckduckgo_response(self, mock_get):
+        mock_get.return_value = SimpleNamespace(
+            status_code=202,
+            text="bots use DuckDuckGo too",
+        )
+        provider = SearchProvider()
+        results, used_provider = provider.search("pink kurti", max_results=4)
+        self.assertEqual(results, [])
+        self.assertEqual(used_provider, "none")
+        diagnostics = provider.get_last_diagnostics()
+        attempts = diagnostics.get("attempts") or []
+        self.assertTrue(any((attempt.get("status") == "blocked") for attempt in attempts))
+
+
+@override_settings(
+    PRODUCT_AI_ENABLED=True,
+    PRODUCT_AI_STRICT_EVIDENCE_MODE=True,
+    PRODUCT_AI_MIN_WEB_SOURCES=3,
+    PRODUCT_AI_MIN_HIGH_TRUST_DOCS=1,
+)
+class ProductAutofillEngineStrictGateTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            email="strictgate@example.com",
+            password="pass",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.category = Category.objects.create(name="Strict Category", slug="strict-category")
+        self.product = Product.objects.create(
+            name="Strict Product",
+            slug="strict-product",
+            price=Decimal("20.00"),
+            primary_category=self.category,
+        )
+        self.job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_PENDING,
+            locale="en",
+            currency="USD",
+            allow_external=True,
+        )
+        self.engine = ProductAutofillEngine(job_id=str(self.job.id))
+
+    def test_strict_mode_fails_when_provider_is_none_and_blocked(self):
+        ok, error_code, _ = self.engine._evaluate_strict_research_gate(
+            query="strict product",
+            used_provider="none",
+            search_results=[],
+            research_docs=[],
+            research_diagnostics={
+                "query_diagnostics": [
+                    {"provider_attempts": [{"status": "blocked", "reason": "captcha challenge"}]}
+                ]
+            },
+        )
+        self.assertFalse(ok)
+        self.assertEqual(error_code, "SEARCH_BLOCKED_OR_CAPTCHA")
+
+    def test_strict_mode_fails_when_validated_sources_below_minimum(self):
+        docs = [
+            SimpleNamespace(domain="shop-a.example.com", trust_score=0.9),
+            SimpleNamespace(domain="shop-b.example.com", trust_score=0.85),
+        ]
+        ok, error_code, _ = self.engine._evaluate_strict_research_gate(
+            query="strict product",
+            used_provider="bing_html",
+            search_results=[{"url": "https://shop-a.example.com/item"}],
+            research_docs=docs,
+            research_diagnostics={"duration_ms": 1200},
+        )
+        self.assertFalse(ok)
+        self.assertEqual(error_code, "INSUFFICIENT_WEB_SOURCES")
+
+
+@override_settings(
+    PRODUCT_AI_STRICT_EVIDENCE_MODE=False,
+    PRODUCT_AI_ALLOW_PRICE_FALLBACK=True,
+    PRODUCT_AI_ALLOW_HEURISTIC_PRICING=True,
+    PRODUCT_AI_ALLOW_INVENTORY_DEFAULTS=True,
+    PRODUCT_AI_ALLOW_SKU_FALLBACK=True,
+)
 class ProductAutofillValidationTests(TestCase):
     def setUp(self):
         self.category = Category.objects.create(name="Handmade Home", slug="handmade-home")
@@ -715,6 +802,68 @@ class ProductAutofillValidationTests(TestCase):
         self.assertEqual(result["applied"], 0)
         self.assertNotIn("tags", result["changed_fields"])
 
+    @override_settings(
+        PRODUCT_AI_STRICT_EVIDENCE_MODE=True,
+        PRODUCT_AI_ALLOW_PRICE_FALLBACK=False,
+        PRODUCT_AI_ALLOW_SKU_FALLBACK=True,
+    )
+    def test_strict_mode_disables_price_fallback_but_keeps_sku_fallback(self):
+        raw = {
+            "price": {"value": None, "confidence": 0.1},
+            "sku": {"value": None, "confidence": 0.1},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.8)
+        mapped = {item.field_name: item for item in result}
+        self.assertIsNone(mapped["price"].value)
+        self.assertTrue(bool(mapped["sku"].value))
+        self.assertTrue(mapped["sku"].metadata.get("strict_gate_passed"))
+
+    @override_settings(
+        PRODUCT_AI_STRICT_EVIDENCE_MODE=True,
+        PRODUCT_AI_ALLOW_HEURISTIC_PRICING=False,
+        PRODUCT_AI_ALLOW_INVENTORY_DEFAULTS=False,
+    )
+    def test_pricing_provider_strict_mode_avoids_inventory_defaults(self):
+        provider = PricingProvider()
+        estimate = provider.estimate(
+            product=None,
+            primary_category=self.category,
+            research_docs=[],
+            similar_products=[],
+        )
+        self.assertIsNone(estimate["price"]["value"])
+        self.assertIsNone(estimate["cost"]["value"])
+        self.assertIsNone(estimate["stock_quantity"]["value"])
+        self.assertIsNone(estimate["low_stock_threshold"]["value"])
+
+    @override_settings(PRODUCT_AI_STRICT_EVIDENCE_MODE=True)
+    def test_strict_evidence_requires_web_or_context_for_name(self):
+        raw = {
+            "name": {"value": "Visual Guess Name", "confidence": 0.92, "source_urls": []},
+            "price": {"value": "20.00", "confidence": 0.9, "source_urls": ["https://shop.example.com/item"]},
+        }
+        result = normalize_raw_suggestions(raw, confidence_threshold=0.8)
+        mapped = {item.field_name: item for item in result}
+        self.assertIsNone(mapped["name"].value)
+        self.assertEqual(mapped["name"].metadata.get("evidence_kind"), "none")
+        self.assertFalse(mapped["name"].metadata.get("strict_gate_passed"))
+
+    @override_settings(PRODUCT_AI_STRICT_EVIDENCE_MODE=True)
+    def test_strict_evidence_accepts_context_hint_for_name(self):
+        raw = {
+            "name": {"value": "Handmade Home Vase", "confidence": 0.9, "source_urls": []},
+            "price": {"value": "20.00", "confidence": 0.9, "source_urls": ["https://shop.example.com/item"]},
+        }
+        result = normalize_raw_suggestions(
+            raw,
+            confidence_threshold=0.8,
+            context_hints={"name": "Handmade Home Vase"},
+        )
+        mapped = {item.field_name: item for item in result}
+        self.assertEqual(mapped["name"].value, "Handmade Home Vase")
+        self.assertEqual(mapped["name"].metadata.get("evidence_kind"), "context_hint")
+        self.assertTrue(mapped["name"].metadata.get("strict_gate_passed"))
+
 
 @override_settings(
     PRODUCT_AI_ENABLED=True,
@@ -905,6 +1054,36 @@ class ProductAutofillAdminEndpointTests(TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["status"], ProductAutofillJob.STATUS_COMPLETED)
         self.assertEqual(len(payload["suggestions"]), 1)
+
+    def test_status_endpoint_includes_strict_diagnostics_payload(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_FAILED,
+            locale="en",
+            currency="USD",
+            error_message="Insufficient evidence.",
+            summary={
+                "error_code": "INSUFFICIENT_WEB_SOURCES",
+                "strict_mode": True,
+                "min_required_sources": 3,
+                "validated_source_count": 1,
+                "research_diagnostics": {
+                    "fetch_success": 1,
+                    "fetch_failed": 4,
+                },
+            },
+        )
+        request = self.factory.get(f"/admin/catalog/product/ai/autofill/{job.id}/status/")
+        request.user = self.user
+        response = self.product_admin.ai_autofill_status_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertEqual(payload["error_code"], "INSUFFICIENT_WEB_SOURCES")
+        self.assertTrue(payload["strict_mode"])
+        self.assertEqual(payload["min_required_sources"], 3)
+        self.assertEqual(payload["validated_source_count"], 1)
+        self.assertEqual(payload["research_diagnostics"]["fetch_success"], 1)
 
     def test_status_endpoint_resolves_display_names_for_taxonomy_ids(self):
         tag = Tag.objects.create(name="Summer")

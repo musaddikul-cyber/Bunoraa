@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAccessToken } from "@/lib/auth";
+import { useAuthContext } from "@/components/providers/AuthProvider";
 
 type WebSocketContextValue = {
   send: (channel: string, payload: unknown) => void;
@@ -34,17 +35,31 @@ function buildWsUrl(path: string) {
 }
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
+  const { profileQuery } = useAuthContext();
   const queryClient = useQueryClient();
   const socketsRef = React.useRef<Record<string, WebSocket | null>>({});
   const reconnectTimers = React.useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const connectRef = React.useRef<(channel: string) => void>(() => {});
   const [status, setStatus] = React.useState<Record<string, "connecting" | "open" | "closed" | "error">>({});
   const [lastMessage, setLastMessage] = React.useState<Record<string, unknown>>({});
+  const isAdmin = Boolean(profileQuery.data?.is_staff || profileQuery.data?.is_superuser);
+
+  const activeChannels = React.useMemo(() => {
+    return Object.keys(CHANNELS).filter((channel) => channel !== "analytics" || isAdmin);
+  }, [isAdmin]);
 
   const connect = React.useCallback(
     (channel: string) => {
       const path = CHANNELS[channel];
       if (!path) return;
+      const existingSocket = socketsRef.current[channel];
+      if (
+        existingSocket &&
+        (existingSocket.readyState === WebSocket.CONNECTING ||
+          existingSocket.readyState === WebSocket.OPEN)
+      ) {
+        return;
+      }
       const url = buildWsUrl(path);
       if (!url) return;
 
@@ -111,12 +126,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     const sockets = socketsRef.current;
     const timers = reconnectTimers.current;
-    Object.keys(CHANNELS).forEach((channel) => connect(channel));
+    activeChannels.forEach((channel) => connect(channel));
     return () => {
       Object.values(sockets).forEach((socket) => socket?.close());
       Object.values(timers).forEach((timer) => timer && clearTimeout(timer));
     };
-  }, [connect]);
+  }, [activeChannels, connect]);
 
   const send = React.useCallback((channel: string, payload: unknown) => {
     const socket = socketsRef.current[channel];

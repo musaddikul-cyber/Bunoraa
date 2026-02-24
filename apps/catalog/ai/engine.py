@@ -90,6 +90,14 @@ class ProductAutofillEngine:
         )
         self.max_images = int(getattr(settings, "PRODUCT_AI_MAX_IMAGES", 4))
         self.product_ai_enabled = bool(getattr(settings, "PRODUCT_AI_ENABLED", False))
+        self.strict_evidence_mode = bool(getattr(settings, "PRODUCT_AI_STRICT_EVIDENCE_MODE", True))
+        self.fail_on_research_empty = bool(getattr(settings, "PRODUCT_AI_FAIL_ON_RESEARCH_EMPTY", True))
+        self.min_web_sources = max(1, int(getattr(settings, "PRODUCT_AI_MIN_WEB_SOURCES", 3) or 3))
+        self.min_high_trust_docs = max(0, int(getattr(settings, "PRODUCT_AI_MIN_HIGH_TRUST_DOCS", 1) or 1))
+        self.max_research_latency_seconds = max(
+            10,
+            int(getattr(settings, "PRODUCT_AI_MAX_RESEARCH_LATENCY_SECONDS", 90) or 90),
+        )
         self.search_provider = SearchProvider()
         self.research_provider = ResearchProvider()
         self.deep_research_provider = ProductDeepResearchProvider(
@@ -209,6 +217,8 @@ class ProductAutofillEngine:
             research_docs = []
             query = ""
             deep_research_summary: dict[str, Any] = {}
+            research_diagnostics: dict[str, Any] = {}
+            research_phase_started = time.monotonic()
             if self.job.allow_external and bool(getattr(settings, "PRODUCT_AI_ALLOW_EXTERNAL_DEFAULT", True)):
                 query = self._build_search_query(
                     candidate_text,
@@ -233,20 +243,118 @@ class ProductAutofillEngine:
                             for key, value in deep_result.items()
                             if key not in {"search_results", "documents"}
                         }
+                        research_diagnostics = deep_result.get("diagnostics", {}) or {}
                     else:
                         search_results, used_provider = self.search_provider.search(query=query, max_results=10)
-                        research_docs = self.research_provider.fetch_documents(search_results, max_docs=8)
+                        provider_diag = (
+                            self.search_provider.get_last_diagnostics()
+                            if hasattr(self.search_provider, "get_last_diagnostics")
+                            else {}
+                        )
+                        if hasattr(self.research_provider, "fetch_documents_with_diagnostics"):
+                            research_docs, fetch_diag = self.research_provider.fetch_documents_with_diagnostics(
+                                search_results,
+                                max_docs=8,
+                            )
+                        else:
+                            research_docs = self.research_provider.fetch_documents(search_results, max_docs=8)
+                            fetch_diag = {
+                                "attempted_urls": len(search_results),
+                                "accepted_docs": len(research_docs),
+                                "rejected_docs": max(0, len(search_results) - len(research_docs)),
+                                "rejection_reasons": {},
+                            }
+                        research_diagnostics = {
+                            "query_diagnostics": [
+                                {
+                                    "query": query,
+                                    "provider": used_provider,
+                                    "status": provider_diag.get("status", "ok" if used_provider != "none" else "none"),
+                                    "search_results_before_filter": len(search_results),
+                                    "search_results_after_filter": len(search_results),
+                                    "provider_attempts": provider_diag.get("attempts", []),
+                                }
+                            ],
+                            "provider_counts": {used_provider: 1} if used_provider and used_provider != "none" else {},
+                            "fetch_attempted": int(fetch_diag.get("attempted_urls", 0) or 0),
+                            "fetch_success": int(fetch_diag.get("accepted_docs", 0) or 0),
+                            "fetch_failed": int(fetch_diag.get("rejected_docs", 0) or 0),
+                            "fetch_rejection_reasons": fetch_diag.get("rejection_reasons", {}) or {},
+                        }
                 else:
                     used_provider = "none"
+                    research_diagnostics = {
+                        "query_diagnostics": [],
+                        "provider_counts": {},
+                        "fetch_attempted": 0,
+                        "fetch_success": 0,
+                        "fetch_failed": 0,
+                        "fetch_rejection_reasons": {},
+                        "query_generation": "empty",
+                    }
+            research_duration_ms = int((time.monotonic() - research_phase_started) * 1000)
+            validated_source_count = len(research_docs)
+            high_trust_docs = sum(1 for doc in research_docs if float(getattr(doc, "trust_score", 0.0) or 0.0) >= 0.65)
+            unique_domains = sorted(
+                {
+                    str(getattr(doc, "domain", "") or "").lower()
+                    for doc in research_docs
+                    if str(getattr(doc, "domain", "") or "").strip()
+                }
+            )
+            research_diagnostics = dict(research_diagnostics or {})
+            research_diagnostics.setdefault("duration_ms", research_duration_ms)
+            research_diagnostics.setdefault("validated_source_count", validated_source_count)
+            research_diagnostics.setdefault("high_trust_doc_count", high_trust_docs)
+            research_diagnostics.setdefault("unique_domains", unique_domains)
+            research_diagnostics.setdefault("query_present", bool(query))
+            research_diagnostics.setdefault("search_provider", used_provider)
             autofill_logger.info(
-                "Autofill research summary job_id=%s provider=%s query_present=%s search_results=%s docs=%s",
+                "Autofill research summary job_id=%s provider=%s query_present=%s search_results=%s docs=%s high_trust_docs=%s duration_ms=%s",
                 self.job.id,
                 used_provider,
                 bool(query),
                 len(search_results),
                 len(research_docs),
+                high_trust_docs,
+                research_duration_ms,
+            )
+            autofill_logger.debug(
+                "Autofill research diagnostics job_id=%s diagnostics=%s",
+                self.job.id,
+                research_diagnostics,
             )
             self._set_progress(72)
+
+            if self.strict_evidence_mode and self.job.allow_external:
+                strict_ok, error_code, error_message = self._evaluate_strict_research_gate(
+                    query=query,
+                    used_provider=used_provider,
+                    search_results=search_results,
+                    research_docs=research_docs,
+                    research_diagnostics=research_diagnostics,
+                )
+                if not strict_ok:
+                    summary = {
+                        "strict_mode": True,
+                        "error_code": error_code,
+                        "min_required_sources": self.min_web_sources,
+                        "validated_source_count": validated_source_count,
+                        "search_provider": used_provider,
+                        "search_query": query,
+                        "search_result_count": len(search_results),
+                        "research_docs_count": len(research_docs),
+                        "high_trust_doc_count": high_trust_docs,
+                        "research_diagnostics": research_diagnostics,
+                        "deep_research": deep_research_summary,
+                    }
+                    self._fail(error_message, error_code=error_code, summary=summary)
+                    return {
+                        "status": "failed",
+                        "job_id": str(self.job.id),
+                        "error": error_message,
+                        "error_code": error_code,
+                    }
 
             category = getattr(self.job.product, "primary_category", None)
             if not category and similar_products:
@@ -275,11 +383,30 @@ class ProductAutofillEngine:
                 currency=self.job.currency,
             )
             raw_suggestions = {**extracted, **pricing}
+            provider_trace = sorted(
+                {
+                    str((getattr(doc, "metadata", {}) or {}).get("provider") or "").strip()
+                    for doc in research_docs
+                    if str((getattr(doc, "metadata", {}) or {}).get("provider") or "").strip()
+                }
+            )
+            for payload in raw_suggestions.values():
+                if not isinstance(payload, dict):
+                    continue
+                metadata = dict(payload.get("metadata") or {})
+                source_urls = payload.get("source_urls") or []
+                if source_urls and not metadata.get("provider_trace"):
+                    metadata["provider_trace"] = provider_trace
+                if source_urls and "evidence_kind" not in metadata:
+                    metadata["evidence_kind"] = "web"
+                    metadata["evidence_count"] = len([url for url in source_urls if str(url).strip()])
+                payload["metadata"] = metadata
 
             normalized_suggestions = normalize_raw_suggestions(
                 raw_suggestions=raw_suggestions,
                 confidence_threshold=self.confidence_threshold,
                 context_hints=context_hints,
+                strict_mode=self.strict_evidence_mode,
             )
             non_null_suggestions = sum(
                 1 for item in normalized_suggestions if item.value not in (None, "", [])
@@ -308,10 +435,17 @@ class ProductAutofillEngine:
             self._mark_completed(
                 summary={
                     "images_analyzed": len(image_paths),
+                    "strict_mode": self.strict_evidence_mode,
                     "search_provider": used_provider,
                     "search_query": query if self.job.allow_external else "",
                     "search_result_count": len(search_results),
                     "research_docs_count": len(research_docs),
+                    "validated_source_count": len(research_docs),
+                    "min_required_sources": self.min_web_sources,
+                    "high_trust_doc_count": high_trust_docs,
+                    "research_duration_ms": research_duration_ms,
+                    "research_diagnostics": research_diagnostics,
+                    "error_code": "",
                     "internal_similar_count": len(similar_products),
                     "deep_research": deep_research_summary,
                     "confidence_threshold": self.confidence_threshold,
@@ -373,6 +507,103 @@ class ProductAutofillEngine:
             return ""
         parts.append("product details")
         return " ".join(part for part in parts if part).strip()
+
+    def _evaluate_strict_research_gate(
+        self,
+        *,
+        query: str,
+        used_provider: str,
+        search_results: list[dict[str, Any]],
+        research_docs: list[Any],
+        research_diagnostics: dict[str, Any],
+    ) -> tuple[bool, str, str]:
+        if not query:
+            return (
+                False,
+                "INSUFFICIENT_WEB_SOURCES",
+                "Unable to build a product-identifying deep-research query from the provided evidence.",
+            )
+
+        blocked = self._diagnostics_show_blocked(research_diagnostics)
+        provider_name = (used_provider or "none").strip().lower()
+        if self.fail_on_research_empty and provider_name == "none":
+            if blocked:
+                return (
+                    False,
+                    "SEARCH_BLOCKED_OR_CAPTCHA",
+                    "Deep research was blocked by search providers or CAPTCHA challenges.",
+                )
+            return (
+                False,
+                "SEARCH_PROVIDER_UNAVAILABLE",
+                "No configured search provider returned usable results for deep research.",
+            )
+
+        validated_source_count = len(research_docs or [])
+        if validated_source_count < self.min_web_sources:
+            return (
+                False,
+                "INSUFFICIENT_WEB_SOURCES",
+                f"Deep research returned {validated_source_count} validated sources; minimum {self.min_web_sources} required.",
+            )
+
+        high_trust_docs = sum(
+            1
+            for doc in (research_docs or [])
+            if float(getattr(doc, "trust_score", 0.0) or 0.0) >= 0.65
+        )
+        if high_trust_docs < self.min_high_trust_docs:
+            return (
+                False,
+                "INSUFFICIENT_WEB_SOURCES",
+                f"Only {high_trust_docs} high-trust sources were found; minimum {self.min_high_trust_docs} required.",
+            )
+
+        unique_domains = {
+            str(getattr(doc, "domain", "") or "").lower()
+            for doc in (research_docs or [])
+            if str(getattr(doc, "domain", "") or "").strip()
+        }
+        if validated_source_count >= 2 and len(unique_domains) < 2:
+            return (
+                False,
+                "INSUFFICIENT_WEB_SOURCES",
+                "Deep research sources lacked domain diversity (minimum 2 unique domains required).",
+            )
+
+        duration_ms = int(research_diagnostics.get("duration_ms", 0) or 0)
+        if duration_ms > (self.max_research_latency_seconds * 1000):
+            return (
+                False,
+                "INSUFFICIENT_WEB_SOURCES",
+                f"Deep research exceeded latency budget ({duration_ms}ms > {self.max_research_latency_seconds * 1000}ms).",
+            )
+
+        if not search_results:
+            return (
+                False,
+                "INSUFFICIENT_WEB_SOURCES",
+                "Deep research returned no candidate search results.",
+            )
+
+        return True, "", ""
+
+    @staticmethod
+    def _diagnostics_show_blocked(research_diagnostics: dict[str, Any]) -> bool:
+        diagnostics = research_diagnostics or {}
+        fetch_rejections = diagnostics.get("fetch_rejection_reasons") or {}
+        for reason in fetch_rejections:
+            if "challenge" in str(reason).lower() or "captcha" in str(reason).lower():
+                return True
+        for query_diag in diagnostics.get("query_diagnostics") or []:
+            attempts = query_diag.get("provider_attempts") or []
+            for attempt in attempts:
+                if str(attempt.get("status") or "").lower() == "blocked":
+                    return True
+                reason = str(attempt.get("reason") or "").lower()
+                if "captcha" in reason or "challenge" in reason:
+                    return True
+        return False
 
     def _get_context_hints(self) -> dict[str, Any]:
         payload = self.job.input_payload or {}
@@ -567,8 +798,20 @@ class ProductAutofillEngine:
         self.job.status = self.job.STATUS_RUNNING
         self.job.started_at = timezone.now()
         self.job.error_message = ""
+        self.job.summary = {}
+        self.job.completed_at = None
         self.job.progress = 5
-        self.job.save(update_fields=["status", "started_at", "error_message", "progress", "updated_at"])
+        self.job.save(
+            update_fields=[
+                "status",
+                "started_at",
+                "error_message",
+                "summary",
+                "completed_at",
+                "progress",
+                "updated_at",
+            ]
+        )
 
     def _set_progress(self, value: int):
         self.job.progress = max(0, min(100, int(value)))
@@ -577,18 +820,29 @@ class ProductAutofillEngine:
     def _mark_completed(self, summary: dict[str, Any]):
         self.job.status = self.job.STATUS_COMPLETED
         self.job.progress = 100
+        self.job.error_message = ""
         self.job.completed_at = timezone.now()
         self.job.summary = summary
-        self.job.save(update_fields=["status", "progress", "completed_at", "summary", "updated_at"])
+        self.job.save(update_fields=["status", "progress", "error_message", "completed_at", "summary", "updated_at"])
 
-    def _fail(self, message: str):
+    def _fail(self, message: str, *, error_code: str = "", summary: dict[str, Any] | None = None):
         self.job.status = self.job.STATUS_FAILED
         self.job.error_message = message[:3000]
         self.job.completed_at = timezone.now()
-        self.job.save(update_fields=["status", "error_message", "completed_at", "updated_at"])
+        existing_summary = dict(self.job.summary or {})
+        if summary:
+            existing_summary.update(summary)
+        if error_code:
+            existing_summary["error_code"] = error_code
+        existing_summary.setdefault("strict_mode", self.strict_evidence_mode)
+        existing_summary.setdefault("min_required_sources", self.min_web_sources)
+        existing_summary.setdefault("validated_source_count", 0)
+        self.job.summary = existing_summary
+        self.job.save(update_fields=["status", "error_message", "completed_at", "summary", "updated_at"])
         autofill_logger.error(
-            "Autofill job marked failed job_id=%s message=%s",
+            "Autofill job marked failed job_id=%s error_code=%s message=%s",
             self.job.id,
+            error_code or "",
             self.job.error_message,
         )
 

@@ -382,6 +382,29 @@
     });
   }
 
+  function strictFailureMessage(errorCode, fallbackMessage) {
+    if (errorCode === "SEARCH_PROVIDER_UNAVAILABLE") {
+      return "Deep research failed: no search provider returned usable results.";
+    }
+    if (errorCode === "SEARCH_BLOCKED_OR_CAPTCHA") {
+      return "Deep research failed: provider blocked by challenge/CAPTCHA. Retry later.";
+    }
+    if (errorCode === "INSUFFICIENT_WEB_SOURCES") {
+      return "Deep research failed: insufficient validated web sources.";
+    }
+    return fallbackMessage || "AI analysis failed.";
+  }
+
+  function statusWithSourceProgress(statusText, data) {
+    var strictMode = Boolean(data && data.strict_mode);
+    var minRequired = Number((data && data.min_required_sources) || 0);
+    var found = Number((data && data.validated_source_count) || 0);
+    if (strictMode && minRequired > 0) {
+      return statusText + " | sources " + found + " / " + minRequired;
+    }
+    return statusText;
+  }
+
   function initialize() {
     var config = document.getElementById("product-ai-config");
     if (!config) return;
@@ -452,10 +475,38 @@
             lowConfidence: lowCount,
             nonNullSuggestions: nonNullSuggestions,
             imagesAnalyzed: imagesAnalyzed,
+            strictMode: Boolean(data.strict_mode),
+            sourceCount: Number(data.validated_source_count || 0),
+            minSources: Number(data.min_required_sources || 0),
+            errorCode: data.error_code || "",
           });
-          setStatus("Status: " + data.status + " (" + data.progress + "%)", false);
+          setStatus(
+            statusWithSourceProgress("Status: " + data.status + " (" + data.progress + "%)", data),
+            false
+          );
           if (data.status === "completed") {
-            applyBtn.disabled = false;
+            var strictMode = Boolean(data.strict_mode);
+            var minRequired = Number(data.min_required_sources || 0);
+            var foundSources = Number(data.validated_source_count || 0);
+            var strictGateFailed = strictMode && minRequired > 0 && foundSources < minRequired;
+            applyBtn.disabled = strictGateFailed;
+            if (strictGateFailed) {
+              setStatus(
+                "Deep research gate failed: found " +
+                  foundSources +
+                  " validated sources; required " +
+                  minRequired +
+                  ".",
+                true
+              );
+              debugLogger.warn("Completed but strict gate unmet", {
+                jobId: jobId,
+                minRequired: minRequired,
+                foundSources: foundSources,
+                summary: summary,
+              });
+              return;
+            }
             if (!nonNullSuggestions) {
               setStatus(
                 "Analysis completed, but no reliable fields were extracted. Check image quality and see console logs.",
@@ -470,12 +521,17 @@
           }
           if (data.status === "failed" || data.status === "cancelled") {
             applyBtn.disabled = true;
-            setStatus(data.error_message || "AI analysis failed.", true);
+            setStatus(
+              strictFailureMessage(data.error_code || "", data.error_message || "AI analysis failed."),
+              true
+            );
             debugLogger.error("Job failed/cancelled", {
               jobId: jobId,
               status: data.status,
               error: data.error_message || "",
+              errorCode: data.error_code || "",
               summary: summary,
+              diagnostics: data.research_diagnostics || {},
             });
             return;
           }

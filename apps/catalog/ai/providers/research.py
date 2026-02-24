@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import socket
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -13,6 +14,8 @@ from urllib.robotparser import RobotFileParser
 import requests
 from bs4 import BeautifulSoup
 from django.conf import settings
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,14 @@ TRUSTED_CERTIFICATION_DOMAINS = {
     "bluesign.com",
     "globalrecycled.org",
 }
+CHALLENGE_RE = re.compile(
+    r"(captcha|verify (you are|you're) (human|not a robot)|access denied|challenge|unusual traffic|bot detection)",
+    re.I,
+)
+NOISE_TEXT_RE = re.compile(
+    r"\b(cookie|javascript required|enable javascript|privacy preference|consent manager)\b",
+    re.I,
+)
 
 
 def _to_domain(url: str) -> str:
@@ -115,77 +126,152 @@ class ResearchProvider:
             self.marketplace_domains = {str(d).strip().lower() for d in raw_marketplaces if str(d).strip()}
         self.user_agent = "BunoraaProductAI/1.0 (+https://bunoraa.com)"
 
+        retry = Retry(
+            total=2,
+            read=2,
+            connect=2,
+            status=2,
+            backoff_factor=0.6,
+            allowed_methods=frozenset({"GET"}),
+            status_forcelist=(408, 429, 500, 502, 503, 504),
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session = requests.Session()
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+
     def fetch_documents(self, search_results: list[dict[str, Any]], max_docs: int = 8) -> list[ResearchDocument]:
-        seen = set()
-        documents: list[ResearchDocument] = []
-        for result in search_results:
-            url = result.get("url", "")
-            if not url or url in seen:
-                continue
-            seen.add(url)
-            if not is_safe_public_url(url):
-                continue
-            if not _robots_allows(url, self.user_agent):
-                continue
-            doc = self._fetch_one(result)
-            if doc:
-                documents.append(doc)
-            if len(documents) >= max_docs:
-                break
+        documents, _ = self.fetch_documents_with_diagnostics(search_results, max_docs=max_docs)
         return documents
 
-    def _fetch_one(self, result: dict[str, Any]) -> ResearchDocument | None:
-        url = result.get("url", "")
+    def fetch_documents_with_diagnostics(
+        self,
+        search_results: list[dict[str, Any]],
+        *,
+        max_docs: int = 8,
+    ) -> tuple[list[ResearchDocument], dict[str, Any]]:
+        seen = set()
+        documents: list[ResearchDocument] = []
+        rejection_reasons: Counter[str] = Counter()
+        attempted = 0
+
+        for result in search_results:
+            url = str(result.get("url", "") or "").strip()
+            if not url or url in seen:
+                rejection_reasons["duplicate_or_empty_url"] += 1
+                continue
+            seen.add(url)
+            attempted += 1
+
+            if not is_safe_public_url(url):
+                rejection_reasons["unsafe_url"] += 1
+                continue
+            if not _robots_allows(url, self.user_agent):
+                rejection_reasons["robots_disallowed"] += 1
+                continue
+
+            doc, reason = self._fetch_one(result)
+            if doc:
+                documents.append(doc)
+            else:
+                rejection_reasons[reason or "fetch_failed"] += 1
+
+            if len(documents) >= max_docs:
+                break
+
+        diagnostics = {
+            "attempted_urls": attempted,
+            "accepted_docs": len(documents),
+            "rejected_docs": int(sum(rejection_reasons.values())),
+            "rejection_reasons": dict(rejection_reasons),
+        }
+        return documents, diagnostics
+
+    def _fetch_one(self, result: dict[str, Any]) -> tuple[ResearchDocument | None, str]:
+        url = str(result.get("url", "") or "").strip()
         title = result.get("title", "")
         snippet = result.get("snippet", "")
         provider = result.get("provider", "")
+
         try:
-            response = requests.get(
+            response = self.session.get(
                 url,
                 headers={"User-Agent": self.user_agent},
                 timeout=DEFAULT_TIMEOUT,
                 allow_redirects=True,
             )
-            response.raise_for_status()
         except Exception as exc:
             logger.debug("research fetch failed for %s: %s", url, exc)
-            return None
+            return None, "request_error"
+
+        if response.status_code >= 400:
+            return None, f"http_{response.status_code}"
+        if self._looks_like_challenge(response.text, status_code=response.status_code):
+            return None, "challenge_or_captcha"
 
         final_url = response.url or url
         if not is_safe_public_url(final_url):
-            return None
+            return None, "unsafe_redirect_url"
         domain = _to_domain(final_url)
 
         content_type = (response.headers.get("Content-Type") or "").lower()
         if "text/html" not in content_type and "application/xhtml+xml" not in content_type:
-            return None
+            return None, "unsupported_content_type"
 
         soup = BeautifulSoup(response.text, "html.parser")
+        if self._looks_like_challenge(soup.get_text(" ", strip=True), status_code=response.status_code):
+            return None, "challenge_or_captcha"
+
         page_title = soup.title.get_text(strip=True) if soup.title else ""
         text = self._extract_main_text(soup)
         if not text:
-            return None
+            return None, "empty_extracted_text"
+        if NOISE_TEXT_RE.search(text) and len(text) < 220:
+            return None, "low_quality_noise_text"
 
         structured = self._extract_structured_product_data(soup)
+        if len(text) < 140 and not self._structured_has_signal(structured):
+            return None, "insufficient_content_signal"
+
         trust = self._trust_score(
             domain=domain,
             content=text,
             has_schema=bool(soup.find(attrs={"itemtype": True})),
             structured=structured,
         )
-        return ResearchDocument(
-            url=final_url,
-            domain=domain,
-            title=page_title or title,
-            snippet=snippet,
-            text=text,
-            trust_score=trust,
-            metadata={
-                "provider": provider,
-                "content_type": content_type,
-                "structured": structured,
-            },
+        return (
+            ResearchDocument(
+                url=final_url,
+                domain=domain,
+                title=page_title or title,
+                snippet=snippet,
+                text=text,
+                trust_score=trust,
+                metadata={
+                    "provider": provider,
+                    "content_type": content_type,
+                    "structured": structured,
+                },
+            ),
+            "",
         )
+
+    @staticmethod
+    def _looks_like_challenge(text: str, *, status_code: int = 200) -> bool:
+        if status_code in {202, 403, 429, 503}:
+            return True
+        sample = str(text or "")[:6000]
+        if not sample:
+            return False
+        return bool(CHALLENGE_RE.search(sample))
+
+    @staticmethod
+    def _structured_has_signal(structured: dict[str, Any]) -> bool:
+        for key in ("names", "price_amounts", "sku_candidates", "category_names", "material_hints"):
+            if structured.get(key):
+                return True
+        return False
 
     @staticmethod
     def _extract_structured_product_data(soup: BeautifulSoup) -> dict[str, Any]:
@@ -283,16 +369,29 @@ class ResearchProvider:
     def _extract_main_text(soup: BeautifulSoup) -> str:
         for tag in soup(["script", "style", "noscript", "svg", "header", "footer"]):
             tag.decompose()
+
         candidates = []
-        selectors = ["main", "article", ".product", ".product-detail", ".pdp"]
+        selectors = ["main", "article", ".product", ".product-detail", ".pdp", "#content", ".content"]
         for selector in selectors:
             for node in soup.select(selector):
-                text = _safe_text(node.get_text(" ", strip=True))
+                text = _safe_text(node.get_text(" ", strip=True), max_chars=6500)
                 if len(text) > 120:
                     candidates.append(text)
+
         if not candidates:
             body = soup.body.get_text(" ", strip=True) if soup.body else soup.get_text(" ", strip=True)
-            candidates = [_safe_text(body)]
+            body_text = _safe_text(body, max_chars=6500)
+            if body_text:
+                candidates.append(body_text)
+
+        if not candidates:
+            meta_description = ""
+            meta_node = soup.find("meta", attrs={"name": re.compile(r"description", re.I)})
+            if meta_node:
+                meta_description = _safe_text(meta_node.get("content") or "", max_chars=1200)
+            if meta_description:
+                candidates.append(meta_description)
+
         candidates = [candidate for candidate in candidates if candidate]
         return max(candidates, key=len) if candidates else ""
 

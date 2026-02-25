@@ -108,6 +108,10 @@ type FooterLinkItem = {
   isCta?: boolean;
 };
 
+function hasHref<T extends { href?: string | null }>(item: T): item is T & { href: string } {
+  return typeof item.href === "string" && item.href.trim().length > 0;
+}
+
 const normalizeSlug = (value?: string | null) =>
   String(value || "")
     .trim()
@@ -286,13 +290,15 @@ export async function Footer() {
   pages.forEach((page) => {
     pageHrefBySlug.set(normalizeSlug(page.slug), pickText(page.url) || `/pages/${page.slug}/`);
   });
-  const resolveFooterPageHref = (candidates: string[], fallback?: string) => {
+  function resolveFooterPageHref(candidates: string[], fallback: string): string;
+  function resolveFooterPageHref(candidates: string[], fallback?: string): string | null;
+  function resolveFooterPageHref(candidates: string[], fallback?: string) {
     for (const candidate of candidates) {
       const href = pageHrefBySlug.get(normalizeSlug(candidate));
       if (href) return href;
     }
     return fallback ?? null;
-  };
+  }
   const footerLegalLinks = dedupeLinks([
     {
       key: "terms",
@@ -315,8 +321,7 @@ export async function Footer() {
       href: resolveFooterPageHref(["returns", "returns-policy", "refund-policy"]),
     },
   ]
-    .filter((item) => Boolean(item.href))
-    .map((item) => ({ ...item, href: item.href as string })));
+    .filter(hasHref));
   const footerLegalHrefSet = new Set(
     footerLegalLinks.map((item) => normalizeHref(item.href))
   );
@@ -405,9 +410,7 @@ export async function Footer() {
       label: "Returns",
       href: resolveFooterPageHref(["returns", "returns-policy", "refund-policy"]),
     },
-  ])
-    .filter((item) => Boolean(item.href))
-    .map((item) => ({ ...item, href: item.href as string }))
+  ].filter(hasHref))
     .filter((item) => {
     const hrefKey = normalizeHref(item.href);
     return !blockedCompanyHrefSet.has(hrefKey);

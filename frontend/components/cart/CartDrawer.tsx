@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { MiniCart } from "@/components/cart/MiniCart";
 
@@ -12,6 +13,12 @@ export function CartDrawer({
   onClose: () => void;
 }) {
   const originalOverflow = React.useRef<string | null>(null);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -33,11 +40,11 @@ export function CartDrawer({
     };
   }, [isOpen]);
 
-  if (!isOpen) {
+  if (!isOpen || !mounted) {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[90]"
       aria-hidden={!isOpen}
@@ -61,6 +68,7 @@ export function CartDrawer({
       >
         <MiniCart title="Your cart" onClose={onClose} className="h-full min-h-0" />
       </aside>
-    </div>
+    </div>,
+    document.body
   );
 }

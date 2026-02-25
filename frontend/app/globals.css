@@ -250,6 +250,25 @@
   body.has-mobile-sticky-cta {
     --mobile-sticky-footer-clearance: 5.5rem;
   }
+
+  body.has-mobile-sticky-cta .chat-widget-mobile-closed-offset {
+    bottom: calc(
+      max(var(--mobile-sticky-footer-clearance, 0.2rem), env(safe-area-inset-bottom)) + 1rem
+    );
+  }
+
+  body.has-mobile-sticky-cta .chat-widget-mobile-open-offset {
+    bottom: calc(
+      max(var(--mobile-sticky-footer-clearance, 0.2rem), env(safe-area-inset-bottom)) + 0.75rem
+    );
+  }
+
+  body.has-mobile-sticky-cta .chat-widget-mobile-panel {
+    max-height: calc(
+      100dvh - max(var(--mobile-sticky-footer-clearance, 0.2rem), env(safe-area-inset-bottom)) -
+        1.5rem
+    );
+  }
 }
 
 @media (pointer: coarse) {

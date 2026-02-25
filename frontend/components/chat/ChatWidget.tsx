@@ -216,7 +216,7 @@ export function ChatWidget() {
   return (
     <>
       {!open ? (
-        <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
+        <div className="chat-widget-mobile-closed-offset fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
           <button
             type="button"
             className="rounded-full bg-primary px-4 py-2 text-sm text-white shadow-lg"
@@ -228,8 +228,8 @@ export function ChatWidget() {
       ) : null}
 
       {open ? (
-        <div className="fixed inset-x-3 bottom-3 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6">
-          <div className="flex w-full min-h-[22rem] max-h-[calc(100dvh-1.5rem)] flex-col rounded-2xl border border-border bg-card p-4 shadow-xl sm:w-96 sm:max-h-[38rem]">
+        <div className="chat-widget-mobile-open-offset fixed inset-x-3 bottom-3 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6">
+          <div className="chat-widget-mobile-panel flex w-full min-h-[22rem] max-h-[calc(100dvh-1.5rem)] flex-col rounded-2xl border border-border bg-card p-4 shadow-xl sm:w-96 sm:max-h-[38rem]">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 overflow-hidden rounded-full bg-muted">

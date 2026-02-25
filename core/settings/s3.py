@@ -4,6 +4,14 @@ S3/Cloudflare settings for local development or testing
 import os
 from .base import *
 
+
+def _env_bool(key: str, default: bool = False) -> bool:
+    value = os.environ.get(key)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 # Parse DEBUG as boolean
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes')
 
@@ -23,37 +31,48 @@ EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.conso
 # don't need a remote DATABASE_URL during local testing.
 if DEBUG:
     import dj_database_url
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=os.environ.get('DATABASE_URL'),
-            conn_max_age=600,
-            ssl_require=True,
-        )
-    }
-    # Cache
-    CACHES = {
-        'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': os.environ.get('REDIS_URL'),
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+    s3_use_remote_db = _env_bool('S3_USE_REMOTE_DB', False)
+    s3_use_remote_redis = _env_bool('S3_USE_REMOTE_REDIS', False)
+    database_url = os.environ.get('DATABASE_URL', '').strip()
+    redis_url = os.environ.get('REDIS_URL', '').strip()
+
+    if s3_use_remote_db and database_url:
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=database_url,
+                conn_max_age=600,
+                ssl_require=_env_bool('DATABASE_SSL_REQUIRE', True),
+            )
+        }
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+                'OPTIONS': {
+                    'timeout': 20,
+                },
             }
         }
-    }
 
-    # DATABASES = {
-    #     'default': {
-    #         'ENGINE': 'django.db.backends.sqlite3',
-    #         'NAME': BASE_DIR / 'db.sqlite3',
-    #     }
-    # }
-    # # Use local in-memory cache during development
-    # CACHES = {
-    #     'default': {
-    #         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-    #         'LOCATION': 'unique-snowflake',
-    #     }
-    # }
+    if s3_use_remote_redis and redis_url:
+        CACHES = {
+            'default': {
+                'BACKEND': 'django_redis.cache.RedisCache',
+                'LOCATION': redis_url,
+                'OPTIONS': {
+                    'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                }
+            }
+        }
+    else:
+        # Keep local development resilient when remote Redis is unavailable.
+        CACHES = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                'LOCATION': 'bunoraa-s3-local-cache',
+            }
+        }
 else:
     # In non-debug, expect DATABASE_URL to be provided (production)
     pass

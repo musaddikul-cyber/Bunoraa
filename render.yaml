@@ -102,6 +102,12 @@ services:
         value: "apikey"
       - key: SENDGRID_API_KEY
         sync: false
+      - key: EMAIL_QUEUE_SYNC_FALLBACK
+        value: "true"
+      - key: EMAIL_QUEUE_WORKER_PING_TIMEOUT
+        value: "1.0"
+      - key: EMAIL_QUEUE_WORKER_PING_CACHE_TTL
+        value: "30"
       - key: DEFAULT_FROM_EMAIL
         value: "noreply@bunoraa.com"
       - key: GOOGLE_CLIENT_ID

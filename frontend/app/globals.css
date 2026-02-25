@@ -39,6 +39,7 @@
     --color-card-elevated: var(--card);
     --header-offset: 5.5rem;
     --mobile-header-offset: var(--header-offset);
+    --mobile-sticky-footer-clearance: 0.2rem;
   }
 
   .light {
@@ -244,6 +245,10 @@
 @media (max-width: 1023px) {
   :root {
     --header-offset: 4.75rem;
+  }
+
+  body.has-mobile-sticky-cta {
+    --mobile-sticky-footer-clearance: 5.5rem;
   }
 }
 

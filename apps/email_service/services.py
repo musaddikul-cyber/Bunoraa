@@ -31,8 +31,7 @@ import socket
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.template import Template, Context
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -640,6 +639,8 @@ class QueueManager:
     """
     Manages email queue for background processing.
     """
+
+    _WORKER_PING_CACHE_KEY = "email_service:queue_worker_available"
     
     @staticmethod
     def enqueue(email_message) -> bool:
@@ -659,31 +660,74 @@ class QueueManager:
         email_message.error_message = ''
         email_message.save(update_fields=['status', 'next_retry_at', 'error_message'])
         
-        # Trigger async task if Celery is available
-        celery_available = False
-        try:
-            from .tasks import process_email_queue
-            process_email_queue.delay()
-            celery_available = True
-        except (ImportError, Exception) as e:
-            logger.debug(f"Celery not available: {e}")
-        
-        # If Celery is not available, process synchronously
-        if not celery_available:
+        celery_dispatched = QueueManager._dispatch_async_queue_processor()
+        should_sync_fallback = not celery_dispatched
+
+        if celery_dispatched and QueueManager._sync_fallback_enabled():
+            should_sync_fallback = not QueueManager._has_active_celery_workers()
+
+        # If Celery is unavailable or no workers are alive, process this message
+        # inline so production does not silently keep emails in queued state.
+        if should_sync_fallback:
             try:
-                QueueManager.process_queue(batch_size=1)
+                QueueManager.process_queue(batch_size=1, message_ids=[email_message.id])
             except Exception as e:
-                logger.error(f"Failed to process email queue synchronously: {e}")
+                logger.error("Failed to process email queue synchronously: %s", e)
         
         return True
+
+    @staticmethod
+    def _dispatch_async_queue_processor() -> bool:
+        """Attempt to enqueue the background task that processes email queue."""
+        try:
+            from .tasks import process_email_queue
+
+            process_email_queue.delay()
+            return True
+        except Exception as exc:
+            logger.warning("Unable to dispatch async email queue processor: %s", exc)
+            return False
+
+    @staticmethod
+    def _sync_fallback_enabled() -> bool:
+        """Whether to process queued messages inline when workers are unavailable."""
+        return bool(getattr(settings, "EMAIL_QUEUE_SYNC_FALLBACK", False))
+
+    @staticmethod
+    def _has_active_celery_workers() -> bool:
+        """
+        Return True when at least one Celery worker responds to ping.
+        Result is cached briefly to avoid repeated broker round-trips.
+        """
+        cache_ttl = max(int(getattr(settings, "EMAIL_QUEUE_WORKER_PING_CACHE_TTL", 30)), 0)
+        if cache_ttl > 0:
+            cached = cache.get(QueueManager._WORKER_PING_CACHE_KEY)
+            if cached is not None:
+                return bool(cached)
+
+        timeout = float(getattr(settings, "EMAIL_QUEUE_WORKER_PING_TIMEOUT", 1.0))
+        has_workers = False
+        try:
+            from celery import current_app as celery_app
+
+            inspect = celery_app.control.inspect(timeout=timeout)
+            has_workers = bool((inspect.ping() or {}))
+        except Exception as exc:
+            logger.warning("Failed to inspect Celery workers for email queue: %s", exc)
+            has_workers = False
+
+        if cache_ttl > 0:
+            cache.set(QueueManager._WORKER_PING_CACHE_KEY, has_workers, cache_ttl)
+        return has_workers
     
     @staticmethod
-    def process_queue(batch_size: int = 100):
+    def process_queue(batch_size: int = 100, message_ids: Optional[List[Any]] = None):
         """
         Process queued emails.
         
         Args:
             batch_size: Number of emails to process at once
+            message_ids: Optional list of specific EmailMessage IDs to process
 
         Returns:
             Number of messages attempted in this run
@@ -696,15 +740,43 @@ class QueueManager:
         
         # Process only messages that are due now. This avoids future-scheduled
         # messages blocking the current batch window.
-        messages = EmailMessage.objects.filter(
+        due_messages = EmailMessage.objects.filter(
             status=EmailMessage.Status.QUEUED
         ).filter(
             Q(scheduled_at__isnull=True) | Q(scheduled_at__lte=now)
         ).filter(
             Q(next_retry_at__isnull=True) | Q(next_retry_at__lte=now)
-        ).order_by('created_at').select_related('api_key', 'user', 'template')[:batch_size]
-        
-        for msg in messages:
+        )
+        if message_ids:
+            due_messages = due_messages.filter(id__in=message_ids)
+
+        due_message_ids = list(
+            due_messages.order_by('created_at').values_list('id', flat=True)[:batch_size]
+        )
+
+        for msg_id in due_message_ids:
+            claim_time = timezone.now()
+            claimed = EmailMessage.objects.filter(
+                id=msg_id,
+                status=EmailMessage.Status.QUEUED,
+            ).filter(
+                Q(scheduled_at__isnull=True) | Q(scheduled_at__lte=claim_time)
+            ).filter(
+                Q(next_retry_at__isnull=True) | Q(next_retry_at__lte=claim_time)
+            ).update(
+                status=EmailMessage.Status.SENDING,
+                attempt_count=F('attempt_count') + 1,
+                last_attempt_at=claim_time,
+            )
+
+            if not claimed:
+                continue
+
+            try:
+                msg = EmailMessage.objects.select_related('api_key', 'user', 'template').get(id=msg_id)
+            except EmailMessage.DoesNotExist:
+                continue
+
             # Build envelope
             envelope = EmailEnvelope(
                 message_id=msg.message_id,
@@ -720,16 +792,19 @@ class QueueManager:
                 text_body=msg.text_body,
                 headers=msg.headers or {},
             )
-            
-            # Update status
-            msg.status = EmailMessage.Status.SENDING
-            msg.attempt_count += 1
-            msg.last_attempt_at = timezone.now()
-            msg.save(update_fields=['status', 'attempt_count', 'last_attempt_at'])
             processed_count += 1
             
             # Send
-            result = engine.send(envelope)
+            try:
+                result = engine.send(envelope)
+            except Exception as exc:
+                logger.exception("Unhandled error sending email %s", msg.message_id)
+                result = DeliveryResult(
+                    success=False,
+                    message_id=msg.message_id,
+                    error=str(exc),
+                    attempt=msg.attempt_count,
+                )
             
             # Update message based on result
             if result.success:

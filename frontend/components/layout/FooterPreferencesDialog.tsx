@@ -209,7 +209,7 @@ export function FooterPreferencesDialog({ className }: { className?: string }) {
 
       {isOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center sm:p-4"
+          className="fixed inset-0 z-[80] flex items-end justify-center overflow-y-auto bg-black/50 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Update preferences"
@@ -222,7 +222,7 @@ export function FooterPreferencesDialog({ className }: { className?: string }) {
           />
           <Card
             variant="bordered"
-            className="relative z-10 w-full max-w-xl bg-background p-4 sm:p-6"
+            className="relative z-10 w-full max-w-xl max-h-[min(92dvh,44rem)] overflow-y-auto bg-background p-4 sm:p-6"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">Display preferences</h2>
@@ -232,14 +232,15 @@ export function FooterPreferencesDialog({ className }: { className?: string }) {
             </div>
             <div className="space-y-4">
               <ThemeSwitcher
-                className="w-full justify-between"
-                selectClassName="w-52 sm:w-52"
+                className="grid w-full grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-center gap-3 text-sm font-medium text-foreground/80 sm:gap-4"
+                selectClassName="w-full sm:w-52 sm:justify-self-end"
               />
               <LocaleSwitcher
                 includeCountry
                 stacked
+                stackedInlineOnMobile
                 className="w-full"
-                selectClassName="w-52 sm:w-52"
+                selectClassName="w-full sm:w-52 sm:justify-self-end"
               />
             </div>
           </Card>

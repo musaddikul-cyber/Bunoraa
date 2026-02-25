@@ -1,0 +1,96 @@
+import uuid
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.test import TestCase, override_settings
+
+from apps.email_service.models import EmailMessage
+from apps.email_service.services import DeliveryResult, QueueManager
+
+
+class QueueManagerRegressionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            email="queue-test@example.com",
+            password="secure-pass-123",
+        )
+
+    def _build_message(self) -> EmailMessage:
+        return EmailMessage.objects.create(
+            user=self.user,
+            api_key=None,
+            message_id=f"{uuid.uuid4().hex}@bunoraa.com",
+            from_email="noreply@bunoraa.com",
+            from_name="Bunoraa",
+            to_email="recipient@example.com",
+            subject="Queue test",
+            html_body="<p>queue</p>",
+            text_body="queue",
+            status=EmailMessage.Status.QUEUED,
+        )
+
+    @override_settings(EMAIL_QUEUE_SYNC_FALLBACK=True)
+    @patch("apps.email_service.services.QueueManager.process_queue")
+    @patch("apps.email_service.services.QueueManager._has_active_celery_workers", return_value=False)
+    @patch("apps.email_service.services.QueueManager._dispatch_async_queue_processor", return_value=True)
+    def test_enqueue_processes_inline_when_workers_are_unavailable(
+        self,
+        _mock_dispatch,
+        _mock_has_workers,
+        mock_process_queue,
+    ):
+        message = self._build_message()
+
+        QueueManager.enqueue(message)
+
+        mock_process_queue.assert_called_once_with(batch_size=1, message_ids=[message.id])
+
+    @override_settings(EMAIL_QUEUE_SYNC_FALLBACK=True)
+    @patch("apps.email_service.services.QueueManager.process_queue")
+    @patch("apps.email_service.services.QueueManager._has_active_celery_workers", return_value=True)
+    @patch("apps.email_service.services.QueueManager._dispatch_async_queue_processor", return_value=True)
+    def test_enqueue_keeps_async_path_when_workers_are_available(
+        self,
+        _mock_dispatch,
+        _mock_has_workers,
+        mock_process_queue,
+    ):
+        message = self._build_message()
+
+        QueueManager.enqueue(message)
+
+        mock_process_queue.assert_not_called()
+
+    @override_settings(EMAIL_QUEUE_SYNC_FALLBACK=False)
+    @patch("apps.email_service.services.QueueManager.process_queue")
+    @patch("apps.email_service.services.QueueManager._dispatch_async_queue_processor", return_value=False)
+    def test_enqueue_falls_back_when_async_dispatch_fails(
+        self,
+        _mock_dispatch,
+        mock_process_queue,
+    ):
+        message = self._build_message()
+
+        QueueManager.enqueue(message)
+
+        mock_process_queue.assert_called_once_with(batch_size=1, message_ids=[message.id])
+
+    @patch("apps.email_service.services.DeliveryEngine.send")
+    def test_process_queue_claims_message_once(self, mock_send):
+        message = self._build_message()
+        mock_send.return_value = DeliveryResult(
+            success=True,
+            message_id=message.message_id,
+            response="250 OK",
+        )
+
+        first = QueueManager.process_queue(batch_size=1, message_ids=[message.id])
+        second = QueueManager.process_queue(batch_size=1, message_ids=[message.id])
+
+        message.refresh_from_db()
+        self.assertEqual(first, 1)
+        self.assertEqual(second, 0)
+        self.assertEqual(message.status, EmailMessage.Status.SENT)
+        self.assertEqual(message.attempt_count, 1)
+

@@ -587,6 +587,12 @@ NOTIFICATION_WS_RATE_LIMIT_WINDOW = int(os.environ.get('NOTIFICATION_WS_RATE_LIM
 
 # Email service
 EMAIL_SERVICE_ENABLED = os.environ.get('EMAIL_SERVICE_ENABLED', '1') in ('1', 'true', 'True')
+EMAIL_QUEUE_SYNC_FALLBACK = os.environ.get(
+    'EMAIL_QUEUE_SYNC_FALLBACK',
+    '1' if ENVIRONMENT == 'production' else '0',
+).lower() in ('1', 'true', 'yes')
+EMAIL_QUEUE_WORKER_PING_TIMEOUT = float(os.environ.get('EMAIL_QUEUE_WORKER_PING_TIMEOUT', '1.0'))
+EMAIL_QUEUE_WORKER_PING_CACHE_TTL = int(os.environ.get('EMAIL_QUEUE_WORKER_PING_CACHE_TTL', '30'))
 
 # Push / Web Push configuration
 FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS_PATH', '')
@@ -615,6 +621,20 @@ SIMPLE_JWT = {
 def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(',') if item.strip()]
 
+
+def _normalize_origin(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ''
+    parsed = urlparse(value)
+    if not parsed.scheme:
+        value = f"https://{value}"
+        parsed = urlparse(value)
+    if not parsed.netloc:
+        return ''
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 CORS_ALLOWED_ORIGINS = _split_csv(os.environ.get(
     'CORS_ALLOWED_ORIGINS',
     'http://bunoraa.com,http://www.bunoraa.com,http://api.bunoraa.com,http://media.bunoraa.com,http://bunoraa-pl26.onrender.com,http://bunoraa-django.onrender.com,https://bunoraa.com,https://www.bunoraa.com,https://api.bunoraa.com,https://media.bunoraa.com,https://bunoraa-pl26.onrender.com,https://bunoraa-django.onrender.com,http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000,http://127.0.0.1:8000'
@@ -633,10 +653,12 @@ CSRF_TRUSTED_ORIGINS = _split_csv(os.environ.get(
 ))
 
 # Next.js frontend origins
-NEXT_FRONTEND_ORIGIN = os.environ.get('NEXT_FRONTEND_ORIGIN', 'https://bunoraa.com').strip()
-NEXT_DEV_ORIGIN = 'http://localhost:3000,http://127.0.0.1:3000'
+_next_frontend_origins = _split_csv(os.environ.get('NEXT_FRONTEND_ORIGIN', 'https://bunoraa.com'))
+NEXT_FRONTEND_ORIGIN = _normalize_origin(_next_frontend_origins[0]) if _next_frontend_origins else 'https://bunoraa.com'
+NEXT_DEV_ORIGINS = _split_csv(os.environ.get('NEXT_DEV_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000'))
 
-for origin in [NEXT_FRONTEND_ORIGIN, NEXT_DEV_ORIGIN]:
+for raw_origin in [*_next_frontend_origins, *NEXT_DEV_ORIGINS]:
+    origin = _normalize_origin(raw_origin)
     if origin and origin not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(origin)
     if origin and origin not in CSRF_TRUSTED_ORIGINS:

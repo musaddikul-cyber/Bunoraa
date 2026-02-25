@@ -1154,6 +1154,7 @@ export function ProductDetailClient({
     getVariantOptionMap(defaultVariant)
   );
   const [descriptionExpanded, setDescriptionExpanded] = React.useState(false);
+  const mobileStickyBarRef = React.useRef<HTMLDivElement | null>(null);
 
   const variantOptionMapById = React.useMemo(() => {
     const map = new Map<string, VariantOptionMap>();
@@ -1206,6 +1207,39 @@ export function ProductDetailClient({
     setQuantity(1);
     setDescriptionExpanded(false);
   }, [defaultVariant, product.id]);
+
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.add("has-mobile-sticky-cta");
+    let resizeObserver: ResizeObserver | null = null;
+
+    const updateFooterClearance = () => {
+      const isMobile = window.matchMedia("(max-width: 1023px)").matches;
+      if (!isMobile) {
+        document.body.style.removeProperty("--mobile-sticky-footer-clearance");
+        return;
+      }
+      const stickyHeight = mobileStickyBarRef.current?.getBoundingClientRect().height ?? 0;
+      const nextClearance = Math.max(0, Math.ceil(stickyHeight));
+      document.body.style.setProperty("--mobile-sticky-footer-clearance", `${nextClearance}px`);
+    };
+
+    const handleResize = () => updateFooterClearance();
+    window.addEventListener("resize", handleResize);
+    window.requestAnimationFrame(updateFooterClearance);
+
+    if (typeof ResizeObserver !== "undefined" && mobileStickyBarRef.current) {
+      resizeObserver = new ResizeObserver(updateFooterClearance);
+      resizeObserver.observe(mobileStickyBarRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      resizeObserver?.disconnect();
+      document.body.style.removeProperty("--mobile-sticky-footer-clearance");
+      document.body.classList.remove("has-mobile-sticky-cta");
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!selectedVariant) return;
@@ -1859,7 +1893,10 @@ export function ProductDetailClient({
         excludeProductSlug={product.slug}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-60 border-t border-border bg-background/95 p-3 backdrop-blur lg:hidden">
+      <div
+        ref={mobileStickyBarRef}
+        className="fixed inset-x-0 bottom-0 z-60 border-t border-border bg-background/95 p-3 backdrop-blur lg:hidden"
+      >
         <div className="mx-auto flex max-w-6xl items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs text-foreground/55">{product.name}</p>

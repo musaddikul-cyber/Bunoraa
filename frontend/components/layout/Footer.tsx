@@ -745,7 +745,13 @@ export async function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 border-t border-border pb-[max(0.2rem,env(safe-area-inset-bottom))] pt-4">
+        <div
+          className="mt-8 border-t border-border pt-4"
+          style={{
+            paddingBottom:
+              "max(var(--mobile-sticky-footer-clearance, 0.2rem), env(safe-area-inset-bottom))",
+          }}
+        >
           <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-between">
             <FooterPreferencesDialog />
             <p className="text-center text-xs leading-normal text-foreground/60 lg:text-left">

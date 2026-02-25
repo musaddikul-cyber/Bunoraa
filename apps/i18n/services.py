@@ -1775,19 +1775,28 @@ class UserPreferenceService:
         UserPreferenceService._clear_missing_refs(pref)
         logger.debug(f"[Preference] Updating for user {user.id} with: {kwargs}")
         
-        if 'language_code' in kwargs:
-            pref.language = LanguageService.get_language_by_code(kwargs['language_code'])
+        language_code = kwargs.get('language_code')
+        if language_code:
+            pref.language = LanguageService.get_language_by_code(language_code)
+            if 'auto_detect_language' not in kwargs:
+                pref.auto_detect_language = False
         
-        if 'currency_code' in kwargs:
-            currency = CurrencyService.get_currency_by_code(kwargs['currency_code'])
+        currency_code = kwargs.get('currency_code')
+        if currency_code:
+            currency = CurrencyService.get_currency_by_code(currency_code)
             if currency:
                 logger.debug(f"[Preference] Setting currency to: {currency.code}")
                 pref.currency = currency
+                if 'auto_detect_currency' not in kwargs:
+                    pref.auto_detect_currency = False
             else:
-                logger.warning(f"[Preference] Currency code not found: {kwargs['currency_code']}")
+                logger.warning(f"[Preference] Currency code not found: {currency_code}")
         
-        if 'timezone_name' in kwargs:
-            pref.timezone = TimezoneService.get_timezone_by_name(kwargs['timezone_name'])
+        timezone_name = kwargs.get('timezone_name')
+        if timezone_name:
+            pref.timezone = TimezoneService.get_timezone_by_name(timezone_name)
+            if pref.timezone and 'auto_detect_timezone' not in kwargs:
+                pref.auto_detect_timezone = False
         
         if 'country_code' in kwargs:
             pref.country = GeoService.get_country_by_code(kwargs['country_code'])

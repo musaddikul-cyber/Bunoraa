@@ -72,13 +72,20 @@ _csrf_env = _split_csv(os.environ.get('CSRF_TRUSTED_ORIGINS', 'https://bunoraa.c
 CORS_ALLOWED_ORIGINS = _cors_env or [f'https://{h}' for h in ALLOWED_HOSTS if h]
 CSRF_TRUSTED_ORIGINS = _csrf_env or [f'https://{h}' for h in ALLOWED_HOSTS if h]
 
-_frontend_origin_raw = os.environ.get('NEXT_FRONTEND_ORIGIN', '').strip() or os.environ.get('NEXT_PUBLIC_SITE_URL', '').strip()
-_frontend_origin = _normalize_origin(_frontend_origin_raw) if _frontend_origin_raw else ''
-if _frontend_origin:
-    if _frontend_origin not in CORS_ALLOWED_ORIGINS:
-        CORS_ALLOWED_ORIGINS.append(_frontend_origin)
-    if _frontend_origin not in CSRF_TRUSTED_ORIGINS:
-        CSRF_TRUSTED_ORIGINS.append(_frontend_origin)
+_frontend_origins_raw = _split_csv(os.environ.get('NEXT_FRONTEND_ORIGIN', ''))
+if not _frontend_origins_raw:
+    _fallback_site_origin = os.environ.get('NEXT_PUBLIC_SITE_URL', '').strip()
+    if _fallback_site_origin:
+        _frontend_origins_raw = [_fallback_site_origin]
+
+for raw_origin in _frontend_origins_raw:
+    frontend_origin = _normalize_origin(raw_origin)
+    if not frontend_origin:
+        continue
+    if frontend_origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(frontend_origin)
+    if frontend_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(frontend_origin)
 
 # =============================================================================
 # DATABASE - PostgreSQL

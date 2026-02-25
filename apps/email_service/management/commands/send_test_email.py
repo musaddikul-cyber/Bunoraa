@@ -11,6 +11,7 @@ Usage:
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.email_service.models import APIKey, EmailMessage
+from apps.email_service.services import QueueManager
 
 
 class Command(BaseCommand):
@@ -105,6 +106,7 @@ class Command(BaseCommand):
             text_body=text_content,
             status='queued',
         )
+        QueueManager.enqueue(message)
         
         self.stdout.write(self.style.SUCCESS(
             f'\n✅ Test email queued successfully!'
@@ -113,8 +115,5 @@ class Command(BaseCommand):
         self.stdout.write(f'To: {options["to"]}')
         self.stdout.write(f'Subject: {options["subject"]}')
         self.stdout.write(
-            '\nThe email will be sent when the queue processor runs.'
-        )
-        self.stdout.write(
-            'Run "celery -A core worker" to process the queue.'
+            '\nQueue processing was triggered. If workers are unavailable and sync fallback is enabled, it is sent immediately.'
         )

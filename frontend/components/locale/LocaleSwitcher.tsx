@@ -56,12 +56,14 @@ export function LocaleSwitcher({
   includeCountry = false,
   includeTimezone = false,
   stacked = false,
+  stackedInlineOnMobile = false,
   selectClassName,
 }: {
   className?: string;
   includeCountry?: boolean;
   includeTimezone?: boolean;
   stacked?: boolean;
+  stackedInlineOnMobile?: boolean;
   selectClassName?: string;
 }) {
   const { locale, setLocale, isLoading } = useLocale();
@@ -261,7 +263,9 @@ export function LocaleSwitcher({
     ? "flex w-full flex-col gap-4"
     : "flex w-auto flex-col gap-2 sm:flex-row sm:items-center";
   const rowClass = stacked
-    ? "grid w-full gap-2 text-sm font-medium text-foreground/80 sm:grid-cols-[minmax(8rem,auto)_1fr] sm:items-center sm:gap-4"
+    ? stackedInlineOnMobile
+      ? "grid w-full grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-center gap-3 text-sm font-medium text-foreground/80 sm:gap-4"
+      : "grid w-full gap-2 text-sm font-medium text-foreground/80 sm:grid-cols-[minmax(8rem,auto)_1fr] sm:items-center sm:gap-4"
     : "flex w-auto items-center gap-2 text-sm font-medium text-foreground/80";
   const selectClass = stacked
     ? "h-11 min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm leading-tight text-foreground disabled:cursor-not-allowed disabled:opacity-60"

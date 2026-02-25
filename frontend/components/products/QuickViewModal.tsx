@@ -103,12 +103,12 @@ export function QuickViewModal({
               </div>
               <div className="flex flex-col gap-3">
                 <div>
-                  <p className="text-sm text-foreground/60">
-                    {data.primary_category_name || "Featured"}
-                  </p>
+                  {data.primary_category_name ? (
+                    <p className="text-sm text-foreground/60">{data.primary_category_name}</p>
+                  ) : null}
                   <h3 className="text-xl font-semibold sm:text-2xl">{data.name}</h3>
                 </div>
-                <ProductBadges product={data} badges={data.badges} />
+                <ProductBadges product={data} badges={data.badges} omitOnSale />
                 <p className="text-sm text-foreground/70">
                   {data.short_description || "No description available."}
                 </p>

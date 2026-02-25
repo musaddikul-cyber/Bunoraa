@@ -1435,18 +1435,6 @@ export function ProductDetailClient({
   if (product.eco_certifications?.length || product.material_breakdown) {
     sectionLinks.splice(2, 0, { id: "sustainability", label: "Sustainability" });
   }
-  const suppressedBadges = new Set(["featured", "new-arrival", "new arrival", "limited"]);
-  const filteredBadges = (product.badges || []).filter((badge) => {
-    const name = (badge.name || "").trim().toLowerCase();
-    const slug = (badge.slug || "").trim().toLowerCase();
-    return !suppressedBadges.has(name) && !suppressedBadges.has(slug);
-  });
-  const badgeProduct: ProductListItem = {
-    ...product,
-    is_new_arrival: false,
-    is_featured: false,
-  };
-
   return (
     <div className="space-y-8 pb-24 lg:pb-0">
       <SectionAnchorNav sections={sectionLinks} />
@@ -1479,7 +1467,7 @@ export function ProductDetailClient({
             ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <RatingStars rating={product.average_rating || 0} count={product.reviews_count} />
-              <ProductBadges product={badgeProduct} badges={filteredBadges} />
+              <ProductBadges product={product} badges={product.badges} omitOnSale />
             </div>
             {highlightAttributes.length ? (
               <div className="mt-3 grid gap-2 sm:grid-cols-2">

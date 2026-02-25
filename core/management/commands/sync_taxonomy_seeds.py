@@ -30,6 +30,7 @@ DOMAIN_SEED_SPECS: dict[str, list[str]] = {
     "pages": [
         "i18n.currencies",
         "pages.site_settings",
+        "pages.pages",
         "pages.newsletter_incentives",
         "pages.blog_categories",
         "pages.blog_tags",
@@ -366,7 +367,15 @@ class Command(BaseCommand):
             self._index_catalog_nodes(node.get("children") or [], next_path, out)
 
     def _build_pages_taxonomy_payload(self, path: Path) -> dict[str, Any]:
-        from apps.pages.models import SiteSettings, NewsletterIncentive, BlogCategory, BlogTag, FAQ, SocialLink
+        from apps.pages.models import (
+            Page,
+            SiteSettings,
+            NewsletterIncentive,
+            BlogCategory,
+            BlogTag,
+            FAQ,
+            SocialLink,
+        )
 
         existing = self._safe_load_json(path)
         payload = deepcopy(existing) if isinstance(existing, dict) else {}
@@ -393,6 +402,23 @@ class Command(BaseCommand):
         else:
             site_payload = {}
         payload["site_settings"] = site_payload
+
+        payload["pages"] = [
+            {
+                "title": item.title,
+                "slug": item.slug,
+                "content": item.content,
+                "excerpt": item.excerpt,
+                "meta_title": item.meta_title,
+                "meta_description": item.meta_description,
+                "template": item.template,
+                "show_in_header": item.show_in_header,
+                "show_in_footer": item.show_in_footer,
+                "menu_order": item.menu_order,
+                "is_published": item.is_published,
+            }
+            for item in Page.objects.all().order_by("menu_order", "title", "slug")
+        ]
 
         payload["newsletter_incentives"] = [
             {

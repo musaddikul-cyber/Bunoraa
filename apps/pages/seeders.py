@@ -15,6 +15,7 @@ from apps.pages.models import (
     BlogCategory,
     BlogTag,
     FAQ,
+    Page,
 )
 from apps.i18n.models import Currency
 
@@ -22,6 +23,7 @@ from apps.i18n.models import Currency
 DEFAULT_PAGES_TAXONOMY_PATH = "apps/pages/data/taxonomy.json"
 
 LEGACY_PAGES_DATA_FILES: dict[str, str] = {
+    "pages": "apps/pages/data/pages.json",
     "site_settings": "apps/pages/data/site_settings.json",
     "newsletter_incentives": "apps/pages/data/newsletter_incentives.json",
     "blog_categories": "apps/pages/data/blog_categories.json",
@@ -74,6 +76,7 @@ def _parse_site_settings(payload: Any) -> dict[str, Any]:
 
 def _load_legacy_taxonomy(ctx: SeedContext) -> dict[str, Any]:
     data: dict[str, Any] = {
+        "pages": [],
         "site_settings": {},
         "newsletter_incentives": [],
         "blog_categories": [],
@@ -99,7 +102,60 @@ def _normalize_code(value: Any) -> str:
     return str(value or "").strip().upper()
 
 
+def _coerce_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off", ""}:
+        return False
+    return default
+
+
 def _validate_pages_taxonomy(taxonomy: dict[str, Any]) -> None:
+    page_slugs: set[str] = set()
+    valid_templates = {choice[0] for choice in Page.TEMPLATE_CHOICES}
+    for idx, record in enumerate(taxonomy.get("pages", []), start=1):
+        title = str(record.get("title") or "").strip()
+        if not title:
+            raise ValueError(f"pages[{idx}] is missing 'title'.")
+        slug = slugify(str(record.get("slug") or "").strip() or title)
+        if not slug:
+            raise ValueError(f"pages[{idx}] is missing 'slug'.")
+        if slug in page_slugs:
+            raise ValueError(f"Duplicate page slug '{slug}'.")
+        page_slugs.add(slug)
+
+        template = str(record.get("template") or Page.TEMPLATE_DEFAULT).strip() or Page.TEMPLATE_DEFAULT
+        if template not in valid_templates:
+            allowed = ", ".join(sorted(valid_templates))
+            raise ValueError(
+                f"pages[{idx}] has invalid 'template' value '{template}'. Allowed: {allowed}."
+            )
+
+        menu_order_raw = record.get("menu_order", 0)
+        try:
+            menu_order = max(0, int(menu_order_raw or 0))
+        except (TypeError, ValueError):
+            raise ValueError(f"pages[{idx}] has invalid 'menu_order' value '{menu_order_raw}'.")
+
+        record["title"] = title
+        record["slug"] = slug
+        record["content"] = str(record.get("content") or "")
+        record["excerpt"] = str(record.get("excerpt") or "")
+        record["meta_title"] = str(record.get("meta_title") or "")
+        record["meta_description"] = str(record.get("meta_description") or "")
+        record["template"] = template
+        record["show_in_header"] = _coerce_bool(record.get("show_in_header"), default=False)
+        record["show_in_footer"] = _coerce_bool(record.get("show_in_footer"), default=False)
+        record["menu_order"] = menu_order
+        record["is_published"] = _coerce_bool(record.get("is_published"), default=True)
+
     site_settings = taxonomy.get("site_settings") or {}
     if site_settings:
         currency = _normalize_code(site_settings.get("currency"))
@@ -178,6 +234,7 @@ def _load_pages_taxonomy(ctx: SeedContext) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise ValueError(f"Pages taxonomy must be a JSON object. File: {path}")
         taxonomy = {
+            "pages": _parse_json_items(payload.get("pages")),
             "site_settings": _parse_site_settings(payload.get("site_settings")),
             "newsletter_incentives": _parse_json_items(payload.get("newsletter_incentives")),
             "blog_categories": _parse_json_items(payload.get("blog_categories")),
@@ -190,6 +247,7 @@ def _load_pages_taxonomy(ctx: SeedContext) -> dict[str, Any]:
 
     has_data = any(
         [
+            bool(taxonomy.get("pages")),
             bool(taxonomy.get("site_settings")),
             bool(taxonomy.get("newsletter_incentives")),
             bool(taxonomy.get("blog_categories")),
@@ -263,6 +321,31 @@ class PagesTaxonomySectionSeedSpec(JSONSeedSpec):
 
 
 register_seed(SiteSettingsSeedSpec())
+
+register_seed(
+    PagesTaxonomySectionSeedSpec(
+        name="pages.pages",
+        app_label="pages",
+        model=Page,
+        section_key="pages",
+        data_path=DEFAULT_PAGES_TAXONOMY_PATH,
+        key_fields=["slug"],
+        update_fields=[
+            "title",
+            "slug",
+            "content",
+            "excerpt",
+            "meta_title",
+            "meta_description",
+            "template",
+            "show_in_header",
+            "show_in_footer",
+            "menu_order",
+            "is_published",
+        ],
+        prune=False,
+    )
+)
 
 register_seed(
     PagesTaxonomySectionSeedSpec(

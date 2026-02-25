@@ -81,7 +81,18 @@ class PageViewSet(viewsets.ReadOnlyModelViewSet):
         })
     
     def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
+        slug = kwargs.get(self.lookup_field)
+        instance = PageService.resolve_page_by_slug(slug)
+        if not instance:
+            return Response(
+                {
+                    'success': False,
+                    'message': 'Page not found',
+                    'data': None,
+                    'meta': {},
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
         serializer = self.get_serializer(instance)
         return Response({
             'success': True,

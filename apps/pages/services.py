@@ -11,6 +11,16 @@ from .models import Page, FAQ, ContactMessage, SiteSettings, Subscriber
 
 class PageService:
     """Service for managing pages."""
+
+    PAGE_SLUG_ALIASES = {
+        "terms-of-use": ["terms", "terms-and-conditions"],
+        "terms-and-conditions": ["terms", "terms-of-use"],
+        "privacy-policy": ["privacy"],
+        "shipping-policy": ["shipping"],
+        "returns-policy": ["returns", "refund-policy"],
+        "refund-policy": ["returns", "returns-policy"],
+        "about-us": ["about", "about-bunoraa"],
+    }
     
     @staticmethod
     def get_menu_pages():
@@ -31,10 +41,23 @@ class PageService:
     @staticmethod
     def get_page_by_slug(slug):
         """Get published page by slug."""
-        return Page.objects.filter(
-            slug=slug,
-            is_published=True
-        ).first()
+        return PageService.resolve_page_by_slug(slug)
+
+    @staticmethod
+    def resolve_page_by_slug(slug):
+        """Resolve published page by exact slug or known legacy aliases."""
+        normalized = str(slug or "").strip().strip("/").lower()
+        if not normalized:
+            return None
+        queryset = Page.objects.filter(is_published=True)
+        page = queryset.filter(slug=normalized).first()
+        if page:
+            return page
+        for alias in PageService.PAGE_SLUG_ALIASES.get(normalized, []):
+            page = queryset.filter(slug=alias).first()
+            if page:
+                return page
+        return None
 
 
 class FAQService:

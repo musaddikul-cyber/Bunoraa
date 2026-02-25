@@ -25,6 +25,17 @@ async function getFooterPages() {
   }
 }
 
+async function getPublishedPages() {
+  try {
+    const response = await apiFetch<MenuPage[]>("/pages/", {
+      next: { revalidate: 600 },
+    });
+    return asArray<MenuPage>(response.data);
+  } catch {
+    return [];
+  }
+}
+
 async function getSiteSettings() {
   try {
     const response = await apiFetch<SiteSettings>("/pages/settings/", {
@@ -104,8 +115,8 @@ const normalizeSlug = (value?: string | null) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-const normalizeHref = (href: string) =>
-  href.trim().toLowerCase().replace(/\/+$/, "");
+const normalizeHref = (href?: string | null) =>
+  String(href || "").trim().toLowerCase().replace(/\/+$/, "");
 
 const normalizeSocialPlatform = (value?: string | null) => {
   const normalized = normalizeSlug(value).replace(/-url$/, "");
@@ -119,6 +130,7 @@ const dedupeLinks = <T extends FooterLinkItem>(items: T[]) => {
   return items.filter((item) => {
     const hrefKey = normalizeHref(item.href);
     const labelKey = normalizeSlug(item.label);
+    if (!hrefKey || !labelKey) return false;
     if (seenHref.has(hrefKey) || seenLabel.has(labelKey)) {
       return false;
     }
@@ -198,17 +210,21 @@ function SocialIcon({ platform }: { platform: string }) {
 export async function Footer() {
   const [
     pagesResult,
+    publishedPagesResult,
     siteSettingsResult,
     contactSettingsResult,
     categoriesResult,
   ] = await Promise.allSettled([
     getFooterPages(),
+    getPublishedPages(),
     getSiteSettings(),
     getContactSettings(),
     getTopCategories(),
   ]);
 
   const pages = pagesResult.status === "fulfilled" ? pagesResult.value : [];
+  const publishedPages =
+    publishedPagesResult.status === "fulfilled" ? publishedPagesResult.value : [];
   const siteSettings = siteSettingsResult.status === "fulfilled" ? siteSettingsResult.value : null;
   const contactSettings =
     contactSettingsResult.status === "fulfilled" ? contactSettingsResult.value : null;
@@ -264,44 +280,43 @@ export async function Footer() {
   );
   const copyrightText =
     pickText(siteSettings?.copyright_text) || `${brandName}. All rights reserved.`;
-  const footerPageHrefBySlug = new Map(
-    pages.map((page) => [normalizeSlug(page.slug), `/pages/${page.slug}/`])
+  const pageHrefBySlug = new Map(
+    publishedPages.map((page) => [normalizeSlug(page.slug), `/pages/${page.slug}/`])
   );
-  const resolveFooterPageHref = (candidates: string[], fallback: string) => {
+  pages.forEach((page) => {
+    pageHrefBySlug.set(normalizeSlug(page.slug), pickText(page.url) || `/pages/${page.slug}/`);
+  });
+  const resolveFooterPageHref = (candidates: string[], fallback?: string) => {
     for (const candidate of candidates) {
-      const href = footerPageHrefBySlug.get(normalizeSlug(candidate));
+      const href = pageHrefBySlug.get(normalizeSlug(candidate));
       if (href) return href;
     }
-    return fallback;
+    return fallback ?? null;
   };
   const footerLegalLinks = dedupeLinks([
     {
       key: "terms",
       label: "Terms of Use",
-      href: resolveFooterPageHref(
-        ["terms-of-use", "terms", "terms-and-conditions"],
-        "/pages/terms-of-use/"
-      ),
+      href: resolveFooterPageHref(["terms-of-use", "terms", "terms-and-conditions"]),
     },
     {
       key: "privacy",
       label: "Privacy",
-      href: resolveFooterPageHref(["privacy", "privacy-policy"], "/pages/privacy/"),
+      href: resolveFooterPageHref(["privacy", "privacy-policy"]),
     },
     {
       key: "shipping",
       label: "Shipping",
-      href: resolveFooterPageHref(["shipping", "shipping-policy"], "/pages/shipping/"),
+      href: resolveFooterPageHref(["shipping", "shipping-policy"]),
     },
     {
       key: "returns",
       label: "Returns",
-      href: resolveFooterPageHref(
-        ["returns", "returns-policy", "refund-policy"],
-        "/pages/returns/"
-      ),
+      href: resolveFooterPageHref(["returns", "returns-policy", "refund-policy"]),
     },
-  ]);
+  ]
+    .filter((item) => Boolean(item.href))
+    .map((item) => ({ ...item, href: item.href as string })));
   const footerLegalHrefSet = new Set(
     footerLegalLinks.map((item) => normalizeHref(item.href))
   );
@@ -383,17 +398,17 @@ export async function Footer() {
     {
       key: "shipping",
       label: "Shipping",
-      href: resolveFooterPageHref(["shipping", "shipping-policy"], "/pages/shipping/"),
+      href: resolveFooterPageHref(["shipping", "shipping-policy"]),
     },
     {
       key: "returns",
       label: "Returns",
-      href: resolveFooterPageHref(
-        ["returns", "returns-policy", "refund-policy"],
-        "/pages/returns/"
-      ),
+      href: resolveFooterPageHref(["returns", "returns-policy", "refund-policy"]),
     },
-  ]).filter((item) => {
+  ])
+    .filter((item) => Boolean(item.href))
+    .map((item) => ({ ...item, href: item.href as string }))
+    .filter((item) => {
     const hrefKey = normalizeHref(item.href);
     return !blockedCompanyHrefSet.has(hrefKey);
   });
@@ -736,15 +751,17 @@ export async function Footer() {
             <p className="text-center text-xs leading-normal text-foreground/60 lg:text-left">
               &copy; {new Date().getFullYear()} {copyrightText}
             </p>
-            <ul className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-foreground/70 lg:justify-end">
-              {footerLegalLinks.map((item) => (
-                <li key={item.key}>
-                  <Link href={item.href} className="hover:text-foreground">
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {footerLegalLinks.length ? (
+              <ul className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-foreground/70 lg:justify-end">
+                {footerLegalLinks.map((item) => (
+                  <li key={item.key}>
+                    <Link href={item.href} className="hover:text-foreground">
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         </div>
       </div>

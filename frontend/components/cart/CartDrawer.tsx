@@ -39,7 +39,7 @@ export function CartDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50"
+      className="fixed inset-0 z-[90]"
       aria-hidden={!isOpen}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();

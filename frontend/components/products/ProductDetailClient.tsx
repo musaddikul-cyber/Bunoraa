@@ -4,11 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import type {
   ProductDetail,
   ProductListItem,
-  ProductReviewsResponse,
+  Review,
+  ReviewStatistics,
   ProductQuestion,
   CustomerPhoto,
   ShippingRateResponse,
@@ -599,35 +600,35 @@ function ShippingEstimator({
           {subtotalLabel ? ` - Subtotal ${subtotalLabel}` : ""}
         </p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           value={country}
           onChange={(event) => setCountry(event.target.value)}
-          className="h-9 rounded-xl border border-border bg-transparent px-2 text-xs"
+          className="h-10 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-9 sm:flex-1 sm:px-2 sm:text-xs"
           placeholder="Country"
         />
         <input
           value={state}
           onChange={(event) => setState(event.target.value)}
-          className="h-9 rounded-xl border border-border bg-transparent px-2 text-xs"
+          className="h-10 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-9 sm:flex-1 sm:px-2 sm:text-xs"
           placeholder="State"
         />
         <input
           value={postalCode}
           onChange={(event) => setPostalCode(event.target.value)}
-          className="h-9 rounded-xl border border-border bg-transparent px-2 text-xs"
+          className="h-10 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-9 sm:flex-1 sm:px-2 sm:text-xs"
           placeholder="Postal code"
         />
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleEstimate}
+          disabled={loading}
+          className="h-10 w-full px-3 text-sm sm:h-9 sm:w-auto sm:shrink-0 sm:text-xs"
+        >
+          {loading ? "Estimating..." : "Get rates"}
+        </Button>
       </div>
-      <Button
-        size="sm"
-        variant="secondary"
-        onClick={handleEstimate}
-        disabled={loading}
-        className="h-9 px-3 text-xs"
-      >
-        {loading ? "Estimating..." : "Get rates"}
-      </Button>
       {orderedMethods.length ? (
         <div className="space-y-1.5 text-[11px] text-foreground/70">
           {orderedMethods.map((method: ShippingMethodOption) => (
@@ -663,11 +664,24 @@ function ProductReviews({ product }: { product: ProductDetail }) {
   const [body, setBody] = React.useState("");
 
   const reviewsQuery = useQuery({
-    queryKey: ["product", product.slug, "reviews", page],
+    queryKey: ["product", product.id, "reviews", page],
     queryFn: async () => {
-      const response = await apiFetch<ProductReviewsResponse>(
-        `/catalog/products/${product.slug}/reviews/`,
+      const response = await apiFetch<Review[]>(
+        `/reviews/product/${product.id}/`,
         { params: { page } }
+      );
+      return {
+        reviews: response.data || [],
+        pagination: response.meta?.pagination || null,
+      };
+    },
+  });
+
+  const reviewStatsQuery = useQuery({
+    queryKey: ["product", product.id, "review-stats"],
+    queryFn: async () => {
+      const response = await apiFetch<ReviewStatistics>(
+        `/reviews/product/${product.id}/statistics/`
       );
       return response.data;
     },
@@ -675,28 +689,37 @@ function ProductReviews({ product }: { product: ProductDetail }) {
 
   const addReview = useMutation({
     mutationFn: async () => {
-      return apiFetch(`/catalog/products/${product.slug}/add_review/`, {
+      return apiFetch(`/reviews/`, {
         method: "POST",
-        body: { rating, title, body },
+        body: { product_id: product.id, rating, title, body },
       });
     },
     onSuccess: () => {
       push("Review submitted. Pending approval.", "success");
       setTitle("");
       setBody("");
+      reviewStatsQuery.refetch();
       reviewsQuery.refetch();
     },
-    onError: () => push("Could not submit review.", "error"),
+    onError: (error) => {
+      if (error instanceof ApiError && error.message) {
+        push(error.message, "error");
+        return;
+      }
+      push("Could not submit review.", "error");
+    },
   });
 
-  const summary = reviewsQuery.data?.summary;
-  const totalPages = Math.max(1, reviewsQuery.data?.total_pages || 1);
+  const summary = reviewStatsQuery.data;
+  const canReview = summary?.can_review;
+  const canReviewReason = summary?.can_review_reason;
+  const totalPages = Math.max(1, reviewsQuery.data?.pagination?.total_pages || 1);
   const search = searchParams?.toString();
   const nextHref = `${pathname}${search ? `?${search}` : ""}#reviews`;
   const loginHref = `/account/login/?next=${encodeURIComponent(nextHref)}`;
   const ratingRows = [5, 4, 3, 2, 1].map((star) => {
     const count = Number(summary?.distribution?.[String(star)] || 0);
-    const total = summary?.total || 0;
+    const total = summary?.total_count || 0;
     const percent = total > 0 ? Math.round((count / total) * 100) : 0;
     return { star, count, percent };
   });
@@ -708,7 +731,7 @@ function ProductReviews({ product }: { product: ProductDetail }) {
           <h3 className="text-lg font-semibold">Customer reviews</h3>
           {summary ? (
             <p className="text-sm text-foreground/60">
-              {summary.average} out of 5 ({summary.total} reviews)
+              {summary.average_rating} out of 5 ({summary.total_count} reviews)
             </p>
           ) : null}
         </div>
@@ -753,7 +776,7 @@ function ProductReviews({ product }: { product: ProductDetail }) {
         </div>
       ) : (
         <p className="text-sm text-foreground/60">
-          {reviewsQuery.isFetching ? "Loading reviews..." : "No reviews yet."}
+          {reviewsQuery.isFetching || reviewStatsQuery.isFetching ? "Loading reviews..." : "No reviews yet."}
         </p>
       )}
 
@@ -789,6 +812,10 @@ function ProductReviews({ product }: { product: ProductDetail }) {
             <Link href={loginHref} className="text-primary underline-offset-2 hover:underline">
               Sign in
             </Link>
+          </p>
+        ) : canReview === false ? (
+          <p className="text-xs text-foreground/60">
+            {canReviewReason || "You cannot review this product right now."}
           </p>
         ) : (
           <div className="grid gap-3">
@@ -830,7 +857,7 @@ function ProductReviews({ product }: { product: ProductDetail }) {
                 size="sm"
                 variant="secondary"
                 onClick={() => addReview.mutate()}
-                disabled={addReview.isPending || !body.trim()}
+                disabled={addReview.isPending || (!title.trim() && !body.trim())}
               >
                 {addReview.isPending ? "Submitting..." : "Submit review"}
               </Button>
@@ -1437,16 +1464,6 @@ export function ProductDetailClient({
                   {product.name}
                 </h1>
               </div>
-              {(selectedVariant?.sku || product.sku) ? (
-                <button
-                  type="button"
-                  onClick={handleCopySku}
-                  className="rounded-md px-2 py-1 text-xs text-foreground/60 transition hover:bg-muted hover:text-foreground"
-                  title="Click to copy SKU"
-                >
-                  SKU {selectedVariant?.sku || product.sku}
-                </button>
-              ) : null}
             </div>
             <p className="mt-3 text-[13px] text-foreground/70">
               {visibleDescription || "No description available."}
@@ -1699,8 +1716,21 @@ export function ProductDetailClient({
           {!inStock ? <BackInStockForm product={product} variantId={variantId} /> : null}
 
           <Card variant="bordered" className="space-y-4" id="specs">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-lg font-semibold">Specifications and details</h2>
+              {(selectedVariant?.sku || product.sku) ? (
+                <button
+                  type="button"
+                  onClick={handleCopySku}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card/60 px-2.5 py-1 text-xs font-medium text-foreground/70 transition-colors hover:border-primary/40 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:ml-auto"
+                  title="Click to copy SKU"
+                >
+                  <span className="uppercase tracking-[0.12em] text-foreground/55">SKU</span>
+                  <span className="font-mono text-foreground/80">
+                    {selectedVariant?.sku || product.sku}
+                  </span>
+                </button>
+              ) : null}
             </div>
             <p className="text-justify text-[13px] text-foreground/70">
               {product.description ||

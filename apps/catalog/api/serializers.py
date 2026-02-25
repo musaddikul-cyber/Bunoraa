@@ -355,7 +355,11 @@ class ProductDetailSerializer(ContentTranslationMixin, PriceConversionMixin, ser
 
     def get_badges(self, obj):
         from apps.catalog.services import BadgeService
-        badges = BadgeService.get_product_badges(obj)
+        badges = [
+            badge
+            for badge in BadgeService.get_product_badges(obj)
+            if badge.target_product_id or badge.target_category_id or badge.target_tag_id
+        ]
         return BadgeSerializer(badges, many=True, context=self.context).data
     
     def to_representation(self, instance):
@@ -411,7 +415,15 @@ class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializ
     
     def get_badges(self, obj):
         from apps.catalog.services import BadgeService
-        badges = BadgeService.get_product_badges(obj)
+        badges = [
+            badge
+            for badge in BadgeService.get_product_badges(obj)
+            if (
+                badge.target_product_id == obj.id
+                or (badge.target_category_id and badge.applies_to(obj))
+                or (badge.target_tag_id and badge.applies_to(obj))
+            )
+        ]
         return BadgeSerializer(badges, many=True, context=self.context).data
     
     def to_representation(self, instance):

@@ -123,34 +123,50 @@ export type ProductBadge = {
 export type ReviewImage = {
   id: string;
   image: string;
+  caption?: string | null;
+  sort_order?: number | null;
+  created_at?: string | null;
 };
 
 export type Review = {
   id: string;
+  product?: string | null;
   user_name?: string | null;
   rating: number;
   title?: string | null;
   body?: string | null;
+  content?: string | null;
+  pros?: string | null;
+  cons?: string | null;
+  would_recommend?: boolean | null;
+  is_anonymous?: boolean;
   verified_purchase?: boolean;
+  is_verified_purchase?: boolean;
   helpful_votes?: number;
+  helpful_count?: number;
+  not_helpful_votes?: number;
+  not_helpful_count?: number;
+  helpfulness_score?: number;
+  report_count?: number;
+  is_featured?: boolean;
   moderation_status?: string;
+  status?: string;
+  user_vote?: "helpful" | "not_helpful" | null;
   images?: ReviewImage[];
+  published_at?: string | null;
+  edited_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
 
-export type ReviewSummary = {
-  total: number;
-  average: number;
+export type ReviewStatistics = {
+  average_rating: number;
+  total_count: number;
+  verified_count: number;
+  recommendation_rate: number;
   distribution: Record<string, number>;
-};
-
-export type ProductReviewsResponse = {
-  reviews: Review[];
-  summary: ReviewSummary;
-  total: number;
-  page: number;
-  total_pages: number;
+  can_review?: boolean;
+  can_review_reason?: string;
 };
 
 export type ProductQuestion = {

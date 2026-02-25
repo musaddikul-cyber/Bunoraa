@@ -14,7 +14,7 @@ from django.views.decorators.cache import cache_page
 
 from .models import (
     Category, Product, ProductImage, ProductVariant, Collection, Bundle,
-    Review, Badge, Spotlight, Tag, Facet
+    Badge, Spotlight, Tag, Facet
 )
 from .services import (
     CategoryService, ProductService, CollectionService, ReviewService,

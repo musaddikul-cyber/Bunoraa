@@ -16,7 +16,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from apps.catalog.models import (
-    Category, Product, Collection, Bundle, Review, Badge, Spotlight, Facet, Tag, CustomerPhoto,
+    Category, Product, Collection, Bundle, Badge, Spotlight, Facet, Tag, CustomerPhoto,
     ProductQuestion, ProductAnswer, ProductVariant
 )
 from apps.catalog.services import (

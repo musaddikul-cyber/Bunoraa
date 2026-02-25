@@ -7,13 +7,13 @@ from django.dispatch import receiver
 from .models import (
     Product,
     ProductVariant,
-    Review,
     Category,
     CategoryFacet,
     StockAlert,
     _update_category_product_counts,
     _clear_category_facets_cache,
 )
+from apps.reviews.models import Review
 
 logger = logging.getLogger(__name__)
 

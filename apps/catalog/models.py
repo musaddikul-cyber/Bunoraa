@@ -1148,39 +1148,6 @@ class CollectionItem(models.Model):
         return f"{self.collection} - {self.product}"
 
 
-# 2) Reviews and Ratings
-class Review(models.Model):
-    MODERATION_CHOICES = (("pending", "Pending"), ("approved", "Approved"), ("rejected", "Rejected"))
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reviews")
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="reviews")
-    rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])  # 1-5
-    title = models.CharField(max_length=200, blank=True)
-    body = models.TextField(blank=True)
-    verified_purchase = models.BooleanField(default=False)
-    helpful_votes = models.IntegerField(default=0)
-    moderation_status = models.CharField(max_length=20, choices=MODERATION_CHOICES, default="pending")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        indexes = [models.Index(fields=["product"]), models.Index(fields=["user"])]
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"Review {self.rating} for {self.product} by {self.user}"
-
-
-class ReviewImage(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField(upload_to="catalog/review_images/")
-
-    def __str__(self):
-        return f"Image for {self.review}"
-
-
 # 3) ProductPrice for multi-currency support
 class Currency(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

@@ -143,7 +143,7 @@ export default function RootLayout({
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: SITE_NAME,
-    alternateName: "bunoraa.com",
+    alternateName: "Bunoraa",
     url: SITE_URL,
     potentialAction: {
       "@type": "SearchAction",

@@ -215,7 +215,8 @@ def send_stock_alerts():
 @shared_task(name='catalog.update_product_stats')
 def update_product_stats():
     """Update product statistics (review counts, ratings)."""
-    from .models import Product, Review
+    from .models import Product
+    from apps.reviews.models import Review
     
     # Update review stats for all products
     products = Product.objects.filter(is_deleted=False)

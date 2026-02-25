@@ -11,6 +11,7 @@ Features:
 - Comprehensive error logging and monitoring
 - Automated backups with retention policies
 """
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -116,12 +117,16 @@ DJANGO_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'daphne',
     'django.contrib.staticfiles',
     'django.contrib.sites',
     'django.contrib.sitemaps',
     'django.contrib.humanize',
 ]
+
+# Daphne is optional for management/runtime compatibility in environments
+# where ASGI serving is handled externally.
+if importlib.util.find_spec('daphne') is not None:
+    DJANGO_APPS.insert(DJANGO_APPS.index('django.contrib.staticfiles'), 'daphne')
 
 THIRD_PARTY_APPS = [
     'rest_framework',
@@ -423,6 +428,7 @@ REST_FRAMEWORK = {
         'notifications_deliveries': '120/hour',
         'notifications_templates': '120/hour',
         'notifications_health': '60/hour',
+        'reviews': '240/hour',
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', # Added for drf-spectacular
 }

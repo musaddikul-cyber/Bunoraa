@@ -6,13 +6,14 @@ from decimal import Decimal
 
 from apps.catalog.models import (
     Category, Product, ProductImage, ProductVariant, Tag, Attribute, AttributeValue,
-    Collection, CollectionItem, Review, ReviewImage, Badge, Spotlight, Bundle, BundleItem,
+    Collection, CollectionItem, Badge, Spotlight, Bundle, BundleItem,
     Facet, CategoryFacet, ShippingMaterial, Product3DAsset, Option, OptionValue,
     Currency, ProductPrice, EcoCertification, CustomerPhoto,
     ProductQuestion, ProductAnswer
 )
 from apps.i18n.services import CurrencyService, CurrencyConversionService, TranslationService
 from apps.i18n.api.serializers import PriceConversionMixin
+from apps.reviews.models import Review, ReviewImage
 
 
 # =============================================================================

@@ -17,11 +17,12 @@ from django.utils.text import slugify
 
 from .models import (
     Category, Product, ProductImage, ProductVariant, Tag, Attribute, AttributeValue,
-    Collection, CollectionItem, Review, Badge, Spotlight, Bundle, BundleItem,
+    Collection, CollectionItem, Badge, Spotlight, Bundle, BundleItem,
     Facet, CategoryFacet, StockHistory, Reservation, StockAlert,
     DigitalAsset, ProductPrice, Currency, EcoCertification
 )
 from apps.i18n.services import CurrencyService, CurrencyConversionService
+from apps.reviews.models import Review
 
 logger = logging.getLogger(__name__)
 

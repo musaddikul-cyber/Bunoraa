@@ -57,6 +57,10 @@ def backup_database_to_r2(self):
             'accounts.user',
             'accounts.address',
             'catalog.product',
+            'catalog.review',
+            'catalog.reviewimage',
+            'catalog.reviewvote',
+            'catalog.reviewreport',
             'catalog.tag',
             'catalog.attribute',
             'catalog.category',
@@ -64,7 +68,6 @@ def backup_database_to_r2(self):
             'orders.orderitem',
             'payments.payment',
             'promotions.coupon',
-            'reviews.review',
             'pages.sitesettings',
             'i18n.currency',
             'i18n.exchangerate',
@@ -639,7 +642,10 @@ def generate_data_export(user_id: int, export_type: str = 'all'):
                 reviews.append({
                     'product': review.product.name if review.product else 'Deleted Product',
                     'rating': review.rating,
-                    'comment': review.comment,
+                    'title': review.title,
+                    'body': review.body,
+                    'moderation_status': review.moderation_status,
+                    'verified_purchase': review.verified_purchase,
                     'created_at': review.created_at.isoformat(),
                 })
             export_data['data']['reviews'] = reviews

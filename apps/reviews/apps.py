@@ -10,4 +10,6 @@ class ReviewsConfig(AppConfig):
     verbose_name = 'Reviews'
     
     def ready(self):
-        import apps.reviews.signals  # noqa
+        # Canonical review counters are maintained by apps.catalog.signals.
+        # Keep this app lightweight to avoid duplicate signal side effects.
+        return

@@ -82,7 +82,12 @@ export function QuickViewModal({
         >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Quick view</h2>
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onClose}
+              className="h-9 min-h-9 rounded-full border-border/70 bg-background/80 px-3 text-xs backdrop-blur supports-[backdrop-filter]:bg-background/70"
+            >
               Close
             </Button>
           </div>
@@ -104,7 +109,9 @@ export function QuickViewModal({
               <div className="flex flex-col gap-3">
                 <div>
                   {data.primary_category_name ? (
-                    <p className="text-sm text-foreground/60">{data.primary_category_name}</p>
+                    <p className="inline-flex items-center rounded-full border border-border/70 bg-muted/60 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/75">
+                      {data.primary_category_name}
+                    </p>
                   ) : null}
                   <h3 className="text-xl font-semibold sm:text-2xl">{data.name}</h3>
                 </div>
@@ -119,18 +126,18 @@ export function QuickViewModal({
                   currentPrice={data.current_price}
                   currency={data.currency}
                 />
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <AddToCartButton
                     productId={data.id}
                     variant="primary-gradient"
                     size="sm"
-                    className="h-11 w-full px-4 sm:w-auto"
+                    className="h-11 w-full px-4"
                   />
                   <Button
                     asChild
                     variant="secondary"
                     size="sm"
-                    className="h-11 w-full px-4 sm:w-auto"
+                    className="h-11 w-full px-4"
                   >
                     <Link href={buildProductPath(data)}>View details</Link>
                   </Button>

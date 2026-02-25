@@ -289,11 +289,6 @@ export async function Footer() {
       href: resolveFooterPageHref(["privacy", "privacy-policy"], "/pages/privacy/"),
     },
     {
-      key: "contact",
-      label: "Contact",
-      href: "/contact/",
-    },
-    {
       key: "shipping",
       label: "Shipping",
       href: resolveFooterPageHref(["shipping", "shipping-policy"], "/pages/shipping/"),
@@ -372,7 +367,7 @@ export async function Footer() {
   const companyPrimaryLinks = dedupeLinks([
     {
       key: "about",
-      label: "About Bunoraa",
+      label: "About us",
       href: resolveFooterPageHref(["about-bunoraa", "about"], "/about/"),
     },
     {

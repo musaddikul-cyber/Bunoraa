@@ -1445,7 +1445,7 @@ export function ProductDetailClient({
           <div id="overview">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
+                <p className="inline-flex items-center rounded-full border border-border/70 bg-muted/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-foreground/75">
                   {product.primary_category?.name || "Catalog"}
                 </p>
                 <h1 className="text-3xl font-semibold sm:text-4xl">
@@ -1586,10 +1586,10 @@ export function ProductDetailClient({
                   <p className="text-xs text-foreground/60">Total: {lineTotalLabel}</p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-                  <div className="inline-flex items-center rounded-xl border border-border bg-card">
+                  <div className="grid w-full grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center overflow-hidden rounded-xl border border-border bg-card sm:w-auto sm:grid-cols-[2.5rem_4rem_2.5rem]">
                     <button
                       type="button"
-                      className="h-10 w-10 text-2xl font-semibold text-foreground/70 transition hover:text-foreground disabled:opacity-40"
+                      className="h-11 w-full border-r border-border/70 text-2xl font-semibold text-foreground/70 transition hover:text-foreground disabled:opacity-40 sm:h-10"
                       onClick={() => setQuantity((prev) => clampQuantity(prev - 1))}
                       disabled={quantity <= 1}
                       aria-label="Decrease quantity"
@@ -1597,18 +1597,19 @@ export function ProductDetailClient({
                       -
                     </button>
                     <input
-                      type="number"
-                      min={1}
-                      max={maxQty ?? undefined}
+                      type="text"
                       value={quantity}
-                      onChange={(event) =>
-                        setQuantity(clampQuantity(Number(event.target.value)))
-                      }
-                      className="no-spin h-10 w-16 appearance-none bg-transparent text-center text-sm"
+                      onChange={(event) => {
+                        const digitsOnly = event.target.value.replace(/\D+/g, "");
+                        setQuantity(clampQuantity(Number(digitsOnly || "1")));
+                      }}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      className="h-11 w-full min-w-0 appearance-none bg-transparent text-center text-base sm:h-10 sm:text-sm"
                     />
                     <button
                       type="button"
-                      className="h-10 w-10 text-2xl font-semibold text-foreground/70 transition hover:text-foreground disabled:opacity-40"
+                      className="h-11 w-full border-l border-border/70 text-2xl font-semibold text-foreground/70 transition hover:text-foreground disabled:opacity-40 sm:h-10"
                       onClick={() => setQuantity((prev) => clampQuantity(prev + 1))}
                       disabled={maxQty !== null && quantity >= maxQty}
                       aria-label="Increase quantity"

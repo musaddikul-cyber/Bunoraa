@@ -371,6 +371,7 @@ class ProductDetailSerializer(ContentTranslationMixin, PriceConversionMixin, ser
 class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializer):
     """Lightweight serializer for quick view modal."""
     primary_image = serializers.SerializerMethodField()
+    primary_category_name = serializers.CharField(source='primary_category.name', read_only=True)
     currency = serializers.CharField(source='currency_id', read_only=True)
     current_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     is_on_sale = serializers.BooleanField(read_only=True)
@@ -384,7 +385,7 @@ class QuickViewProductSerializer(PriceConversionMixin, serializers.ModelSerializ
             'id', 'name', 'slug', 'sku', 'short_description',
             'price', 'sale_price', 'current_price', 'currency',
             'is_on_sale', 'is_bestseller', 'is_new_arrival',
-            'is_in_stock', 'primary_image', 'badges', 'primary_category_slug_path',
+            'is_in_stock', 'primary_image', 'badges', 'primary_category_name', 'primary_category_slug_path',
             'average_rating', 'reviews_count'
         )
     

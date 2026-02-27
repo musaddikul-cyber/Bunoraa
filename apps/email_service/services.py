@@ -14,6 +14,7 @@ import base64
 import email
 import hashlib
 import logging
+import os
 import re
 import smtplib
 import ssl
@@ -528,6 +529,66 @@ class DeliveryEngine:
         self.config = config or SMTPConfig.from_settings()
         self.pool = SMTPConnectionPool.initialize(self.config)
         self.builder = EmailBuilder()
+
+    @staticmethod
+    def _delivery_transport() -> str:
+        transport = str(
+            getattr(settings, "EMAIL_SERVICE_TRANSPORT", os.environ.get("EMAIL_SERVICE_TRANSPORT", "smtp"))
+        ).strip().lower()
+        return transport or "smtp"
+
+    @staticmethod
+    def _should_use_http_transport() -> bool:
+        return DeliveryEngine._delivery_transport() in {"http", "api", "https"}
+
+    @staticmethod
+    def _should_fallback_to_http() -> bool:
+        return str(
+            getattr(
+                settings,
+                "EMAIL_SERVICE_HTTP_FALLBACK_ON_SMTP_FAILURE",
+                os.environ.get("EMAIL_SERVICE_HTTP_FALLBACK_ON_SMTP_FAILURE", "true"),
+            )
+        ).strip().lower() in {"1", "true", "yes"}
+
+    def _send_via_http_provider(self, envelope: EmailEnvelope, attempt: int = 1) -> DeliveryResult:
+        try:
+            from core.utils.email_service import EmailService
+
+            result = EmailService.send(
+                to=[envelope.to_email] if envelope.to_email else [],
+                subject=envelope.subject,
+                html_body=envelope.html_body,
+                text_body=envelope.text_body,
+                from_email=envelope.from_email,
+                from_name=envelope.from_name,
+                reply_to=envelope.reply_to or None,
+                cc=envelope.cc or [],
+                bcc=envelope.bcc or [],
+                attachments=envelope.attachments or [],
+                headers=envelope.headers or {},
+            )
+            provider_name = getattr(getattr(result, "provider", None), "value", "http")
+            if result.success:
+                return DeliveryResult(
+                    success=True,
+                    message_id=envelope.message_id,
+                    response=f"Delivered via {provider_name}",
+                    attempt=attempt,
+                )
+            return DeliveryResult(
+                success=False,
+                message_id=envelope.message_id,
+                error=f"HTTP provider failure: {result.error}",
+                attempt=attempt,
+            )
+        except Exception as exc:
+            return DeliveryResult(
+                success=False,
+                message_id=envelope.message_id,
+                error=f"HTTP provider exception: {exc}",
+                attempt=attempt,
+            )
     
     def send(self, envelope: EmailEnvelope) -> DeliveryResult:
         """
@@ -539,6 +600,9 @@ class DeliveryEngine:
         Returns:
             DeliveryResult with success status
         """
+        if self._should_use_http_transport():
+            return self._send_via_http_provider(envelope)
+
         # Build raw message
         try:
             raw_message = self.builder.build_raw(envelope)
@@ -597,6 +661,20 @@ class DeliveryEngine:
                 delay = self.config.retry_delay * (self.config.retry_backoff ** (attempt - 1))
                 time.sleep(delay)
         
+        if self._should_fallback_to_http():
+            fallback_result = self._send_via_http_provider(
+                envelope,
+                attempt=self.config.max_retries + 1,
+            )
+            if fallback_result.success:
+                logger.warning(
+                    "SMTP delivery failed, but HTTP fallback succeeded for %s",
+                    envelope.message_id,
+                )
+                return fallback_result
+            if fallback_result.error:
+                last_error = f"{last_error}; {fallback_result.error}"
+
         return DeliveryResult(
             success=False,
             message_id=envelope.message_id,

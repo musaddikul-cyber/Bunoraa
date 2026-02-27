@@ -1,11 +1,17 @@
 import uuid
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
 from apps.email_service.models import EmailEvent, EmailMessage
-from apps.email_service.services import DeliveryResult, QueueManager
+from apps.email_service.services import (
+    DeliveryEngine,
+    DeliveryResult,
+    EmailEnvelope,
+    QueueManager,
+)
 
 
 class QueueManagerRegressionTests(TestCase):
@@ -118,3 +124,59 @@ class QueueManagerRegressionTests(TestCase):
                 event_type=EmailEvent.EventType.SENT,
             ).exists()
         )
+
+    @override_settings(EMAIL_SERVICE_TRANSPORT="http")
+    @patch("core.utils.email_service.EmailService.send")
+    def test_delivery_engine_uses_http_transport_when_configured(self, mock_http_send):
+        mock_http_send.return_value = SimpleNamespace(
+            success=True,
+            error="",
+            provider=SimpleNamespace(value="sendgrid"),
+        )
+        engine = DeliveryEngine()
+        envelope = EmailEnvelope(
+            message_id=f"{uuid.uuid4().hex}@bunoraa.com",
+            from_email="noreply@bunoraa.com",
+            from_name="Bunoraa",
+            to_email="recipient@example.com",
+            subject="Transport test",
+            text_body="hello",
+        )
+
+        result = engine.send(envelope)
+
+        self.assertTrue(result.success)
+        self.assertIn("Delivered via", result.response)
+        mock_http_send.assert_called_once()
+
+    @override_settings(
+        EMAIL_SERVICE_TRANSPORT="smtp",
+        EMAIL_SERVICE_HTTP_FALLBACK_ON_SMTP_FAILURE=True,
+    )
+    @patch("core.utils.email_service.EmailService.send")
+    @patch("apps.email_service.services.SMTPConnection.send", return_value=(False, "Failed to connect to SMTP server"))
+    def test_delivery_engine_falls_back_to_http_on_smtp_failure(
+        self,
+        _mock_smtp_send,
+        mock_http_send,
+    ):
+        mock_http_send.return_value = SimpleNamespace(
+            success=True,
+            error="",
+            provider=SimpleNamespace(value="sendgrid"),
+        )
+        engine = DeliveryEngine()
+        envelope = EmailEnvelope(
+            message_id=f"{uuid.uuid4().hex}@bunoraa.com",
+            from_email="noreply@bunoraa.com",
+            from_name="Bunoraa",
+            to_email="recipient@example.com",
+            subject="Fallback test",
+            text_body="hello",
+        )
+
+        result = engine.send(envelope)
+
+        self.assertTrue(result.success)
+        self.assertIn("Delivered via", result.response)
+        mock_http_send.assert_called_once()

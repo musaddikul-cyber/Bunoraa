@@ -12,9 +12,11 @@ from django.conf.urls.static import static
 from django.shortcuts import resolve_url
 from django.utils.http import url_has_allowed_host_and_scheme
 from two_factor.admin import AdminSiteOTPRequired
+from two_factor.utils import default_device
 from .sitemaps import sitemap_view, sitemap_index_view
 from django.views.generic import RedirectView # Added for API docs redirect
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView # Added for API docs
+from .two_factor_views import ADMIN_2FA_SETUP_SKIPPED_SESSION_KEY
 from .sitemaps import (
     StaticViewSitemap,
     ProductSitemap,
@@ -28,6 +30,19 @@ from .views import HomeView, health_check, health_check_detailed, readiness_chec
 
 class BunoraaAdminSite(AdminSiteOTPRequired):
     """Admin site that redirects login to the OTP-enabled login view."""
+
+    def has_permission(self, request):
+        if not admin.AdminSite.has_permission(self, request):
+            return False
+
+        if request.user.is_verified():
+            return True
+
+        # Allow this session to continue only when the user has no OTP device
+        # and has explicitly skipped setup from the admin 2FA setup page.
+        return not default_device(request.user) and bool(
+            request.session.get(ADMIN_2FA_SETUP_SKIPPED_SESSION_KEY)
+        )
 
     def login(self, request, extra_context=None):
         redirect_to = request.POST.get(REDIRECT_FIELD_NAME, request.GET.get(REDIRECT_FIELD_NAME))

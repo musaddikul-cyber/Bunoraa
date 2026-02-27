@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -329,11 +330,13 @@ export default function SecurityPage() {
             <div className="space-y-2 rounded-lg border border-border bg-muted p-3 text-sm">
               <p className="font-semibold">Step 1: Scan QR code in your authenticator app</p>
               {totpQrDataUrl ? (
-                <img
+                <Image
                   src={totpQrDataUrl}
                   alt="Authenticator setup QR code"
+                  width={176}
+                  height={176}
+                  unoptimized
                   className="mx-auto h-44 w-44 rounded-lg border border-border bg-card p-1 sm:mx-0"
-                  loading="lazy"
                 />
               ) : totpUri ? (
                 <p className="text-xs text-foreground/70">

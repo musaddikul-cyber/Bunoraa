@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
+import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import { getAccessToken } from "@/lib/auth";
@@ -232,12 +233,15 @@ export function ChatWidget() {
           <div className="chat-widget-mobile-panel flex w-full min-h-[22rem] max-h-[calc(100dvh-1.5rem)] flex-col rounded-2xl border border-border bg-card p-4 shadow-xl sm:w-96 sm:max-h-[38rem]">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 overflow-hidden rounded-full bg-muted">
+                <div className="relative h-8 w-8 overflow-hidden rounded-full bg-muted">
                   {assignedAgent?.avatar_url ? (
-                    <img
+                    <Image
                       src={assignedAgent.avatar_url}
                       alt={assignedAgent.display_name || "Support"}
-                      className="h-full w-full object-cover"
+                      fill
+                      sizes="32px"
+                      unoptimized
+                      className="object-cover"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-foreground/60">
@@ -290,9 +294,16 @@ export function ChatWidget() {
                           className={cn("flex gap-2", isMine ? "justify-end" : "justify-start")}
                         >
                           {!isMine ? (
-                            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-muted">
+                            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-muted">
                               {avatarUrl ? (
-                                <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+                                <Image
+                                  src={avatarUrl}
+                                  alt={displayName}
+                                  fill
+                                  sizes="32px"
+                                  unoptimized
+                                  className="object-cover"
+                                />
                               ) : (
                                 <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-foreground/60">
                                   {initials(displayName)}

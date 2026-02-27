@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { useAuthContext } from "@/components/providers/AuthProvider";
@@ -69,9 +70,16 @@ function initials(name?: string | null) {
 
 function Avatar({ name, url }: { name?: string | null; url?: string | null }) {
   return (
-    <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-muted">
+    <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-muted">
       {url ? (
-        <img src={url} alt={name || "User"} className="h-full w-full object-cover" />
+        <Image
+          src={url}
+          alt={name || "User"}
+          fill
+          sizes="28px"
+          unoptimized
+          className="object-cover"
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-foreground/60">
           {initials(name)}

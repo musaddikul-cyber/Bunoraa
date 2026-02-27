@@ -12,6 +12,11 @@ def _redis_db_url(redis_url: str, db: int) -> str:
     return urlunparse(parsed._replace(path=f'/{db}'))
 
 
+# Sites framework defaults for production (override base if needed)
+SITE_ID = int(os.environ.get('SITE_ID', '4'))
+SITE_NAME = os.environ.get('SITE_NAME', 'Bunoraa')
+SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'localhost:8000')
+
 # Parse DEBUG as boolean
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes')
 

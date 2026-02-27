@@ -1143,7 +1143,10 @@ export function ProductDetailClient({
   relatedProducts: ProductListItem[];
 }) {
   const { push } = useToast();
-  const variants = product.variants || [];
+  const variants = React.useMemo<Variant[]>(
+    () => product.variants ?? [],
+    [product.variants]
+  );
   const defaultVariant = React.useMemo(
     () => variants.find((variant) => variant.is_default) || variants[0] || null,
     [variants]

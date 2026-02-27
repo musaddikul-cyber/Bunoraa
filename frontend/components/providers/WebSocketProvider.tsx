@@ -151,10 +151,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   }, [activeChannels, connect]);
 
   React.useEffect(() => {
+    const reconnectTimersCurrent = reconnectTimers.current;
+    const socketsCurrent = socketsRef.current;
     return () => {
       isMountedRef.current = false;
-      Object.values(reconnectTimers.current).forEach((timer) => timer && clearTimeout(timer));
-      Object.values(socketsRef.current).forEach((socket) => socket?.close(1000, "Provider unmounted"));
+      Object.values(reconnectTimersCurrent).forEach((timer) => timer && clearTimeout(timer));
+      Object.values(socketsCurrent).forEach((socket) => socket?.close(1000, "Provider unmounted"));
     };
   }, []);
 

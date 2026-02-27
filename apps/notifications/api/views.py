@@ -129,10 +129,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
             'meta': {}
         })
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
     def unread_count(self, request):
         """Get count of unread notifications."""
-        count = NotificationService.get_unread_count(request.user)
+        if not getattr(request.user, 'is_authenticated', False):
+            count = 0
+        else:
+            count = NotificationService.get_unread_count(request.user)
         return Response({
             'success': True,
             'message': 'Unread count retrieved successfully',

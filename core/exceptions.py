@@ -45,8 +45,27 @@ def custom_exception_handler(exc, context):
         }
         response.data = custom_response_data
         
-        # Log the error
-        logger.error(f"API Error: {exc.__class__.__name__} - {str(exc)}", exc_info=True)
+        # Log expected auth failures at lower severity without stack traces.
+        request = context.get('request')
+        request_method = getattr(request, 'method', 'UNKNOWN')
+        request_path = getattr(request, 'path', 'UNKNOWN')
+        if isinstance(exc, (NotAuthenticated, AuthenticationFailed)):
+            logger.warning(
+                "API Auth Error: %s - %s [%s %s]",
+                exc.__class__.__name__,
+                str(exc),
+                request_method,
+                request_path,
+            )
+        else:
+            logger.error(
+                "API Error: %s - %s [%s %s]",
+                exc.__class__.__name__,
+                str(exc),
+                request_method,
+                request_path,
+                exc_info=True,
+            )
     
     return response
 

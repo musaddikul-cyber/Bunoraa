@@ -2,7 +2,7 @@
 S3/Cloudflare settings for local development or testing
 """
 import os
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import dj_database_url
 from .base import *
 
@@ -12,13 +12,37 @@ def _redis_db_url(redis_url: str, db: int) -> str:
     return urlunparse(parsed._replace(path=f'/{db}'))
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    return os.environ.get(name, str(default)).lower() in ('1', 'true', 'yes')
+
+
+def _normalize_rediss_url(url: str | None) -> str | None:
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if parsed.scheme != 'rediss':
+        return url
+    params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    if 'ssl_cert_reqs' not in params:
+        params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'CERT_REQUIRED')
+        return urlunparse(parsed._replace(query=urlencode(params)))
+    return url
+
+
+def _append_pg_option(existing_options: str, option: str) -> str:
+    existing_options = (existing_options or '').strip()
+    if option in existing_options:
+        return existing_options
+    return f"{existing_options} {option}".strip()
+
+
 # Sites framework defaults for production (override base if needed)
 SITE_ID = int(os.environ.get('SITE_ID', '4'))
 SITE_NAME = os.environ.get('SITE_NAME', 'Bunoraa')
 SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'localhost:8000')
 
 # Parse DEBUG as boolean
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes')
+DEBUG = _env_bool('DEBUG', True)
 
 # Use S3/Cloudflare for media files
 USE_S3 = True
@@ -33,128 +57,82 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(','
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 
 # Database behavior for S3 settings:
-# - DEBUG=True  -> always SQLite (local development safety).
-# - DEBUG=False -> always PostgreSQL via DATABASE_URL.
-if DEBUG:
-    # In s3+debug, force all redis-backed services to local Redis.
-    REDIS_URL = os.environ.get('S3_LOCAL_REDIS_URL', 'redis://127.0.0.1:6379/0').strip()
-    channel_layers_redis_url = os.environ.get('S3_LOCAL_CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2)).strip()
-    CELERY_BROKER_URL = os.environ.get('S3_LOCAL_CELERY_BROKER_URL', _redis_db_url(REDIS_URL, 1)).strip()
-    CELERY_RESULT_BACKEND = os.environ.get('S3_LOCAL_CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip()
+# - Always use PostgreSQL via DATABASE_URL.
+# - In DEBUG, write permission can be constrained with DB_ALLOW_WRITE.
+DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL must be set in core.settings.s3")
 
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-            'OPTIONS': {
-                'timeout': 20,
-            },
-        }
-    }
+DB_ALLOW_WRITE = _env_bool('DB_ALLOW_WRITE', True)
 
-    CACHES = {
-        'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': REDIS_URL,
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'CONNECTION_POOL_KWARGS': {
-                    'max_connections': 20,
-                    'retry_on_timeout': True,
-                },
-                'SOCKET_CONNECT_TIMEOUT': 5,
-                'SOCKET_TIMEOUT': 5,
+DATABASES = {
+    'default': dj_database_url.config(
+        default=DATABASE_URL,
+        conn_max_age=300,
+        conn_health_checks=True,
+        ssl_require=False,
+    )
+}
+
+if not DB_ALLOW_WRITE:
+    DATABASES['default'].setdefault('OPTIONS', {})
+    DATABASES['default']['OPTIONS']['options'] = _append_pg_option(
+        DATABASES['default']['OPTIONS'].get('options', ''),
+        '-c default_transaction_read_only=on',
+    )
+
+# Enforce env-driven ORM read/write access in s3 settings.
+DATABASE_ROUTERS = ['core.db_router.EnvDatabaseAccessRouter']
+
+# Redis-backed services always use REDIS_URL in core.settings.s3.
+REDIS_URL = os.environ.get('REDIS_URL', '').strip()
+if not REDIS_URL:
+    raise ValueError("REDIS_URL must be set in core.settings.s3")
+
+channel_layers_redis_url = os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2)).strip()
+CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', _redis_db_url(REDIS_URL, 1)).strip())
+CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip())
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 20,
+                'retry_on_timeout': True,
             },
-            'KEY_PREFIX': 'bunoraa',
-            'TIMEOUT': 300,
+            'SOCKET_CONNECT_TIMEOUT': 5,
+            'SOCKET_TIMEOUT': 5,
         },
-        'sessions': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': _redis_db_url(REDIS_URL, 1),
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            },
-            'KEY_PREFIX': 'session',
-            'TIMEOUT': 86400 * 30,
-        }
-    }
-
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                'hosts': [channel_layers_redis_url],
-                'capacity': 1500,
-                'expiry': 10,
-            },
-        }
-    }
-
-    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-    SESSION_CACHE_ALIAS = 'sessions'
-else:
-    DATABASE_URL = os.environ.get('DATABASE_URL')
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL must be set in production environment")
-
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=300,
-            conn_health_checks=True,
-            ssl_require=False,
-        )
-    }
-
-    # In s3+non-debug, force production/render Redis.
-    REDIS_URL = os.environ.get('REDIS_URL', '').strip()
-    if not REDIS_URL:
-        raise ValueError("REDIS_URL must be set when DEBUG is False in core.settings.s3")
-
-    channel_layers_redis_url = os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2)).strip()
-    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', _redis_db_url(REDIS_URL, 1)).strip()
-    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip()
-
-    CACHES = {
-        'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': REDIS_URL,
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'CONNECTION_POOL_KWARGS': {
-                    'max_connections': 20,
-                    'retry_on_timeout': True,
-                },
-                'SOCKET_CONNECT_TIMEOUT': 5,
-                'SOCKET_TIMEOUT': 5,
-            },
-            'KEY_PREFIX': 'bunoraa',
-            'TIMEOUT': 300,
+        'KEY_PREFIX': 'bunoraa',
+        'TIMEOUT': 300,
+    },
+    'sessions': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': _redis_db_url(REDIS_URL, 1),
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         },
-        'sessions': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': _redis_db_url(REDIS_URL, 1),
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            },
-            'KEY_PREFIX': 'session',
-            'TIMEOUT': 86400 * 30,
-        }
+        'KEY_PREFIX': 'session',
+        'TIMEOUT': 86400 * 30,
     }
+}
 
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                'hosts': [channel_layers_redis_url],
-                'capacity': 1500,
-                'expiry': 10,
-            },
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [channel_layers_redis_url],
+            'capacity': 1500,
+            'expiry': 10,
         },
-    }
+    },
+}
 
-    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-    SESSION_CACHE_ALIAS = 'sessions'
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'sessions'
 
 # Security settings: in DEBUG (development), do not set secure-only cookies so CSRF cookie
 # will be sent over plain HTTP. In production (DEBUG=False), enable stricter security.

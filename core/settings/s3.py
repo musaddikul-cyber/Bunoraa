@@ -37,7 +37,7 @@ def _append_pg_option(existing_options: str, option: str) -> str:
 
 
 # Sites framework defaults for production (override base if needed)
-SITE_ID = int(os.environ.get('SITE_ID', '4'))
+SITE_ID = int(os.environ.get('SITE_ID', '2'))
 SITE_NAME = os.environ.get('SITE_NAME', 'Bunoraa')
 SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'localhost:8000')
 
@@ -55,6 +55,10 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(','
 
 # Optionally set email backend for local
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+# Ensure registration/verification emails are delivered in debug even when
+# background workers are not running.
+if DEBUG:
+    EMAIL_QUEUE_SYNC_FALLBACK = _env_bool('EMAIL_QUEUE_SYNC_FALLBACK', True)
 
 # Database behavior for S3 settings:
 # - Always use PostgreSQL via DATABASE_URL.
@@ -85,11 +89,13 @@ if not DB_ALLOW_WRITE:
 DATABASE_ROUTERS = ['core.db_router.EnvDatabaseAccessRouter']
 
 # Redis-backed services always use REDIS_URL in core.settings.s3.
-REDIS_URL = os.environ.get('REDIS_URL', '').strip()
+REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL', '').strip())
 if not REDIS_URL:
     raise ValueError("REDIS_URL must be set in core.settings.s3")
 
-channel_layers_redis_url = os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2)).strip()
+channel_layers_redis_url = _normalize_rediss_url(
+    os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2)).strip()
+)
 CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', _redis_db_url(REDIS_URL, 1)).strip())
 CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip())
 
@@ -194,4 +200,3 @@ LOGGING['root']['level'] = 'INFO'
 
 # django.request errors go to console
 LOGGING['loggers'].setdefault('django.request', {'handlers': ['console'], 'level': 'ERROR', 'propagate': False})
-

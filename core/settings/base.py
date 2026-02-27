@@ -756,7 +756,9 @@ CACHES = {
 # Channel Layers Configuration (for WebSockets)
 # Uses in-memory channel layer for local development (no Redis required)
 # Production should set CHANNEL_LAYERS_REDIS_URL environment variable
-_channel_layer_redis_url = os.environ.get('CHANNEL_LAYERS_REDIS_URL', '')
+_channel_layer_redis_url = _normalize_rediss_url(
+    os.environ.get('CHANNEL_LAYERS_REDIS_URL', '').strip()
+)
 if _channel_layer_redis_url:
     CHANNEL_LAYERS = {
         'default': {

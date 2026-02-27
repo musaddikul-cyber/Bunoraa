@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from apps.email_service.models import EmailMessage
+from apps.email_service.models import EmailEvent, EmailMessage
 from apps.email_service.services import DeliveryResult, QueueManager
 
 
@@ -94,3 +94,27 @@ class QueueManagerRegressionTests(TestCase):
         self.assertEqual(message.status, EmailMessage.Status.SENT)
         self.assertEqual(message.attempt_count, 1)
 
+    @patch("apps.email_service.tasks.send_webhook_for_event.delay")
+    @patch("apps.email_service.services.DeliveryEngine.send")
+    def test_process_queue_ignores_webhook_enqueue_failures(self, mock_send, mock_webhook_delay):
+        message = self._build_message()
+        mock_send.return_value = DeliveryResult(
+            success=True,
+            message_id=message.message_id,
+            response="250 OK",
+        )
+        mock_webhook_delay.side_effect = ValueError(
+            "A rediss:// URL must have parameter ssl_cert_reqs and this must be set to CERT_REQUIRED, CERT_OPTIONAL, or CERT_NONE"
+        )
+
+        processed = QueueManager.process_queue(batch_size=1, message_ids=[message.id])
+
+        message.refresh_from_db()
+        self.assertEqual(processed, 1)
+        self.assertEqual(message.status, EmailMessage.Status.SENT)
+        self.assertTrue(
+            EmailEvent.objects.filter(
+                message=message,
+                event_type=EmailEvent.EventType.SENT,
+            ).exists()
+        )

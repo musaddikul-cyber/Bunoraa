@@ -5,6 +5,8 @@ Email Service Signals
 Signal handlers for email service events.
 """
 
+import logging
+
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.utils import timezone
@@ -13,6 +15,8 @@ from .models import (
     EmailMessage, EmailEvent, Suppression, 
     SenderDomain, DailyStats
 )
+
+logger = logging.getLogger('bunoraa.email_service.signals')
 
 
 @receiver(post_save, sender=EmailMessage)
@@ -87,9 +91,17 @@ def handle_email_event(sender, instance, created, **kwargs):
                     }
                 )
         
-        # Trigger webhook
+        # Trigger webhook without blocking core email state updates when
+        # async transport is temporarily unavailable.
         from .tasks import send_webhook_for_event
-        send_webhook_for_event.delay(instance.id)
+        try:
+            send_webhook_for_event.delay(instance.id)
+        except Exception as exc:
+            logger.warning(
+                "Skipping webhook dispatch for email event %s: %s",
+                instance.id,
+                exc,
+            )
 
 
 @receiver(post_save, sender=SenderDomain)

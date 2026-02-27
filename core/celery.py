@@ -32,7 +32,7 @@ if _settings_module.endswith('.local'):
     os.environ['CELERY_BROKER_URL'] = 'memory://'
     os.environ['CELERY_RESULT_BACKEND'] = 'cache+memory://'
 else:
-    for _env_key in ('CELERY_BROKER_URL', 'CELERY_RESULT_BACKEND'):
+    for _env_key in ('CELERY_BROKER_URL', 'CELERY_RESULT_BACKEND', 'BROKER_URL', 'RESULT_BACKEND'):
         _env_value = os.environ.get(_env_key)
         if _env_value:
             os.environ[_env_key] = _normalize_rediss_url(_env_value)

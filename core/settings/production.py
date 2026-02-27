@@ -58,6 +58,11 @@ def _normalize_rediss_url(url: str | None) -> str | None:
     return url
 
 
+def _redis_db_url(redis_url: str, db: int) -> str:
+    parsed = urlparse(redis_url)
+    return urlunparse(parsed._replace(path=f'/{db}'))
+
+
 # Parse ALLOWED_HOSTS from environment
 _env_allowed = os.environ.get('ALLOWED_HOSTS', '')
 if _env_allowed:
@@ -139,7 +144,7 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 # =============================================================================
 # CACHE - Redis
 # =============================================================================
-REDIS_URL = os.environ.get('REDIS_URL')
+REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL'))
 if REDIS_URL:
     CACHES = {
         'default': {
@@ -159,7 +164,7 @@ if REDIS_URL:
         },
         'sessions': {
             'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': f"{REDIS_URL}/1" if '/' not in REDIS_URL[-3:] else REDIS_URL.rsplit('/', 1)[0] + '/1',
+            'LOCATION': _redis_db_url(REDIS_URL, 1),
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             },
@@ -227,12 +232,15 @@ CELERY_TASK_ACKS_LATE = True  # Acknowledge after completion
 # CHANNEL LAYERS - WebSockets with Redis
 # =============================================================================
 if REDIS_URL:
+    channel_layers_redis_url = _normalize_rediss_url(
+        os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2))
+    )
     # Use Redis for channel layers in production (required for WebSocket support)
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                'hosts': [os.environ.get('CHANNEL_LAYERS_REDIS_URL', REDIS_URL)],
+                'hosts': [channel_layers_redis_url],
                 'capacity': 1500,  # Max messages per channel
                 'expiry': 10,  # Message expiry in seconds
             },

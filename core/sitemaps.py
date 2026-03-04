@@ -138,15 +138,17 @@ class FrontendSitemap(Sitemap):
 
 
 STATIC_URLS: dict[str, dict[str, str | float]] = {
-    "/": {"priority": 1.0, "changefreq": "daily"},
+    "/": {"priority": 0.4, "changefreq": "daily"},
     "/products/": {"priority": 0.9, "changefreq": "daily"},
-    "/categories/": {"priority": 0.8, "changefreq": "weekly"},
-    "/collections/": {"priority": 0.7, "changefreq": "weekly"},
-    "/bundles/": {"priority": 0.7, "changefreq": "weekly"},
-    "/artisans/": {"priority": 0.6, "changefreq": "weekly"},
-    "/contact/": {"priority": 0.5, "changefreq": "monthly"},
-    "/faq/": {"priority": 0.5, "changefreq": "monthly"},
-    "/pages/": {"priority": 0.3, "changefreq": "monthly"},
+    "/preorders/": {"priority": 0.9, "changefreq": "daily"},
+    "/preorders/categories/": {"priority": 0.8, "changefreq": "weekly"},
+    "/categories/": {"priority": 0.4, "changefreq": "weekly"},
+    "/collections/": {"priority": 0.3, "changefreq": "weekly"},
+    "/bundles/": {"priority": 0.3, "changefreq": "weekly"},
+    "/artisans/": {"priority": 0.3, "changefreq": "weekly"},
+    "/contact/": {"priority": 0.2, "changefreq": "monthly"},
+    "/faq/": {"priority": 0.2, "changefreq": "monthly"},
+    "/pages/": {"priority": 0.2, "changefreq": "monthly"},
 }
 
 
@@ -170,7 +172,7 @@ class ProductSitemap(FrontendSitemap):
     """Sitemap for product detail pages (includes image sitemap entries)."""
 
     changefreq = "daily"
-    priority = 0.9
+    priority = 1.0
     limit = 50000  # Google sitemap limit
 
     def get_queryset(self):
@@ -184,7 +186,7 @@ class ProductSitemap(FrontendSitemap):
         )
 
     def items(self):
-        return self.get_queryset().prefetch_related("images")
+        return self.get_queryset().select_related("primary_category").prefetch_related("images")
 
     def get_latest_lastmod(self):
         return self.get_queryset().aggregate(Max("updated_at")).get("updated_at__max")
@@ -193,6 +195,16 @@ class ProductSitemap(FrontendSitemap):
         return obj.updated_at
 
     def location(self, obj):
+        primary_category = getattr(obj, "primary_category", None)
+        if (
+            primary_category
+            and primary_category.is_active
+            and primary_category.is_visible
+            and not primary_category.is_deleted
+        ):
+            slug_path = primary_category.get_slug_path()
+            if slug_path:
+                return f"/{slug_path}/{obj.slug}/"
         return f"/products/{obj.slug}/"
 
     def images(self, obj):
@@ -207,12 +219,17 @@ class CategorySitemap(FrontendSitemap):
     """Sitemap for category pages."""
 
     changefreq = "weekly"
-    priority = 0.7
+    priority = 0.5
 
     def get_queryset(self):
         from apps.catalog.models import Category
 
-        return Category.objects.filter(is_visible=True, is_deleted=False)
+        return Category.objects.filter(
+            is_active=True,
+            is_visible=True,
+            is_deleted=False,
+            product_count__gt=0,
+        )
 
     def items(self):
         return self.get_queryset()
@@ -236,7 +253,7 @@ class CollectionSitemap(FrontendSitemap):
     """Sitemap for curated collections."""
 
     changefreq = "weekly"
-    priority = 0.6
+    priority = 0.3
 
     def items(self):
         from apps.catalog.models import Collection
@@ -261,7 +278,7 @@ class BundleSitemap(FrontendSitemap):
     """Sitemap for bundles/kits."""
 
     changefreq = "weekly"
-    priority = 0.6
+    priority = 0.3
 
     def items(self):
         from apps.catalog.models import Bundle
@@ -281,7 +298,7 @@ class ArtisanSitemap(FrontendSitemap):
     """Sitemap for artisan profile pages."""
 
     changefreq = "monthly"
-    priority = 0.5
+    priority = 0.3
 
     def get_queryset(self):
         from apps.artisans.models import Artisan
@@ -336,7 +353,7 @@ class PageSitemap(FrontendSitemap):
     """Sitemap for CMS pages (served under /pages/)."""
 
     changefreq = "monthly"
-    priority = 0.4
+    priority = 0.2
 
     def get_queryset(self):
         from apps.pages.models import Page
@@ -361,6 +378,30 @@ class PageSitemap(FrontendSitemap):
         if obj.slug in SPECIAL_PAGE_PATHS:
             return SPECIAL_PAGE_PATHS[obj.slug]
         return f"/pages/{obj.slug}/"
+
+
+class PreOrderCategorySitemap(FrontendSitemap):
+    """Sitemap for public pre-order category pages."""
+
+    changefreq = "weekly"
+    priority = 0.9
+
+    def get_queryset(self):
+        from apps.preorders.models import PreOrderCategory
+
+        return PreOrderCategory.objects.filter(is_active=True)
+
+    def items(self):
+        return self.get_queryset()
+
+    def get_latest_lastmod(self):
+        return self.get_queryset().aggregate(Max("updated_at")).get("updated_at__max")
+
+    def lastmod(self, obj):
+        return obj.updated_at
+
+    def location(self, obj):
+        return f"/preorders/category/{obj.slug}/"
 
 
 @dataclass

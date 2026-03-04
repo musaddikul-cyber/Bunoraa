@@ -9,4 +9,4 @@ Disallow: /api/schema/
 Disallow: /api/schema/swagger-ui/
 Disallow: /api/schema/redoc/
 
-Sitemap: https://bunoraa.com/sitemap.xml
+Sitemap: /sitemap.xml

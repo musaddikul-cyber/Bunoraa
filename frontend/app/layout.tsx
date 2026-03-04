@@ -27,6 +27,9 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: "/",
+  },
   applicationName: SITE_NAME,
   manifest: "/site.webmanifest",
   icons: {

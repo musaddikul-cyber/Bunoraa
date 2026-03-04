@@ -25,6 +25,7 @@ from .sitemaps import (
     BundleSitemap,
     ArtisanSitemap,
     PageSitemap,
+    PreOrderCategorySitemap,
 )
 from .views import HomeView, health_check, health_check_detailed, readiness_check, liveness_check
 
@@ -66,6 +67,7 @@ sitemaps = {
     'bundles': BundleSitemap,
     'artisans': ArtisanSitemap,
     'pages': PageSitemap,
+    'preorders': PreOrderCategorySitemap,
 }
 
 urlpatterns = [

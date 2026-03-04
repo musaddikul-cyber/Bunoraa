@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { SITE_URL } from "@/lib/seo";
+
+const sitemapUrl = `${SITE_URL.replace(/\/$/, "")}/sitemap.xml`;
 
 const body = `User-agent: *
 Allow: /
@@ -11,7 +14,7 @@ Disallow: /api/schema/
 Disallow: /api/schema/swagger-ui/
 Disallow: /api/schema/redoc/
 
-Sitemap: https://bunoraa.com/sitemap.xml
+Sitemap: ${sitemapUrl}
 `;
 
 export function GET() {

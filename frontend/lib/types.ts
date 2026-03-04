@@ -334,6 +334,9 @@ export type MenuPage = {
 
 export type SiteSettings = {
   site_name?: string | null;
+  logo?: string | null;
+  logo_dark?: string | null;
+  favicon?: string | null;
   tagline?: string | null;
   site_tagline?: string | null;
   site_description?: string | null;

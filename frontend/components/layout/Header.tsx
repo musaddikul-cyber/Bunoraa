@@ -2,6 +2,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { MenuPage } from "@/lib/types";
 import { HeaderClient } from "@/components/layout/HeaderClient";
+import { HeaderBrand } from "@/components/layout/HeaderBrand";
 import { SearchBar } from "@/components/search/SearchBar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeaderVisibility } from "@/components/layout/MobileHeaderVisibility";
@@ -47,9 +48,7 @@ export async function Header() {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-6">
             <MobileNav categories={categories} menuPages={menuPages} />
-            <Link href="/" className="text-xl font-bold sm:text-2xl lg:text-3xl">
-              Bunoraa
-            </Link>
+            <HeaderBrand defaultBrandName="Bunoraa" defaultFaviconUrl="/favicon.ico" />
             <nav className="hidden items-center gap-4 text-sm lg:flex">
               <div className="w-48">
                 <SearchBar hideSubmitButtonOnDesktop />

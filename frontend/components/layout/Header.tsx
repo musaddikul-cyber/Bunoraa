@@ -48,7 +48,11 @@ export async function Header() {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-6">
             <MobileNav categories={categories} menuPages={menuPages} />
-            <HeaderBrand defaultBrandName="Bunoraa" defaultFaviconUrl="/favicon.ico" />
+            <HeaderBrand
+              defaultBrandName="Bunoraa"
+              defaultFaviconUrl="/icon.png"
+              fallbackStaticFaviconUrl="/favicon.ico"
+            />
             <nav className="hidden items-center gap-4 text-sm lg:flex">
               <div className="w-48">
                 <SearchBar hideSubmitButtonOnDesktop />

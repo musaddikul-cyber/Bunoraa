@@ -60,7 +60,7 @@ type GiftState = {
 };
 
 type RelatedQueryKey = ["cart", "related", string | null];
-const GIFT_AUTOSAVE_DEBOUNCE_MS = 650;
+const GIFT_AUTOSAVE_DEBOUNCE_MS = 300;
 const DEFAULT_GIFT_STATE: GiftState = {
   is_gift: false,
   gift_message: "",
@@ -511,7 +511,17 @@ export function CartPage() {
     parseMoney(cart?.discount_amount) ?? parseMoney(summary?.discount_amount) ?? 0;
   const shippingValue = parseMoney(summary?.shipping_cost) ?? 0;
   const taxValue = parseMoney(summary?.tax_amount) ?? 0;
-  const giftWrapValue = parseMoney(summary?.gift_wrap_cost) ?? 0;
+  const summaryGiftWrapValue = parseMoney(summary?.gift_wrap_cost) ?? 0;
+  const giftWrapBaseAmount =
+    parseMoney(summary?.gift_wrap_amount) ??
+    parseMoney(giftResponse?.gift_wrap_amount) ??
+    summaryGiftWrapValue;
+  const canApplyGiftWrap = summary?.gift_wrap_enabled !== false;
+  const isGiftWrapSelectedLocally =
+    giftState.is_gift && giftState.gift_wrap && canApplyGiftWrap;
+  const giftWrapValue = hasGiftInteraction
+    ? (isGiftWrapSelectedLocally ? giftWrapBaseAmount : 0)
+    : summaryGiftWrapValue;
   const derivedTotalValue = Math.max(
     0,
     subtotalValue - discountValue + shippingValue + taxValue + giftWrapValue
@@ -526,15 +536,24 @@ export function CartPage() {
   const formattedShipping =
     summary?.formatted_shipping || formatMoney(shippingValue, currency);
   const formattedTax = summary?.formatted_tax || formatMoney(taxValue, currency);
+  const hasGiftWrapSummaryAlignment =
+    Math.abs(summaryGiftWrapValue - giftWrapValue) < 0.01;
   const formattedGiftWrap =
-    summary?.formatted_gift_wrap || formatMoney(giftWrapValue, currency);
+    summary?.formatted_gift_wrap && hasGiftWrapSummaryAlignment
+      ? summary.formatted_gift_wrap
+      : formatMoney(giftWrapValue, currency);
   const formattedGiftWrapAmount =
     summary?.formatted_gift_wrap_amount ||
     giftResponse?.formatted_gift_wrap_amount ||
     (summary?.gift_wrap_amount
       ? formatMoney(summary.gift_wrap_amount, currency)
       : "");
-  const formattedTotal = summary?.formatted_total || formatMoney(totalValue, currency);
+  const summaryTotalValue = parseMoney(summary?.total) ?? totalValue;
+  const hasTotalSummaryAlignment = Math.abs(summaryTotalValue - totalValue) < 0.01;
+  const formattedTotal =
+    summary?.formatted_total && hasTotalSummaryAlignment
+      ? summary.formatted_total
+      : formatMoney(totalValue, currency);
 
   const showShipping = Boolean(summary);
   const showTax = summary?.tax_amount !== undefined && Number(summary.tax_amount) > 0;
@@ -835,19 +854,25 @@ export function CartPage() {
             <p className="text-sm text-foreground/70">
               {itemCount} item{itemCount === 1 ? "" : "s"} in your bag.
             </p>
+            <Link
+              href="/products/"
+              className="mt-2 inline-block text-sm text-foreground/65 underline-offset-4 hover:text-foreground hover:underline sm:hidden"
+            >
+              Continue shopping
+            </Link>
           </div>
-          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+          <div className="hidden sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-2">
             <Button
               asChild
               variant="ghost"
-              className="w-full border border-border bg-card text-foreground hover:bg-muted sm:w-auto"
+              className="border border-border bg-card text-foreground hover:bg-muted"
             >
               <Link href="/products/">Continue shopping</Link>
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="justify-self-end px-2 text-xs text-foreground/60 hover:text-foreground sm:w-auto sm:px-3 sm:text-sm"
+              className="px-3 text-sm text-foreground/60 hover:text-foreground"
               onClick={handleClearCart}
             >
               Clear bag
@@ -1068,6 +1093,7 @@ export function CartPage() {
                       type="checkbox"
                       className="h-4 w-4 rounded border-border bg-card text-primary accent-primary focus:ring-2 focus:ring-primary/30"
                       checked={giftState.gift_wrap}
+                      disabled={!canApplyGiftWrap}
                       onChange={(event) => {
                         setHasGiftInteraction(true);
                         setGiftState((prev) => ({
@@ -1076,7 +1102,7 @@ export function CartPage() {
                         }));
                       }}
                     />
-                    {giftResponse?.gift_wrap_label || "Add gift wrap"}
+                    {summary?.gift_wrap_label || giftResponse?.gift_wrap_label || "Gift wrap"}
                   </label>
                 </div>
               ) : null}
@@ -1242,6 +1268,16 @@ export function CartPage() {
                 >
                   Lock prices for 24h
                 </Button>
+              </div>
+              <div className="border-t border-border pt-2">
+                <p className="text-xs text-foreground/55">Danger zone</p>
+                <button
+                  type="button"
+                  className="mt-1 text-xs text-foreground/60 underline-offset-4 hover:text-error-500 hover:underline"
+                  onClick={handleClearCart}
+                >
+                  Clear bag
+                </button>
               </div>
             </Card>
           </div>

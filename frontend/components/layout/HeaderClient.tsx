@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Heart, ShoppingBag, UserRound } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCart } from "@/components/cart/useCart";
@@ -33,59 +34,6 @@ function resolveBackendAdminUrl() {
   } catch {
     return "/admin/";
   }
-}
-
-function HeartIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20.8 6.6a5.5 5.5 0 0 0-9.1-3.9L12 3l.3-.3a5.5 5.5 0 0 0-7.7 7.7L12 18.8l7.4-7.4a5.5 5.5 0 0 0 1.4-4.8z" />
-    </svg>
-  );
-}
-
-function BagIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M8 10V8a4 4 0 1 1 8 0v2" />
-      <path d="M5 10h14l-1 10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 10z" />
-    </svg>
-  );
-}
-
-function UserIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M4 20a8 8 0 0 1 16 0" />
-    </svg>
-  );
 }
 
 export function HeaderClient() {
@@ -163,7 +111,7 @@ export function HeaderClient() {
         className={`hidden sm:inline-flex ${iconButtonClass}`}
         aria-label="Wishlist"
       >
-        <HeartIcon />
+        <Heart className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
         <span className="sr-only">Wishlist</span>
         {wishlistCount > 0 ? (
           <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-white">
@@ -177,7 +125,7 @@ export function HeaderClient() {
         onClick={() => setOpen((prev) => !prev)}
         aria-label="Bag"
       >
-        <BagIcon />
+        <ShoppingBag className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
         <span className="sr-only">Bag</span>
         {count > 0 ? (
           <span className="absolute -right-1 -top-1 rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold text-white">
@@ -208,7 +156,7 @@ export function HeaderClient() {
               </span>
             )
           ) : (
-            <UserIcon />
+            <UserRound className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
           )}
           {hasToken && hasUnreadNotifications ? (
             <span

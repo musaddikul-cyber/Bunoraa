@@ -53,7 +53,7 @@ def _normalize_rediss_url(url: str | None) -> str | None:
         return url
     params = dict(parse_qsl(parsed.query, keep_blank_values=True))
     if 'ssl_cert_reqs' not in params:
-        params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'CERT_REQUIRED')
+        params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'required')
         return urlunparse(parsed._replace(query=urlencode(params)))
     return url
 

@@ -264,34 +264,46 @@ export default async function Home() {
   const bestsellers = asArray<ProductListItem>(homepageData.bestsellers);
   const onSale = asArray<ProductListItem>(homepageData.on_sale);
   const featuredCategories = asArray<FeaturedCategory>(homepageData.featured_categories);
+  const featuredCategoriesWithProducts = featuredCategories.filter((category) => {
+    if (category.product_count === null || category.product_count === undefined) return true;
+    return Number(category.product_count) > 0;
+  });
+  const topCategoryChips = featuredCategoriesWithProducts.slice(0, 5);
   const collections = asArray<Collection>(homepageData.collections);
+  const featuredCollections = collections.slice(0, 4);
+  const featuredBundles = bundles.slice(0, 4);
 
   const heroStats = [
     {
       label: "Featured products",
-      value: formatNumber(featuredProducts.length),
+      count: featuredProducts.length,
       description: "Handpicked right now",
       href: "/products/",
     },
     {
       label: "New arrivals",
-      value: formatNumber(newArrivals.length),
+      count: newArrivals.length,
       description: "Fresh inventory drops",
       href: "/products/?ordering=-created_at",
     },
     {
       label: "Collections",
-      value: formatNumber(collections.length),
+      count: collections.length,
       description: "Curated themes",
       href: "/collections/",
     },
     {
       label: "On sale",
-      value: formatNumber(onSale.length),
+      count: onSale.length,
       description: "Limited offers",
       href: "/products/?ordering=on_sale",
     },
-  ];
+  ]
+    .filter((stat) => stat.count > 0)
+    .map((stat) => ({
+      ...stat,
+      value: formatNumber(stat.count),
+    }));
 
   const productSections = [
     {
@@ -321,7 +333,8 @@ export default async function Home() {
       href: "/products/?ordering=-sales_count",
       items: bestsellers.slice(0, 4),
     },
-  ];
+  ].filter((block) => block.items.length > 0);
+  const productSectionsWithProducts = productSections.filter((section) => section.products.length > 0);
 
   const homePageSchema = cleanObject({
     "@context": "https://schema.org",
@@ -417,76 +430,80 @@ export default async function Home() {
                 </div>
                 <SearchBar />
               </Card>
-              <div className="flex flex-wrap gap-2 text-xs text-foreground/60">
-                {featuredCategories.slice(0, 5).map((category) => (
+              {topCategoryChips.length ? (
+                <div className="flex flex-wrap gap-2 text-xs text-foreground/60">
+                  {topCategoryChips.map((category) => (
+                    <Link
+                      key={category.id}
+                      href={buildCategoryPath(category.slug)}
+                      className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
+                    >
+                      {category.name}
+                    </Link>
+                  ))}
                   <Link
-                    key={category.id}
-                    href={buildCategoryPath(category.slug)}
+                    href="/categories/"
                     className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
                   >
-                    {category.name}
+                    All categories
                   </Link>
-                ))}
-                <Link
-                  href="/categories/"
-                  className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
-                >
-                  All categories
-                </Link>
-              </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="grid gap-5">
-              <Card variant="glass" className="space-y-6 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">
-                      Marketplace pulse
-                    </p>
-                    <h2 className="text-xl font-semibold">Live commerce overview</h2>
-                  </div>
-                  <Button asChild variant="secondary" size="sm" className={compactActionClass}>
-                    <Link href="/products/">View catalog</Link>
-                  </Button>
-                </div>
-                <dl className="grid gap-4 sm:grid-cols-2">
-                  {heroStats.map((stat) => (
-                    <div key={stat.label} className="rounded-xl border border-border/60 bg-card/70 p-4">
-                      <dt className="text-xs uppercase tracking-[0.2em] text-foreground/50">
-                        {stat.label}
-                      </dt>
-                      <dd className="mt-2 text-2xl font-semibold">{stat.value}</dd>
-                      <p className="mt-1 text-xs text-foreground/55">{stat.description}</p>
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="secondary"
-                        className={`mt-3 ${compactActionClass}`}
-                      >
-                        <Link href={stat.href}>Explore</Link>
-                      </Button>
+              {heroStats.length ? (
+                <Card variant="glass" className="space-y-6 p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">
+                        Marketplace pulse
+                      </p>
+                      <h2 className="text-xl font-semibold">Live commerce overview</h2>
                     </div>
-                  ))}
-                </dl>
-                {(supportEmail || supportPhone) && (
-                  <div className="rounded-xl border border-border/60 bg-card/70 p-4 text-sm">
-                    <p className="font-semibold">Support concierge</p>
-                    <div className="mt-2 space-y-1 text-foreground/60">
-                      {supportEmail ? (
-                        <p>
-                          Email: <Link href={`mailto:${supportEmail}`}>{supportEmail}</Link>
-                        </p>
-                      ) : null}
-                      {supportPhone ? (
-                        <p>
-                          Phone: <Link href={`tel:${supportPhone}`}>{supportPhone}</Link>
-                        </p>
-                      ) : null}
-                      {supportReplyNote ? <p>{supportReplyNote}</p> : null}
-                    </div>
+                    <Button asChild variant="secondary" size="sm" className={compactActionClass}>
+                      <Link href="/products/">View catalog</Link>
+                    </Button>
                   </div>
-                )}
-              </Card>
+                  <dl className="grid gap-4 sm:grid-cols-2">
+                    {heroStats.map((stat) => (
+                      <div key={stat.label} className="rounded-xl border border-border/60 bg-card/70 p-4">
+                        <dt className="text-xs uppercase tracking-[0.2em] text-foreground/50">
+                          {stat.label}
+                        </dt>
+                        <dd className="mt-2 text-2xl font-semibold">{stat.value}</dd>
+                        <p className="mt-1 text-xs text-foreground/55">{stat.description}</p>
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="secondary"
+                          className={`mt-3 ${compactActionClass}`}
+                        >
+                          <Link href={stat.href}>Explore</Link>
+                        </Button>
+                      </div>
+                    ))}
+                  </dl>
+                  {(supportEmail || supportPhone) && (
+                    <div className="rounded-xl border border-border/60 bg-card/70 p-4 text-sm">
+                      <p className="font-semibold">Support concierge</p>
+                      <div className="mt-2 space-y-1 text-foreground/60">
+                        {supportEmail ? (
+                          <p>
+                            Email: <Link href={`mailto:${supportEmail}`}>{supportEmail}</Link>
+                          </p>
+                        ) : null}
+                        {supportPhone ? (
+                          <p>
+                            Phone: <Link href={`tel:${supportPhone}`}>{supportPhone}</Link>
+                          </p>
+                        ) : null}
+                        {supportReplyNote ? <p>{supportReplyNote}</p> : null}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              ) : null}
 
             </div>
           </div>
@@ -538,47 +555,49 @@ export default async function Home() {
           </div>
         </section>
       ) : null}
-      <section className={`${sectionWrapperClass} space-y-12 py-12`} id="highlights">
-        {productSections.map((section) => (
-          <div key={section.id} className="space-y-6">
-            <div className={sectionHeaderClass}>
-              <div className="min-w-0">
-                <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
-                  {section.title}
-                </p>
-                <p className={sectionDescriptionClass}>{section.description}</p>
+      {productSectionsWithProducts.length ? (
+        <section className={`${sectionWrapperClass} space-y-12 py-12`} id="highlights">
+          {productSectionsWithProducts.map((section) => (
+            <div key={section.id} className="space-y-6">
+              <div className={sectionHeaderClass}>
+                <div className="min-w-0">
+                  <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
+                    {section.title}
+                  </p>
+                  <p className={sectionDescriptionClass}>{section.description}</p>
+                </div>
+                <Button
+                  asChild
+                  variant="secondary"
+                  size="sm"
+                  className={sectionActionClass}
+                >
+                  <Link href={section.href}>View all</Link>
+                </Button>
               </div>
-              <Button
-                asChild
-                variant="secondary"
-                size="sm"
-                className={sectionActionClass}
-              >
-                <Link href={section.href}>View all</Link>
-              </Button>
+              <ProductGrid products={section.products} />
             </div>
-            <ProductGrid products={section.products} />
+          ))}
+        </section>
+      ) : null}
+      {featuredCategoriesWithProducts.length ? (
+        <section className={`${sectionWrapperClass} py-12`} id="categories">
+          <div className={sectionHeaderClass}>
+            <div className="min-w-0">
+              <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Categories</p>
+              <h2 className={sectionTitleClass}>Shop by category</h2>
+            </div>
+            <Button
+              asChild
+              variant="secondary"
+              size="sm"
+              className={sectionActionClass}
+            >
+              <Link href="/categories/">Browse all</Link>
+            </Button>
           </div>
-        ))}
-      </section>
-      <section className={`${sectionWrapperClass} py-12`} id="categories">
-        <div className={sectionHeaderClass}>
-          <div className="min-w-0">
-            <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Categories</p>
-            <h2 className={sectionTitleClass}>Shop by category</h2>
-          </div>
-          <Button
-            asChild
-            variant="secondary"
-            size="sm"
-            className={sectionActionClass}
-          >
-            <Link href="/categories/">Browse all</Link>
-          </Button>
-        </div>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredCategories.length ? (
-            featuredCategories.map((category) => (
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {featuredCategoriesWithProducts.map((category) => (
               <Card key={category.id} variant="bordered" className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <p className="text-lg font-semibold">{category.name}</p>
@@ -595,164 +614,155 @@ export default async function Home() {
                   <Link href={buildCategoryPath(category.slug)}>Shop category</Link>
                 </Button>
               </Card>
-            ))
-          ) : (
-            <Card variant="bordered" className="text-sm text-foreground/60">
-              Categories will appear here once they are published in the catalog.
-            </Card>
-          )}
-        </div>
-      </section>
-      <section className={`${sectionWrapperClass} py-12`} id="marketplace">
-        <div className="grid gap-6 lg:grid-cols-2">
-          {compactShowcase.map((block) => (
-            <Card key={block.title} variant="bordered" className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold sm:text-lg">{block.title}</h3>
-                <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
-                  <Link href={block.href}>View all</Link>
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {block.items.map((product) => (
-                  <div key={product.id} className="flex min-w-0 items-center gap-3 sm:gap-4">
-                    <div className="h-14 w-14 overflow-hidden rounded-xl bg-muted">
-                      {getImage(product) ? (
-                        <img
-                          src={getImage(product) || ""}
-                          alt={product.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={buildProductPath(product)}
-                        className="block truncate text-sm font-semibold"
-                      >
-                        {product.name}
-                      </Link>
-                      <p className="truncate text-xs text-foreground/55">
-                        {getPrice(product)} {getCurrency(product)}
-                      </p>
-                    </div>
-                    <QuickViewTriggerButton
-                      slug={product.slug}
-                      className={compactActionClass}
-                      label="View"
-                    />
-                  </div>
-                ))}
-                {!block.items.length ? (
-                  <p className="text-sm text-foreground/55">No items available right now.</p>
-                ) : null}
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
-      <section className={`${sectionWrapperClass} py-12`} id="collections">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card variant="bordered" className="space-y-4">
-            <div className={sectionHeaderClass}>
-              <div className="min-w-0">
-                <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Collections</p>
-                <h2 className={sectionTitleClass}>Curated themes</h2>
-              </div>
-              <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
-                <Link href="/collections/">Browse all</Link>
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {collections.slice(0, 4).map((collection) => (
-                <Link
-                  key={collection.id}
-                  href={`/collections/${collection.slug}/`}
-                  className="flex min-w-0 items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
-                >
-                  <span className="min-w-0 truncate pr-3 font-semibold">{collection.name}</span>
-                  <span className="text-xs text-foreground/55">Explore</span>
-                </Link>
-              ))}
-              {!collections.length ? (
-                <p className="text-sm text-foreground/55">Collections are loading soon.</p>
-              ) : null}
-            </div>
-          </Card>
-
-          <Card variant="bordered" className="space-y-4">
-            <div className={sectionHeaderClass}>
-              <div className="min-w-0">
-                <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Bundles</p>
-                <h2 className={sectionTitleClass}>Ready-to-ship sets</h2>
-              </div>
-              <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
-                <Link href="/bundles/">Browse all</Link>
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {bundles.slice(0, 4).map((bundle) => (
-                <Link
-                  key={bundle.id}
-                  href={`/bundles/${bundle.slug}/`}
-                  className="flex min-w-0 items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
-                >
-                  <div className="min-w-0 pr-3">
-                    <p className="truncate font-semibold">{bundle.name}</p>
-                    {bundle.item_count ? (
-                      <p className="text-xs text-foreground/55">{bundle.item_count} items</p>
-                    ) : null}
-                  </div>
-                  <span className="text-xs text-foreground/55">
-                    {bundle.price ? `${bundle.price}` : "Details"}
-                  </span>
-                </Link>
-              ))}
-              {!bundles.length ? (
-                <p className="text-sm text-foreground/55">Bundles are on the way.</p>
-              ) : null}
-            </div>
-          </Card>
-        </div>
-      </section>
-      <section className={`${sectionWrapperClass} py-12`} id="preorders">
-        <div className={sectionHeaderClass}>
-          <div className="min-w-0">
-            <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Preorders</p>
-            <h2 className={sectionTitleClass}>Made-to-order programs</h2>
-            <p className={sectionDescriptionClass}>
-              Launch custom production runs with transparent timelines.
-            </p>
+            ))}
           </div>
-          <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
-            <Link href="/preorders/">Manage preorders</Link>
-          </Button>
-        </div>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {preorderCategories.slice(0, 4).map((category) => (
-            <Card key={category.id} variant="bordered" className="space-y-3">
-              <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
-                {category.name}
+        </section>
+      ) : null}
+      {compactShowcase.length ? (
+        <section className={`${sectionWrapperClass} py-12`} id="marketplace">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {compactShowcase.map((block) => (
+              <Card key={block.title} variant="bordered" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold sm:text-lg">{block.title}</h3>
+                  <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
+                    <Link href={block.href}>View all</Link>
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {block.items.map((product) => (
+                    <div key={product.id} className="flex min-w-0 items-center gap-3 sm:gap-4">
+                      <div className="h-14 w-14 overflow-hidden rounded-xl bg-muted">
+                        {getImage(product) ? (
+                          <img
+                            src={getImage(product) || ""}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={buildProductPath(product)}
+                          className="block truncate text-sm font-semibold"
+                        >
+                          {product.name}
+                        </Link>
+                        <p className="truncate text-xs text-foreground/55">
+                          {getPrice(product)} {getCurrency(product)}
+                        </p>
+                      </div>
+                      <QuickViewTriggerButton
+                        slug={product.slug}
+                        className={compactActionClass}
+                        label="View"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {featuredCollections.length || featuredBundles.length ? (
+        <section className={`${sectionWrapperClass} py-12`} id="collections">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {featuredCollections.length ? (
+              <Card variant="bordered" className="space-y-4">
+                <div className={sectionHeaderClass}>
+                  <div className="min-w-0">
+                    <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Collections</p>
+                    <h2 className={sectionTitleClass}>Curated themes</h2>
+                  </div>
+                  <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
+                    <Link href="/collections/">Browse all</Link>
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {featuredCollections.map((collection) => (
+                    <Link
+                      key={collection.id}
+                      href={`/collections/${collection.slug}/`}
+                      className="flex min-w-0 items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
+                    >
+                      <span className="min-w-0 truncate pr-3 font-semibold">{collection.name}</span>
+                      <span className="text-xs text-foreground/55">Explore</span>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+            ) : null}
+
+            {featuredBundles.length ? (
+              <Card variant="bordered" className="space-y-4">
+                <div className={sectionHeaderClass}>
+                  <div className="min-w-0">
+                    <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Bundles</p>
+                    <h2 className={sectionTitleClass}>Ready-to-ship sets</h2>
+                  </div>
+                  <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
+                    <Link href="/bundles/">Browse all</Link>
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {featuredBundles.map((bundle) => (
+                    <Link
+                      key={bundle.id}
+                      href={`/bundles/${bundle.slug}/`}
+                      className="flex min-w-0 items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
+                    >
+                      <div className="min-w-0 pr-3">
+                        <p className="truncate font-semibold">{bundle.name}</p>
+                        {bundle.item_count ? (
+                          <p className="text-xs text-foreground/55">{bundle.item_count} items</p>
+                        ) : null}
+                      </div>
+                      <span className="text-xs text-foreground/55">
+                        {bundle.price ? `${bundle.price}` : "Details"}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+      {preorderCategories.length ? (
+        <section className={`${sectionWrapperClass} py-12`} id="preorders">
+          <div className={sectionHeaderClass}>
+            <div className="min-w-0">
+              <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Preorders</p>
+              <h2 className={sectionTitleClass}>Made-to-order programs</h2>
+              <p className={sectionDescriptionClass}>
+                Launch custom production runs with transparent timelines.
               </p>
-              <p className="text-sm text-foreground/60">
-                {category.description || "Configure a custom run with artisan oversight."}
-              </p>
-              <div className="text-xs text-foreground/55">
-                {category.base_price ? `Starting at ${category.base_price}` : "Pricing by quote"}
-              </div>
-              <Button asChild size="sm" variant="secondary" className={compactActionClass}>
-                <Link href={`/preorders/category/${category.slug}/`}>Explore</Link>
-              </Button>
-            </Card>
-          ))}
-          {!preorderCategories.length ? (
-            <Card variant="bordered" className="text-sm text-foreground/60">
-              Preorder categories are not available yet. Configure them in the admin
-              to activate this section.
-            </Card>
-          ) : null}
-        </div>
-      </section>
+            </div>
+            <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
+              <Link href="/preorders/">Manage preorders</Link>
+            </Button>
+          </div>
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {preorderCategories.slice(0, 4).map((category) => (
+              <Card key={category.id} variant="bordered" className="space-y-3">
+                <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
+                  {category.name}
+                </p>
+                <p className="text-sm text-foreground/60">
+                  {category.description || "Configure a custom run with artisan oversight."}
+                </p>
+                <div className="text-xs text-foreground/55">
+                  {category.base_price ? `Starting at ${category.base_price}` : "Pricing by quote"}
+                </div>
+                <Button asChild size="sm" variant="secondary" className={compactActionClass}>
+                  <Link href={`/preorders/category/${category.slug}/`}>Explore</Link>
+                </Button>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {subscriptionPlans.length ? (
         <section className={`${sectionWrapperClass} py-12`} id="subscriptions">
           <div className={sectionHeaderClass}>

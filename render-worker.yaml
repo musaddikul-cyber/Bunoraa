@@ -69,4 +69,12 @@ services:
           property: connectionString
       - key: DEBUG
         value: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: EMAIL_PROVIDER
+        value: "sendgrid"
+      - key: EMAIL_SERVICE_TRANSPORT
+        value: "http"
+      - key: EMAIL_SERVICE_HTTP_FALLBACK_ON_SMTP_FAILURE
+        value: "true"
     plan: free

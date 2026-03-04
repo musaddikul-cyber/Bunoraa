@@ -281,6 +281,11 @@ export type CartSummary = {
   pickup_location_name?: string | null;
   gift_wrap_label?: string | null;
   gift_wrap_enabled?: boolean;
+  gift_state?: {
+    is_gift?: boolean;
+    gift_message?: string;
+    gift_wrap?: boolean;
+  };
   tax_rate?: string | null;
 };
 

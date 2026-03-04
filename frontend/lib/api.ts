@@ -50,10 +50,13 @@ function getApiBaseUrl() {
   if (!PUBLIC_API_BASE_URL) return "";
   if (PUBLIC_API_BASE_URL.startsWith("/")) return PUBLIC_API_BASE_URL;
 
-  const forceProxy =
-    process.env.NEXT_PUBLIC_API_USE_PROXY === "true" ||
-    process.env.NEXT_PUBLIC_API_USE_PROXY === "1";
-  if (forceProxy) return toPathBase(PUBLIC_API_BASE_URL);
+  const proxyMode = (process.env.NEXT_PUBLIC_API_USE_PROXY || "").trim().toLowerCase();
+  if (proxyMode === "true" || proxyMode === "1") {
+    return toPathBase(PUBLIC_API_BASE_URL);
+  }
+  if (proxyMode === "false" || proxyMode === "0") {
+    return PUBLIC_API_BASE_URL;
+  }
 
   try {
     const apiOrigin = new URL(PUBLIC_API_BASE_URL).origin;

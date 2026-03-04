@@ -66,7 +66,7 @@ export const PRODUCT_CARD_VARIANTS: Array<{
   {
     id: "quick-add",
     name: "Quick Add",
-    description: "Action-heavy card optimized for fast cart additions.",
+    description: "Action-heavy card optimized for fast bag additions.",
     bestFor: "Repeat purchase and checkout upsell zones",
   },
   {
@@ -256,7 +256,7 @@ function StandardVariant({
       <div className="mt-auto grid grid-cols-2 gap-2">
         <AddToCartButton
           productId={product.id}
-          label={product.is_in_stock ? "Add to cart" : "Out of stock"}
+          label={product.is_in_stock ? "Add to bag" : "Out of stock"}
           disabled={!product.is_in_stock}
           size="sm"
           variant="secondary"
@@ -327,7 +327,7 @@ function HorizontalVariant({
         <div className="mt-1 flex flex-wrap gap-2">
           <AddToCartButton
             productId={product.id}
-            label={product.is_in_stock ? "Add to cart" : "Out of stock"}
+            label={product.is_in_stock ? "Add to bag" : "Out of stock"}
             disabled={!product.is_in_stock}
             size="sm"
             variant="secondary"
@@ -495,7 +495,7 @@ function EditorialVariant({ product, className }: RenderProps) {
         </Link>
         <AddToCartButton
           productId={product.id}
-          label={product.is_in_stock ? "Add to cart" : "Out of stock"}
+          label={product.is_in_stock ? "Add to bag" : "Out of stock"}
           disabled={!product.is_in_stock}
           size="sm"
           variant="secondary"
@@ -534,7 +534,7 @@ function RatingFocusVariant({
       <div className="grid grid-cols-2 gap-2">
         <AddToCartButton
           productId={product.id}
-          label={product.is_in_stock ? "Add to cart" : "Out of stock"}
+          label={product.is_in_stock ? "Add to bag" : "Out of stock"}
           disabled={!product.is_in_stock}
           size="sm"
           variant="secondary"
@@ -611,7 +611,7 @@ function InventoryFocusVariant({
         <StockBadge product={product} />
         {inCart ? (
           <span className="rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">
-            In your cart
+            In your bag
           </span>
         ) : null}
       </div>
@@ -752,4 +752,3 @@ export function ProductCardVariant({
       return <StandardVariant {...renderProps} />;
   }
 }
-

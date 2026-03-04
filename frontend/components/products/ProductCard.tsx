@@ -110,7 +110,7 @@ export function ProductCard({
             size="sm"
             variant="secondary"
             className="w-full justify-center sm:flex-1"
-            label={product.is_in_stock ? "Add to cart" : "Out of stock"}
+            label={product.is_in_stock ? "Add to bag" : "Out of stock"}
             disabled={!product.is_in_stock}
           />
           <Button

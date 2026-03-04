@@ -65,7 +65,7 @@ export default function WishlistPage() {
                         size="sm"
                         onClick={() => moveToCart.mutate(item.id)}
                       >
-                        Move to cart
+                        Move to bag
                       </Button>
                       <Button
                         variant="ghost"

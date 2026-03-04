@@ -24,7 +24,7 @@ def _normalize_rediss_url(url: str | None) -> str | None:
         return url
     params = dict(parse_qsl(parsed.query, keep_blank_values=True))
     if 'ssl_cert_reqs' not in params:
-        params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'CERT_REQUIRED')
+        params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'required')
         return urlunparse(parsed._replace(query=urlencode(params)))
     return url
 
@@ -160,6 +160,14 @@ else:
 
 # CORS allow all for development
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Relax API throttle limits for non-production usage of s3 settings.
+if ENVIRONMENT != 'production':
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+        **REST_FRAMEWORK.get('DEFAULT_THROTTLE_RATES', {}),
+        'anon': os.environ.get('DEV_API_ANON_THROTTLE', '10000/hour'),
+        'user': os.environ.get('DEV_API_USER_THROTTLE', '10000/hour'),
+    }
 
 # =============================================================================
 # DEBUG TOOLBAR (for development with S3)

@@ -465,7 +465,7 @@ export function CheckoutPage() {
   const handleReviewSubmit = async (values: { terms_accepted: boolean; order_notes?: string }) => {
     try {
       if (cartEmpty) {
-        push("Your cart is empty.", "error");
+        push("Your bag is empty.", "error");
         return;
       }
       let validationResult = validation;
@@ -542,12 +542,12 @@ export function CheckoutPage() {
         <AuthGate nextHref="/checkout">
           <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-16">
             <Card variant="bordered" className="space-y-3 text-center">
-              <h1 className="text-2xl font-semibold">Your cart is empty</h1>
+              <h1 className="text-2xl font-semibold">Your bag is empty</h1>
               <p className="text-sm text-foreground/60">
-                Add items to your cart before checking out.
+                Add items to your bag before checking out.
               </p>
               <Button asChild>
-                <Link href="/cart/">Go to cart</Link>
+                <Link href="/cart/">Go to bag</Link>
               </Button>
             </Card>
           </div>
@@ -563,7 +563,7 @@ export function CheckoutPage() {
               We couldn&apos;t load checkout right now. Please try again.
             </p>
             <Button asChild>
-              <Link href="/cart/">Back to cart</Link>
+              <Link href="/cart/">Back to bag</Link>
             </Button>
           </Card>
         </div>
@@ -576,12 +576,12 @@ export function CheckoutPage() {
       <AuthGate nextHref="/checkout">
         <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 py-16">
           <Card variant="bordered" className="space-y-3 text-center">
-            <h1 className="text-2xl font-semibold">Your cart is empty</h1>
+            <h1 className="text-2xl font-semibold">Your bag is empty</h1>
             <p className="text-sm text-foreground/60">
-              Add items to your cart before checking out.
+              Add items to your bag before checking out.
             </p>
             <Button asChild>
-              <Link href="/cart/">Go to cart</Link>
+              <Link href="/cart/">Go to bag</Link>
             </Button>
           </Card>
         </div>

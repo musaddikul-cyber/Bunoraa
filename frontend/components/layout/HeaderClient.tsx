@@ -52,7 +52,7 @@ function HeartIcon() {
   );
 }
 
-function CartIcon() {
+function BagIcon() {
   return (
     <svg
       aria-hidden="true"
@@ -64,9 +64,8 @@ function CartIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M6 7h14l-1.5 8.5a2 2 0 0 1-2 1.5H9a2 2 0 0 1-2-1.5L5 3H3" />
-      <circle cx="9" cy="20" r="1.5" />
-      <circle cx="17" cy="20" r="1.5" />
+      <path d="M8 10V8a4 4 0 1 1 8 0v2" />
+      <path d="M5 10h14l-1 10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 10z" />
     </svg>
   );
 }
@@ -123,7 +122,7 @@ export function HeaderClient() {
     if (typeof window === "undefined") return;
     const key = "cart_prompt_shown";
     if (window.sessionStorage.getItem(key)) return;
-    push("You have items waiting in your cart.", "info");
+    push("You have items waiting in your bag.", "info");
     window.sessionStorage.setItem(key, "true");
   }, [count, mounted, push]);
 
@@ -176,10 +175,10 @@ export function HeaderClient() {
         type="button"
         className={iconButtonClass}
         onClick={() => setOpen((prev) => !prev)}
-        aria-label="Cart"
+        aria-label="Bag"
       >
-        <CartIcon />
-        <span className="sr-only">Cart</span>
+        <BagIcon />
+        <span className="sr-only">Bag</span>
         {count > 0 ? (
           <span className="absolute -right-1 -top-1 rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold text-white">
             {count}

@@ -125,7 +125,7 @@ function isApproximatelyEqual(a: number, b: number, tolerance = 0.01) {
 }
 
 export function MiniCart({
-  title = "Mini cart",
+  title = "Mini bag",
   onClose,
   className,
 }: {
@@ -210,7 +210,7 @@ export function MiniCart({
     return (
       <Card variant="bordered" className={cn("flex h-full min-h-0 flex-col gap-4", className)}>
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Cart</h3>
+          <h3 className="text-lg font-semibold">Bag</h3>
           {onClose ? (
             <button
               type="button"
@@ -222,7 +222,7 @@ export function MiniCart({
           ) : null}
         </div>
         <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-7 text-center">
-          <p className="text-sm font-semibold text-foreground">Your cart is empty.</p>
+          <p className="text-sm font-semibold text-foreground">Your bag is empty.</p>
           <p className="mt-1 text-xs text-foreground/60">
             Add items to see them here.
           </p>
@@ -345,7 +345,7 @@ export function MiniCart({
           <div className="grid gap-2">
             <Button asChild variant="secondary">
               <Link href="/cart/" onClick={handleClose}>
-                View cart
+                View bag
               </Link>
             </Button>
             <Button asChild variant="primary-gradient">

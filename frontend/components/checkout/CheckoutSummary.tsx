@@ -165,7 +165,7 @@ export function CheckoutSummary({
             </div>
           ))
         ) : (
-          <p className="text-sm text-foreground/60">Your cart is empty.</p>
+          <p className="text-sm text-foreground/60">Your bag is empty.</p>
         )}
       </div>
 

@@ -102,6 +102,12 @@ services:
         value: "apikey"
       - key: SENDGRID_API_KEY
         sync: false
+      - key: EMAIL_PROVIDER
+        value: "sendgrid"
+      - key: EMAIL_SERVICE_TRANSPORT
+        value: "http"
+      - key: EMAIL_SERVICE_HTTP_FALLBACK_ON_SMTP_FAILURE
+        value: "true"
       - key: EMAIL_QUEUE_SYNC_FALLBACK
         value: "true"
       - key: EMAIL_QUEUE_WORKER_PING_TIMEOUT

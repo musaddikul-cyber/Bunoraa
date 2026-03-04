@@ -530,6 +530,13 @@ class CartViewSet(viewsets.ViewSet):
             )
             summary['currency'] = summary['currency_code']
 
+        if isinstance(summary, dict) and 'gift_state' not in summary:
+            summary['gift_state'] = {
+                'is_gift': bool(getattr(checkout_session, 'is_gift', False)) if checkout_session else False,
+                'gift_message': (getattr(checkout_session, 'gift_message', '') or '') if checkout_session else '',
+                'gift_wrap': bool(getattr(checkout_session, 'gift_wrap', False)) if checkout_session else False,
+            }
+
         return Response(summary)
 
 

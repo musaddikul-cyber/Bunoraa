@@ -1663,7 +1663,7 @@ export function ProductDetailClient({
                       variant="primary"
                       className="h-11 w-full sm:h-10 sm:w-auto"
                       disabled={!inStock}
-                      label={inStock ? "Add to cart" : "Out of stock"}
+                      label={inStock ? "Add to bag" : "Out of stock"}
                     />
                     <AddToWishlistButton
                       productId={product.id}
@@ -1916,7 +1916,7 @@ export function ProductDetailClient({
               variant="primary"
               className="h-11 min-w-[10rem] justify-center"
               disabled={!inStock}
-              label="Add to cart"
+              label="Add to bag"
             />
           ) : (
             <Button

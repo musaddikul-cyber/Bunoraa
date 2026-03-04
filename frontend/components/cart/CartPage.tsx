@@ -53,7 +53,19 @@ type GiftResponse = {
   gift_wrap_enabled?: boolean;
 };
 
+type GiftState = {
+  is_gift: boolean;
+  gift_message: string;
+  gift_wrap: boolean;
+};
+
 type RelatedQueryKey = ["cart", "related", string | null];
+const GIFT_AUTOSAVE_DEBOUNCE_MS = 650;
+const DEFAULT_GIFT_STATE: GiftState = {
+  is_gift: false,
+  gift_message: "",
+  gift_wrap: false,
+};
 
 async function fetchRelatedProducts(slug: string) {
   const response = await apiFetch<ProductListItem[]>(
@@ -100,6 +112,14 @@ function parseMoney(value: string | number | null | undefined) {
   const normalized = trimmed.replace(/,/g, "");
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isSameGiftState(a: GiftState, b: GiftState) {
+  return (
+    a.is_gift === b.is_gift &&
+    a.gift_wrap === b.gift_wrap &&
+    a.gift_message === b.gift_message
+  );
 }
 
 function getProductImage(product: ProductListItem) {
@@ -259,7 +279,7 @@ function CartItemRow({
       className="flex flex-col gap-4 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
     >
       <div className="flex items-start gap-3 sm:items-center sm:gap-4">
-        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-muted">
+        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-muted sm:h-28 sm:w-28">
           {item.product_image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -417,12 +437,9 @@ export function CartPage() {
   const { addItem: addWishlistItem } = useWishlist();
 
   const [couponCode, setCouponCode] = React.useState("");
-  const [giftState, setGiftState] = React.useState({
-    is_gift: false,
-    gift_message: "",
-    gift_wrap: false,
-  });
+  const [giftState, setGiftState] = React.useState<GiftState>(DEFAULT_GIFT_STATE);
   const [giftResponse, setGiftResponse] = React.useState<GiftResponse | null>(null);
+  const [hasGiftInteraction, setHasGiftInteraction] = React.useState(false);
   const [validationResult, setValidationResult] = React.useState<ValidationResult | null>(null);
   const [shareState, setShareState] = React.useState({
     name: "",
@@ -435,6 +452,10 @@ export function CartPage() {
   const [removingItemId, setRemovingItemId] = React.useState<string | null>(null);
   const [resetCounter, setResetCounter] = React.useState(0);
   const [resetItemId, setResetItemId] = React.useState<string | null>(null);
+  const giftSaveTimerRef = React.useRef<number | null>(null);
+  const lastSubmittedGiftStateRef = React.useRef<GiftState>(DEFAULT_GIFT_STATE);
+  const updateGiftMutateRef = React.useRef(updateGiftOptions.mutateAsync);
+  const pushRef = React.useRef(push);
 
   const cart = cartQuery.data;
   const summary = cartSummaryQuery.data;
@@ -446,6 +467,42 @@ export function CartPage() {
     }
   }, [appliedCouponCode]);
 
+  React.useEffect(() => {
+    if (hasGiftInteraction || !summary?.gift_state) return;
+    const backendGiftState: GiftState = {
+      is_gift: Boolean(summary.gift_state.is_gift),
+      gift_message: summary.gift_state.gift_message || "",
+      gift_wrap: Boolean(summary.gift_state.gift_wrap),
+    };
+    if (!backendGiftState.is_gift) {
+      backendGiftState.gift_message = "";
+      backendGiftState.gift_wrap = false;
+    }
+    setGiftState((prev) =>
+      isSameGiftState(prev, backendGiftState) ? prev : backendGiftState
+    );
+    lastSubmittedGiftStateRef.current = backendGiftState;
+  }, [
+    hasGiftInteraction,
+    summary?.gift_state,
+  ]);
+
+  React.useEffect(() => {
+    return () => {
+      if (giftSaveTimerRef.current) {
+        window.clearTimeout(giftSaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
+    updateGiftMutateRef.current = updateGiftOptions.mutateAsync;
+  }, [updateGiftOptions.mutateAsync]);
+
+  React.useEffect(() => {
+    pushRef.current = push;
+  }, [push]);
+
   const currency = summary?.currency_code || cart?.currency || "";
   const itemCount = cart?.item_count ?? 0;
 
@@ -454,10 +511,7 @@ export function CartPage() {
     parseMoney(cart?.discount_amount) ?? parseMoney(summary?.discount_amount) ?? 0;
   const shippingValue = parseMoney(summary?.shipping_cost) ?? 0;
   const taxValue = parseMoney(summary?.tax_amount) ?? 0;
-  const giftWrapValue =
-    parseMoney(summary?.gift_wrap_cost) ??
-    parseMoney(summary?.gift_wrap_amount) ??
-    0;
+  const giftWrapValue = parseMoney(summary?.gift_wrap_cost) ?? 0;
   const derivedTotalValue = Math.max(
     0,
     subtotalValue - discountValue + shippingValue + taxValue + giftWrapValue
@@ -465,18 +519,26 @@ export function CartPage() {
   const fallbackSummaryTotal = parseMoney(summary?.total) ?? 0;
   const totalValue = cart ? derivedTotalValue : fallbackSummaryTotal || derivedTotalValue;
 
-  const formattedSubtotal = formatMoney(subtotalValue, currency);
-  const formattedDiscount = formatMoney(discountValue, currency);
-  const formattedShipping = formatMoney(shippingValue, currency);
-  const formattedTax = formatMoney(taxValue, currency);
-  const formattedGiftWrap = formatMoney(giftWrapValue, currency);
-  const formattedTotal = formatMoney(totalValue, currency);
+  const formattedSubtotal =
+    summary?.formatted_subtotal || formatMoney(subtotalValue, currency);
+  const formattedDiscount =
+    summary?.formatted_discount || formatMoney(discountValue, currency);
+  const formattedShipping =
+    summary?.formatted_shipping || formatMoney(shippingValue, currency);
+  const formattedTax = summary?.formatted_tax || formatMoney(taxValue, currency);
+  const formattedGiftWrap =
+    summary?.formatted_gift_wrap || formatMoney(giftWrapValue, currency);
+  const formattedGiftWrapAmount =
+    summary?.formatted_gift_wrap_amount ||
+    giftResponse?.formatted_gift_wrap_amount ||
+    (summary?.gift_wrap_amount
+      ? formatMoney(summary.gift_wrap_amount, currency)
+      : "");
+  const formattedTotal = summary?.formatted_total || formatMoney(totalValue, currency);
 
   const showShipping = Boolean(summary);
   const showTax = summary?.tax_amount !== undefined && Number(summary.tax_amount) > 0;
-  const showGiftWrap =
-    summary?.gift_wrap_cost !== undefined &&
-    (Number(summary.gift_wrap_cost) > 0 || giftState.gift_wrap);
+  const showGiftWrap = giftWrapValue > 0;
   const shippingLabel = summary?.shipping_estimate ? "Estimated shipping" : "Shipping";
   const taxRateLabel = summary?.tax_rate
     ? `VAT (${Number(summary.tax_rate).toFixed(0)}%)`
@@ -512,7 +574,7 @@ export function CartPage() {
       setRemovingItemId(itemId);
       await removeItem.mutateAsync(itemId);
       if (!options?.silent) {
-        push("Item removed from cart.", "info");
+        push("Item removed from bag.", "info");
       }
     } catch (error) {
       push(getApiErrorMessage(error, "Could not remove item."), "error");
@@ -582,19 +644,56 @@ export function CartPage() {
     }
   };
 
-  const handleGiftSave = async () => {
-    try {
-      const response = await updateGiftOptions.mutateAsync(giftState);
-      const data =
-        response && typeof response === "object" && "data" in response
-          ? (response as { data: GiftResponse }).data
-          : null;
-      setGiftResponse(data);
-      push("Gift options saved.", "success");
-    } catch (error) {
-      push(getApiErrorMessage(error, "Could not update gift options."), "error");
+  React.useEffect(() => {
+    if (!hasGiftInteraction) return;
+    const normalizedGiftState: GiftState = giftState.is_gift
+      ? {
+          ...giftState,
+          gift_message: giftState.gift_message || "",
+        }
+      : {
+          ...DEFAULT_GIFT_STATE,
+        };
+    if (isSameGiftState(normalizedGiftState, lastSubmittedGiftStateRef.current)) return;
+
+    if (giftSaveTimerRef.current) {
+      window.clearTimeout(giftSaveTimerRef.current);
     }
-  };
+    giftSaveTimerRef.current = window.setTimeout(() => {
+      lastSubmittedGiftStateRef.current = normalizedGiftState;
+      void updateGiftMutateRef
+        .current(normalizedGiftState)
+        .then((response) => {
+          const data =
+            response && typeof response === "object" && "data" in response
+              ? (response as { data: GiftResponse }).data
+              : null;
+          setGiftResponse(data);
+          if (data?.gift_state) {
+            const persistedGiftState: GiftState = {
+              is_gift: Boolean(data.gift_state.is_gift),
+              gift_message: data.gift_state.gift_message || "",
+              gift_wrap: Boolean(data.gift_state.gift_wrap),
+            };
+            if (!persistedGiftState.is_gift) {
+              persistedGiftState.gift_message = "";
+              persistedGiftState.gift_wrap = false;
+            }
+            setGiftState(persistedGiftState);
+            lastSubmittedGiftStateRef.current = persistedGiftState;
+          }
+        })
+        .catch((error) => {
+          pushRef.current(getApiErrorMessage(error, "Could not update gift options."), "error");
+        });
+    }, GIFT_AUTOSAVE_DEBOUNCE_MS);
+
+    return () => {
+      if (giftSaveTimerRef.current) {
+        window.clearTimeout(giftSaveTimerRef.current);
+      }
+    };
+  }, [giftState, hasGiftInteraction]);
 
   const handleValidateCart = async () => {
     try {
@@ -605,12 +704,12 @@ export function CartPage() {
           : null;
       setValidationResult(data);
       if (data?.is_valid) {
-        push("Cart validated successfully.", "success");
+        push("Bag validated successfully.", "success");
       } else {
-        push("Cart validation completed.", "info");
+        push("Bag validation completed.", "info");
       }
     } catch (error) {
-      push(getApiErrorMessage(error, "Could not validate cart."), "error");
+      push(getApiErrorMessage(error, "Could not validate bag."), "error");
     }
   };
 
@@ -648,21 +747,21 @@ export function CartPage() {
   };
 
   const handleClearCart = async () => {
-    if (!window.confirm("Clear all items from your cart?")) return;
+    if (!window.confirm("Clear all items from your bag?")) return;
     try {
       await clearCart.mutateAsync();
-      push("Cart cleared.", "info");
+      push("Bag cleared.", "info");
     } catch (error) {
-      push(getApiErrorMessage(error, "Could not clear cart."), "error");
+      push(getApiErrorMessage(error, "Could not clear bag."), "error");
     }
   };
 
   const handleAddRecommended = async (product: ProductListItem) => {
     try {
       await addItem.mutateAsync({ productId: product.id });
-      push("Added to cart.", "success");
+      push("Added to bag.", "success");
     } catch (error) {
-      push(getApiErrorMessage(error, "Could not add to cart."), "error");
+      push(getApiErrorMessage(error, "Could not add to bag."), "error");
     }
   };
 
@@ -694,7 +793,7 @@ export function CartPage() {
       <div className="min-h-screen bg-background text-foreground">
         <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 py-12">
           <Card variant="bordered" className="space-y-4 text-center">
-            <h1 className="text-2xl font-semibold">Unable to load your cart</h1>
+            <h1 className="text-2xl font-semibold">Unable to load your bag</h1>
             <p className="text-sm text-foreground/70">
               Please refresh or try again in a moment.
             </p>
@@ -710,7 +809,7 @@ export function CartPage() {
       <div className="min-h-screen bg-background text-foreground">
         <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 py-12">
           <Card variant="bordered" className="space-y-5 text-center">
-            <h1 className="text-2xl font-semibold">Your cart is empty</h1>
+            <h1 className="text-2xl font-semibold">Your bag is empty</h1>
             <p className="text-sm text-foreground/70">
               Explore new arrivals and curated collections from Bunoraa artisans.
             </p>
@@ -729,15 +828,12 @@ export function CartPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-10">
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-foreground/60">
-              Bunoraa cart
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Shopping cart</h1>
+            <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Shopping bag</h1>
             <p className="text-sm text-foreground/70">
-              {itemCount} item{itemCount === 1 ? "" : "s"} in your cart.
+              {itemCount} item{itemCount === 1 ? "" : "s"} in your bag.
             </p>
           </div>
           <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
@@ -748,8 +844,13 @@ export function CartPage() {
             >
               <Link href="/products/">Continue shopping</Link>
             </Button>
-            <Button variant="secondary" className="w-full sm:w-auto" onClick={handleClearCart}>
-              Clear cart
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-self-end px-2 text-xs text-foreground/60 hover:text-foreground sm:w-auto sm:px-3 sm:text-sm"
+              onClick={handleClearCart}
+            >
+              Clear bag
             </Button>
           </div>
         </div>
@@ -774,7 +875,7 @@ export function CartPage() {
             {validationResult ? (
               <Card variant="bordered" className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">Cart validation</h3>
+                  <h3 className="font-semibold">Bag validation</h3>
                   <span
                     className={cn(
                       "text-xs font-semibold",
@@ -820,42 +921,42 @@ export function CartPage() {
             <Card variant="bordered" className="space-y-4">
               <h2 className="text-xl font-semibold">Order summary</h2>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground/70">Subtotal</span>
-                  <span>{formattedSubtotal}</span>
+                <div className="flex items-start justify-between gap-5">
+                  <span className="flex-1 pr-3 text-foreground/70">Subtotal</span>
+                  <span className="shrink-0 text-right tabular-nums">{formattedSubtotal}</span>
                 </div>
                 {appliedCouponCode ? (
-                  <div className="flex items-center justify-between text-success-500">
-                    <span>Discount</span>
-                    <span>-{formattedDiscount}</span>
+                  <div className="flex items-start justify-between gap-5 text-success-500">
+                    <span className="flex-1 pr-3">Discount</span>
+                    <span className="shrink-0 text-right tabular-nums">-{formattedDiscount}</span>
                   </div>
                 ) : null}
                 {showShipping ? (
-                  <div className="flex items-center justify-between">
-                    <span className="text-foreground/70">
+                  <div className="flex items-start justify-between gap-5">
+                    <span className="flex-1 pr-3 text-foreground/70">
                       {shippingLabel}
                       {shippingEstimateLabel ? ` (${shippingEstimateLabel})` : ""}
                     </span>
-                    <span>{formattedShipping}</span>
+                    <span className="shrink-0 text-right tabular-nums">{formattedShipping}</span>
                   </div>
                 ) : null}
                 {showTax ? (
-                  <div className="flex items-center justify-between">
-                    <span className="text-foreground/70">{taxRateLabel}</span>
-                    <span>{formattedTax}</span>
+                  <div className="flex items-start justify-between gap-5">
+                    <span className="flex-1 pr-3 text-foreground/70">{taxRateLabel}</span>
+                    <span className="shrink-0 text-right tabular-nums">{formattedTax}</span>
                   </div>
                 ) : null}
                 {showGiftWrap ? (
-                  <div className="flex items-center justify-between">
-                    <span className="text-foreground/70">
+                  <div className="flex items-start justify-between gap-5">
+                    <span className="flex-1 pr-3 text-foreground/70">
                       {summary?.gift_wrap_label || "Gift wrap"}
                     </span>
-                    <span>{formattedGiftWrap}</span>
+                    <span className="shrink-0 text-right tabular-nums">{formattedGiftWrap}</span>
                   </div>
                 ) : null}
-                <div className="flex items-center justify-between border-t border-border pt-3 text-base font-semibold">
-                  <span>Total</span>
-                  <span>{formattedTotal}</span>
+                <div className="flex items-start justify-between gap-5 border-t border-border pt-3 text-base font-semibold">
+                  <span className="flex-1 pr-3">Total</span>
+                  <span className="shrink-0 text-right tabular-nums">{formattedTotal}</span>
                 </div>
                 {summary ? null : (
                   <p className="text-xs text-foreground/60">
@@ -874,25 +975,25 @@ export function CartPage() {
 
             <Card variant="bordered" className="space-y-4">
               <h3 className="text-base font-semibold">Promo code</h3>
-              <form onSubmit={handleApplyCoupon} className="flex flex-col gap-2">
-                <input
-                  type="text"
-                  value={couponCode}
-                  onChange={(event) => setCouponCode(event.target.value)}
-                  placeholder="Enter coupon code"
-                  readOnly={Boolean(appliedCouponCode)}
-                  className={cn(
-                    "h-11 rounded-xl border border-border bg-transparent px-3 text-sm",
-                    appliedCouponCode && "cursor-not-allowed opacity-70"
-                  )}
-                />
-                <div className="grid gap-2 sm:flex sm:items-center">
+              <form onSubmit={handleApplyCoupon} className="space-y-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    type="text"
+                    value={couponCode}
+                    onChange={(event) => setCouponCode(event.target.value)}
+                    placeholder="Enter coupon code"
+                    readOnly={Boolean(appliedCouponCode)}
+                    className={cn(
+                      "h-11 rounded-xl border border-border bg-transparent px-3 text-sm sm:flex-1",
+                      appliedCouponCode && "cursor-not-allowed opacity-70"
+                    )}
+                  />
                   {appliedCouponCode ? (
                     <Button
                       type="button"
                       size="sm"
                       variant="secondary"
-                      className="w-full cursor-default border-primary/35 bg-primary/10 text-primary hover:bg-primary/10 disabled:opacity-100 sm:w-auto"
+                      className="w-full cursor-default border-primary/35 bg-primary/10 text-primary hover:bg-primary/10 disabled:opacity-100 sm:w-auto sm:min-w-[110px]"
                       disabled
                     >
                       Applied
@@ -902,12 +1003,14 @@ export function CartPage() {
                       type="submit"
                       size="sm"
                       variant="secondary"
-                      className="w-full sm:w-auto"
+                      className="w-full sm:w-auto sm:min-w-[110px]"
                     >
                       Apply
                     </Button>
                   )}
-                  {appliedCouponCode ? (
+                </div>
+                {appliedCouponCode ? (
+                  <div className="flex justify-stretch sm:justify-end">
                     <Button
                       type="button"
                       size="sm"
@@ -917,8 +1020,8 @@ export function CartPage() {
                     >
                       Remove
                     </Button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </form>
               {appliedCouponCode ? (
                 <p className="text-xs text-foreground/60">
@@ -934,12 +1037,15 @@ export function CartPage() {
                   type="checkbox"
                   className="h-4 w-4 rounded border-border bg-card text-primary accent-primary focus:ring-2 focus:ring-primary/30"
                   checked={giftState.is_gift}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    setHasGiftInteraction(true);
                     setGiftState((prev) => ({
                       ...prev,
                       is_gift: event.target.checked,
-                    }))
-                  }
+                      gift_wrap: event.target.checked ? prev.gift_wrap : false,
+                      gift_message: event.target.checked ? prev.gift_message : "",
+                    }));
+                  }}
                 />
                 This order is a gift
               </label>
@@ -947,12 +1053,13 @@ export function CartPage() {
                 <div className="space-y-2">
                   <textarea
                     value={giftState.gift_message}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      setHasGiftInteraction(true);
                       setGiftState((prev) => ({
                         ...prev,
                         gift_message: event.target.value,
-                      }))
-                    }
+                      }));
+                    }}
                     placeholder="Add a gift message (optional)"
                     className="min-h-[90px] w-full rounded-xl border border-border bg-transparent px-3 py-2 text-sm"
                   />
@@ -961,29 +1068,27 @@ export function CartPage() {
                       type="checkbox"
                       className="h-4 w-4 rounded border-border bg-card text-primary accent-primary focus:ring-2 focus:ring-primary/30"
                       checked={giftState.gift_wrap}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        setHasGiftInteraction(true);
                         setGiftState((prev) => ({
                           ...prev,
                           gift_wrap: event.target.checked,
-                        }))
-                      }
+                        }));
+                      }}
                     />
                     {giftResponse?.gift_wrap_label || "Add gift wrap"}
                   </label>
                 </div>
               ) : null}
-              <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={handleGiftSave}>
-                Save gift options
-              </Button>
-              {giftResponse?.formatted_gift_wrap_cost ? (
+              {formattedGiftWrapAmount ? (
                 <p className="text-xs text-foreground/60">
-                  Gift wrap cost: {giftResponse.formatted_gift_wrap_cost}
+                  {summary?.gift_wrap_label || giftResponse?.gift_wrap_label || "Gift wrap"} fee: {formattedGiftWrapAmount}
                 </p>
               ) : null}
             </Card>
 
             <Card variant="bordered" className="space-y-3">
-              <h3 className="text-base font-semibold">Share cart</h3>
+              <h3 className="text-base font-semibold">Share bag</h3>
               <div className="grid gap-2">
                 <input
                   type="text"
@@ -1029,7 +1134,7 @@ export function CartPage() {
                     <div className="absolute right-1 top-1 flex h-8 w-8 flex-col overflow-hidden rounded-lg border border-border bg-muted/40">
                       <button
                         type="button"
-                        className="flex h-4 items-center justify-center text-[10px] text-foreground/70 hover:bg-muted"
+                        className="flex h-4 items-center justify-center border-b border-border/70 text-foreground/70 hover:bg-muted"
                         aria-label="Increase days"
                         onClick={() =>
                           setShareState((prev) => ({
@@ -1038,11 +1143,22 @@ export function CartPage() {
                           }))
                         }
                       >
-                        ^
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 20 20"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M5 12l5-5 5 5" />
+                        </svg>
                       </button>
                       <button
                         type="button"
-                        className="flex h-4 items-center justify-center text-[10px] text-foreground/70 hover:bg-muted"
+                        className="flex h-4 items-center justify-center text-foreground/70 hover:bg-muted"
                         aria-label="Decrease days"
                         onClick={() =>
                           setShareState((prev) => ({
@@ -1051,7 +1167,18 @@ export function CartPage() {
                           }))
                         }
                       >
-                        v
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 20 20"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M5 8l5 5 5-5" />
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -1097,7 +1224,7 @@ export function CartPage() {
             </Card>
 
             <Card variant="bordered" className="space-y-2">
-              <h3 className="text-base font-semibold">Cart health</h3>
+              <h3 className="text-base font-semibold">Bag health</h3>
               <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
                 <Button
                   size="sm"
@@ -1105,7 +1232,7 @@ export function CartPage() {
                   className="w-full sm:w-auto"
                   onClick={handleValidateCart}
                 >
-                  Validate cart
+                  Validate bag
                 </Button>
                 <Button
                   size="sm"
@@ -1157,7 +1284,7 @@ export function CartPage() {
                       className="w-full"
                       onClick={() => handleAddRecommended(product)}
                     >
-                      Add to cart
+                      Add to bag
                     </Button>
                     <Button asChild size="sm" variant="ghost" className="w-full">
                       <Link href={buildProductPath(product)}>View</Link>

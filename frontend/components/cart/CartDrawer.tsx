@@ -66,7 +66,7 @@ export function CartDrawer({
         )}
         onClick={(event) => event.stopPropagation()}
       >
-        <MiniCart title="Your cart" onClose={onClose} className="h-full min-h-0" />
+        <MiniCart title="Your bag" onClose={onClose} className="h-full min-h-0" />
       </aside>
     </div>,
     document.body

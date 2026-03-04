@@ -283,7 +283,7 @@ export function MobileNav({
                   href="/cart/"
                   onClick={closeNav}
                 >
-                  Cart
+                  Bag
                 </Link>
               </div>
 

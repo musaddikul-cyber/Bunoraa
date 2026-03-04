@@ -174,9 +174,9 @@ export function CheckoutReviewStep({
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-semibold">Cart validation</p>
+        <p className="text-sm font-semibold">Bag validation</p>
         {isValidating ? (
-          <p className="text-sm text-foreground/60">Validating cart...</p>
+          <p className="text-sm text-foreground/60">Validating bag...</p>
         ) : validation ? (
           <>
             {issues.length ? (
@@ -192,7 +192,7 @@ export function CheckoutReviewStep({
               </div>
             ) : (
               <p className="text-sm text-emerald-500">
-                Cart is ready for checkout.
+                Bag is ready for checkout.
               </p>
             )}
             {warnings.length ? (

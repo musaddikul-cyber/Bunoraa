@@ -17,7 +17,7 @@ export function AddToCartButton({
   productId,
   variantId,
   quantity = 1,
-  label = "Add to cart",
+  label = "Add to bag",
   ...props
 }: AddToCartButtonProps) {
   const { addItem } = useCart();
@@ -34,18 +34,18 @@ export function AddToCartButton({
   const handleClick = React.useCallback(async () => {
     try {
       const response = await addItem.mutateAsync({ productId, quantity, variantId });
-      push(resolveMessage(response, "Added to cart."), "success");
+      push(resolveMessage(response, "Added to bag."), "success");
     } catch (error) {
       if (error instanceof ApiError) {
         if (typeof error.data === "object" && error.data && "message" in error.data) {
           const message = String((error.data as { message?: string }).message || "").trim();
-          push(message || "Could not add to cart.", "error");
+          push(message || "Could not add to bag.", "error");
           return;
         }
-        push(error.message || "Could not add to cart.", "error");
+        push(error.message || "Could not add to bag.", "error");
         return;
       }
-      push("Could not add to cart.", "error");
+      push("Could not add to bag.", "error");
     }
   }, [addItem, productId, quantity, resolveMessage, push, variantId]);
 

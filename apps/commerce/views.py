@@ -229,6 +229,17 @@ def build_checkout_cart_summary(request, cart, checkout_session):
         except Exception:
             gift_wrap_enabled = False
 
+        gift_state = {
+            'is_gift': bool(getattr(checkout_session, 'is_gift', False)) if checkout_session else False,
+            'gift_message': (getattr(checkout_session, 'gift_message', '') or '') if checkout_session else '',
+            'gift_wrap': bool(getattr(checkout_session, 'gift_wrap', False)) if checkout_session else False,
+        }
+        if not gift_state['is_gift']:
+            gift_state['gift_message'] = ''
+            gift_state['gift_wrap'] = False
+        if not gift_wrap_enabled:
+            gift_state['gift_wrap'] = False
+
         try:
             from apps.pages.models import SiteSettings
             tax_rate = Decimal(str(SiteSettings.get_settings().tax_rate or 0))
@@ -260,7 +271,7 @@ def build_checkout_cart_summary(request, cart, checkout_session):
         elif currency and gift_wrap_from_code == currency.code:
             gift_wrap_amount_display = gift_wrap_amount
 
-        if getattr(checkout_session, 'gift_wrap', False):
+        if gift_state['gift_wrap']:
             base_gift_wrap = Decimal(str(gift_wrap_amount_base))
         base_total = taxable_amount + base_shipping + base_gift_wrap + base_tax
 
@@ -297,7 +308,7 @@ def build_checkout_cart_summary(request, cart, checkout_session):
         converted_shipping = convert_amount(base_shipping)
         converted_gift_wrap_amount = Decimal(str(gift_wrap_amount_display))
         converted_gift_wrap = (
-            converted_gift_wrap_amount if getattr(checkout_session, 'gift_wrap', False) else Decimal('0')
+            converted_gift_wrap_amount if gift_state['gift_wrap'] else Decimal('0')
         )
         converted_tax = convert_amount(base_tax)
         converted_total = convert_amount(base_total)
@@ -391,6 +402,7 @@ def build_checkout_cart_summary(request, cart, checkout_session):
         summary['formatted_total'] = currency.format_amount(display_total)
         summary['gift_wrap_label'] = gift_wrap_label
         summary['gift_wrap_enabled'] = gift_wrap_enabled
+        summary['gift_state'] = gift_state
 
         # Keep payment fee display formatting consistent with other monetary lines.
         payment_fee_display = Decimal('0')

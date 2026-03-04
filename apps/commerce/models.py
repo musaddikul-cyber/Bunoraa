@@ -256,7 +256,7 @@ class CartSettings(models.Model):
     """Global cart settings (singleton)."""
     gift_wrap_enabled = models.BooleanField(default=True)
     gift_wrap_amount = models.DecimalField(max_digits=10, decimal_places=2, default=50.00)
-    gift_wrap_label = models.CharField(max_length=100, blank=True, default='Gift Wrap')
+    gift_wrap_label = models.CharField(max_length=100, blank=True, default='Gift wrap')
     
     # Cart expiry
     cart_expiry_days = models.PositiveIntegerField(default=30)

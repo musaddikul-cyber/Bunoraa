@@ -2,6 +2,7 @@
 
 import { useWishlist } from "@/components/wishlist/useWishlist";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function WishlistIconButton({
@@ -86,22 +87,11 @@ export function WishlistIconButton({
       aria-label={isInWishlist ? "Remove from wishlist" : "Add to wishlist"}
       disabled={isBusy}
     >
-      <svg
+      <Heart
         aria-hidden="true"
-        viewBox="0 0 24 24"
-        className={cn(
-          iconClasses[size],
-          "transition",
-          iconTone
-        )}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M20.8 6.6a5.5 5.5 0 0 0-9.1-3.9L12 3l.3-.3a5.5 5.5 0 0 0-7.7 7.7L12 18.8l7.4-7.4a5.5 5.5 0 0 0 1.4-4.8z" />
-      </svg>
+        className={cn(iconClasses[size], "transition", iconTone)}
+        strokeWidth={1.8}
+      />
     </button>
   );
 }

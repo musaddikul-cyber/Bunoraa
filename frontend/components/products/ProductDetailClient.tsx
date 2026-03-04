@@ -31,6 +31,7 @@ import { compareItemFromProduct, useCompareToggle } from "@/components/products/
 import { cn } from "@/lib/utils";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { buildProductPath } from "@/lib/productPaths";
+import { ChevronLeft, ChevronRight, Columns2, Share2, X } from "lucide-react";
 
 type Variant = NonNullable<ProductDetail["variants"]>[number];
 type VariantOptionMap = Record<string, string>;
@@ -319,16 +320,7 @@ function ProductGallery({ product }: { product: ProductDetail }) {
               className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-background/85 p-2 text-foreground transition hover:bg-background"
               aria-label="Previous image"
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path d="M12.5 4.5L7 10l5.5 5.5" />
-              </svg>
+              <ChevronLeft aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
             </button>
             <button
               type="button"
@@ -336,16 +328,7 @@ function ProductGallery({ product }: { product: ProductDetail }) {
               className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-background/85 p-2 text-foreground transition hover:bg-background"
               aria-label="Next image"
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path d="M7.5 4.5L13 10l-5.5 5.5" />
-              </svg>
+              <ChevronRight aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
             </button>
           </>
         ) : null}
@@ -406,16 +389,7 @@ function ProductGallery({ product }: { product: ProductDetail }) {
             onClick={() => setLightboxOpen(false)}
             aria-label="Close fullscreen gallery"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M5 5l10 10M15 5L5 15" />
-            </svg>
+            <X aria-hidden="true" className="h-5 w-5" strokeWidth={2} />
           </button>
           {hasMultipleImages ? (
             <button
@@ -424,16 +398,7 @@ function ProductGallery({ product }: { product: ProductDetail }) {
               className="absolute left-4 rounded-full bg-white/15 p-2 text-white transition hover:bg-white/25"
               aria-label="Previous image"
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                className="h-6 w-6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path d="M12.5 4.5L7 10l5.5 5.5" />
-              </svg>
+              <ChevronLeft aria-hidden="true" className="h-6 w-6" strokeWidth={1.8} />
             </button>
           ) : null}
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -449,16 +414,7 @@ function ProductGallery({ product }: { product: ProductDetail }) {
               className="absolute right-4 rounded-full bg-white/15 p-2 text-white transition hover:bg-white/25"
               aria-label="Next image"
             >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                className="h-6 w-6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path d="M7.5 4.5L13 10l-5.5 5.5" />
-              </svg>
+              <ChevronRight aria-hidden="true" className="h-6 w-6" strokeWidth={1.8} />
             </button>
           ) : null}
         </div>
@@ -1111,16 +1067,7 @@ function CustomerPhotos({ product }: { product: ProductDetail }) {
             onClick={() => setActivePhoto(null)}
             aria-label="Close photo preview"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M5 5l10 10M15 5L5 15" />
-            </svg>
+            <X aria-hidden="true" className="h-5 w-5" strokeWidth={2} />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -1699,19 +1646,11 @@ export function ProductDetailClient({
                 onClick={() => toggleCompare(compareItemFromProduct(product))}
                 className="h-11 w-full justify-center gap-2 sm:h-10 sm:w-auto"
               >
-                <svg
+                <Columns2
                   aria-hidden="true"
-                  viewBox="0 0 24 24"
                   className="hidden h-4 w-4 sm:block"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="4" width="7" height="16" rx="2" />
-                  <rect x="14" y="4" width="7" height="16" rx="2" />
-                </svg>
+                  strokeWidth={1.8}
+                />
                 {isInCompare ? "Compared" : "Add to compare"}
               </Button>
               <Button
@@ -1720,20 +1659,7 @@ export function ProductDetailClient({
                 onClick={handleShare}
                 className="h-11 w-full justify-center gap-2 sm:h-10 sm:w-auto"
               >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="hidden h-5 w-5 sm:block"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3v12" />
-                  <path d="M8 7l4-4 4 4" />
-                  <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5" />
-                </svg>
+                <Share2 aria-hidden="true" className="hidden h-5 w-5 sm:block" strokeWidth={1.8} />
                 Share
               </Button>
             </div>

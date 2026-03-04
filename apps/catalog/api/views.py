@@ -121,6 +121,20 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
         elif include_disabled is not True:
             qs = qs.filter(is_active=True)
 
+        has_products = self._parse_bool_param(request.query_params.get("has_products"))
+        if has_products is True:
+            qs = qs.filter(product_count__gt=0)
+        elif has_products is False:
+            qs = qs.filter(product_count__lte=0)
+
+        min_product_count_raw = request.query_params.get("min_product_count")
+        if min_product_count_raw not in (None, ""):
+            try:
+                min_product_count = int(str(min_product_count_raw).strip())
+            except (TypeError, ValueError):
+                return qs.none().order_by(*order_by_fields)
+            qs = qs.filter(product_count__gte=max(0, min_product_count))
+
         return qs.order_by(*order_by_fields)
     
     def get_serializer_class(self):

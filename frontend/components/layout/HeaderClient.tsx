@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Heart, ShoppingBag, UserRound } from "lucide-react";
+import { Handbag, Heart, UserRound } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCart } from "@/components/cart/useCart";
@@ -100,19 +100,27 @@ export function HeaderClient() {
 
   const iconButtonClass =
     "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/80 bg-card/90 text-sm leading-none text-foreground shadow-soft transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  const iconTooltipClass =
+    "pointer-events-none absolute left-1/2 top-full z-40 mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background opacity-0 shadow-soft transition-opacity duration-150 sm:block";
 
   return (
     <div className="flex items-center gap-2 sm:gap-3">
-      <div className="hidden sm:block">
+      <div className="group relative hidden sm:block">
         <NotificationBell className={iconButtonClass} count={unreadCount} />
+        <span className={`${iconTooltipClass} group-hover:opacity-100 group-focus-within:opacity-100`} aria-hidden="true">
+          Notifications
+        </span>
       </div>
       <Link
         href="/wishlist/"
-        className={`hidden sm:inline-flex ${iconButtonClass}`}
+        className={`group hidden sm:inline-flex ${iconButtonClass}`}
         aria-label="Wishlist"
       >
         <Heart className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
         <span className="sr-only">Wishlist</span>
+        <span className={`${iconTooltipClass} group-hover:opacity-100 group-focus-visible:opacity-100`} aria-hidden="true">
+          Wishlist
+        </span>
         {wishlistCount > 0 ? (
           <span className="absolute -right-1 -top-1 rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-semibold text-white">
             {wishlistCount}
@@ -121,19 +129,22 @@ export function HeaderClient() {
       </Link>
       <button
         type="button"
-        className={iconButtonClass}
+        className={`group ${iconButtonClass}`}
         onClick={() => setOpen((prev) => !prev)}
         aria-label="Bag"
       >
-        <ShoppingBag className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
+        <Handbag className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
         <span className="sr-only">Bag</span>
+        <span className={`${iconTooltipClass} group-hover:opacity-100 group-focus-visible:opacity-100`} aria-hidden="true">
+          Bag
+        </span>
         {count > 0 ? (
           <span className="absolute -right-1 -top-1 rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold text-white">
             {count}
           </span>
         ) : null}
       </button>
-      <div className="relative flex items-center" ref={menuRef}>
+      <div className="group relative flex items-center" ref={menuRef}>
         <button
           type="button"
           className={`${iconButtonClass} ${hasProfileAvatar ? "overflow-hidden p-0" : ""}`}
@@ -165,6 +176,11 @@ export function HeaderClient() {
             />
           ) : null}
         </button>
+        {!menuOpen ? (
+          <span className={`${iconTooltipClass} group-hover:opacity-100 group-focus-within:opacity-100`} aria-hidden="true">
+            Account
+          </span>
+        ) : null}
         {menuOpen ? (
           mounted && hasToken ? (
             <div

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronDown, ChevronRight, CircleMinus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type {
   Category,
@@ -62,7 +63,7 @@ async function getTopCategories() {
   try {
     const response = await apiFetch<Category[]>("/catalog/categories/", {
       // Request one extra so we can decide whether to show "Browse all categories".
-      params: { page_size: FOOTER_CATEGORY_LIMIT + 1 },
+      params: { page_size: FOOTER_CATEGORY_LIMIT + 1, has_products: true },
       next: { revalidate: 600 },
     });
     return asArray<Category>(response.data);
@@ -203,10 +204,7 @@ function SocialIcon({ platform }: { platform: string }) {
       );
     default:
       return (
-        <svg viewBox="0 0 24 24" className={iconClass} fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-          <path d="M7.5 12h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
+        <CircleMinus className={iconClass} aria-hidden="true" strokeWidth={1.8} />
       );
   }
 }
@@ -491,18 +489,11 @@ export async function Footer() {
             <details className={footerAccordionClass} name="footer-sections" open>
               <summary className={footerSummaryClass}>
                 <span>Shop</span>
-                <svg
+                <ChevronDown
                   aria-hidden="true"
-                  viewBox="0 0 20 20"
                   className="h-4 w-4 shrink-0 text-foreground/60 transition group-open:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 7.5l5 5 5-5" />
-                </svg>
+                  strokeWidth={1.8}
+                />
               </summary>
               <ul className={footerListClass}>
                 {shopLinks.map((item) => (
@@ -515,18 +506,11 @@ export async function Footer() {
                     >
                       <span>{item.label}</span>
                       {item.isCta ? (
-                        <svg
+                        <ChevronRight
                           aria-hidden="true"
-                          viewBox="0 0 20 20"
                           className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M7 5l5 5-5 5" />
-                        </svg>
+                          strokeWidth={1.8}
+                        />
                       ) : null}
                     </Link>
                   </li>
@@ -537,18 +521,11 @@ export async function Footer() {
             <details className={footerAccordionClass} name="footer-sections">
               <summary className={footerSummaryClass}>
                 <span>Collections</span>
-                <svg
+                <ChevronDown
                   aria-hidden="true"
-                  viewBox="0 0 20 20"
                   className="h-4 w-4 shrink-0 text-foreground/60 transition group-open:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 7.5l5 5 5-5" />
-                </svg>
+                  strokeWidth={1.8}
+                />
               </summary>
               <ul className={footerListClass}>
                 {collectionLinks.map((item) => (
@@ -564,18 +541,11 @@ export async function Footer() {
             <details className={footerAccordionClass} name="footer-sections">
               <summary className={footerSummaryClass}>
                 <span>Company & Support</span>
-                <svg
+                <ChevronDown
                   aria-hidden="true"
-                  viewBox="0 0 20 20"
                   className="h-4 w-4 shrink-0 text-foreground/60 transition group-open:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 7.5l5 5 5-5" />
-                </svg>
+                  strokeWidth={1.8}
+                />
               </summary>
               <ul className={footerListClass}>
                 {companySupportLinks.map((item) => (
@@ -591,18 +561,11 @@ export async function Footer() {
             <details className={footerAccordionClass} name="footer-sections">
               <summary className={footerSummaryClass}>
                 <span>Contact & Location</span>
-                <svg
+                <ChevronDown
                   aria-hidden="true"
-                  viewBox="0 0 20 20"
                   className="h-4 w-4 shrink-0 text-foreground/60 transition group-open:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 7.5l5 5 5-5" />
-                </svg>
+                  strokeWidth={1.8}
+                />
               </summary>
               <ul className={footerListClass}>
                 {contactItems.map((item) => (
@@ -662,24 +625,17 @@ export async function Footer() {
                     className={
                       item.isCta ? `${shopBrowseAllCtaClass} group` : footerListLinkClass
                     }
-                  >
-                    <span>{item.label}</span>
-                    {item.isCta ? (
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 20 20"
-                        className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M7 5l5 5-5 5" />
-                      </svg>
-                    ) : null}
-                  </Link>
-                </li>
+                    >
+                      <span>{item.label}</span>
+                      {item.isCta ? (
+                        <ChevronRight
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                          strokeWidth={1.8}
+                        />
+                      ) : null}
+                    </Link>
+                  </li>
               ))}
             </ul>
           </div>

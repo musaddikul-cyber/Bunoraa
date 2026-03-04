@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { CartItem, ProductListItem } from "@/lib/types";
 import { useCart } from "@/components/cart/useCart";
@@ -1169,18 +1170,7 @@ export function CartPage() {
                           }))
                         }
                       >
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 20 20"
-                          className="h-3.5 w-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M5 12l5-5 5 5" />
-                        </svg>
+                        <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
                       </button>
                       <button
                         type="button"
@@ -1193,18 +1183,7 @@ export function CartPage() {
                           }))
                         }
                       >
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 20 20"
-                          className="h-3.5 w-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M5 8l5 5 5-5" />
-                        </svg>
+                        <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
                       </button>
                     </div>
                   </div>

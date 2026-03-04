@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Check } from "lucide-react";
 
 type Step = "information" | "shipping" | "payment" | "review";
 
@@ -62,20 +63,7 @@ export function CheckoutSteps({
                   )}
                 >
                   {isComplete ? (
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
+                    <Check className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
                   ) : (
                     step.number
                   )}

@@ -217,6 +217,39 @@ class CatalogRegressionTests(TestCase):
         disabled_only_slugs = {item["slug"] for item in disabled_only_response.data}
         self.assertEqual(disabled_only_slugs, {"disabled-root"})
 
+    def test_category_api_list_supports_has_products_filter(self):
+        Category.objects.create(
+            name="Has Products Root",
+            slug="has-products-root",
+            is_active=True,
+            product_count=3,
+        )
+        Category.objects.create(
+            name="Empty Root",
+            slug="empty-root",
+            is_active=True,
+            product_count=0,
+        )
+
+        factory = RequestFactory()
+        list_view = CategoryViewSet.as_view({"get": "list"})
+
+        with_products_response = list_view(
+            factory.get("/api/v1/catalog/categories/", {"has_products": "true"})
+        )
+        self.assertEqual(with_products_response.status_code, 200)
+        with_products_slugs = {item["slug"] for item in with_products_response.data}
+        self.assertIn("has-products-root", with_products_slugs)
+        self.assertNotIn("empty-root", with_products_slugs)
+
+        without_products_response = list_view(
+            factory.get("/api/v1/catalog/categories/", {"has_products": "false"})
+        )
+        self.assertEqual(without_products_response.status_code, 200)
+        without_products_slugs = {item["slug"] for item in without_products_response.data}
+        self.assertIn("empty-root", without_products_slugs)
+        self.assertNotIn("has-products-root", without_products_slugs)
+
     def test_category_api_list_orders_by_sort_order(self):
         Category.objects.create(name="Zulu", slug="zulu", sort_order=30, is_active=True)
         Category.objects.create(name="Alpha", slug="alpha", sort_order=10, is_active=True)

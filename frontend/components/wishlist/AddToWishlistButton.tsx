@@ -3,6 +3,7 @@
 import { useWishlist } from "@/components/wishlist/useWishlist";
 import { Button, type ButtonProps } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type AddToWishlistButtonProps = {
@@ -66,9 +67,8 @@ export function AddToWishlistButton({
       className={cn("group/wishlist", className)}
       {...props}
     >
-      <svg
+      <Heart
         aria-hidden="true"
-        viewBox="0 0 24 24"
         className={cn(
           "h-5 w-5 transition",
           hideIconOnMobile && "hidden sm:block",
@@ -76,14 +76,8 @@ export function AddToWishlistButton({
             ? "fill-error-500 text-error-500"
             : "fill-transparent text-foreground/70 group-hover/wishlist:fill-error-500 group-hover/wishlist:text-error-500"
         )}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M20.8 6.6a5.5 5.5 0 0 0-9.1-3.9L12 3l.3-.3a5.5 5.5 0 0 0-7.7 7.7L12 18.8l7.4-7.4a5.5 5.5 0 0 0 1.4-4.8z" />
-      </svg>
+        strokeWidth={1.8}
+      />
       <span>{isBusy ? pendingLabel : buttonLabel}</span>
     </Button>
   );

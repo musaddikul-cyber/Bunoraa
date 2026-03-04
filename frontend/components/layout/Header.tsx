@@ -24,7 +24,7 @@ async function getMenuPages() {
 async function getTopCategories() {
   try {
     const response = await apiFetch<Category[]>("/catalog/categories/", {
-      params: { page_size: 8 },
+      params: { page_size: 8, has_products: true },
       next: { revalidate: 600 },
     });
     return asArray<Category>(response.data);

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -367,18 +368,11 @@ export function CheckoutSummary({
             <span>Order summary</span>
             <span className="flex items-center gap-2">
               <span>{totalLabel}</span>
-              <svg
-                className="h-4 w-4 transition-transform group-open:rotate-180"
-                viewBox="0 0 20 20"
-                fill="currentColor"
+              <ChevronDown
                 aria-hidden="true"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
-                  clipRule="evenodd"
-                />
-              </svg>
+                className="h-4 w-4 transition-transform group-open:rotate-180"
+                strokeWidth={2}
+              />
             </span>
           </summary>
           <div className="px-4 pb-4 pt-2">{summaryContent}</div>

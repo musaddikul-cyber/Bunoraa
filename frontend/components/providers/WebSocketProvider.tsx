@@ -39,6 +39,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const socketsRef = React.useRef<Record<string, WebSocket | null>>({});
   const reconnectTimers = React.useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
+  const reconnectAttempts = React.useRef<Record<string, number>>({});
   const activeChannelsRef = React.useRef<string[]>([]);
   const isMountedRef = React.useRef(true);
   const connectRef = React.useRef<(channel: string) => void>(() => {});
@@ -52,6 +53,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
   const connect = React.useCallback(
     (channel: string) => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       const path = CHANNELS[channel];
       if (!path) return;
       const existingSocket = socketsRef.current[channel];
@@ -71,6 +73,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       socketsRef.current[channel] = ws;
 
       ws.onopen = () => {
+        reconnectAttempts.current[channel] = 0;
         setStatus((prev) => ({ ...prev, [channel]: "open" }));
       };
 
@@ -117,9 +120,14 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         if (reconnectTimers.current[channel]) {
           clearTimeout(reconnectTimers.current[channel] as ReturnType<typeof setTimeout>);
         }
+        const attempt = (reconnectAttempts.current[channel] || 0) + 1;
+        reconnectAttempts.current[channel] = attempt;
+        const baseDelay = Math.min(30000, 1000 * 2 ** Math.min(5, attempt));
+        const jitter = Math.floor(Math.random() * 400);
+        const nextDelay = baseDelay + jitter;
         reconnectTimers.current[channel] = setTimeout(
           () => connectRef.current(channel),
-          3000
+          nextDelay
         );
       };
     },
@@ -149,6 +157,16 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       setStatus((prev) => ({ ...prev, [channel]: "closed" }));
     });
   }, [activeChannels, connect]);
+
+  React.useEffect(() => {
+    const handleOnline = () => {
+      activeChannelsRef.current.forEach((channel) => connectRef.current(channel));
+    };
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+    };
+  }, []);
 
   React.useEffect(() => {
     const reconnectTimersCurrent = reconnectTimers.current;

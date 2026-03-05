@@ -11,7 +11,7 @@ services:
     runtime: python
     buildCommand: "./build.sh"
     startCommand: >-
-      bash -c "python manage.py migrate || true && python manage.py setup_seo_schedules || true && gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --config gunicorn_conf.py"
+      gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --config gunicorn_conf.py
     healthCheckPath: "/health/"
     envVars:
       - key: ENVIRONMENT

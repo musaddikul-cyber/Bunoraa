@@ -23,7 +23,9 @@ fi
 # Run migrations and collectstatic
 # Never generate migrations during deploy. This can create files inside
 # site-packages (as seen with admin_interface) and make builds nondeterministic.
-python manage.py migrate --noinput
+# Skip framework checks here to avoid third-party admin_interface false-positive
+# migration drift under S3 storage backends.
+python manage.py migrate --noinput --skip-checks
 # python manage.py seed_admin_interface_themes || true
 # python manage.py sync_admin_interface_theme || true
 python manage.py collectstatic --noinput --clear

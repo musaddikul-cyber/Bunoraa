@@ -21,10 +21,11 @@ else
 fi
 
 # Run migrations and collectstatic
-python manage.py makemigrations --noinput
+# Never generate migrations during deploy. This can create files inside
+# site-packages (as seen with admin_interface) and make builds nondeterministic.
 python manage.py migrate --noinput
-python manage.py seed_admin_interface_themes || true
-python manage.py sync_admin_interface_theme || true
+# python manage.py seed_admin_interface_themes || true
+# python manage.py sync_admin_interface_theme || true
 python manage.py collectstatic --noinput --clear
 
 # Optimize production setup (indexes, analyze, compression)

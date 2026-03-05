@@ -19,7 +19,7 @@ import { HeroBannerSlider, type HeroBanner } from "@/components/promotions/HeroB
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { SITE_URL, absoluteUrl, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
+import { absoluteUrl, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
 
@@ -343,9 +343,7 @@ export default async function Home() {
     description: heroDescription,
     url: absoluteUrl("/"),
     isPartOf: {
-      "@type": "WebSite",
-      name: "Bunoraa",
-      url: SITE_URL,
+      "@id": absoluteUrl("/#website"),
     },
   });
 

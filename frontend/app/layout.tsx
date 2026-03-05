@@ -137,17 +137,25 @@ export default function RootLayout({
   const organizationSchema = cleanObject({
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": absoluteUrl("/#organization"),
     name: SITE_NAME,
-    url: SITE_URL,
-    logo: absoluteUrl("/favicon.ico"),
+    url: absoluteUrl("/"),
+    logo: cleanObject({
+      "@type": "ImageObject",
+      url: absoluteUrl("/icon.png"),
+    }),
   });
 
   const websiteSchema = cleanObject({
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": absoluteUrl("/#website"),
     name: SITE_NAME,
-    alternateName: "Bunoraa",
-    url: SITE_URL,
+    alternateName: "Bunoraa Marketplace",
+    url: absoluteUrl("/"),
+    publisher: {
+      "@id": absoluteUrl("/#organization"),
+    },
     potentialAction: {
       "@type": "SearchAction",
       target: `${SITE_URL}/search/?q={search_term_string}`,

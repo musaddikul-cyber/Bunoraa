@@ -12,7 +12,7 @@ import {
   buildCategoryMetadataForPath,
   renderCategoryPageForPath,
   type CategorySearchParams,
-} from "@/app/categories/[...slug]/page";
+} from "@/app/categories/[...slug]/categoryPageShared";
 import { categoryPathExists } from "@/lib/routeLookup";
 
 export const revalidate = 900;

@@ -53,7 +53,7 @@ def ping(url: str, timeout: int = 45, retries: int = 2, retry_delay_ms: int = 12
 def main() -> int:
     raw = os.environ.get(
         "WARMUP_URLS",
-        "https://bunoraa-django.onrender.com/health/,https://bunoraa-pl26.onrender.com/",
+        "https://bunoraa-django.onrender.com/health/,https://bunoraa-pl26.onrender.com/,https://api.bunoraa.com/",
     )
     urls = [u.strip() for u in raw.split(",") if u.strip()]
     if not urls:

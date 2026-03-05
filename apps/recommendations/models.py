@@ -151,7 +151,7 @@ class Recommendation(models.Model):
             models.Index(fields=["type", "score"], name="rec_type_score_idx"),
         ]
         constraints = [
-            models.CheckConstraint(check=models.Q(score__gte=0.0) & models.Q(score__lte=1.0), name="recommendation_score_range"),
+            models.CheckConstraint(condition=models.Q(score__gte=0.0) & models.Q(score__lte=1.0), name="recommendation_score_range"),
         ]
         verbose_name = "Recommendation"
         verbose_name_plural = "Recommendations"

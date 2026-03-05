@@ -339,7 +339,7 @@ class ExchangeRate(models.Model):
         ]
         constraints = [
             models.CheckConstraint(
-                check=~models.Q(from_currency=models.F('to_currency')),
+                condition=~models.Q(from_currency=models.F('to_currency')),
                 name='different_currencies'
             ),
         ]

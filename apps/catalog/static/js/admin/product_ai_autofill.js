@@ -22,6 +22,53 @@
   }
 
   function parseJsonResponse(resp) {
+    var contentType = String((resp.headers && resp.headers.get("content-type")) || "").toLowerCase();
+    var finalUrl = String(resp.url || "");
+    var redirectedToLogin =
+      Boolean(resp.redirected) && /\/admin\/login\/?/i.test(finalUrl);
+
+    if (redirectedToLogin) {
+      return Promise.resolve({
+        ok: false,
+        status: 401,
+        data: {
+          ok: false,
+          error: "Admin session expired. Redirecting to sign in.",
+          auth_redirect_url: finalUrl,
+        },
+      });
+    }
+
+    if (contentType.indexOf("text/html") !== -1) {
+      return resp.text().then(function (body) {
+        var html = String(body || "");
+        var looksLikeLogin =
+          /\/admin\/login\/?/i.test(finalUrl) ||
+          html.indexOf("name=\"username\"") !== -1 ||
+          html.indexOf("name=\"auth-username\"") !== -1 ||
+          html.indexOf("two_factor") !== -1;
+        if (looksLikeLogin) {
+          return {
+            ok: false,
+            status: 401,
+            data: {
+              ok: false,
+              error: "Admin session expired. Redirecting to sign in.",
+              auth_redirect_url: finalUrl || "/admin/login/",
+            },
+          };
+        }
+        return {
+          ok: false,
+          status: resp.status || 0,
+          data: {
+            ok: false,
+            error: "Unexpected HTML response from server.",
+          },
+        };
+      });
+    }
+
     return resp
       .text()
       .then(function (body) {
@@ -52,6 +99,20 @@
           },
         };
       });
+  }
+
+  function maybeRedirectToAdminLogin(data, logger) {
+    var url = data && data.auth_redirect_url;
+    if (!url) {
+      return false;
+    }
+    if (logger) {
+      logger.warn("Auth redirect required", { redirectUrl: url });
+    }
+    window.setTimeout(function () {
+      window.location.assign(url);
+    }, 800);
+    return true;
   }
 
   function shouldEnableDebug(config) {
@@ -451,6 +512,10 @@
         .then(function (result) {
           var data = result.data || {};
           if (!data.ok) {
+            if (maybeRedirectToAdminLogin(data, debugLogger)) {
+              setStatus(data.error || "Admin authentication required.", true);
+              return;
+            }
             debugLogger.warn("Status request returned error", {
               jobId: jobId,
               statusCode: result.status,
@@ -607,6 +672,10 @@
         .then(function (result) {
           var data = result.data || {};
           if (!data.ok) {
+            if (maybeRedirectToAdminLogin(data, debugLogger)) {
+              setStatus(data.error || "Admin authentication required.", true);
+              return;
+            }
             debugLogger.warn("Start request failed", {
               statusCode: result.status,
               payload: data,
@@ -663,6 +732,10 @@
         .then(function (result) {
           var data = result.data || {};
           if (!data.ok) {
+            if (maybeRedirectToAdminLogin(data, debugLogger)) {
+              setStatus(data.error || "Admin authentication required.", true);
+              return;
+            }
             debugLogger.warn("Apply request failed", {
               jobId: currentJobId,
               statusCode: result.status,

@@ -12,7 +12,7 @@ def _lazy_view(path):
 app_name = "two_factor"
 
 urlpatterns = [
-    path("admin/login/", _lazy_view("two_factor.views.LoginView"), name="login"),
+    path("admin/login/", _lazy_view("core.two_factor_views.AdminLoginView"), name="login"),
     path("admin/2fa/", _lazy_view("two_factor.views.ProfileView"), name="profile"),
     path("admin/2fa/setup/", _lazy_view("core.two_factor_views.AdminSetupView"), name="setup"),
     path("admin/2fa/skip-setup/", _lazy_view("core.two_factor_views.SkipAdminSetupView"), name="skip_setup"),

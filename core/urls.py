@@ -1,16 +1,20 @@
 """
 Bunoraa URL Configuration
 """
+from urllib.parse import urlencode
+
 from django.contrib import admin
 from django.conf import settings as dj_settings
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.contrib.auth.views import redirect_to_login
+from django.http import HttpResponseRedirect
 from django.urls import path, include
 from django.views.generic.base import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 from django.shortcuts import resolve_url
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.i18n import JavaScriptCatalog
 from two_factor.admin import AdminSiteOTPRequired
 from two_factor.utils import default_device
 from .sitemaps import sitemap_view, sitemap_index_view
@@ -32,11 +36,18 @@ from .views import HomeView, health_check, health_check_detailed, readiness_chec
 class BunoraaAdminSite(AdminSiteOTPRequired):
     """Admin site that redirects login to the OTP-enabled login view."""
 
+    @staticmethod
+    def _is_user_otp_verified(user):
+        checker = getattr(user, "is_verified", None)
+        if callable(checker):
+            return bool(checker())
+        return False
+
     def has_permission(self, request):
         if not admin.AdminSite.has_permission(self, request):
             return False
 
-        if request.user.is_verified():
+        if self._is_user_otp_verified(request.user):
             return True
 
         # Allow this session to continue only when the user has no OTP device
@@ -52,6 +63,16 @@ class BunoraaAdminSite(AdminSiteOTPRequired):
             url=redirect_to, allowed_hosts=[request.get_host()]
         ):
             redirect_to = resolve_url(dj_settings.LOGIN_REDIRECT_URL)
+
+        # Avoid login loops: authenticated staff without any OTP device should
+        # be sent to setup/skip flow instead of being sent back to /admin/login/.
+        if request.user.is_authenticated and request.user.is_staff and not self._is_user_otp_verified(request.user):
+            if not default_device(request.user):
+                request.session["next"] = redirect_to
+                request.session.modified = True
+                setup_url = resolve_url("two_factor:setup")
+                query = urlencode({REDIRECT_FIELD_NAME: redirect_to})
+                return HttpResponseRedirect(f"{setup_url}?{query}")
 
         return redirect_to_login(redirect_to, login_url=resolve_url('two_factor:login'))
 
@@ -79,6 +100,13 @@ urlpatterns = [
     
     # Two-factor URLs (namespaced for OTP redirects)
     path('', include(('core.two_factor_urls', 'two_factor'), namespace='two_factor')),
+
+    # Serve admin JavaScript catalog without OTP gate to avoid jsi18n MIME/login redirects.
+    path(
+        "admin/jsi18n/",
+        JavaScriptCatalog.as_view(packages=["django.contrib.admin"]),
+        name="admin-jsi18n-public",
+    ),
 
     # Admin
     path('admin', RedirectView.as_view(url='/admin/', permanent=True)),

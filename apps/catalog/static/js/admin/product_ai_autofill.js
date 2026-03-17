@@ -21,11 +21,62 @@
     return template.replace(/[0-9a-fA-F-]{36}/, jobId);
   }
 
+  function isAuthLoginUrl(url) {
+    return /\/(?:admin|account)\/login\/?/i.test(String(url || ""));
+  }
+
+  function defaultAuthRedirectUrl() {
+    var nextPath = String((window.location && window.location.pathname) || "/admin/");
+    var nextQuery = String((window.location && window.location.search) || "");
+    return "/account/login/?next=" + encodeURIComponent(nextPath + nextQuery);
+  }
+
+  function classifyHtmlAuthResponse(finalUrl, html) {
+    var normalizedHtml = String(html || "").toLowerCase();
+    var authMarkers = [
+      'name="username"',
+      "name='username'",
+      'name="auth-username"',
+      "name='auth-username'",
+      'name="email"',
+      "name='email'",
+      'name="password"',
+      "name='password'",
+      'id="login-form"',
+      "id='login-form'",
+      'action="/account/login/',
+      "action='/account/login/",
+      'action="/admin/login/',
+      "action='/admin/login/",
+      "two_factor",
+      "otp_token",
+      "csrfmiddlewaretoken",
+    ];
+    var looksLikeAuthPage = isAuthLoginUrl(finalUrl);
+    if (!looksLikeAuthPage) {
+      looksLikeAuthPage = authMarkers.some(function (marker) {
+        return normalizedHtml.indexOf(marker) !== -1;
+      });
+    }
+    if (!looksLikeAuthPage) {
+      return null;
+    }
+    return {
+      ok: false,
+      status: 401,
+      data: {
+        ok: false,
+        error: "Admin session expired. Redirecting to sign in.",
+        error_code: "AUTH_REQUIRED",
+        auth_redirect_url: finalUrl || defaultAuthRedirectUrl(),
+      },
+    };
+  }
+
   function parseJsonResponse(resp) {
     var contentType = String((resp.headers && resp.headers.get("content-type")) || "").toLowerCase();
     var finalUrl = String(resp.url || "");
-    var redirectedToLogin =
-      Boolean(resp.redirected) && /\/admin\/login\/?/i.test(finalUrl);
+    var redirectedToLogin = Boolean(resp.redirected) && isAuthLoginUrl(finalUrl);
 
     if (redirectedToLogin) {
       return Promise.resolve({
@@ -34,7 +85,8 @@
         data: {
           ok: false,
           error: "Admin session expired. Redirecting to sign in.",
-          auth_redirect_url: finalUrl,
+          error_code: "AUTH_REQUIRED",
+          auth_redirect_url: finalUrl || defaultAuthRedirectUrl(),
         },
       });
     }
@@ -42,28 +94,18 @@
     if (contentType.indexOf("text/html") !== -1) {
       return resp.text().then(function (body) {
         var html = String(body || "");
-        var looksLikeLogin =
-          /\/admin\/login\/?/i.test(finalUrl) ||
-          html.indexOf("name=\"username\"") !== -1 ||
-          html.indexOf("name=\"auth-username\"") !== -1 ||
-          html.indexOf("two_factor") !== -1;
-        if (looksLikeLogin) {
-          return {
-            ok: false,
-            status: 401,
-            data: {
-              ok: false,
-              error: "Admin session expired. Redirecting to sign in.",
-              auth_redirect_url: finalUrl || "/admin/login/",
-            },
-          };
+        var authResponse = classifyHtmlAuthResponse(finalUrl, html);
+        if (authResponse) {
+          return authResponse;
         }
         return {
           ok: false,
-          status: resp.status || 0,
+          status: 401,
           data: {
             ok: false,
-            error: "Unexpected HTML response from server.",
+            error: "Session expired or authentication is required. Please sign in again.",
+            error_code: "AUTH_REQUIRED",
+            auth_redirect_url: defaultAuthRedirectUrl(),
           },
         };
       });
@@ -306,6 +348,174 @@
     statusNode.style.color = isError ? "#b91c1c" : "#374151";
   }
 
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function domainFromUrl(url) {
+    if (!url) return "";
+    try {
+      var parsed = new URL(String(url), window.location.origin);
+      return String(parsed.hostname || "").trim().toLowerCase();
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function normalizeDomain(domain) {
+    var normalized = String(domain || "").trim().toLowerCase();
+    if (normalized.indexOf("www.") === 0) {
+      normalized = normalized.slice(4);
+    }
+    return normalized;
+  }
+
+  function faviconUrlForDomain(domain) {
+    var cleanDomain = normalizeDomain(domain);
+    if (!cleanDomain) return "";
+    return "https://www.google.com/s2/favicons?sz=64&domain=" + encodeURIComponent(cleanDomain);
+  }
+
+  function normalizeSourceEntry(entry) {
+    if (!entry || typeof entry !== "object") return null;
+    var url = String(entry.url || "").trim();
+    var domain = normalizeDomain(entry.domain || domainFromUrl(url));
+    if (!domain && !url) return null;
+    if (!url && domain) {
+      url = "https://" + domain + "/";
+    }
+    var phase = String(entry.phase || "").trim().toLowerCase();
+    if (phase !== "validated" && phase !== "used") {
+      phase = "candidate";
+    }
+    return {
+      url: url,
+      domain: domain,
+      title: String(entry.title || "").trim().slice(0, 160),
+      provider: String(entry.provider || "").trim().slice(0, 60),
+      phase: phase,
+    };
+  }
+
+  function collectSourceActivity(data, suggestions) {
+    var candidates = [];
+    if (data && Array.isArray(data.source_activity)) {
+      candidates = candidates.concat(data.source_activity);
+    }
+
+    var diagnostics = (data && data.research_diagnostics) || {};
+    if (Array.isArray(diagnostics.unique_domains)) {
+      diagnostics.unique_domains.forEach(function (domain) {
+        var cleanDomain = normalizeDomain(domain);
+        if (!cleanDomain) return;
+        candidates.push({
+          domain: cleanDomain,
+          url: "https://" + cleanDomain + "/",
+          phase: "validated",
+        });
+      });
+    }
+
+    (suggestions || []).forEach(function (item) {
+      (item.source_urls || []).slice(0, 3).forEach(function (url) {
+        var cleanUrl = String(url || "").trim();
+        if (!cleanUrl) return;
+        candidates.push({
+          url: cleanUrl,
+          phase: "used",
+        });
+      });
+    });
+
+    var deduped = [];
+    var seen = new Set();
+    candidates.forEach(function (entry) {
+      var normalized = normalizeSourceEntry(entry);
+      if (!normalized) return;
+      var key = (normalized.domain || "") + "|" + (normalized.url || "");
+      if (seen.has(key)) return;
+      seen.add(key);
+      deduped.push(normalized);
+    });
+    return deduped.slice(0, 12);
+  }
+
+  function renderSourceActivity(data, suggestions) {
+    var container = document.getElementById("product-ai-source-activity");
+    if (!container) return;
+
+    var webSearchEnabled = data && Object.prototype.hasOwnProperty.call(data, "allow_external")
+      ? Boolean(data.allow_external)
+      : true;
+    if (!webSearchEnabled) {
+      container.innerHTML = "";
+      return;
+    }
+
+    var sources = collectSourceActivity(data, suggestions);
+    var status = String((data && data.status) || "").toLowerCase();
+    if (!sources.length) {
+      if (status === "running") {
+        container.innerHTML =
+          '<p class="help" style="margin: 2px 0; color: #6b7280;">Web research enabled. Collecting source websites...</p>';
+      } else {
+        container.innerHTML = "";
+      }
+      return;
+    }
+
+    var chips = sources
+      .map(function (source) {
+        var rawDomain = source.domain || domainFromUrl(source.url) || "";
+        var label = escapeHtml(rawDomain || "source");
+        var href = escapeHtml(source.url || (rawDomain ? "https://" + rawDomain + "/" : "#"));
+        var favicon = escapeHtml(faviconUrlForDomain(rawDomain));
+        var phaseLabel =
+          source.phase === "validated"
+            ? "validated"
+            : source.phase === "used"
+            ? "used"
+            : "candidate";
+        var phaseColor =
+          source.phase === "validated" ? "#047857" : source.phase === "used" ? "#1d4ed8" : "#6b7280";
+        var titleParts = [rawDomain || "source"];
+        if (source.provider) titleParts.push(source.provider);
+        if (source.title) titleParts.push(source.title);
+        var title = escapeHtml(titleParts.join(" | "));
+        return (
+          '<a href="' +
+          href +
+          '" target="_blank" rel="noopener" title="' +
+          title +
+          '" style="display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid #d1d5db;border-radius:999px;background:#fff;text-decoration:none;color:#111827;max-width:260px;">' +
+          '<img src="' +
+          favicon +
+          '" alt="" width="16" height="16" style="border-radius:4px;flex:0 0 auto;" />' +
+          '<span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+          label +
+          "</span>" +
+          '<span style="font-size:10px;color:' +
+          phaseColor +
+          ';text-transform:uppercase;letter-spacing:.03em;">' +
+          phaseLabel +
+          "</span>" +
+          "</a>"
+        );
+      })
+      .join("");
+
+    container.innerHTML =
+      '<div style="margin: 2px 0 6px; font-size: 12px; color: #6b7280;">Web sources</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+      chips +
+      "</div>";
+  }
+
   function resolveSuggestionDisplayValue(item) {
     var metadata = (item && item.metadata) || {};
 
@@ -444,6 +654,15 @@
   }
 
   function strictFailureMessage(errorCode, fallbackMessage) {
+    if (errorCode === "AUTH_REQUIRED") {
+      return "Session expired. Please sign in again.";
+    }
+    if (errorCode === "NN_MODEL_UNAVAILABLE") {
+      return "Neural vision model is unavailable. Check model/runtime configuration.";
+    }
+    if (errorCode === "NN_INFERENCE_FAILED") {
+      return "Neural vision inference failed. Retry after checking NN dependencies.";
+    }
     if (errorCode === "SEARCH_PROVIDER_UNAVAILABLE") {
       return "Deep research failed: no search provider returned usable results.";
     }
@@ -456,14 +675,51 @@
     return fallbackMessage || "AI analysis failed.";
   }
 
+  function nnStatusText(data) {
+    var enabled = Boolean(data && data.nn_enabled);
+    if (!enabled) {
+      return "NN off";
+    }
+    var status = String((data && data.nn_inference_status) || "unknown").toLowerCase();
+    var confidence = Number((data && data.nn_confidence) || 0);
+    if (status === "ok") {
+      return "NN ok " + confidence.toFixed(2);
+    }
+    if (status === "skipped_no_images") {
+      return "NN skipped";
+    }
+    if (status === "disabled") {
+      return "NN off";
+    }
+    if (status === "failed") {
+      return "NN failed";
+    }
+    return "NN " + status;
+  }
+
   function statusWithSourceProgress(statusText, data) {
     var strictMode = Boolean(data && data.strict_mode);
-    var minRequired = Number((data && data.min_required_sources) || 0);
+    var configuredMin = Number((data && data.configured_min_required_sources) || 0);
+    var effectiveMin = Number(
+      (data && data.effective_min_required_sources) || (data && data.min_required_sources) || 0
+    );
     var found = Number((data && data.validated_source_count) || 0);
-    if (strictMode && minRequired > 0) {
-      return statusText + " | sources " + found + " / " + minRequired;
+    var composed = statusText;
+    if (strictMode && effectiveMin > 0) {
+      composed += " | sources " + found + " / " + effectiveMin;
+      if (configuredMin > 0 && configuredMin !== effectiveMin) {
+        composed += " (cfg " + configuredMin + ")";
+      }
     }
-    return statusText;
+    composed += " | " + nnStatusText(data);
+    return composed;
+  }
+
+  function resetForNewRun() {
+    var container = document.getElementById("product-ai-suggestions-container");
+    if (container) {
+      container.innerHTML = '<p class="help">No suggestions yet. Run analysis first.</p>';
+    }
   }
 
   function initialize() {
@@ -488,6 +744,7 @@
     var currentJobId = null;
     var currentSuggestions = [];
     var applyInFlight = false;
+    var activePollToken = 0;
     debugLogger.info("Initialized", {
       aiEnabled: aiEnabled,
       productIdPresent: Boolean(productId),
@@ -499,17 +756,24 @@
       applyBtn.disabled = true;
       setStatus(disabledReason, true);
       renderSuggestions([]);
+      renderSourceActivity({ allow_external: false, source_activity: [] }, []);
       debugLogger.warn("AI disabled", { reason: disabledReason });
       return;
     }
 
-    function pollJob(jobId) {
+    function pollJob(jobId, pollToken) {
+      if (pollToken !== activePollToken) {
+        return;
+      }
       var statusUrl = formatJobUrl(statusTemplate, jobId);
       fetch(statusUrl, { credentials: "same-origin" })
         .then(function (resp) {
           return parseJsonResponse(resp);
         })
         .then(function (result) {
+          if (pollToken !== activePollToken) {
+            return;
+          }
           var data = result.data || {};
           if (!data.ok) {
             if (maybeRedirectToAdminLogin(data, debugLogger)) {
@@ -521,11 +785,12 @@
               statusCode: result.status,
               payload: data,
             });
-            setStatus(data.error || "Unable to fetch AI status.", true);
+            setStatus(strictFailureMessage(data.error_code || "", data.error || "Unable to fetch AI status."), true);
             return;
           }
           currentSuggestions = data.suggestions || [];
           renderSuggestions(currentSuggestions);
+          renderSourceActivity(data, currentSuggestions);
           var summary = data.summary || {};
           var nonNullSuggestions = Number(summary.non_null_suggestions || 0);
           var imagesAnalyzed = Number(summary.images_analyzed || 0);
@@ -541,8 +806,14 @@
             nonNullSuggestions: nonNullSuggestions,
             imagesAnalyzed: imagesAnalyzed,
             strictMode: Boolean(data.strict_mode),
+            strictGateFailed: Boolean(data.strict_gate_failed),
+            strictGateEnforced: Boolean(data.strict_gate_enforced),
+            configuredMinSources: Number(data.configured_min_required_sources || 0),
+            effectiveMinSources: Number(data.effective_min_required_sources || data.min_required_sources || 0),
             sourceCount: Number(data.validated_source_count || 0),
-            minSources: Number(data.min_required_sources || 0),
+            nnEnabled: Boolean(data.nn_enabled),
+            nnStatus: data.nn_inference_status || "",
+            nnConfidence: Number(data.nn_confidence || 0),
             errorCode: data.error_code || "",
           });
           setStatus(
@@ -551,26 +822,36 @@
           );
           if (data.status === "completed") {
             var strictMode = Boolean(data.strict_mode);
-            var minRequired = Number(data.min_required_sources || 0);
+            var minRequired = Number(
+              (data.effective_min_required_sources || data.min_required_sources) || 0
+            );
             var foundSources = Number(data.validated_source_count || 0);
-            var strictGateFailed = strictMode && minRequired > 0 && foundSources < minRequired;
-            applyBtn.disabled = strictGateFailed;
+            var strictGateFailed = Boolean(data.strict_gate_failed);
+            var strictGateEnforced = Boolean(data.strict_gate_enforced);
+            if (!strictGateFailed && strictMode && minRequired > 0 && foundSources < minRequired) {
+              strictGateFailed = true;
+              strictGateEnforced = true;
+            }
+            applyBtn.disabled = strictGateFailed && strictGateEnforced;
             if (strictGateFailed) {
-              setStatus(
-                "Deep research gate failed: found " +
-                  foundSources +
-                  " validated sources; required " +
-                  minRequired +
-                  ".",
-                true
-              );
-              debugLogger.warn("Completed but strict gate unmet", {
+              var gateErrorCode = data.strict_gate_error_code || data.error_code || "";
+              var gateMessage =
+                data.strict_gate_error_message ||
+                strictFailureMessage(gateErrorCode, "Deep research gate failed.");
+              setStatus(gateMessage, strictGateEnforced);
+              debugLogger.warn("Completed with strict gate issue", {
                 jobId: jobId,
                 minRequired: minRequired,
+                configuredMin: Number(data.configured_min_required_sources || 0),
                 foundSources: foundSources,
+                enforced: strictGateEnforced,
+                errorCode: gateErrorCode,
+                gateMessage: gateMessage,
                 summary: summary,
               });
-              return;
+              if (strictGateEnforced) {
+                return;
+              }
             }
             if (!nonNullSuggestions) {
               setStatus(
@@ -601,18 +882,27 @@
             return;
           }
           window.setTimeout(function () {
-            pollJob(jobId);
+            pollJob(jobId, pollToken);
           }, 2000);
         })
         .catch(function (error) {
+          if (pollToken !== activePollToken) {
+            return;
+          }
           debugLogger.error("Polling failed", { jobId: jobId, error: String(error || "") });
           setStatus("Failed to poll AI status endpoint.", true);
         });
     }
 
     startBtn.addEventListener("click", function () {
+      activePollToken += 1;
+      var runToken = activePollToken;
+      currentJobId = null;
+      currentSuggestions = [];
+      applyInFlight = false;
       applyBtn.disabled = true;
-      renderSuggestions([]);
+      resetForNewRun();
+      renderSourceActivity({ status: "running", allow_external: true, source_activity: [] }, []);
       setStatus("Starting AI analysis...", false);
 
       var formData = new FormData();
@@ -670,6 +960,9 @@
           return parseJsonResponse(resp);
         })
         .then(function (result) {
+          if (runToken !== activePollToken) {
+            return;
+          }
           var data = result.data || {};
           if (!data.ok) {
             if (maybeRedirectToAdminLogin(data, debugLogger)) {
@@ -680,7 +973,7 @@
               statusCode: result.status,
               payload: data,
             });
-            setStatus(data.error || "Failed to start AI analysis", true);
+            setStatus(strictFailureMessage(data.error_code || "", data.error || "Failed to start AI analysis"), true);
             return;
           }
           currentJobId = data.job_id;
@@ -690,9 +983,12 @@
             imageCount: Number(data.image_count || 0),
           });
           setStatus("AI job created. Processing...", false);
-          pollJob(currentJobId);
+          pollJob(currentJobId, runToken);
         })
         .catch(function (error) {
+          if (runToken !== activePollToken) {
+            return;
+          }
           debugLogger.error("Start request failed", { error: String(error || "") });
           setStatus("Failed to start AI analysis.", true);
         });

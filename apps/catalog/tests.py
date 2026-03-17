@@ -17,6 +17,11 @@ from django.test import TestCase, SimpleTestCase, override_settings, RequestFact
 from apps.catalog.admin import ProductAdmin
 from apps.catalog.ai.engine import ProductAutofillEngine, _query_seed_tokens
 from apps.catalog.ai.providers.extractors import build_field_candidates, get_internal_similar_products
+from apps.catalog.ai.providers.nn_vision import (
+    NNVisionInferenceError,
+    NNVisionLoadError,
+    NNVisionProvider,
+)
 from apps.catalog.forms import ProductAdminForm
 from apps.catalog.ai.schemas import FieldSuggestionPayload
 from apps.catalog.ai.providers.personalization import PersonalizationProvider
@@ -26,7 +31,7 @@ from apps.catalog.ai.providers.research import ResearchDocument, ResearchProvide
 from apps.catalog.ai.providers.research import is_safe_public_url
 from apps.catalog.ai.providers.search import SearchProvider
 from apps.catalog.ai.validators import apply_suggestions_to_product, normalize_raw_suggestions
-from apps.catalog.api.views import CategoryViewSet
+from apps.catalog.api.views import CategoryViewSet, SearchAPIView
 from apps.catalog.services import CategoryService
 from apps.catalog.models import (
     AspectRatioChoice,
@@ -92,6 +97,14 @@ class CatalogRegressionTests(TestCase):
         url = "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fproducts%2Fitem-1"
         normalized = SearchProvider._normalize_result_url(url)
         self.assertEqual(normalized, "https://example.com/products/item-1")
+
+    def test_search_provider_normalizes_bing_redirect_urls(self):
+        url = (
+            "https://www.bing.com/ck/a?!&&p=demo&ptn=3&ver=2&hsh=4&"
+            "u=a1aHR0cHM6Ly9leGFtcGxlLmNvbS9wcm9kdWN0cy9waW5rLWt1cnRpLXNldA&ntb=1"
+        )
+        normalized = SearchProvider._normalize_result_url(url)
+        self.assertEqual(normalized, "https://example.com/products/pink-kurti-set")
 
     def test_query_seed_tokens_drop_upload_filename_noise(self):
         tokens = _query_seed_tokens("image(7).jpg product requirements kurti set")
@@ -271,8 +284,69 @@ class CatalogRegressionTests(TestCase):
             ["zulu", "beta", "alpha"],
         )
 
+    def test_search_api_excludes_hidden_and_inactive_categories_from_suggestions(self):
+        hidden_direct = Category.objects.create(
+            name="Decor Hidden",
+            slug="decor-hidden",
+            is_visible=False,
+        )
+        inactive_direct = Category.objects.create(
+            name="Decor Inactive",
+            slug="decor-inactive",
+            is_active=False,
+        )
+        hidden_parent = Category.objects.create(
+            name="Hidden Parent",
+            slug="hidden-parent",
+            is_visible=False,
+        )
+        inactive_parent = Category.objects.create(
+            name="Inactive Parent",
+            slug="inactive-parent",
+            is_active=False,
+        )
+        hidden_descendant = Category.objects.create(
+            name="Decor Hidden Descendant",
+            slug="decor-hidden-descendant",
+            parent=hidden_parent,
+        )
+        inactive_descendant = Category.objects.create(
+            name="Decor Inactive Descendant",
+            slug="decor-inactive-descendant",
+            parent=inactive_parent,
+        )
+        public_root = Category.objects.create(name="Public Root", slug="public-root")
+        public_descendant = Category.objects.create(
+            name="Decor Visible",
+            slug="decor-visible",
+            parent=public_root,
+        )
+
+        factory = RequestFactory()
+        view = SearchAPIView.as_view()
+        response = view(factory.get("/api/v1/catalog/search/", {"q": "Decor"}))
+
+        self.assertEqual(response.status_code, 200)
+        returned_ids = {item["id"] for item in response.data["categories"]}
+
+        self.assertNotIn(str(hidden_direct.id), returned_ids)
+        self.assertNotIn(str(inactive_direct.id), returned_ids)
+        self.assertNotIn(str(hidden_descendant.id), returned_ids)
+        self.assertNotIn(str(inactive_descendant.id), returned_ids)
+        self.assertIn(str(public_descendant.id), returned_ids)
+
 
 class CatalogDeepResearchProviderTests(SimpleTestCase):
+    @override_settings(PRODUCT_AI_DEEP_RESEARCH_SEARCH_PROVIDER_ORDER="")
+    def test_default_deep_research_provider_order_includes_google_cse(self):
+        search_provider = SimpleNamespace(provider_order=[])
+        ProductDeepResearchProvider(
+            search_provider=search_provider,
+            research_provider=SimpleNamespace(),
+        )
+        self.assertIn("google_cse", search_provider.provider_order)
+        self.assertEqual(search_provider.provider_order[0], "searxng")
+
     @override_settings(PRODUCT_AI_DEEP_RESEARCH_MAX_SUBQUERIES=3)
     def test_product_deep_research_builds_focused_query_plan(self):
         provider = ProductDeepResearchProvider(
@@ -289,6 +363,37 @@ class CatalogDeepResearchProviderTests(SimpleTestCase):
         self.assertTrue(plan)
         self.assertLessEqual(len(plan), 3)
         self.assertTrue(any("KRT-2201" in query for query in plan))
+
+    @override_settings(PRODUCT_AI_DEEP_RESEARCH_MAX_SUBQUERIES=4)
+    def test_query_plan_includes_image_name_code_anchor(self):
+        provider = ProductDeepResearchProvider(
+            search_provider=SimpleNamespace(provider_order=["duckduckgo"]),
+            research_provider=SimpleNamespace(),
+        )
+        plan = provider._build_query_plan(
+            query="women apparel product details",
+            candidate_text="women apparel set",
+            ocr={"sku_candidates": []},
+            vision={"tokens": ["women", "apparel"]},
+            context_hints={"image_names": ["BUN-KI-002.JPG"]},
+        )
+        self.assertTrue(any("bun-ki-002" in item.lower() for item in plan))
+
+    @override_settings(PRODUCT_AI_DEEP_RESEARCH_MAX_SUBQUERIES=4)
+    def test_query_plan_ignores_generic_image_filename_anchor(self):
+        provider = ProductDeepResearchProvider(
+            search_provider=SimpleNamespace(provider_order=["duckduckgo"]),
+            research_provider=SimpleNamespace(),
+        )
+        plan = provider._build_query_plan(
+            query="women apparel product details",
+            candidate_text="women apparel set",
+            ocr={"sku_candidates": []},
+            vision={"tokens": ["women", "apparel"]},
+            context_hints={"image_names": ["image(7).jpg"]},
+        )
+        joined = " ".join(plan).lower()
+        self.assertNotIn('"image(7)"', joined)
 
     @override_settings(
         PRODUCT_AI_DEEP_RESEARCH_MAX_SUBQUERIES=2,
@@ -372,6 +477,89 @@ class CatalogDeepResearchProviderTests(SimpleTestCase):
         self.assertNotIn("https://seller.example.com/help/product-image-requirements", urls)
         self.assertEqual(result["primary_provider"], "duckduckgo")
 
+    def test_rank_documents_rejects_when_no_anchor_overlap(self):
+        provider = ProductDeepResearchProvider(
+            search_provider=SimpleNamespace(provider_order=["duckduckgo"]),
+            research_provider=SimpleNamespace(),
+        )
+        docs = [
+            ResearchDocument(
+                url="https://example.com/products/book",
+                domain="example.com",
+                title="Bestselling Novel Product",
+                snippet="Product page with price details",
+                text="This product page is about a bestselling novel with hardcover binding.",
+                trust_score=0.62,
+                metadata={"structured": {}},
+            )
+        ]
+        ranked, rejections = provider._rank_documents(
+            docs,
+            query_terms=["kurti", "embroidered", "palazzo"],
+            reference_terms=[],
+        )
+        self.assertEqual(ranked, [])
+        self.assertEqual(rejections.get("no_anchor_overlap", 0), 1)
+
+    def test_rank_documents_relaxed_mode_keeps_product_doc_without_anchor_overlap(self):
+        provider = ProductDeepResearchProvider(
+            search_provider=SimpleNamespace(provider_order=["duckduckgo"]),
+            research_provider=SimpleNamespace(),
+        )
+        docs = [
+            ResearchDocument(
+                url="https://example.com/products/book",
+                domain="example.com",
+                title="Bestselling Novel Product",
+                snippet="Product page with price details",
+                text="This product page is about a bestselling novel with hardcover binding.",
+                trust_score=0.62,
+                metadata={"structured": {}},
+            )
+        ]
+        ranked, rejections = provider._rank_documents(
+            docs,
+            query_terms=["kurti", "embroidered", "palazzo"],
+            reference_terms=[],
+            enforce_anchor_overlap=False,
+        )
+        self.assertEqual(rejections.get("no_anchor_overlap", 0), 0)
+        self.assertGreaterEqual(len(ranked), 1)
+
+    def test_backfill_product_docs_adds_product_signal_documents(self):
+        provider = ProductDeepResearchProvider(
+            search_provider=SimpleNamespace(provider_order=["duckduckgo"]),
+            research_provider=SimpleNamespace(),
+        )
+        docs = [
+            ResearchDocument(
+                url="https://shop.example.com/products/pink-kurti-set",
+                domain="shop.example.com",
+                title="Pink Kurti Set",
+                snippet="Product price and size details",
+                text="Pink kurti set with cotton fabric and in stock sizes.",
+                trust_score=0.52,
+                metadata={},
+            ),
+            ResearchDocument(
+                url="https://example.com/help/upload-guidelines",
+                domain="example.com",
+                title="Upload guidelines",
+                snippet="Help center article",
+                text="Image requirements and listing policy details.",
+                trust_score=0.70,
+                metadata={},
+            ),
+        ]
+        selected, added = provider._backfill_product_docs(
+            selected_docs=[],
+            all_docs=docs,
+            max_docs=3,
+        )
+        self.assertEqual(added, 1)
+        self.assertEqual(len(selected), 1)
+        self.assertIn("pink-kurti-set", selected[0].url)
+
 
 class SearchProviderHardeningTests(SimpleTestCase):
     @override_settings(PRODUCT_AI_SEARCH_PROVIDER_ORDER="duckduckgo")
@@ -388,6 +576,133 @@ class SearchProviderHardeningTests(SimpleTestCase):
         diagnostics = provider.get_last_diagnostics()
         attempts = diagnostics.get("attempts") or []
         self.assertTrue(any((attempt.get("status") == "blocked") for attempt in attempts))
+
+
+class ResearchProviderHardeningTests(SimpleTestCase):
+    @override_settings(PRODUCT_AI_RESEARCH_RESPECT_ROBOTS=False)
+    @patch("apps.catalog.ai.providers.research._robots_allows", return_value=False)
+    def test_fetch_documents_ignores_robots_when_disabled(self, mock_robots):
+        provider = ResearchProvider()
+        expected = ResearchDocument(
+            url="https://example.com/products/pink-kurti-set",
+            domain="example.com",
+            title="Pink Kurti Set",
+            snippet="Product page",
+            text="Pink embroidered kurti set with cotton fabric and floral details.",
+            trust_score=0.58,
+            metadata={"provider": "bing_html", "content_type": "text/html", "structured": {}},
+        )
+        with patch.object(provider, "_fetch_one", return_value=(expected, "")) as mock_fetch:
+            docs, diagnostics = provider.fetch_documents_with_diagnostics(
+                [
+                    {
+                        "url": expected.url,
+                        "title": expected.title,
+                        "snippet": expected.snippet,
+                        "provider": "bing_html",
+                    }
+                ],
+                max_docs=4,
+            )
+        self.assertEqual(len(docs), 1)
+        self.assertEqual(docs[0].url, expected.url)
+        self.assertNotIn("robots_disallowed", diagnostics.get("rejection_reasons") or {})
+        mock_fetch.assert_called_once()
+        mock_robots.assert_not_called()
+
+    @override_settings(PRODUCT_AI_RESEARCH_RESPECT_ROBOTS=True)
+    @patch("apps.catalog.ai.providers.research._robots_allows", return_value=False)
+    def test_fetch_documents_respects_robots_when_enabled(self, mock_robots):
+        provider = ResearchProvider()
+        with patch.object(provider, "_fetch_one") as mock_fetch:
+            docs, diagnostics = provider.fetch_documents_with_diagnostics(
+                [
+                    {
+                        "url": "https://example.com/products/pink-kurti-set",
+                        "title": "Pink Kurti Set",
+                        "snippet": "Product page",
+                        "provider": "bing_html",
+                    }
+                ],
+                max_docs=4,
+            )
+        self.assertEqual(docs, [])
+        self.assertEqual((diagnostics.get("rejection_reasons") or {}).get("robots_disallowed"), 1)
+        mock_fetch.assert_not_called()
+        mock_robots.assert_called_once()
+
+    @patch("apps.catalog.ai.providers.research._robots_allows", return_value=True)
+    def test_fetch_one_accepts_short_text_when_product_signal_present(self, mock_robots):
+        class FakeResponse:
+            status_code = 200
+            headers = {"Content-Type": "text/html; charset=utf-8"}
+            text = "<html><head><title>Pink Kurti Set</title></head><body><main>Buy now</main></body></html>"
+            url = "https://example.com/products/pink-kurti-set"
+
+        provider = ResearchProvider()
+        with patch.object(provider.session, "get", return_value=FakeResponse()), patch.object(
+            provider, "_extract_main_text", return_value="Buy now"
+        ), patch.object(
+            provider, "_extract_structured_product_data", return_value={}
+        ), patch.object(
+            provider, "_trust_score", return_value=0.47
+        ):
+            doc, reason = provider._fetch_one(
+                {
+                    "url": "https://example.com/products/pink-kurti-set",
+                    "title": "Pink Kurti Set",
+                    "snippet": "Cotton kurti set product price and size details.",
+                    "provider": "bing_html",
+                }
+            )
+        self.assertEqual(reason, "")
+        self.assertIsNotNone(doc)
+        self.assertIn("kurti", (doc.text or "").lower())
+        mock_robots.assert_not_called()
+
+    @override_settings(PRODUCT_AI_RESEARCH_ALLOW_SNIPPET_FALLBACK=True)
+    def test_fetch_one_uses_snippet_fallback_on_http_403(self):
+        class FakeResponse:
+            status_code = 403
+            headers = {"Content-Type": "text/html; charset=utf-8"}
+            text = "Access denied"
+            url = "https://example.com/products/pink-kurti-set"
+
+        provider = ResearchProvider()
+        with patch.object(provider.session, "get", return_value=FakeResponse()):
+            doc, reason = provider._fetch_one(
+                {
+                    "url": "https://example.com/products/pink-kurti-set",
+                    "title": "Pink Kurti Set",
+                    "snippet": "Product price and size details available now.",
+                    "provider": "bing_html",
+                }
+            )
+        self.assertEqual(reason, "")
+        self.assertIsNotNone(doc)
+        self.assertTrue((doc.metadata or {}).get("snippet_fallback"))
+        self.assertEqual((doc.metadata or {}).get("snippet_fallback_reason"), "http_403")
+
+    @override_settings(PRODUCT_AI_RESEARCH_ALLOW_SNIPPET_FALLBACK=False)
+    def test_fetch_one_does_not_use_snippet_fallback_when_disabled(self):
+        class FakeResponse:
+            status_code = 403
+            headers = {"Content-Type": "text/html; charset=utf-8"}
+            text = "Access denied"
+            url = "https://example.com/products/pink-kurti-set"
+
+        provider = ResearchProvider()
+        with patch.object(provider.session, "get", return_value=FakeResponse()):
+            doc, reason = provider._fetch_one(
+                {
+                    "url": "https://example.com/products/pink-kurti-set",
+                    "title": "Pink Kurti Set",
+                    "snippet": "Product price and size details available now.",
+                    "provider": "bing_html",
+                }
+            )
+        self.assertIsNone(doc)
+        self.assertEqual(reason, "http_403")
 
 
 @override_settings(
@@ -433,6 +748,7 @@ class ProductAutofillEngineStrictGateTests(TestCase):
                     {"provider_attempts": [{"status": "blocked", "reason": "captcha challenge"}]}
                 ]
             },
+            effective_min_sources=self.engine.min_web_sources,
         )
         self.assertFalse(ok)
         self.assertEqual(error_code, "SEARCH_BLOCKED_OR_CAPTCHA")
@@ -448,9 +764,204 @@ class ProductAutofillEngineStrictGateTests(TestCase):
             search_results=[{"url": "https://shop-a.example.com/item"}],
             research_docs=docs,
             research_diagnostics={"duration_ms": 1200},
+            effective_min_sources=self.engine.min_web_sources,
         )
         self.assertFalse(ok)
         self.assertEqual(error_code, "INSUFFICIENT_WEB_SOURCES")
+
+
+class ProductAutofillNNVisionProviderTests(SimpleTestCase):
+    def setUp(self):
+        super().setUp()
+        NNVisionProvider._runtime_cache.clear()
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.image_path = os.path.join(self.temp_dir.name, "sample.png")
+        image = Image.new("RGB", (64, 64), color=(20, 100, 160))
+        image.save(self.image_path, format="PNG")
+
+    def tearDown(self):
+        NNVisionProvider._runtime_cache.clear()
+        self.temp_dir.cleanup()
+        super().tearDown()
+
+    def test_lazy_load_runtime_success_path(self):
+        provider = NNVisionProvider(
+            model_id="openai/clip-vit-base-patch32",
+            device="cpu",
+            timeout_seconds=8.0,
+            cache_dir=self.temp_dir.name,
+        )
+        mocked_labels = [
+            {"label": "dress", "score": 0.42, "tokens": ["dress", "fashion"]},
+            {"label": "shirt", "score": 0.20, "tokens": ["shirt", "fashion"]},
+        ]
+        with patch.object(provider, "_load_runtime", return_value={"runtime": "ok"}) as mocked_load, patch.object(
+            provider, "_predict_labels", return_value=mocked_labels
+        ):
+            first = provider.analyze([self.image_path])
+            second = provider.analyze([self.image_path])
+
+        self.assertEqual(mocked_load.call_count, 1)
+        self.assertEqual(first["nn_inference_status"], "ok")
+        self.assertEqual(second["nn_inference_status"], "ok")
+        self.assertEqual(first["nn_labels"][0]["label"], "dress")
+        self.assertGreater(first["nn_confidence"], 0.0)
+
+    def test_load_failure_raises_nn_load_error(self):
+        provider = NNVisionProvider(
+            model_id="openai/clip-vit-base-patch32",
+            device="cpu",
+            timeout_seconds=8.0,
+            cache_dir=self.temp_dir.name,
+        )
+        with patch.object(provider, "_load_runtime", side_effect=NNVisionLoadError("model unavailable")):
+            with self.assertRaises(NNVisionLoadError):
+                provider.analyze([self.image_path])
+
+
+@override_settings(
+    PRODUCT_AI_ENABLED=True,
+    PRODUCT_AI_STRICT_EVIDENCE_MODE=True,
+    PRODUCT_AI_MIN_WEB_SOURCES=3,
+    PRODUCT_AI_MIN_WEB_SOURCES_WITH_NN=1,
+    PRODUCT_AI_MIN_HIGH_TRUST_DOCS=1,
+    PRODUCT_AI_NN_ENABLED=True,
+    PRODUCT_AI_NN_CONFIDENCE_THRESHOLD=0.26,
+)
+class ProductAutofillEngineNNModeTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            email="nnmode@example.com",
+            password="pass",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.category = Category.objects.create(name="NN Category", slug="nn-category")
+        self.product = Product.objects.create(
+            name="NN Product",
+            slug="nn-product",
+            price=Decimal("25.00"),
+            primary_category=self.category,
+        )
+        self.job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_PENDING,
+            locale="en",
+            currency="USD",
+            allow_external=True,
+        )
+
+    def test_effective_min_sources_uses_lower_threshold_when_nn_confident(self):
+        engine = ProductAutofillEngine(job_id=str(self.job.id))
+        nn_result = {"nn_inference_status": "ok", "nn_confidence": 0.42}
+        effective_min = engine._effective_min_required_sources(nn_result)
+        self.assertEqual(effective_min, 1)
+
+        docs = [SimpleNamespace(domain="shop-a.example.com", trust_score=0.9)]
+        ok, error_code, _ = engine._evaluate_strict_research_gate(
+            query="nn product search",
+            used_provider="bing_html",
+            search_results=[{"url": "https://shop-a.example.com/item"}],
+            research_docs=docs,
+            research_diagnostics={"duration_ms": 800},
+            effective_min_sources=effective_min,
+        )
+        self.assertTrue(ok)
+        self.assertEqual(error_code, "")
+
+    def test_nn_inference_failure_fails_job_with_explicit_error_code(self):
+        engine = ProductAutofillEngine(job_id=str(self.job.id))
+        with patch.object(engine, "_collect_image_paths", return_value=["/tmp/sample.png"]), patch.object(
+            engine.nn_vision_provider,
+            "analyze",
+            side_effect=NNVisionInferenceError("inference failure"),
+        ):
+            result = engine.run()
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result.get("error_code"), "NN_INFERENCE_FAILED")
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.status, ProductAutofillJob.STATUS_FAILED)
+        self.assertEqual(self.job.summary.get("error_code"), "NN_INFERENCE_FAILED")
+        self.assertEqual(self.job.summary.get("nn_inference_status"), "failed")
+
+    def test_nn_load_failure_fails_job_with_explicit_error_code(self):
+        engine = ProductAutofillEngine(job_id=str(self.job.id))
+        with patch.object(engine, "_collect_image_paths", return_value=["/tmp/sample.png"]), patch.object(
+            engine.nn_vision_provider,
+            "analyze",
+            side_effect=NNVisionLoadError("model download failed"),
+        ):
+            result = engine.run()
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result.get("error_code"), "NN_MODEL_UNAVAILABLE")
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.status, ProductAutofillJob.STATUS_FAILED)
+        self.assertEqual(self.job.summary.get("error_code"), "NN_MODEL_UNAVAILABLE")
+
+
+@override_settings(
+    PRODUCT_AI_ENABLED=True,
+    PRODUCT_AI_STRICT_EVIDENCE_MODE=True,
+    PRODUCT_AI_MIN_WEB_SOURCES=3,
+    PRODUCT_AI_MIN_WEB_SOURCES_WITH_NN=1,
+    PRODUCT_AI_NN_ENABLED=False,
+)
+class ProductAutofillEngineNNDisabledTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            email="nndisabled@example.com",
+            password="pass",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.category = Category.objects.create(name="NN Off Category", slug="nn-off-category")
+        self.product = Product.objects.create(
+            name="NN Off Product",
+            slug="nn-off-product",
+            price=Decimal("18.00"),
+            primary_category=self.category,
+        )
+        self.job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_PENDING,
+            locale="en",
+            currency="USD",
+            allow_external=True,
+        )
+
+    def test_effective_min_sources_remains_default_when_nn_disabled(self):
+        engine = ProductAutofillEngine(job_id=str(self.job.id))
+        self.assertEqual(engine._effective_min_required_sources({"nn_inference_status": "ok", "nn_confidence": 0.95}), 3)
+
+    def test_build_search_query_uses_relaxed_visual_tokens_when_hints_are_weak(self):
+        engine = ProductAutofillEngine(job_id=str(self.job.id))
+        query = engine._build_search_query(
+            "Women's product-style brown beige women apparel",
+            ocr={"sku_candidates": []},
+            vision={"tokens": ["brown", "beige", "women", "apparel"]},
+            context_hints={"image_names": ["image(7).jpg"]},
+            similar_products=[],
+        )
+        self.assertTrue(query)
+        self.assertIn("product details", query.lower())
+
+    def test_build_search_query_uses_similar_product_category_fallback(self):
+        engine = ProductAutofillEngine(job_id=str(self.job.id))
+        query = engine._build_search_query(
+            "",
+            ocr={"sku_candidates": []},
+            vision={"tokens": []},
+            context_hints={"image_names": ["image(7).jpg"]},
+            similar_products=[self.product],
+        )
+        self.assertTrue(query)
+        self.assertIn("NN Off Category", query)
 
 
 @override_settings(
@@ -1117,6 +1628,106 @@ class ProductAutofillAdminEndpointTests(TestCase):
         self.assertEqual(payload["min_required_sources"], 3)
         self.assertEqual(payload["validated_source_count"], 1)
         self.assertEqual(payload["research_diagnostics"]["fetch_success"], 1)
+
+    def test_status_endpoint_exposes_soft_failed_strict_gate(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+            summary={
+                "strict_mode": True,
+                "min_required_sources": 3,
+                "validated_source_count": 0,
+                "strict_gate_passed": False,
+                "strict_gate_failed": True,
+                "strict_gate_enforced": False,
+                "strict_gate_error_code": "INSUFFICIENT_WEB_SOURCES",
+                "strict_gate_error_message": "Deep research returned 0 validated sources; minimum 3 required.",
+            },
+        )
+        request = self.factory.get(f"/admin/catalog/product/ai/autofill/{job.id}/status/")
+        request.user = self.user
+        response = self.product_admin.ai_autofill_status_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertEqual(payload["status"], ProductAutofillJob.STATUS_COMPLETED)
+        self.assertTrue(payload["strict_mode"])
+        self.assertTrue(payload["strict_gate_failed"])
+        self.assertFalse(payload["strict_gate_enforced"])
+        self.assertFalse(payload["strict_gate_passed"])
+        self.assertEqual(payload["strict_gate_error_code"], "INSUFFICIENT_WEB_SOURCES")
+
+    def test_status_endpoint_includes_nn_fields_and_effective_threshold(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_COMPLETED,
+            locale="en",
+            currency="USD",
+            summary={
+                "strict_mode": True,
+                "configured_min_required_sources": 3,
+                "effective_min_required_sources": 1,
+                "min_required_sources": 1,
+                "validated_source_count": 1,
+                "nn_enabled": True,
+                "nn_model_id": "openai/clip-vit-base-patch32",
+                "nn_inference_status": "ok",
+                "nn_confidence": 0.33,
+            },
+        )
+        request = self.factory.get(f"/admin/catalog/product/ai/autofill/{job.id}/status/")
+        request.user = self.user
+        response = self.product_admin.ai_autofill_status_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertEqual(payload["configured_min_required_sources"], 3)
+        self.assertEqual(payload["effective_min_required_sources"], 1)
+        self.assertEqual(payload["min_required_sources"], 1)
+        self.assertTrue(payload["nn_enabled"])
+        self.assertEqual(payload["nn_model_id"], "openai/clip-vit-base-patch32")
+        self.assertEqual(payload["nn_inference_status"], "ok")
+        self.assertEqual(float(payload["nn_confidence"]), 0.33)
+
+    def test_status_endpoint_includes_source_activity_for_favicon_rendering(self):
+        job = ProductAutofillJob.objects.create(
+            product=self.product,
+            requested_by=self.user,
+            status=ProductAutofillJob.STATUS_RUNNING,
+            locale="en",
+            currency="USD",
+            allow_external=True,
+            summary={
+                "source_activity": [
+                    {
+                        "url": "https://www.example.com/products/item-1",
+                        "domain": "www.example.com",
+                        "provider": "searxng",
+                        "phase": "candidate",
+                    },
+                    {
+                        "url": "https://shop.example.org/p/2",
+                        "domain": "shop.example.org",
+                        "provider": "duckduckgo",
+                        "phase": "validated",
+                    },
+                ]
+            },
+        )
+        request = self.factory.get(f"/admin/catalog/product/ai/autofill/{job.id}/status/")
+        request.user = self.user
+        response = self.product_admin.ai_autofill_status_view(request, job_id=job.id)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode("utf-8"))
+        self.assertTrue(payload["allow_external"])
+        self.assertGreaterEqual(len(payload["source_activity"]), 2)
+        first = payload["source_activity"][0]
+        self.assertIn("domain", first)
+        self.assertIn("url", first)
+        self.assertIn("phase", first)
+        self.assertEqual(first["domain"], "example.com")
 
     def test_status_endpoint_resolves_display_names_for_taxonomy_ids(self):
         tag = Tag.objects.create(name="Summer")

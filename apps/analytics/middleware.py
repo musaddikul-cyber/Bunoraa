@@ -11,6 +11,9 @@ class AnalyticsMiddleware:
         '/static/',
         '/media/',
         '/__debug__/',
+        '/health',
+        '/status',
+        '/_health',
     ]
     
     def __init__(self, get_response):

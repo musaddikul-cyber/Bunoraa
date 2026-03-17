@@ -109,7 +109,8 @@ urlpatterns = [
     ),
 
     # Admin
-    path('admin', RedirectView.as_view(url='/admin/', permanent=True)),
+    path('admin', RedirectView.as_view(url='/admin/dashboard/', permanent=False)),
+    path('admin/', RedirectView.as_view(url='/admin/dashboard/', permanent=False)),
     path('admin/', admin.site.urls),
     
     # API v1

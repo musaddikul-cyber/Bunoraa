@@ -376,7 +376,11 @@ tinyhtml5
 
 tqdm
 
+torch
+
 traitlets
+
+transformers
 
 types-python-dateutil
 

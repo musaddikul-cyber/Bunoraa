@@ -16,6 +16,16 @@ def _env_bool(name: str, default: bool) -> bool:
     return os.environ.get(name, str(default)).lower() in ('1', 'true', 'yes')
 
 
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or not str(value).strip():
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _normalize_rediss_url(url: str | None) -> str | None:
     if not url:
         return url
@@ -99,6 +109,9 @@ channel_layers_redis_url = _normalize_rediss_url(
 CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', _redis_db_url(REDIS_URL, 1)).strip())
 CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip())
 
+_session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKIE_AGE)
+
+
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -122,7 +135,7 @@ CACHES = {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         },
         'KEY_PREFIX': 'session',
-        'TIMEOUT': 86400 * 30,
+        'TIMEOUT': _session_cache_timeout,
     }
 }
 
@@ -137,7 +150,8 @@ CHANNEL_LAYERS = {
     },
 }
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+# Keep session data durable even if Redis evicts entries.
+SESSION_ENGINE = os.environ.get('SESSION_ENGINE', 'django.contrib.sessions.backends.cached_db')
 SESSION_CACHE_ALIAS = 'sessions'
 
 # Security settings: in DEBUG (development), do not set secure-only cookies so CSRF cookie

@@ -854,6 +854,86 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "status": suggestion.status,
         }
 
+    def _normalize_source_activity_item(self, item):
+        if not isinstance(item, dict):
+            return None
+        raw_url = self._clean_hint_text(item.get("url"), max_chars=600)
+        raw_domain = self._clean_hint_text(item.get("domain"), max_chars=255).lower()
+        if not raw_domain and raw_url:
+            try:
+                raw_domain = str(urlparse(raw_url).netloc or "").strip().lower()
+            except Exception:
+                raw_domain = ""
+        if raw_domain.startswith("www."):
+            raw_domain = raw_domain[4:]
+        if not raw_domain and not raw_url:
+            return None
+        url = raw_url or (f"https://{raw_domain}/" if raw_domain else "")
+        phase = self._clean_hint_text(item.get("phase"), max_chars=20).lower()
+        if phase not in {"candidate", "validated", "used"}:
+            phase = "candidate"
+        return {
+            "url": url,
+            "domain": raw_domain,
+            "title": self._clean_hint_text(item.get("title"), max_chars=160),
+            "provider": self._clean_hint_text(item.get("provider"), max_chars=60),
+            "phase": phase,
+        }
+
+    def _collect_source_activity(self, *, job, summary, suggestions):
+        summary = summary or {}
+        diagnostics = summary.get("research_diagnostics") or {}
+        candidates = []
+
+        summary_activity = summary.get("source_activity")
+        if isinstance(summary_activity, list):
+            candidates.extend(summary_activity)
+
+        unique_domains = diagnostics.get("unique_domains") or []
+        if isinstance(unique_domains, list):
+            for domain in unique_domains[:12]:
+                cleaned = self._clean_hint_text(domain, max_chars=255).lower()
+                if cleaned:
+                    candidates.append({"domain": cleaned, "url": f"https://{cleaned}/", "phase": "validated"})
+
+        for suggestion in suggestions:
+            for source_url in (suggestion.get("source_urls") or [])[:3]:
+                url = self._clean_hint_text(source_url, max_chars=600)
+                if url:
+                    candidates.append({"url": url, "phase": "used"})
+
+        if job.status in {ProductAutofillJob.STATUS_COMPLETED, ProductAutofillJob.STATUS_FAILED}:
+            web_sources = (
+                job.sources.filter(source_type=ProductAutofillSource.SOURCE_WEB)
+                .order_by("-trust_score", "-fetched_at")
+                .values("url", "domain", "title", "provider")[:12]
+            )
+            for source in web_sources:
+                candidates.append(
+                    {
+                        "url": source.get("url") or "",
+                        "domain": source.get("domain") or "",
+                        "title": source.get("title") or "",
+                        "provider": source.get("provider") or "",
+                        "phase": "validated",
+                    }
+                )
+
+        deduped = []
+        seen = set()
+        for item in candidates:
+            normalized = self._normalize_source_activity_item(item)
+            if not normalized:
+                continue
+            key = f"{normalized.get('domain') or ''}|{normalized.get('url') or ''}"
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(normalized)
+            if len(deduped) >= 12:
+                break
+        return deduped
+
     def ai_autofill_start_view(self, request):
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
@@ -1090,22 +1170,75 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         ]
         summary = job.summary or {}
         strict_mode = bool(summary.get("strict_mode", getattr(settings, "PRODUCT_AI_STRICT_EVIDENCE_MODE", True)))
-        min_required_sources = int(
-            summary.get("min_required_sources", getattr(settings, "PRODUCT_AI_MIN_WEB_SOURCES", 3)) or 0
+        configured_min_required_sources = int(
+            summary.get("configured_min_required_sources", getattr(settings, "PRODUCT_AI_MIN_WEB_SOURCES", 3)) or 0
+        )
+        effective_min_required_sources = int(
+            summary.get(
+                "effective_min_required_sources",
+                summary.get("min_required_sources", configured_min_required_sources),
+            )
+            or 0
         )
         validated_source_count = int(summary.get("validated_source_count", 0) or 0)
+        min_required_sources = effective_min_required_sources
+        strict_gate_failed = bool(
+            summary.get(
+                "strict_gate_failed",
+                strict_mode and min_required_sources > 0 and validated_source_count < min_required_sources,
+            )
+        )
+        strict_gate_enforced = bool(
+            summary.get(
+                "strict_gate_enforced",
+                strict_gate_failed and job.status != ProductAutofillJob.STATUS_COMPLETED,
+            )
+        )
+        strict_gate_passed = bool(summary.get("strict_gate_passed", not strict_gate_failed))
+        strict_gate_error_code = str(
+            summary.get("strict_gate_error_code")
+            or (summary.get("error_code") if strict_gate_failed else "")
+            or ""
+        )
+        strict_gate_error_message = str(
+            summary.get("strict_gate_error_message")
+            or (job.error_message if strict_gate_failed else "")
+            or ""
+        )
+        nn_enabled = bool(summary.get("nn_enabled", getattr(settings, "PRODUCT_AI_NN_ENABLED", False)))
+        nn_model_id = str(
+            summary.get("nn_model_id")
+            or getattr(settings, "PRODUCT_AI_NN_MODEL_ID", "openai/clip-vit-base-patch32")
+            or ""
+        )
+        nn_inference_status = str(summary.get("nn_inference_status") or ("disabled" if not nn_enabled else "unknown"))
+        nn_confidence = float(summary.get("nn_confidence", 0.0) or 0.0)
+        source_activity = self._collect_source_activity(job=job, summary=summary, suggestions=suggestions)
         return JsonResponse(
             {
                 "ok": True,
                 "job_id": str(job.id),
                 "status": job.status,
                 "progress": job.progress,
+                "allow_external": bool(job.allow_external),
                 "error_message": job.error_message,
                 "error_code": str(summary.get("error_code") or ""),
                 "strict_mode": strict_mode,
+                "strict_gate_passed": strict_gate_passed,
+                "strict_gate_failed": strict_gate_failed,
+                "strict_gate_enforced": strict_gate_enforced,
+                "strict_gate_error_code": strict_gate_error_code,
+                "strict_gate_error_message": strict_gate_error_message,
                 "min_required_sources": min_required_sources,
+                "configured_min_required_sources": configured_min_required_sources,
+                "effective_min_required_sources": effective_min_required_sources,
                 "validated_source_count": validated_source_count,
+                "nn_enabled": nn_enabled,
+                "nn_model_id": nn_model_id,
+                "nn_inference_status": nn_inference_status,
+                "nn_confidence": nn_confidence,
                 "research_diagnostics": summary.get("research_diagnostics") or {},
+                "source_activity": source_activity,
                 "summary": summary,
                 "suggestions": suggestions,
             }

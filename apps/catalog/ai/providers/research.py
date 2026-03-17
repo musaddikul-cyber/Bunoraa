@@ -36,6 +36,10 @@ NOISE_TEXT_RE = re.compile(
     r"\b(cookie|javascript required|enable javascript|privacy preference|consent manager)\b",
     re.I,
 )
+PRODUCT_SIGNAL_RE = re.compile(
+    r"\b(product|price|sku|model|size|material|fabric|cotton|linen|silk|embroid|kurti|dress|shirt|pant|trouser|set|buy|cart|in stock)\b",
+    re.I,
+)
 
 
 def _to_domain(url: str) -> str:
@@ -124,7 +128,19 @@ class ResearchProvider:
             self.marketplace_domains = {d.strip().lower() for d in raw_marketplaces.split(",") if d.strip()}
         else:
             self.marketplace_domains = {str(d).strip().lower() for d in raw_marketplaces if str(d).strip()}
-        self.user_agent = "BunoraaProductAI/1.0 (+https://bunoraa.com)"
+        self.user_agent = (
+            str(getattr(settings, "PRODUCT_AI_RESEARCH_USER_AGENT", "") or "").strip()
+            or str(getattr(settings, "PRODUCT_AI_USER_AGENT", "") or "").strip()
+            or "Mozilla/5.0"
+        )
+        self.respect_robots = bool(getattr(settings, "PRODUCT_AI_RESEARCH_RESPECT_ROBOTS", False))
+        self.allow_snippet_fallback = bool(
+            getattr(settings, "PRODUCT_AI_RESEARCH_ALLOW_SNIPPET_FALLBACK", True)
+        )
+        self.min_extracted_chars = max(
+            40,
+            int(getattr(settings, "PRODUCT_AI_RESEARCH_MIN_EXTRACTED_CHARS", 80) or 80),
+        )
 
         retry = Retry(
             total=2,
@@ -167,7 +183,7 @@ class ResearchProvider:
             if not is_safe_public_url(url):
                 rejection_reasons["unsafe_url"] += 1
                 continue
-            if not _robots_allows(url, self.user_agent):
+            if self.respect_robots and not _robots_allows(url, self.user_agent):
                 rejection_reasons["robots_disallowed"] += 1
                 continue
 
@@ -206,8 +222,26 @@ class ResearchProvider:
             return None, "request_error"
 
         if response.status_code >= 400:
+            fallback_doc = self._build_snippet_fallback_document(
+                url=url,
+                title=str(title or ""),
+                snippet=str(snippet or ""),
+                provider=str(provider or ""),
+                reason=f"http_{response.status_code}",
+            )
+            if fallback_doc:
+                return fallback_doc, ""
             return None, f"http_{response.status_code}"
         if self._looks_like_challenge(response.text, status_code=response.status_code):
+            fallback_doc = self._build_snippet_fallback_document(
+                url=url,
+                title=str(title or ""),
+                snippet=str(snippet or ""),
+                provider=str(provider or ""),
+                reason="challenge_or_captcha",
+            )
+            if fallback_doc:
+                return fallback_doc, ""
             return None, "challenge_or_captcha"
 
         final_url = response.url or url
@@ -225,14 +259,22 @@ class ResearchProvider:
 
         page_title = soup.title.get_text(strip=True) if soup.title else ""
         text = self._extract_main_text(soup)
+        fallback_text = _safe_text(" ".join(part for part in [page_title or title, snippet] if part), max_chars=1200)
+        if not text and fallback_text:
+            text = fallback_text
         if not text:
             return None, "empty_extracted_text"
-        if NOISE_TEXT_RE.search(text) and len(text) < 220:
+        signal_text = " ".join(part for part in [page_title or title, snippet, text] if part)
+        has_product_signal = bool(PRODUCT_SIGNAL_RE.search(signal_text))
+        if NOISE_TEXT_RE.search(text) and len(text) < 220 and not has_product_signal:
             return None, "low_quality_noise_text"
 
         structured = self._extract_structured_product_data(soup)
-        if len(text) < 140 and not self._structured_has_signal(structured):
+        has_structured_signal = self._structured_has_signal(structured)
+        if len(text) < self.min_extracted_chars and not has_structured_signal and not has_product_signal:
             return None, "insufficient_content_signal"
+        if len(text) < self.min_extracted_chars and has_product_signal:
+            text = _safe_text(" ".join(part for part in [text, fallback_text] if part), max_chars=6500)
 
         trust = self._trust_score(
             domain=domain,
@@ -256,6 +298,52 @@ class ResearchProvider:
             ),
             "",
         )
+
+    def _build_snippet_fallback_document(
+        self,
+        *,
+        url: str,
+        title: str,
+        snippet: str,
+        provider: str,
+        reason: str,
+    ) -> ResearchDocument | None:
+        if not self.allow_snippet_fallback:
+            return None
+        text = _safe_text(" ".join(part for part in [title, snippet] if part), max_chars=1200)
+        if len(text) < 40:
+            return None
+        if not PRODUCT_SIGNAL_RE.search(text):
+            return None
+        domain = _to_domain(url)
+        trust = self._snippet_fallback_trust_score(domain=domain, text=text)
+        return ResearchDocument(
+            url=url,
+            domain=domain,
+            title=title,
+            snippet=snippet,
+            text=text,
+            trust_score=trust,
+            metadata={
+                "provider": provider,
+                "content_type": "snippet/fallback",
+                "structured": {},
+                "snippet_fallback": True,
+                "snippet_fallback_reason": reason,
+            },
+        )
+
+    def _snippet_fallback_trust_score(self, *, domain: str, text: str) -> float:
+        score = 0.28
+        if any(domain.endswith(marketplace) for marketplace in self.marketplace_domains):
+            score += 0.22
+        if re.search(r"\b(\d{2,6}(?:\.\d{1,2})?)\b", text):
+            score += 0.08
+        if re.search(r"\b(size|material|fabric|cotton|linen|silk|sku|model|in stock)\b", text, re.I):
+            score += 0.08
+        if PRODUCT_SIGNAL_RE.search(text):
+            score += 0.06
+        return max(0.0, min(0.74, score))
 
     @staticmethod
     def _looks_like_challenge(text: str, *, status_code: int = 200) -> bool:

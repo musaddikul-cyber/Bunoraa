@@ -7,6 +7,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -14,6 +15,7 @@ from django.utils import timezone
 
 from .providers.extractors import build_field_candidates, get_internal_similar_products
 from .providers.deep_research import ProductDeepResearchProvider
+from .providers.nn_vision import NNVisionInferenceError, NNVisionLoadError, NNVisionProvider
 from .providers.ocr import OCRProvider
 from .providers.personalization import PersonalizationProvider
 from .providers.pricing import PricingProvider
@@ -25,6 +27,53 @@ from .validators import normalize_raw_suggestions
 
 logger = logging.getLogger(__name__)
 autofill_logger = logging.getLogger("bunoraa.catalog.autofill")
+QUERY_GENERIC_TOKENS = {
+    "product",
+    "products",
+    "details",
+    "detail",
+    "model",
+    "models",
+    "wearing",
+    "photo",
+    "image",
+    "images",
+    "apparel",
+    "fashion",
+    "outfit",
+    "style",
+    "women",
+    "woman",
+    "men",
+    "man",
+    "set",
+    "black",
+    "white",
+    "brown",
+    "beige",
+    "pink",
+    "blue",
+    "green",
+    "red",
+    "yellow",
+    "purple",
+    "grey",
+    "gray",
+}
+RELAXED_QUERY_STOPWORDS = {
+    "product",
+    "products",
+    "details",
+    "detail",
+    "photo",
+    "photos",
+    "image",
+    "images",
+    "upload",
+    "file",
+    "tmp",
+    "temp",
+}
 
 
 def _looks_query_noise(token: str) -> bool:
@@ -72,8 +121,32 @@ def _query_seed_tokens(text: str) -> list[str]:
     return [
         token
         for token in tokens
-        if len(token) >= 3 and not _looks_query_noise(token)
+        if len(token) >= 3
+        and not _looks_query_noise(token)
+        and token.lower().strip("._-") not in QUERY_GENERIC_TOKENS
     ]
+
+
+def _query_seed_tokens_relaxed(text: str, *, limit: int = 12) -> list[str]:
+    tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9&'().+\-_]*", text or "")
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        cleaned = token.strip()
+        lowered = cleaned.lower().strip("._-")
+        if len(lowered) < 3:
+            continue
+        if _looks_query_noise(lowered):
+            continue
+        if lowered in RELAXED_QUERY_STOPWORDS:
+            continue
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        deduped.append(cleaned)
+        if len(deduped) >= limit:
+            break
+    return deduped
 
 
 class ProductAutofillEngine:
@@ -91,13 +164,32 @@ class ProductAutofillEngine:
         self.max_images = int(getattr(settings, "PRODUCT_AI_MAX_IMAGES", 4))
         self.product_ai_enabled = bool(getattr(settings, "PRODUCT_AI_ENABLED", False))
         self.strict_evidence_mode = bool(getattr(settings, "PRODUCT_AI_STRICT_EVIDENCE_MODE", True))
+        self.strict_evidence_hard_fail = bool(
+            getattr(settings, "PRODUCT_AI_STRICT_EVIDENCE_HARD_FAIL", False)
+        )
         self.fail_on_research_empty = bool(getattr(settings, "PRODUCT_AI_FAIL_ON_RESEARCH_EMPTY", True))
         self.min_web_sources = max(1, int(getattr(settings, "PRODUCT_AI_MIN_WEB_SOURCES", 3) or 3))
+        self.min_web_sources_with_nn = max(
+            1,
+            int(getattr(settings, "PRODUCT_AI_MIN_WEB_SOURCES_WITH_NN", self.min_web_sources) or self.min_web_sources),
+        )
         self.min_high_trust_docs = max(0, int(getattr(settings, "PRODUCT_AI_MIN_HIGH_TRUST_DOCS", 1) or 1))
+        self.strict_require_high_trust = bool(
+            getattr(settings, "PRODUCT_AI_STRICT_REQUIRE_HIGH_TRUST", False)
+        )
         self.max_research_latency_seconds = max(
             10,
             int(getattr(settings, "PRODUCT_AI_MAX_RESEARCH_LATENCY_SECONDS", 90) or 90),
         )
+        self.nn_enabled = bool(getattr(settings, "PRODUCT_AI_NN_ENABLED", False))
+        self.nn_model_id = str(getattr(settings, "PRODUCT_AI_NN_MODEL_ID", "openai/clip-vit-base-patch32") or "").strip()
+        self.nn_device = str(getattr(settings, "PRODUCT_AI_NN_DEVICE", "cpu") or "cpu").strip().lower()
+        self.nn_timeout_seconds = float(getattr(settings, "PRODUCT_AI_NN_TIMEOUT_SECONDS", 8.0) or 8.0)
+        self.nn_confidence_threshold = float(getattr(settings, "PRODUCT_AI_NN_CONFIDENCE_THRESHOLD", 0.26) or 0.26)
+        self.nn_model_cache_dir = str(
+            getattr(settings, "PRODUCT_AI_NN_MODEL_CACHE_DIR", str(Path(settings.BASE_DIR) / "ml" / "models_data" / "catalog_product_ai"))
+            or ""
+        ).strip()
         self.search_provider = SearchProvider()
         self.research_provider = ResearchProvider()
         self.deep_research_provider = ProductDeepResearchProvider(
@@ -106,6 +198,16 @@ class ProductAutofillEngine:
         )
         self.ocr_provider = OCRProvider()
         self.vision_provider = VisionProvider()
+        self.nn_vision_provider = (
+            NNVisionProvider(
+                model_id=self.nn_model_id,
+                device=self.nn_device,
+                timeout_seconds=self.nn_timeout_seconds,
+                cache_dir=self.nn_model_cache_dir,
+            )
+            if self.nn_enabled
+            else None
+        )
         self.pricing_provider = PricingProvider()
         self.personalization_provider = PersonalizationProvider()
         self._local_temp_files: list[str] = []
@@ -170,14 +272,50 @@ class ProductAutofillEngine:
                 )
 
             self._set_progress(15)
+            nn_result = self._default_nn_result(status="disabled")
+            if self.nn_enabled:
+                try:
+                    if not self.nn_vision_provider:
+                        raise NNVisionLoadError("NN provider is not initialized.")
+                    nn_result = self.nn_vision_provider.analyze(image_paths)
+                except NNVisionLoadError as exc:
+                    error_message = "Neural vision model is unavailable. Check ProductAI NN model configuration."
+                    error_summary = self._build_nn_error_summary(
+                        error_code="NN_MODEL_UNAVAILABLE",
+                        exception=exc,
+                    )
+                    self._fail(error_message, error_code="NN_MODEL_UNAVAILABLE", summary=error_summary)
+                    return {
+                        "status": "failed",
+                        "job_id": str(self.job.id),
+                        "error": error_message,
+                        "error_code": "NN_MODEL_UNAVAILABLE",
+                    }
+                except NNVisionInferenceError as exc:
+                    error_message = "Neural vision inference failed. Retry after verifying runtime dependencies and model cache."
+                    error_summary = self._build_nn_error_summary(
+                        error_code="NN_INFERENCE_FAILED",
+                        exception=exc,
+                    )
+                    self._fail(error_message, error_code="NN_INFERENCE_FAILED", summary=error_summary)
+                    return {
+                        "status": "failed",
+                        "job_id": str(self.job.id),
+                        "error": error_message,
+                        "error_code": "NN_INFERENCE_FAILED",
+                    }
+
             vision = self.vision_provider.analyze(image_paths)
+            vision = self._merge_nn_into_vision(vision=vision, nn_result=nn_result)
             autofill_logger.debug(
-                "Autofill vision summary job_id=%s image_count=%s aspect_ratio=%s colors=%s people_present=%s",
+                "Autofill vision summary job_id=%s image_count=%s aspect_ratio=%s colors=%s people_present=%s nn_status=%s nn_confidence=%.4f",
                 self.job.id,
                 vision.get("image_count", 0),
                 vision.get("aspect_ratio", ""),
                 vision.get("dominant_colors", []),
                 bool(vision.get("people_present")),
+                nn_result.get("nn_inference_status", "disabled"),
+                float(nn_result.get("nn_confidence", 0.0) or 0.0),
             )
             self._set_progress(30)
             ocr = self.ocr_provider.extract(image_paths)
@@ -225,6 +363,7 @@ class ProductAutofillEngine:
                     ocr=ocr,
                     vision=vision,
                     context_hints=context_hints,
+                    similar_products=similar_products,
                 )
                 if query:
                     if bool(getattr(settings, "PRODUCT_AI_DEEP_RESEARCH_ENABLED", True)):
@@ -302,6 +441,11 @@ class ProductAutofillEngine:
                     if str(getattr(doc, "domain", "") or "").strip()
                 }
             )
+            # Keep a transparent snapshot of web evidence before any strict-gate degradation.
+            reported_validated_source_count = validated_source_count
+            reported_high_trust_docs = high_trust_docs
+            reported_unique_domains = list(unique_domains)
+            persisted_research_docs = list(research_docs)
             research_diagnostics = dict(research_diagnostics or {})
             research_diagnostics.setdefault("duration_ms", research_duration_ms)
             research_diagnostics.setdefault("validated_source_count", validated_source_count)
@@ -309,6 +453,45 @@ class ProductAutofillEngine:
             research_diagnostics.setdefault("unique_domains", unique_domains)
             research_diagnostics.setdefault("query_present", bool(query))
             research_diagnostics.setdefault("search_provider", used_provider)
+            nn_confidence = float(nn_result.get("nn_confidence", 0.0) or 0.0)
+            nn_status = str(nn_result.get("nn_inference_status", "disabled") or "disabled")
+            nn_confident = self._is_nn_confident(nn_result)
+            effective_min_required_sources = self._effective_min_required_sources(nn_result)
+            configured_min_required_sources = self.min_web_sources
+            source_activity = self._build_source_activity(
+                search_results=search_results,
+                research_docs=research_docs,
+            )
+            research_diagnostics.setdefault("source_activity", source_activity)
+            research_diagnostics.setdefault("nn_confidence", nn_confidence)
+            research_diagnostics.setdefault("nn_inference_status", nn_status)
+            research_diagnostics.setdefault("nn_gate_confident", nn_confident)
+            self._update_summary(
+                {
+                    "strict_mode": self.strict_evidence_mode,
+                    "search_provider": used_provider,
+                    "search_query": query if self.job.allow_external else "",
+                    "search_result_count": len(search_results),
+                    "research_docs_count": len(research_docs),
+                    "validated_source_count": validated_source_count,
+                    "min_required_sources": effective_min_required_sources,
+                    "configured_min_required_sources": configured_min_required_sources,
+                    "effective_min_required_sources": effective_min_required_sources,
+                    "high_trust_doc_count": high_trust_docs,
+                    "research_duration_ms": research_duration_ms,
+                    "research_diagnostics": research_diagnostics,
+                    "source_activity": source_activity,
+                    "nn_enabled": self.nn_enabled,
+                    "nn_model_id": self.nn_model_id if self.nn_enabled else "",
+                    "nn_inference_status": nn_status,
+                    "nn_confidence": nn_confidence,
+                    "nn_labels": nn_result.get("nn_labels") or [],
+                    "nn_caption_like_summary": str(nn_result.get("nn_caption_like_summary") or ""),
+                    "nn_confidence_threshold": self.nn_confidence_threshold,
+                    "nn_gate_confident": nn_confident,
+                    "strict_require_high_trust": self.strict_require_high_trust,
+                }
+            )
             autofill_logger.info(
                 "Autofill research summary job_id=%s provider=%s query_present=%s search_results=%s docs=%s high_trust_docs=%s duration_ms=%s",
                 self.job.id,
@@ -325,6 +508,11 @@ class ProductAutofillEngine:
                 research_diagnostics,
             )
             self._set_progress(72)
+            strict_gate_failed = False
+            strict_gate_passed = True
+            strict_gate_enforced = False
+            strict_gate_error_code = ""
+            strict_gate_error_message = ""
 
             if self.strict_evidence_mode and self.job.allow_external:
                 strict_ok, error_code, error_message = self._evaluate_strict_research_gate(
@@ -333,12 +521,25 @@ class ProductAutofillEngine:
                     search_results=search_results,
                     research_docs=research_docs,
                     research_diagnostics=research_diagnostics,
+                    effective_min_sources=effective_min_required_sources,
                 )
                 if not strict_ok:
-                    summary = {
+                    strict_gate_failed = True
+                    strict_gate_passed = False
+                    strict_gate_enforced = self.strict_evidence_hard_fail
+                    strict_gate_error_code = error_code
+                    strict_gate_error_message = error_message
+                    strict_summary = {
                         "strict_mode": True,
+                        "strict_gate_passed": False,
+                        "strict_gate_failed": True,
+                        "strict_gate_enforced": strict_gate_enforced,
+                        "strict_gate_error_code": error_code,
+                        "strict_gate_error_message": error_message,
                         "error_code": error_code,
-                        "min_required_sources": self.min_web_sources,
+                        "min_required_sources": effective_min_required_sources,
+                        "configured_min_required_sources": configured_min_required_sources,
+                        "effective_min_required_sources": effective_min_required_sources,
                         "validated_source_count": validated_source_count,
                         "search_provider": used_provider,
                         "search_query": query,
@@ -347,14 +548,46 @@ class ProductAutofillEngine:
                         "high_trust_doc_count": high_trust_docs,
                         "research_diagnostics": research_diagnostics,
                         "deep_research": deep_research_summary,
+                        "source_activity": source_activity,
+                        "nn_enabled": self.nn_enabled,
+                        "nn_model_id": self.nn_model_id if self.nn_enabled else "",
+                        "nn_inference_status": nn_status,
+                        "nn_confidence": nn_confidence,
+                        "nn_labels": nn_result.get("nn_labels") or [],
+                        "nn_caption_like_summary": str(nn_result.get("nn_caption_like_summary") or ""),
+                        "nn_confidence_threshold": self.nn_confidence_threshold,
+                        "nn_gate_confident": nn_confident,
+                        "strict_require_high_trust": self.strict_require_high_trust,
                     }
-                    self._fail(error_message, error_code=error_code, summary=summary)
-                    return {
-                        "status": "failed",
-                        "job_id": str(self.job.id),
-                        "error": error_message,
-                        "error_code": error_code,
-                    }
+                    if strict_gate_enforced:
+                        self._fail(error_message, error_code=error_code, summary=strict_summary)
+                        return {
+                            "status": "failed",
+                            "job_id": str(self.job.id),
+                            "error": error_message,
+                            "error_code": error_code,
+                        }
+
+                    # Soft-fail strict research gate and continue with non-web evidence.
+                    autofill_logger.warning(
+                        "Autofill strict gate soft-fail job_id=%s error_code=%s message=%s",
+                        self.job.id,
+                        error_code,
+                        error_message,
+                    )
+                    research_docs = []
+                    validated_source_count = 0
+                    high_trust_docs = 0
+                    unique_domains = []
+                    research_diagnostics = dict(research_diagnostics or {})
+                    research_diagnostics["validated_source_count_before_soft_fail"] = reported_validated_source_count
+                    research_diagnostics["high_trust_doc_count_before_soft_fail"] = reported_high_trust_docs
+                    research_diagnostics["unique_domains_before_soft_fail"] = reported_unique_domains
+                    research_diagnostics["strict_gate_failed"] = True
+                    research_diagnostics["strict_gate_error_code"] = error_code
+                    research_diagnostics["strict_gate_error_message"] = error_message
+                    research_diagnostics["strict_gate_action"] = "degraded_to_internal_evidence"
+                    research_diagnostics["strict_gate_enforced"] = False
 
             category = getattr(self.job.product, "primary_category", None)
             if not category and similar_products:
@@ -426,7 +659,7 @@ class ProductAutofillEngine:
             self._set_progress(88)
 
             self._persist_sources(
-                research_docs=research_docs,
+                research_docs=persisted_research_docs,
                 search_provider=used_provider,
                 vision=vision,
                 similar_products=similar_products,
@@ -436,18 +669,35 @@ class ProductAutofillEngine:
                 summary={
                     "images_analyzed": len(image_paths),
                     "strict_mode": self.strict_evidence_mode,
+                    "strict_gate_passed": strict_gate_passed,
+                    "strict_gate_failed": strict_gate_failed,
+                    "strict_gate_enforced": strict_gate_enforced,
+                    "strict_gate_error_code": strict_gate_error_code,
+                    "strict_gate_error_message": strict_gate_error_message,
                     "search_provider": used_provider,
                     "search_query": query if self.job.allow_external else "",
                     "search_result_count": len(search_results),
-                    "research_docs_count": len(research_docs),
-                    "validated_source_count": len(research_docs),
-                    "min_required_sources": self.min_web_sources,
-                    "high_trust_doc_count": high_trust_docs,
+                    "research_docs_count": reported_validated_source_count,
+                    "validated_source_count": reported_validated_source_count,
+                    "min_required_sources": effective_min_required_sources,
+                    "configured_min_required_sources": configured_min_required_sources,
+                    "effective_min_required_sources": effective_min_required_sources,
+                    "high_trust_doc_count": reported_high_trust_docs,
                     "research_duration_ms": research_duration_ms,
                     "research_diagnostics": research_diagnostics,
                     "error_code": "",
                     "internal_similar_count": len(similar_products),
                     "deep_research": deep_research_summary,
+                    "source_activity": source_activity,
+                    "nn_enabled": self.nn_enabled,
+                    "nn_model_id": self.nn_model_id if self.nn_enabled else "",
+                    "nn_inference_status": nn_status,
+                    "nn_confidence": nn_confidence,
+                    "nn_labels": nn_result.get("nn_labels") or [],
+                    "nn_caption_like_summary": str(nn_result.get("nn_caption_like_summary") or ""),
+                    "nn_confidence_threshold": self.nn_confidence_threshold,
+                    "nn_gate_confident": nn_confident,
+                    "strict_require_high_trust": self.strict_require_high_trust,
                     "confidence_threshold": self.confidence_threshold,
                     "context_hint_keys": sorted(context_hints.keys()),
                     "non_null_suggestions": non_null_suggestions,
@@ -479,29 +729,60 @@ class ProductAutofillEngine:
         ocr: dict[str, Any],
         vision: dict[str, Any],
         context_hints: dict[str, Any],
+        similar_products: list[Any] | None = None,
     ) -> str:
+        similar_products = similar_products or []
         parts = []
         text_tokens = _query_seed_tokens(candidate_text)
+        relaxed_text_tokens = _query_seed_tokens_relaxed(candidate_text, limit=10)
         if text_tokens:
             parts.append(" ".join(text_tokens[:8]))
+        elif relaxed_text_tokens:
+            parts.append(" ".join(relaxed_text_tokens[:6]))
         hint_name = (context_hints.get("name") or "").strip()
         if hint_name:
             hint_tokens = _query_seed_tokens(hint_name)
             if hint_tokens:
                 parts.append(" ".join(hint_tokens[:6]))
         primary_category_name = (context_hints.get("primary_category_name") or "").strip()
+        if not primary_category_name:
+            for similar in similar_products[:3]:
+                category = getattr(similar, "primary_category", None)
+                category_name = str(getattr(category, "name", "") or "").strip()
+                if category_name:
+                    primary_category_name = category_name[:60]
+                    break
         if primary_category_name:
             parts.append(primary_category_name[:60])
         sku_candidates = ocr.get("sku_candidates") or []
         if sku_candidates:
             parts.append(str(sku_candidates[0])[:40])
+        image_name_codes: list[str] = []
+        image_names = context_hints.get("image_names")
+        if isinstance(image_names, list):
+            for raw_name in image_names[:3]:
+                stem = Path(str(raw_name or "").strip()).stem.strip()
+                if not stem:
+                    continue
+                for token in _query_seed_tokens(stem):
+                    if len(token) < 4:
+                        continue
+                    if token not in image_name_codes:
+                        image_name_codes.append(token)
+                if len(image_name_codes) >= 3:
+                    break
+        if image_name_codes:
+            parts.append(f"\"{image_name_codes[0][:50]}\"")
+        vision_tokens: list[str] = []
         if vision.get("tokens"):
             vision_tokens = [token for token in vision["tokens"][:4] if not _looks_query_noise(str(token))]
             if vision_tokens:
                 parts.append(" ".join(vision_tokens))
 
-        # Avoid broad web search when we do not have enough product-identifying anchors.
-        if not any([hint_name, primary_category_name, sku_candidates]) and len(text_tokens) < 3:
+        has_strong_anchor = any([hint_name, primary_category_name, sku_candidates, image_name_codes])
+        weak_signal_count = len(text_tokens[:3]) + len(relaxed_text_tokens[:3]) + len(vision_tokens[:3])
+        # Avoid broad web search only when both strong anchors and weak visual/text signals are missing.
+        if not has_strong_anchor and weak_signal_count < 3:
             return ""
         if not parts:
             return ""
@@ -516,6 +797,7 @@ class ProductAutofillEngine:
         search_results: list[dict[str, Any]],
         research_docs: list[Any],
         research_diagnostics: dict[str, Any],
+        effective_min_sources: int,
     ) -> tuple[bool, str, str]:
         if not query:
             return (
@@ -540,11 +822,12 @@ class ProductAutofillEngine:
             )
 
         validated_source_count = len(research_docs or [])
-        if validated_source_count < self.min_web_sources:
+        min_required = max(1, int(effective_min_sources or self.min_web_sources))
+        if validated_source_count < min_required:
             return (
                 False,
                 "INSUFFICIENT_WEB_SOURCES",
-                f"Deep research returned {validated_source_count} validated sources; minimum {self.min_web_sources} required.",
+                f"Deep research returned {validated_source_count} validated sources; minimum {min_required} required.",
             )
 
         high_trust_docs = sum(
@@ -552,7 +835,7 @@ class ProductAutofillEngine:
             for doc in (research_docs or [])
             if float(getattr(doc, "trust_score", 0.0) or 0.0) >= 0.65
         )
-        if high_trust_docs < self.min_high_trust_docs:
+        if self.strict_require_high_trust and high_trust_docs < self.min_high_trust_docs:
             return (
                 False,
                 "INSUFFICIENT_WEB_SOURCES",
@@ -605,6 +888,94 @@ class ProductAutofillEngine:
                     return True
         return False
 
+    def _default_nn_result(self, *, status: str) -> dict[str, Any]:
+        return {
+            "nn_enabled": self.nn_enabled,
+            "nn_model_id": self.nn_model_id if self.nn_enabled else "",
+            "nn_inference_status": status,
+            "nn_confidence": 0.0,
+            "nn_labels": [],
+            "nn_caption_like_summary": "",
+            "nn_tokens": [],
+        }
+
+    def _build_nn_error_summary(self, *, error_code: str, exception: Exception) -> dict[str, Any]:
+        return {
+            "strict_mode": self.strict_evidence_mode,
+            "error_code": error_code,
+            "nn_enabled": self.nn_enabled,
+            "nn_model_id": self.nn_model_id if self.nn_enabled else "",
+            "nn_inference_status": "failed",
+            "nn_confidence": 0.0,
+            "nn_labels": [],
+            "nn_caption_like_summary": "",
+            "nn_confidence_threshold": self.nn_confidence_threshold,
+            "nn_error": {
+                "exception_type": exception.__class__.__name__,
+                "message": str(exception),
+                "model_id": self.nn_model_id,
+                "cache_dir": self.nn_model_cache_dir,
+                "timeout_seconds": self.nn_timeout_seconds,
+            },
+            "strict_require_high_trust": self.strict_require_high_trust,
+            "configured_min_required_sources": self.min_web_sources,
+            "effective_min_required_sources": self.min_web_sources,
+            "min_required_sources": self.min_web_sources,
+        }
+
+    def _is_nn_confident(self, nn_result: dict[str, Any]) -> bool:
+        if not self.nn_enabled:
+            return False
+        status = str((nn_result or {}).get("nn_inference_status") or "").lower()
+        if status != "ok":
+            return False
+        confidence = float((nn_result or {}).get("nn_confidence", 0.0) or 0.0)
+        return confidence >= self.nn_confidence_threshold
+
+    def _effective_min_required_sources(self, nn_result: dict[str, Any]) -> int:
+        if not self._is_nn_confident(nn_result):
+            return self.min_web_sources
+        lowered = max(1, int(self.min_web_sources_with_nn or self.min_web_sources))
+        return min(self.min_web_sources, lowered)
+
+    @staticmethod
+    def _merge_nn_into_vision(vision: dict[str, Any], nn_result: dict[str, Any]) -> dict[str, Any]:
+        merged = dict(vision or {})
+        nn_payload = dict(nn_result or {})
+        merged.update(
+            {
+                "nn_inference_status": str(nn_payload.get("nn_inference_status") or "disabled"),
+                "nn_confidence": float(nn_payload.get("nn_confidence", 0.0) or 0.0),
+                "nn_labels": nn_payload.get("nn_labels") or [],
+                "nn_caption_like_summary": str(nn_payload.get("nn_caption_like_summary") or ""),
+                "nn_tokens": nn_payload.get("nn_tokens") or [],
+            }
+        )
+
+        tokens = list(merged.get("tokens") or [])
+        tokens.extend(str(token).strip() for token in (nn_payload.get("nn_tokens") or []) if str(token).strip())
+        merged["tokens"] = list(dict.fromkeys(tokens))[:20]
+
+        top_label = ""
+        labels = nn_payload.get("nn_labels") or []
+        if isinstance(labels, list) and labels:
+            top_label = str((labels[0] or {}).get("label") or "").strip()
+        if top_label:
+            existing_name = str(merged.get("candidate_name") or "").strip()
+            existing_lower = existing_name.lower()
+            if not existing_name or existing_lower in {"product", "item"} or existing_lower.endswith(" product"):
+                merged["candidate_name"] = top_label.title()
+
+        nn_caption = str(nn_payload.get("nn_caption_like_summary") or "").strip()
+        if nn_caption:
+            scene_summary = str(merged.get("scene_summary") or "").strip()
+            if not scene_summary:
+                merged["scene_summary"] = nn_caption
+            elif nn_caption.lower() not in scene_summary.lower():
+                merged["scene_summary"] = f"{scene_summary} {nn_caption}".strip()
+
+        return merged
+
     def _get_context_hints(self) -> dict[str, Any]:
         payload = self.job.input_payload or {}
         hints = payload.get("context_hints")
@@ -623,6 +994,19 @@ class ProductAutofillEngine:
             cleaned = [str(item).strip() for item in values if str(item).strip()]
             if cleaned:
                 chunks.append(" ".join(cleaned[:8]))
+        image_names = context_hints.get("image_names")
+        if isinstance(image_names, list):
+            image_tokens: list[str] = []
+            for raw_name in image_names[:4]:
+                name = str(raw_name or "").strip()
+                if not name:
+                    continue
+                stem = Path(name).stem.strip()
+                if not stem:
+                    continue
+                image_tokens.extend(_query_seed_tokens(stem))
+            if image_tokens:
+                chunks.append(" ".join(list(dict.fromkeys(image_tokens))[:6]))
         return " ".join(chunks).strip()
 
     def _collect_image_paths(self) -> list[str]:
@@ -793,6 +1177,75 @@ class ProductAutofillEngine:
             self.job.id,
             len(records),
         )
+
+    def _update_summary(self, summary_patch: dict[str, Any]):
+        if not isinstance(summary_patch, dict) or not summary_patch:
+            return
+        merged = dict(self.job.summary or {})
+        merged.update(summary_patch)
+        self.job.summary = merged
+        self.job.save(update_fields=["summary", "updated_at"])
+
+    def _build_source_activity(self, *, search_results: list[dict[str, Any]], research_docs: list[Any]) -> list[dict[str, str]]:
+        activity: list[dict[str, str]] = []
+        seen: set[str] = set()
+
+        def _normalize_domain(raw_domain: str, raw_url: str) -> str:
+            domain = str(raw_domain or "").strip().lower()
+            if not domain and raw_url:
+                try:
+                    domain = urlparse(raw_url).netloc.lower()
+                except Exception:
+                    domain = ""
+            if domain.startswith("www."):
+                domain = domain[4:]
+            return domain[:255]
+
+        def _append_entry(*, url: str, domain: str, title: str, provider: str, phase: str):
+            url = str(url or "").strip()
+            domain = _normalize_domain(domain, url)
+            if not domain and not url:
+                return
+            key = f"{domain}|{url or ''}"
+            if key in seen:
+                return
+            seen.add(key)
+            activity.append(
+                {
+                    "url": url or (f"https://{domain}/" if domain else ""),
+                    "domain": domain,
+                    "title": str(title or "").strip()[:160],
+                    "provider": str(provider or "").strip()[:60],
+                    "phase": phase,
+                }
+            )
+
+        for doc in research_docs or []:
+            metadata = getattr(doc, "metadata", {}) or {}
+            _append_entry(
+                url=str(getattr(doc, "url", "") or ""),
+                domain=str(getattr(doc, "domain", "") or ""),
+                title=str(getattr(doc, "title", "") or ""),
+                provider=str(metadata.get("provider") or ""),
+                phase="validated",
+            )
+            if len(activity) >= 12:
+                return activity
+
+        for result in search_results or []:
+            if not isinstance(result, dict):
+                continue
+            _append_entry(
+                url=str(result.get("url") or ""),
+                domain=str(result.get("domain") or ""),
+                title=str(result.get("title") or ""),
+                provider=str(result.get("provider") or ""),
+                phase="candidate",
+            )
+            if len(activity) >= 12:
+                break
+
+        return activity
 
     def _mark_running(self):
         self.job.status = self.job.STATUS_RUNNING

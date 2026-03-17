@@ -41,6 +41,30 @@ class CategoryService:
     def public_queryset(cls):
         """Categories visible to storefront/API consumers."""
         return Category.objects.filter(is_active=True, is_visible=True, is_deleted=False)
+
+    @classmethod
+    def _filter_public_lineage(cls, categories: List[Category]) -> List[Category]:
+        """Keep only categories whose full ancestor chain is publicly visible."""
+        if not categories:
+            return []
+
+        category_path_ids: dict[UUID, tuple[UUID, ...]] = {}
+        ancestor_ids: set[UUID] = set()
+
+        for category in categories:
+            path_ids = tuple(UUID(part) for part in str(category.path).split("/") if part)
+            category_path_ids[category.id] = path_ids
+            ancestor_ids.update(path_ids)
+
+        public_ids = set(
+            cls.public_queryset().filter(id__in=ancestor_ids).values_list("id", flat=True)
+        )
+
+        return [
+            category
+            for category in categories
+            if all(path_id in public_ids for path_id in category_path_ids[category.id])
+        ]
     
     @classmethod
     def get_category_tree(
@@ -300,12 +324,15 @@ class CategoryService:
     @classmethod
     def search_categories(cls, query: str, limit=10):
         """Search categories by name."""
-        return Category.objects.filter(
-            Q(name__icontains=query) | Q(slug__icontains=query),
-            is_active=True,
-            is_visible=True,
-            is_deleted=False
-        ).order_by("sort_order", "name", "path")[:limit]
+        matches = list(
+            Category.objects.filter(
+                Q(name__icontains=query) | Q(slug__icontains=query),
+                is_active=True,
+                is_visible=True,
+                is_deleted=False,
+            ).order_by("sort_order", "name", "path")
+        )
+        return cls._filter_public_lineage(matches)[:limit]
     
     @classmethod
     def get_breadcrumbs(cls, category: Category) -> List[Dict]:

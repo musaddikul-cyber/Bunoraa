@@ -45,6 +45,16 @@ def _normalize_origin(value: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or not str(value).strip():
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _normalize_rediss_url(url: str | None) -> str | None:
     if not url:
         return url
@@ -146,6 +156,7 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 # =============================================================================
 REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL'))
 if REDIS_URL:
+    _session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKIE_AGE)
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
@@ -169,12 +180,12 @@ if REDIS_URL:
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             },
             'KEY_PREFIX': 'session',
-            'TIMEOUT': 86400 * 30,  # 30 days
+            'TIMEOUT': _session_cache_timeout,
         }
     }
     
-    # Use Redis for sessions
-    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    # Keep session data durable even if Redis evicts entries.
+    SESSION_ENGINE = os.environ.get('SESSION_ENGINE', 'django.contrib.sessions.backends.cached_db')
     SESSION_CACHE_ALIAS = 'sessions'
 
 # =============================================================================

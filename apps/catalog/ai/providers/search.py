@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import logging
 import re
 import time
@@ -66,7 +67,11 @@ class SearchProvider:
             self.searxng_base_urls = [item.strip().rstrip("/") for item in raw_searxng_urls.split(",") if item.strip()]
         else:
             self.searxng_base_urls = [str(item).strip().rstrip("/") for item in (raw_searxng_urls or []) if str(item).strip()]
-        self.user_agent = "BunoraaProductAI/1.0 (+https://bunoraa.com)"
+        self.user_agent = (
+            str(getattr(settings, "PRODUCT_AI_SEARCH_USER_AGENT", "") or "").strip()
+            or str(getattr(settings, "PRODUCT_AI_USER_AGENT", "") or "").strip()
+            or "Mozilla/5.0"
+        )
         self._provider_state: dict[str, dict[str, Any]] = defaultdict(dict)
         self._last_search_diagnostics: dict[str, Any] = {}
 
@@ -251,12 +256,37 @@ class SearchProvider:
             parsed = urlparse(candidate)
         except Exception:
             return candidate
+        if "bing.com" in (parsed.netloc or ""):
+            params = parse_qs(parsed.query)
+            for key in ("u", "r"):
+                target = (params.get(key) or [None])[0]
+                decoded = SearchProvider._decode_bing_redirect_target(target)
+                if decoded:
+                    return decoded
         if parsed.path.startswith("/l/") and "duckduckgo.com" in (parsed.netloc or ""):
             params = parse_qs(parsed.query)
             target = params.get("uddg", [None])[0]
             if target:
                 return unquote(target)
         return candidate
+
+    @staticmethod
+    def _decode_bing_redirect_target(value: str | None) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        if raw.startswith(("http://", "https://")):
+            return raw
+        if raw.startswith("a1"):
+            encoded = raw[2:]
+            padded = encoded + ("=" * (-len(encoded) % 4))
+            try:
+                decoded = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8", errors="ignore").strip()
+            except Exception:
+                return ""
+            if decoded.startswith(("http://", "https://")):
+                return decoded
+        return ""
 
     def _search_serpapi(self, query: str, max_results: int) -> list[dict[str, Any]]:
         if not self.serpapi_key:

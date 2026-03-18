@@ -10,7 +10,7 @@ from urllib.parse import parse_qs
 
 import logging
 
-from asgiref.sync import sync_to_async
+from channels.db import database_sync_to_async
 from channels.auth import AuthMiddleware
 from channels.sessions import CookieMiddleware, SessionMiddleware
 from django.conf import settings
@@ -25,7 +25,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-@sync_to_async
+@database_sync_to_async
 def _get_user_from_validated_token(validated_token):
     user_id_claim = settings.SIMPLE_JWT.get("USER_ID_CLAIM", "user_id")
     user_id = validated_token.get(user_id_claim)

@@ -130,6 +130,16 @@ CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', _r
 CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip())
 
 _session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKIE_AGE)
+REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 5)
+REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 5)
+REDIS_HEALTH_CHECK_INTERVAL = _env_int('REDIS_HEALTH_CHECK_INTERVAL', 30)
+REDIS_MAX_CONNECTIONS = _env_int('REDIS_MAX_CONNECTIONS', 20)
+REDIS_RETRY_ON_TIMEOUT = _env_bool('REDIS_RETRY_ON_TIMEOUT', True)
+REDIS_IGNORE_EXCEPTIONS = _env_bool('REDIS_IGNORE_EXCEPTIONS', True)
+REDIS_LOG_IGNORED_EXCEPTIONS = _env_bool('REDIS_LOG_IGNORED_EXCEPTIONS', True)
+
+DJANGO_REDIS_IGNORE_EXCEPTIONS = REDIS_IGNORE_EXCEPTIONS
+DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = REDIS_LOG_IGNORED_EXCEPTIONS
 
 
 CACHES = {
@@ -139,11 +149,13 @@ CACHES = {
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_KWARGS': {
-                'max_connections': 20,
-                'retry_on_timeout': True,
+                'max_connections': REDIS_MAX_CONNECTIONS,
+                'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+                'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
             },
-            'SOCKET_CONNECT_TIMEOUT': 5,
-            'SOCKET_TIMEOUT': 5,
+            'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
+            'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
+            'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
         },
         'KEY_PREFIX': 'bunoraa',
         'TIMEOUT': 300,
@@ -153,6 +165,14 @@ CACHES = {
         'LOCATION': _redis_db_url(REDIS_URL, 1),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': max(5, REDIS_MAX_CONNECTIONS // 2),
+                'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+                'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
+            },
+            'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
+            'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
+            'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
         },
         'KEY_PREFIX': 'session',
         'TIMEOUT': _session_cache_timeout,

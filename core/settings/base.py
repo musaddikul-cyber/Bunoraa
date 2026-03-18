@@ -157,6 +157,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     'core',
+    'apps.admin_api',
     'apps.env_registry',
     'apps.accounts',
     'apps.artisans',
@@ -202,6 +203,7 @@ MIDDLEWARE = [
     'apps.analytics.middleware.AnalyticsMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.admin_api.middleware.AdminAuditMiddleware',
     'django_otp.middleware.OTPMiddleware',
     'axes.middleware.AxesMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
@@ -1169,6 +1171,7 @@ AXES_RESET_ON_SUCCESS = True
 AXES_CLIENT_IP_CALLABLE = 'core.utils.axes.get_client_ip'
 
 OTP_TOTP_ISSUER = os.environ.get('OTP_TOTP_ISSUER', 'Bunoraa Admin')
+ADMIN_MFA_REQUIRED = _env_bool('ADMIN_MFA_REQUIRED', True)
 
 # =============================================================================
 # ENV REGISTRY SETTINGS

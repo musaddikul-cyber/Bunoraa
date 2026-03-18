@@ -45,6 +45,13 @@ def _normalize_origin(value: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
+def _env_bool(key: str, default: bool = False) -> bool:
+    value = os.environ.get(key)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
 def _env_int(name: str, default: int) -> int:
     value = os.environ.get(name)
     if value is None or not str(value).strip():

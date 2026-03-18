@@ -101,6 +101,16 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # ============================================
+# Android
+# ============================================
+android-admin/.gradle/
+android-admin/**/build/
+android-admin/local.properties
+android-admin/*.keystore
+android-admin/*.jks
+android-admin/keystore.properties
+
+# ============================================
 # IDE & Editors
 # ============================================
 .idea/

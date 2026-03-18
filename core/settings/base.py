@@ -196,7 +196,8 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.locale.LocaleMiddleware',  # Must be after SessionMiddleware for language switching
+    # Use custom i18n middleware instead of Django's built-in (optimized with circuit breaker)
+    'apps.i18n.middleware.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'apps.analytics.middleware.AnalyticsMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -204,7 +205,6 @@ MIDDLEWARE = [
     'django_otp.middleware.OTPMiddleware',
     'axes.middleware.AxesMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
-    'apps.i18n.middleware.LocaleMiddleware',
     # 'core.middleware.bot_prerender.BotPreRenderMiddleware',  # Disabled: Memory overhead
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

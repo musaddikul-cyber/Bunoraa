@@ -7,6 +7,7 @@ import uuid
 import hashlib
 from decimal import Decimal
 from django.db import models
+from django.core.cache import cache
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
@@ -1266,6 +1267,9 @@ class I18nSettings(models.Model):
     class Meta:
         verbose_name = 'I18n Settings'
         verbose_name_plural = 'I18n Settings'
+
+    CACHE_KEY = 'i18n_settings_singleton'
+    CACHE_TIMEOUT = 300
     
     def __str__(self):
         return "I18n Settings"
@@ -1274,11 +1278,20 @@ class I18nSettings(models.Model):
         if not self.pk and I18nSettings.objects.exists():
             raise ValueError("Only one I18nSettings instance allowed")
         super().save(*args, **kwargs)
+        cache.delete(self.CACHE_KEY)
     
     @classmethod
     def get_settings(cls):
         """Get or create the settings instance."""
-        settings = cls.objects.first()
+        settings = cache.get(cls.CACHE_KEY)
+        if settings:
+            return settings
+
+        settings = cls.objects.select_related(
+            "default_language",
+            "default_currency",
+            "default_timezone",
+        ).first()
         if not settings:
             # Create defaults
             language, _ = Language.objects.get_or_create(
@@ -1314,4 +1327,5 @@ class I18nSettings(models.Model):
                 translation_provider='libretranslate',
                 enable_machine_translation=True,
             )
+        cache.set(cls.CACHE_KEY, settings, cls.CACHE_TIMEOUT)
         return settings

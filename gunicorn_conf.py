@@ -6,7 +6,8 @@ import os
 # ============================================
 # Reduce workers for memory-constrained environments (Render free/starter)
 # Each worker consumes significant memory, especially with Django ORM
-_default_workers = max(1, multiprocessing.cpu_count() // 2)
+# Default to a single worker to avoid exhausting small DB connection limits.
+_default_workers = 1
 workers = int(os.environ.get('GUNICORN_WORKERS', str(_default_workers)))
 
 bind = '0.0.0.0:' + os.environ.get('PORT', '8000')

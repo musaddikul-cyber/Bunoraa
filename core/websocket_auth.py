@@ -8,15 +8,21 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs
 
+import logging
+
 from asgiref.sync import sync_to_async
-from channels.auth import AuthMiddlewareStack
+from channels.auth import AuthMiddleware
+from channels.sessions import CookieMiddleware, SessionMiddleware
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
+from django.db import DatabaseError
+from django.db.utils import OperationalError
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import UntypedToken
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 @sync_to_async
@@ -79,6 +85,21 @@ class JWTAuthMiddleware:
         return await self.inner(scope, receive, send)
 
 
+class SafeAuthMiddleware(AuthMiddleware):
+    """Auth middleware that degrades to AnonymousUser on DB errors."""
+
+    async def resolve_scope(self, scope):
+        try:
+            await super().resolve_scope(scope)
+        except (DatabaseError, OperationalError) as exc:
+            scope["user"]._wrapped = AnonymousUser()
+            logger.warning("WebSocket auth fallback to anonymous due to DB error: %s", exc)
+
+
+def SafeAuthMiddlewareStack(inner):
+    return CookieMiddleware(SessionMiddleware(SafeAuthMiddleware(inner)))
+
+
 def JWTAuthMiddlewareStack(inner):
     """Session auth + JWT fallback stack."""
-    return JWTAuthMiddleware(AuthMiddlewareStack(inner))
+    return SafeAuthMiddlewareStack(JWTAuthMiddleware(inner))

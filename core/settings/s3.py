@@ -78,11 +78,14 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set in core.settings.s3")
 
 DB_ALLOW_WRITE = _env_bool('DB_ALLOW_WRITE', True)
+DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 0)
+DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 10000)
+DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
 
 DATABASES = {
     'default': dj_database_url.config(
         default=DATABASE_URL,
-        conn_max_age=300,
+        conn_max_age=DB_CONN_MAX_AGE,
         conn_health_checks=True,
         ssl_require=False,
     )
@@ -94,6 +97,23 @@ if not DB_ALLOW_WRITE:
         DATABASES['default']['OPTIONS'].get('options', ''),
         '-c default_transaction_read_only=on',
     )
+
+# Optimize connection pooling
+if 'OPTIONS' not in DATABASES['default']:
+    DATABASES['default']['OPTIONS'] = {}
+
+DATABASES['default']['OPTIONS'].update({
+    'connect_timeout': 10,
+    'isolation_level': 1,  # READ_COMMITTED
+})
+
+_pg_options = DATABASES['default']['OPTIONS'].get('options', '')
+if DB_STATEMENT_TIMEOUT_MS > 0:
+    _pg_options = _append_pg_option(_pg_options, f'-c statement_timeout={DB_STATEMENT_TIMEOUT_MS}')
+if DB_IDLE_TX_TIMEOUT_MS > 0:
+    _pg_options = _append_pg_option(_pg_options, f'-c idle_in_transaction_session_timeout={DB_IDLE_TX_TIMEOUT_MS}')
+if _pg_options:
+    DATABASES['default']['OPTIONS']['options'] = _pg_options
 
 # Enforce env-driven ORM read/write access in s3 settings.
 DATABASE_ROUTERS = ['core.db_router.EnvDatabaseAccessRouter']
@@ -152,6 +172,7 @@ CHANNEL_LAYERS = {
 
 # Keep session data durable even if Redis evicts entries.
 SESSION_ENGINE = os.environ.get('SESSION_ENGINE', 'django.contrib.sessions.backends.cached_db')
+SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
 SESSION_CACHE_ALIAS = 'sessions'
 
 # Security settings: in DEBUG (development), do not set secure-only cookies so CSRF cookie
@@ -212,13 +233,65 @@ if DEBUG:
 # =============================================================================
 # LOGGING - Reasonable verbosity for S3 development
 # =============================================================================
-LOGGING['handlers']['console']['level'] = 'DEBUG'
-LOGGING['handlers']['console']['filters'] = []  # Remove require_debug_true filter
-LOGGING['loggers']['bunoraa']['level'] = 'INFO'
-LOGGING['loggers']['bunoraa.i18n'] = {'level': 'DEBUG', 'handlers': ['console'], 'propagate': False}  # Debug currency issues
-LOGGING['loggers']['django']['level'] = 'INFO'
-LOGGING['loggers']['django.db.backends'] = {'level': 'WARNING', 'handlers': ['console'], 'propagate': False}  # Suppress SQL logging
-LOGGING['root']['level'] = 'INFO'
 
-# django.request errors go to console
-LOGGING['loggers'].setdefault('django.request', {'handlers': ['console'], 'level': 'ERROR', 'propagate': False})
+# Enhanced console handler with timestamps and structured format
+LOGGING['handlers']['console']['level'] = 'WARNING'
+LOGGING['handlers']['console']['filters'] = []  # Remove require_debug_true filter
+LOGGING['formatters']['simple']['format'] = '[{asctime}] {levelname:<8} [{name}:{lineno}] {message}'
+LOGGING['formatters']['simple']['style'] = '{'
+LOGGING['handlers']['console']['formatter'] = 'simple'
+
+# Application logging
+LOGGING['loggers']['bunoraa']['level'] = 'WARNING'
+
+# i18n middleware logging (database timezone/locale queries)
+LOGGING['loggers']['bunoraa.i18n'] = {
+    'level': 'WARNING',
+    'handlers': ['console'], 
+    'propagate': False
+}
+
+# Database connection and query logging
+LOGGING['loggers']['django.db.backends'] = {
+    'level': 'WARNING',
+    'handlers': ['console'], 
+    'propagate': False
+}
+
+# Django request/response logging
+LOGGING['loggers']['django.request'] = {
+    'level': 'WARNING',
+    'handlers': ['console'], 
+    'propagate': False
+}
+
+# Cache operations logging
+LOGGING['loggers']['django_redis'] = {
+    'level': 'WARNING',  # Only show cache errors/warnings
+    'handlers': ['console'],
+    'propagate': False
+}
+
+# Middleware logging
+LOGGING['loggers']['django.middleware'] = {
+    'level': 'WARNING',
+    'handlers': ['console'],
+    'propagate': False
+}
+
+# Authentication/security logging
+LOGGING['loggers']['django.security'] = {
+    'level': 'WARNING',
+    'handlers': ['console'],
+    'propagate': False
+}
+
+# Daphne/ASGI server logging
+LOGGING['loggers']['daphne'] = {
+    'level': 'WARNING',
+    'handlers': ['console'],
+    'propagate': False
+}
+
+LOGGING['loggers']['django'] = {'level': 'WARNING', 'handlers': ['console'], 'propagate': False}
+LOGGING['root']['level'] = 'WARNING'

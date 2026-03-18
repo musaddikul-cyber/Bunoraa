@@ -1207,9 +1207,28 @@ class TimezoneService:
         return timezones
     
     @staticmethod
+    def _get_cached_default_timezone() -> Optional[Timezone]:
+        """Get default timezone from cache only (no DB queries). Used when DB is unavailable."""
+        cache_key = 'i18n_default_timezone'
+        return cache.get(cache_key)
+    
+    @staticmethod
     def get_timezone_by_name(name: str) -> Optional[Timezone]:
-        """Get timezone by IANA name."""
-        return Timezone.objects.filter(name=name, is_active=True).first()
+        """Get timezone by IANA name with caching."""
+        if not name:
+            return None
+        cache_key = f'i18n_tz_{name}'
+        tz = cache.get(cache_key)
+        
+        if tz is None:
+            tz = Timezone.objects.filter(name=name, is_active=True).first()
+            if tz:
+                cache.set(cache_key, tz, TimezoneService.CACHE_TIMEOUT)
+            else:
+                # Cache miss for 1 hour to avoid repeated queries for invalid timezones
+                cache.set(cache_key, False, TimezoneService.CACHE_TIMEOUT)
+        
+        return tz if tz is not False else None
     
     @staticmethod
     def detect_timezone(request) -> Optional[Timezone]:
@@ -1234,23 +1253,31 @@ class TimezoneService:
     
     @staticmethod
     def get_user_timezone(user=None, request=None) -> Optional[Timezone]:
-        """Get timezone for user or request."""
+        """Get timezone for user or request with optimized queries."""
         if user and user.is_authenticated:
             try:
-                pref = UserLocalePreference.objects.filter(user=user).select_related('timezone').first()
-                if pref and pref.timezone and pref.timezone.is_active and not pref.auto_detect_timezone:
+                # Use select_related to avoid N+1 queries
+                pref = UserLocalePreference.objects.filter(
+                    user=user
+                ).select_related('timezone').first()
+                
+                if (pref and pref.timezone and pref.timezone.is_active 
+                    and not pref.auto_detect_timezone):
                     return pref.timezone
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error fetching user timezone: {e}")
         
         if request:
             return TimezoneService.detect_timezone(request)
         
         try:
             settings = I18nSettings.get_settings()
-            return settings.default_timezone
-        except Exception:
-            return None
+            if settings and settings.default_timezone:
+                return settings.default_timezone
+        except Exception as e:
+            logger.debug(f"Error fetching default timezone: {e}")
+        
+        return None
 
 
 # =============================================================================

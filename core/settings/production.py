@@ -109,21 +109,24 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set in production environment")
 
+DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 0)
+DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 30000)
+DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
+
 DATABASES = {
     'default': dj_database_url.config(
         default=DATABASE_URL,
-        conn_max_age=300,
+        conn_max_age=DB_CONN_MAX_AGE,
         conn_health_checks=True,
         ssl_require=True,
     )
 }
 
-# Connection pooling - Memory optimized for Render free tier
-DATABASES['default']['CONN_MAX_AGE'] = 120  # Reduced from 300 - Close connections faster
+# Connection pooling optimizations - Reduce connection exhaustion
 DATABASES['default']['OPTIONS'] = {
     'connect_timeout': 10,
-    'options': '-c statement_timeout=30000',
-    'isolation_level': 1,  # READ_COMMITTED - Reduces lock memory (psycopg3 compatible)
+    'options': f'-c statement_timeout={DB_STATEMENT_TIMEOUT_MS} -c idle_in_transaction_session_timeout={DB_IDLE_TX_TIMEOUT_MS}',
+    'isolation_level': 1,  # READ_COMMITTED - Reduces lock memory
 }
 
 # =============================================================================
@@ -186,6 +189,7 @@ if REDIS_URL:
     
     # Keep session data durable even if Redis evicts entries.
     SESSION_ENGINE = os.environ.get('SESSION_ENGINE', 'django.contrib.sessions.backends.cached_db')
+    SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
     SESSION_CACHE_ALIAS = 'sessions'
 
 # =============================================================================

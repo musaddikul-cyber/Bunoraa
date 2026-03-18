@@ -3,6 +3,7 @@ ASGI config for Bunoraa project.
 Supports HTTP, WebSocket, and background tasks.
 """
 import os
+import signal
 from pathlib import Path
 
 # Load .env file before Django initializes
@@ -29,8 +30,63 @@ if not settings_module or settings_module == 'core.settings':
 
 from django.core.asgi import get_asgi_application
 
+_SHUTTING_DOWN = False
+
+
+def _mark_shutting_down(*_args):
+    global _SHUTTING_DOWN
+    _SHUTTING_DOWN = True
+
+
+for _sig_name in ("SIGINT", "SIGTERM"):
+    _sig = getattr(signal, _sig_name, None)
+    if _sig is None:
+        continue
+    try:
+        signal.signal(_sig, _mark_shutting_down)
+    except (ValueError, RuntimeError):
+        # Signal handling only works in the main thread; ignore otherwise.
+        pass
+
 # Initialize Django ASGI application early to ensure apps are loaded
 django_asgi_app = get_asgi_application()
+
+
+async def _shutdown_aware_http_app(scope, receive, send):
+    if _SHUTTING_DOWN:
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 503,
+                "headers": [(b"content-type", b"text/plain")],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"Service shutting down",
+                "more_body": False,
+            }
+        )
+        return
+    return await django_asgi_app(scope, receive, send)
+
+
+async def _shutdown_aware_ws_app(scope, receive, send):
+    if _SHUTTING_DOWN:
+        await send(
+            {
+                "type": "websocket.close",
+                "code": 1013,  # Try again later
+                "reason": "Service shutting down",
+            }
+        )
+        return
+    return await AllowedHostsOriginValidator(
+        JWTAuthMiddlewareStack(
+            URLRouter(websocket_urlpatterns)
+        )
+    )(scope, receive, send)
 
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
@@ -39,10 +95,6 @@ from core.websocket_auth import JWTAuthMiddlewareStack
 
 
 application = ProtocolTypeRouter({
-    'http': django_asgi_app,
-    'websocket': AllowedHostsOriginValidator(
-        JWTAuthMiddlewareStack(
-            URLRouter(websocket_urlpatterns)
-        )
-    ),
+    'http': _shutdown_aware_http_app,
+    'websocket': _shutdown_aware_ws_app,
 })

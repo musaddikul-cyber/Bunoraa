@@ -5,6 +5,7 @@ Business logic for shipping calculations, carrier integrations, and tracking.
 from decimal import Decimal
 from typing import Optional, List, Dict, Any, Tuple
 from django.db import transaction
+from django.conf import settings
 from django.utils import timezone
 from django.core.cache import cache
 
@@ -417,6 +418,30 @@ class ShipmentService:
 
 class CarrierIntegrationService:
     """Service for carrier API integrations."""
+
+    @staticmethod
+    def _apply_env_credentials(carrier: ShippingCarrier) -> ShippingCarrier:
+        """Overlay carrier credentials from environment (non-persistent)."""
+        if not carrier or carrier.code != 'steadfast':
+            return carrier
+
+        api_key = getattr(settings, 'STEADFAST_API_KEY', '') or ''
+        api_secret = getattr(settings, 'STEADFAST_SECRET_KEY', '') or ''
+        api_endpoint = getattr(settings, 'STEADFAST_API_ENDPOINT', '') or ''
+        api_sandbox = getattr(settings, 'STEADFAST_API_SANDBOX', None)
+
+        if api_key:
+            carrier.api_key = api_key
+        if api_secret:
+            carrier.api_secret = api_secret
+        if api_endpoint:
+            carrier.api_endpoint = api_endpoint
+        if api_sandbox is not None:
+            carrier.api_sandbox = bool(api_sandbox)
+
+        if api_key and api_secret:
+            carrier.api_enabled = True
+        return carrier
     
     @classmethod
     def get_real_time_rates(
@@ -427,6 +452,7 @@ class CarrierIntegrationService:
         packages: List[Dict]
     ) -> List[Dict]:
         """Get real-time rates from carrier API."""
+        carrier = cls._apply_env_credentials(carrier)
         if not carrier.api_enabled:
             return []
         
@@ -469,6 +495,7 @@ class CarrierIntegrationService:
         package: Dict
     ) -> Optional[Dict]:
         """Create shipping label via carrier API."""
+        carrier = cls._apply_env_credentials(carrier)
         if not carrier.api_enabled or not carrier.supports_label_generation:
             return None
         
@@ -483,6 +510,7 @@ class CarrierIntegrationService:
         tracking_number: str
     ) -> Optional[Dict]:
         """Get tracking info from carrier API."""
+        carrier = cls._apply_env_credentials(carrier)
         if not carrier.api_enabled or not carrier.supports_tracking:
             return None
         

@@ -397,21 +397,31 @@ app.conf.task_routes = {
 
 # =============================================================================
 # Task settings - MEMORY OPTIMIZED
-app.conf.task_time_limit = 600  # 10 minutes hard limit
-app.conf.task_soft_time_limit = 540  # 9 minutes soft limit
-app.conf.task_acks_late = True  # Acknowledge after task completes
-app.conf.task_reject_on_worker_lost = True  # Reject if worker dies
+app.conf.broker_connection_retry_on_startup = getattr(
+    settings, 'CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP', True
+)
+app.conf.broker_connection_max_retries = getattr(
+    settings, 'CELERY_BROKER_CONNECTION_MAX_RETRIES', 100
+)
+
+app.conf.task_time_limit = getattr(settings, 'CELERY_TASK_TIME_LIMIT', 600)
+app.conf.task_soft_time_limit = getattr(settings, 'CELERY_TASK_SOFT_TIME_LIMIT', 540)
+app.conf.task_acks_late = getattr(settings, 'CELERY_TASK_ACKS_LATE', True)
+app.conf.task_reject_on_worker_lost = getattr(settings, 'CELERY_TASK_REJECT_ON_WORKER_LOST', True)
+app.conf.task_acks_on_failure_or_timeout = getattr(
+    settings, 'CELERY_TASK_ACKS_ON_FAILURE_OR_TIMEOUT', True
+)
 
 # Result backend settings
-app.conf.result_expires = 3600  # Results expire after 1 hour
+app.conf.result_expires = getattr(settings, 'CELERY_RESULT_EXPIRES', 3600)
 
 # Retry settings
-app.conf.task_default_retry_delay = 60  # 1 minute
-app.conf.task_max_retries = 3
+app.conf.task_default_retry_delay = getattr(settings, 'CELERY_TASK_DEFAULT_RETRY_DELAY', 60)
+app.conf.task_max_retries = getattr(settings, 'CELERY_TASK_MAX_RETRIES', 3)
 
 # Worker settings - MEMORY OPTIMIZED for 512MB limit
-app.conf.worker_prefetch_multiplier = 1  # Load one task at a time (4)
-app.conf.worker_max_tasks_per_child = 500  # Restart worker after 500 (1000) tasks to free memory
+app.conf.worker_prefetch_multiplier = getattr(settings, 'CELERY_WORKER_PREFETCH_MULTIPLIER', 1)
+app.conf.worker_max_tasks_per_child = getattr(settings, 'CELERY_WORKER_MAX_TASKS_PER_CHILD', 500)
 
 
 @app.task(bind=True)

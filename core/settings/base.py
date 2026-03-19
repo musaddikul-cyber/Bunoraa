@@ -197,7 +197,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    # Use custom i18n middleware instead of Django's built-in (optimized with circuit breaker)
+    'django.middleware.locale.LocaleMiddleware',
     'apps.i18n.middleware.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'apps.analytics.middleware.AnalyticsMiddleware',
@@ -1128,6 +1128,14 @@ NAGAD_MERCHANT_ID = os.environ.get('NAGAD_MERCHANT_ID', '')
 NAGAD_PUBLIC_KEY = os.environ.get('NAGAD_PUBLIC_KEY', '')
 NAGAD_PRIVATE_KEY = os.environ.get('NAGAD_PRIVATE_KEY', '')
 NAGAD_IS_SANDBOX = os.environ.get('NAGAD_IS_SANDBOX', 'True').lower() in ('1', 'true', 'yes')
+
+# =============================================================================
+# BANGLADESH SHIPPING PROVIDERS
+# =============================================================================
+STEADFAST_API_KEY = os.environ.get('STEADFAST_API_KEY', '')
+STEADFAST_SECRET_KEY = os.environ.get('STEADFAST_SECRET_KEY', '')
+STEADFAST_API_ENDPOINT = os.environ.get('STEADFAST_API_ENDPOINT', '')
+STEADFAST_API_SANDBOX = _env_bool('STEADFAST_API_SANDBOX', True)
 
 # =============================================================================
 # SMS PROVIDERS (Bangladesh)

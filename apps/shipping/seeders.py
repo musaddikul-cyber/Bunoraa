@@ -26,6 +26,38 @@ def _load_shipping_data(ctx: SeedContext) -> dict[str, Any]:
     with path.open("r", encoding="utf-8-sig") as fh:
         return json.load(fh)
 
+def _apply_carrier_env(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Overlay carrier API credentials from environment (non-secret JSON)."""
+    api_key = (os.environ.get("STEADFAST_API_KEY") or "").strip()
+    api_secret = (os.environ.get("STEADFAST_SECRET_KEY") or "").strip()
+    api_endpoint = (os.environ.get("STEADFAST_API_ENDPOINT") or "").strip()
+    sandbox_raw = os.environ.get("STEADFAST_API_SANDBOX")
+    api_sandbox = None
+    if sandbox_raw is not None:
+        api_sandbox = sandbox_raw.strip().lower() in ("1", "true", "yes", "on")
+
+    if not (api_key or api_secret or api_endpoint or api_sandbox is not None):
+        return records
+
+    updated: list[dict[str, Any]] = []
+    for record in records:
+        if record.get("code") != "steadfast":
+            updated.append(record)
+            continue
+        payload = dict(record)
+        if api_key:
+            payload["api_key"] = api_key
+        if api_secret:
+            payload["api_secret"] = api_secret
+        if api_endpoint:
+            payload["api_endpoint"] = api_endpoint
+        if api_sandbox is not None:
+            payload["api_sandbox"] = api_sandbox
+        if api_key and api_secret:
+            payload["api_enabled"] = True
+        updated.append(payload)
+    return updated
+
 
 class ShippingSectionSeedSpec(JSONSeedSpec):
     section_key: str = ""
@@ -37,7 +69,11 @@ class ShippingSectionSeedSpec(JSONSeedSpec):
     def load_records(self, ctx: SeedContext) -> list[dict[str, Any]]:
         data = _load_shipping_data(ctx)
         records = data.get(self.section_key, [])
-        return list(records) if isinstance(records, list) else []
+        if not isinstance(records, list):
+            return []
+        if self.section_key == "carriers":
+            return _apply_carrier_env(list(records))
+        return list(records)
 
 
 class ShippingSettingsSeedSpec(SeedSpec):

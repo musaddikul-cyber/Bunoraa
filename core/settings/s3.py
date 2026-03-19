@@ -137,9 +137,27 @@ REDIS_MAX_CONNECTIONS = _env_int('REDIS_MAX_CONNECTIONS', 20)
 REDIS_RETRY_ON_TIMEOUT = _env_bool('REDIS_RETRY_ON_TIMEOUT', True)
 REDIS_IGNORE_EXCEPTIONS = _env_bool('REDIS_IGNORE_EXCEPTIONS', True)
 REDIS_LOG_IGNORED_EXCEPTIONS = _env_bool('REDIS_LOG_IGNORED_EXCEPTIONS', True)
+REDIS_USE_BLOCKING_POOL = _env_bool('REDIS_USE_BLOCKING_POOL', True)
+REDIS_POOL_BLOCKING_TIMEOUT = _env_int('REDIS_POOL_BLOCKING_TIMEOUT', 5)
 
 DJANGO_REDIS_IGNORE_EXCEPTIONS = REDIS_IGNORE_EXCEPTIONS
 DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = REDIS_LOG_IGNORED_EXCEPTIONS
+
+def _redis_pool_kwargs(max_connections: int) -> dict[str, object]:
+    kwargs = {
+        'max_connections': max_connections,
+        'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+        'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
+    }
+    if REDIS_USE_BLOCKING_POOL:
+        kwargs['timeout'] = REDIS_POOL_BLOCKING_TIMEOUT
+    return kwargs
+
+_redis_pool_class = (
+    'redis.connection.BlockingConnectionPool'
+    if REDIS_USE_BLOCKING_POOL
+    else 'redis.connection.ConnectionPool'
+)
 
 
 CACHES = {
@@ -148,14 +166,12 @@ CACHES = {
         'LOCATION': REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'CONNECTION_POOL_KWARGS': {
-                'max_connections': REDIS_MAX_CONNECTIONS,
-                'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
-                'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
-            },
+            'CONNECTION_POOL_CLASS': _redis_pool_class,
+            'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(REDIS_MAX_CONNECTIONS),
             'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
             'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
             'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
+            'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
         },
         'KEY_PREFIX': 'bunoraa',
         'TIMEOUT': 300,
@@ -165,14 +181,12 @@ CACHES = {
         'LOCATION': _redis_db_url(REDIS_URL, 1),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'CONNECTION_POOL_KWARGS': {
-                'max_connections': max(5, REDIS_MAX_CONNECTIONS // 2),
-                'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
-                'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
-            },
+            'CONNECTION_POOL_CLASS': _redis_pool_class,
+            'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(max(5, REDIS_MAX_CONNECTIONS // 2)),
             'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
             'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
             'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
+            'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
         },
         'KEY_PREFIX': 'session',
         'TIMEOUT': _session_cache_timeout,
@@ -194,6 +208,22 @@ CHANNEL_LAYERS = {
 SESSION_ENGINE = os.environ.get('SESSION_ENGINE', 'django.contrib.sessions.backends.cached_db')
 SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
 SESSION_CACHE_ALIAS = 'sessions'
+
+# =============================================================================
+# CELERY - Tuned defaults for local S3 settings
+# =============================================================================
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = _env_bool('CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP', True)
+CELERY_BROKER_CONNECTION_MAX_RETRIES = _env_int('CELERY_BROKER_CONNECTION_MAX_RETRIES', 100)
+CELERY_WORKER_PREFETCH_MULTIPLIER = _env_int('CELERY_WORKER_PREFETCH_MULTIPLIER', 1)
+CELERY_WORKER_MAX_TASKS_PER_CHILD = _env_int('CELERY_WORKER_MAX_TASKS_PER_CHILD', 500)
+CELERY_TASK_ACKS_LATE = _env_bool('CELERY_TASK_ACKS_LATE', True)
+CELERY_TASK_REJECT_ON_WORKER_LOST = _env_bool('CELERY_TASK_REJECT_ON_WORKER_LOST', True)
+CELERY_TASK_ACKS_ON_FAILURE_OR_TIMEOUT = _env_bool('CELERY_TASK_ACKS_ON_FAILURE_OR_TIMEOUT', True)
+CELERY_TASK_TIME_LIMIT = _env_int('CELERY_TASK_TIME_LIMIT', 600)
+CELERY_TASK_SOFT_TIME_LIMIT = _env_int('CELERY_TASK_SOFT_TIME_LIMIT', 540)
+CELERY_RESULT_EXPIRES = _env_int('CELERY_RESULT_EXPIRES', 3600)
+CELERY_TASK_DEFAULT_RETRY_DELAY = _env_int('CELERY_TASK_DEFAULT_RETRY_DELAY', 60)
+CELERY_TASK_MAX_RETRIES = _env_int('CELERY_TASK_MAX_RETRIES', 3)
 
 # Security settings: in DEBUG (development), do not set secure-only cookies so CSRF cookie
 # will be sent over plain HTTP. In production (DEBUG=False), enable stricter security.

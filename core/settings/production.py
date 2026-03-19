@@ -169,13 +169,31 @@ if REDIS_URL:
     REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 5)
     REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 5)
     REDIS_HEALTH_CHECK_INTERVAL = _env_int('REDIS_HEALTH_CHECK_INTERVAL', 30)
-    REDIS_MAX_CONNECTIONS = _env_int('REDIS_MAX_CONNECTIONS', 20)
+    REDIS_MAX_CONNECTIONS = _env_int('REDIS_MAX_CONNECTIONS', 50)
     REDIS_RETRY_ON_TIMEOUT = _env_bool('REDIS_RETRY_ON_TIMEOUT', True)
     REDIS_IGNORE_EXCEPTIONS = _env_bool('REDIS_IGNORE_EXCEPTIONS', True)
     REDIS_LOG_IGNORED_EXCEPTIONS = _env_bool('REDIS_LOG_IGNORED_EXCEPTIONS', True)
+    REDIS_USE_BLOCKING_POOL = _env_bool('REDIS_USE_BLOCKING_POOL', True)
+    REDIS_POOL_BLOCKING_TIMEOUT = _env_int('REDIS_POOL_BLOCKING_TIMEOUT', 5)
 
     DJANGO_REDIS_IGNORE_EXCEPTIONS = REDIS_IGNORE_EXCEPTIONS
     DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = REDIS_LOG_IGNORED_EXCEPTIONS
+
+    def _redis_pool_kwargs(max_connections: int) -> dict[str, object]:
+        kwargs = {
+            'max_connections': max_connections,
+            'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+            'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
+        }
+        if REDIS_USE_BLOCKING_POOL:
+            kwargs['timeout'] = REDIS_POOL_BLOCKING_TIMEOUT
+        return kwargs
+
+    _redis_pool_class = (
+        'redis.connection.BlockingConnectionPool'
+        if REDIS_USE_BLOCKING_POOL
+        else 'redis.connection.ConnectionPool'
+    )
 
     _session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKIE_AGE)
     CACHES = {
@@ -184,14 +202,12 @@ if REDIS_URL:
             'LOCATION': REDIS_URL,
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'CONNECTION_POOL_KWARGS': {
-                    'max_connections': REDIS_MAX_CONNECTIONS,  # Reduced for free tier
-                    'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
-                    'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
-                },
+                'CONNECTION_POOL_CLASS': _redis_pool_class,
+                'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(REDIS_MAX_CONNECTIONS),
                 'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
                 'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
                 'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
+                'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
             },
             'KEY_PREFIX': 'bunoraa',
             'TIMEOUT': 300,
@@ -201,14 +217,12 @@ if REDIS_URL:
             'LOCATION': _redis_db_url(REDIS_URL, 1),
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'CONNECTION_POOL_KWARGS': {
-                    'max_connections': max(5, REDIS_MAX_CONNECTIONS // 2),
-                    'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
-                    'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
-                },
+                'CONNECTION_POOL_CLASS': _redis_pool_class,
+                'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(max(5, REDIS_MAX_CONNECTIONS // 2)),
                 'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
                 'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
                 'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
+                'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
             },
             'KEY_PREFIX': 'session',
             'TIMEOUT': _session_cache_timeout,
@@ -266,10 +280,23 @@ CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', RE
 CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', REDIS_URL))
 CELERY_TASK_ALWAYS_EAGER = False
 
+# Connection retry behavior
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = _env_bool('CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP', True)
+CELERY_BROKER_CONNECTION_MAX_RETRIES = _env_int('CELERY_BROKER_CONNECTION_MAX_RETRIES', 100)
+
 # Worker memory optimization
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # One task at a time
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 500  # Restart worker after 500 tasks
-CELERY_TASK_ACKS_LATE = True  # Acknowledge after completion
+CELERY_WORKER_PREFETCH_MULTIPLIER = _env_int('CELERY_WORKER_PREFETCH_MULTIPLIER', 1)  # One task at a time
+CELERY_WORKER_MAX_TASKS_PER_CHILD = _env_int('CELERY_WORKER_MAX_TASKS_PER_CHILD', 500)  # Restart worker after 500 tasks
+CELERY_TASK_ACKS_LATE = _env_bool('CELERY_TASK_ACKS_LATE', True)  # Acknowledge after completion
+CELERY_TASK_REJECT_ON_WORKER_LOST = _env_bool('CELERY_TASK_REJECT_ON_WORKER_LOST', True)
+CELERY_TASK_ACKS_ON_FAILURE_OR_TIMEOUT = _env_bool('CELERY_TASK_ACKS_ON_FAILURE_OR_TIMEOUT', True)
+
+# Task timeouts and retries
+CELERY_TASK_TIME_LIMIT = _env_int('CELERY_TASK_TIME_LIMIT', 600)  # 10 minutes hard limit
+CELERY_TASK_SOFT_TIME_LIMIT = _env_int('CELERY_TASK_SOFT_TIME_LIMIT', 540)  # 9 minutes soft limit
+CELERY_RESULT_EXPIRES = _env_int('CELERY_RESULT_EXPIRES', 3600)  # 1 hour
+CELERY_TASK_DEFAULT_RETRY_DELAY = _env_int('CELERY_TASK_DEFAULT_RETRY_DELAY', 60)
+CELERY_TASK_MAX_RETRIES = _env_int('CELERY_TASK_MAX_RETRIES', 3)
 
 # =============================================================================
 # CHANNEL LAYERS - WebSockets with Redis

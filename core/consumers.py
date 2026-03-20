@@ -1,24 +1,41 @@
 """
-WebSocket consumers for real-time updates
+WebSocket consumers for real-time updates - Production Ready
+
+Features:
+- Keep-alive ping/pong
+- Message validation
+- Rate limiting
+- Comprehensive logging
 """
 import json
 import logging
-from channels.generic.websocket import AsyncWebsocketConsumer
+import asyncio
 from channels.db import database_sync_to_async
 from django.core.cache import cache
 from django.conf import settings
 from django.db import models
+from pydantic import BaseModel
+
+from .websocket.base import ProducerWebSocketConsumer, ProducerJsonWebSocketConsumer
 
 logger = logging.getLogger('bunoraa.websocket')
 
 
-class NotificationConsumer(AsyncWebsocketConsumer):
+class NotificationConsumer(ProducerWebSocketConsumer):
     """
     WebSocket consumer for real-time notifications.
+    Features: Keep-alive, rate limiting, message validation.
     """
+    
+    CONSUMER_NAME = "NotificationConsumer"
+    PING_INTERVAL = 30
+    RATE_LIMIT_MESSAGES = 20
+    RATE_LIMIT_WINDOW = 10
     
     async def connect(self):
         """Handle WebSocket connection."""
+        await super().connect()  # Initialize base class
+        
         self.user = self.scope.get('user')
         
         if self.user and self.user.is_authenticated:
@@ -37,15 +54,17 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             )
             
             await self.accept()
+            await self.start_keep_alive()
             
             # Send unread notifications count
             unread_count = await self.get_unread_count()
             await self.send(json.dumps({
                 'type': 'connection_established',
                 'unread_count': unread_count,
+                'timestamp': __import__('time').time(),
             }))
             
-            logger.info(f"WebSocket connected: user {self.user.id}")
+            logger.info(f"[NotificationConsumer] Connected: user {self.user.id}")
         else:
             # Allow anonymous connections for broadcasts only
             await self.channel_layer.group_add(
@@ -53,7 +72,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             await self.accept()
-            logger.info("WebSocket connected: anonymous user")
+            await self.start_keep_alive()
+            logger.info("[NotificationConsumer] Connected: anonymous user")
     
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection."""
@@ -68,53 +88,32 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
         
-        logger.info(f"WebSocket disconnected: {close_code}")
+        await super().disconnect(close_code)
     
-    async def receive(self, text_data):
-        """Handle incoming WebSocket messages."""
-        try:
-            data = json.loads(text_data)
-            message_type = data.get('type')
-
-            if await self._is_rate_limited():
-                await self.send(json.dumps({
-                    'type': 'error',
-                    'message': 'Rate limit exceeded. Please slow down.',
-                }))
-                await self.close()
-                return
-
-            allowed_types = {'mark_read', 'mark_all_read', 'ping'}
-
-            if message_type not in allowed_types:
-                return
-
-            if not (self.user and self.user.is_authenticated):
-                # Only allow ping for anonymous connections
-                if message_type == 'ping':
-                    await self.send(json.dumps({'type': 'pong'}))
-                return
-            
-            if message_type == 'mark_read':
-                notification_id = data.get('notification_id')
-                await self.mark_notification_read(notification_id)
-                
-            elif message_type == 'mark_all_read':
-                await self.mark_all_notifications_read()
-                
-            elif message_type == 'ping':
-                await self.send(json.dumps({'type': 'pong'}))
-                
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON received")
-        except Exception as e:
-            logger.error(f"WebSocket receive error: {e}")
+    async def handle_mark_read(self, data):
+        """Mark a notification as read."""
+        notification_id = data.get('notification_id')
+        if notification_id and self.user and self.user.is_authenticated:
+            await self.mark_notification_read(notification_id)
+            await self.send_success({
+                'type': 'mark_read_success',
+                'notification_id': notification_id,
+            })
+    
+    async def handle_mark_all_read(self, data):
+        """Mark all notifications as read."""
+        if self.user and self.user.is_authenticated:
+            await self.mark_all_notifications_read()
+            await self.send_success({
+                'type': 'mark_all_read_success',
+            })
     
     async def notification_message(self, event):
         """Send notification to WebSocket."""
         await self.send(json.dumps({
             'type': 'notification',
             'notification': event['notification'],
+            'timestamp': __import__('time').time(),
         }))
     
     async def broadcast_message(self, event):
@@ -178,39 +177,22 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             is_read=False
         ).update(is_read=True)
 
-    async def _is_rate_limited(self):
-        """Simple per-user/IP rate limit for inbound WS messages."""
-        limit = getattr(settings, 'NOTIFICATION_WS_RATE_LIMIT_COUNT', 20)
-        window = getattr(settings, 'NOTIFICATION_WS_RATE_LIMIT_WINDOW', 10)
-        identifier = None
-        if self.user and self.user.is_authenticated:
-            identifier = f"user:{self.user.id}"
-        else:
-            client = self.scope.get('client') or ['anon']
-            identifier = f"ip:{client[0]}"
-        key = f"ws_notify:{identifier}"
 
-        current = cache.get(key)
-        if current is None:
-            cache.set(key, 1, window)
-            return False
-        if current >= limit:
-            return True
-        try:
-            cache.incr(key)
-        except Exception:
-            cache.set(key, current + 1, window)
-        return False
-
-
-class LiveCartConsumer(AsyncWebsocketConsumer):
+class LiveCartConsumer(ProducerWebSocketConsumer):
     """
     WebSocket consumer for real-time cart updates.
-    Useful for shared carts or admin monitoring.
+    Features: Keep-alive, multi-tab sync, production-ready.
     """
     
+    CONSUMER_NAME = "LiveCartConsumer"
+    PING_INTERVAL = 30
+    RATE_LIMIT_MESSAGES = 50
+    RATE_LIMIT_WINDOW = 10
+
     async def connect(self):
         """Handle WebSocket connection."""
+        await super().connect()
+        
         self.session_key = self.scope.get('session', {}).get('session_key', 'anonymous')
         self.cart_group = f'cart_{self.session_key}'
         
@@ -220,6 +202,8 @@ class LiveCartConsumer(AsyncWebsocketConsumer):
         )
         
         await self.accept()
+        await self.start_keep_alive()
+        logger.info(f"[LiveCartConsumer] Connected: session {self.session_key}")
     
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection."""
@@ -227,23 +211,17 @@ class LiveCartConsumer(AsyncWebsocketConsumer):
             self.cart_group,
             self.channel_name
         )
+        await super().disconnect(close_code)
     
-    async def receive(self, text_data):
-        """Handle incoming messages."""
-        try:
-            data = json.loads(text_data)
-            
-            if data.get('type') == 'cart_update':
-                # Broadcast cart update to all tabs
-                await self.channel_layer.group_send(
-                    self.cart_group,
-                    {
-                        'type': 'cart_changed',
-                        'cart': data.get('cart'),
-                    }
-                )
-        except Exception as e:
-            logger.error(f"Cart WebSocket error: {e}")
+    async def handle_cart_update(self, data):
+        """Broadcast cart update to all tabs."""
+        await self.channel_layer.group_send(
+            self.cart_group,
+            {
+                'type': 'cart_changed',
+                'cart': data.get('cart'),
+            }
+        )
     
     async def cart_changed(self, event):
         """Send cart update to WebSocket."""
@@ -253,42 +231,45 @@ class LiveCartConsumer(AsyncWebsocketConsumer):
         }))
 
 
-class LiveSearchConsumer(AsyncWebsocketConsumer):
+class LiveSearchConsumer(ProducerWebSocketConsumer):
     """
     WebSocket consumer for real-time search suggestions.
-    Provides faster search-as-you-type functionality.
+    Features: Keep-alive, caching, fast search-as-you-type.
     """
     
+    CONSUMER_NAME = "LiveSearchConsumer"
+    PING_INTERVAL = 30
+    RATE_LIMIT_MESSAGES = 100
+    RATE_LIMIT_WINDOW = 10
+
     async def connect(self):
         """Handle WebSocket connection."""
+        await super().connect()
         await self.accept()
+        await self.start_keep_alive()
+        logger.info("[LiveSearchConsumer] Connected")
     
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection."""
-        pass
+        await super().disconnect(close_code)
     
-    async def receive(self, text_data):
+    async def handle_search(self, data):
         """Handle search query."""
-        try:
-            data = json.loads(text_data)
-            query = data.get('query', '').strip()
-            
-            if len(query) >= 2:
-                results = await self.search_products(query)
-                await self.send(json.dumps({
-                    'type': 'search_results',
-                    'query': query,
-                    'results': results,
-                }))
-            else:
-                await self.send(json.dumps({
-                    'type': 'search_results',
-                    'query': query,
-                    'results': [],
-                }))
-                
-        except Exception as e:
-            logger.error(f"Search WebSocket error: {e}")
+        query = (data.get('query') or '').strip()
+        
+        if len(query) >= 2:
+            results = await self.search_products(query)
+            await self.send_success({
+                'type': 'search_results',
+                'query': query,
+                'results': results,
+            })
+        else:
+            await self.send_success({
+                'type': 'search_results',
+                'query': query,
+                'results': [],
+            })
     
     @database_sync_to_async
     def search_products(self, query):
@@ -327,24 +308,40 @@ class LiveSearchConsumer(AsyncWebsocketConsumer):
         return results
 
 
-class AnalyticsConsumer(AsyncWebsocketConsumer):
+class AnalyticsConsumer(ProducerWebSocketConsumer):
     """
-    WebSocket consumer for real-time analytics (admin only).
+    WebSocket consumer for real-time analytics (staff only).
+    Features: Keep-alive, authentication, real-time stats.  
     """
     
+    CONSUMER_NAME = "AnalyticsConsumer"
+    PING_INTERVAL = 30
+    RATE_LIMIT_MESSAGES = 50
+    RATE_LIMIT_WINDOW = 10
+
     async def connect(self):
         """Handle WebSocket connection."""
+        await super().connect()
+        
         self.user = self.scope.get('user')
         
-        if self.user and self.user.is_staff:
-            await self.channel_layer.group_add(
-                'analytics',
-                self.channel_name
+        # Check staff/agent permission
+        is_authorized = await self.check_authorization()
+        if not is_authorized:
+            logger.warning(
+                f"[AnalyticsConsumer] Unauthorized access attempt: {self.user}"
             )
-            await self.accept()
-            logger.info(f"Analytics WebSocket connected: {self.user.email}")
-        else:
-            await self.close()
+            await self.close(code=1008)  # Policy violation
+            return
+        
+        await self.channel_layer.group_add(
+            'analytics',
+            self.channel_name
+        )
+        
+        await self.accept()
+        await self.start_keep_alive()
+        logger.info(f"[AnalyticsConsumer] Connected: {self.user.email}")
     
     async def disconnect(self, close_code):
         """Handle WebSocket disconnection."""
@@ -352,35 +349,36 @@ class AnalyticsConsumer(AsyncWebsocketConsumer):
             'analytics',
             self.channel_name
         )
+        await super().disconnect(close_code)
     
-    async def receive(self, text_data):
-        """Handle incoming requests."""
-        try:
-            data = json.loads(text_data)
-            
-            if data.get('type') == 'get_live_stats':
-                stats = await self.get_live_stats()
-                await self.send(json.dumps({
-                    'type': 'live_stats',
-                    'stats': stats,
-                }))
-                
-        except Exception as e:
-            logger.error(f"Analytics WebSocket error: {e}")
+    async def handle_get_live_stats(self, data):
+        """Request live statistics."""
+        stats = await self.get_live_stats()
+        await self.send_success({
+            'type': 'live_stats',
+            'stats': stats,
+        })
+    
+    @database_sync_to_async
+    def check_authorization(self):
+        """Check if user is staff or authorized agent."""
+        if not self.user or not self.user.is_authenticated:
+            return False
+        return self.user.is_staff or hasattr(self.user, 'agent_profile')
     
     async def page_view(self, event):
         """Notify of new page view."""
-        await self.send(json.dumps({
+        await self.send_success({
             'type': 'page_view',
             'data': event['data'],
-        }))
+        })
     
     async def order_placed(self, event):
         """Notify of new order."""
-        await self.send(json.dumps({
+        await self.send_success({
             'type': 'order_placed',
             'data': event['data'],
-        }))
+        })
     
     @database_sync_to_async
     def get_live_stats(self):

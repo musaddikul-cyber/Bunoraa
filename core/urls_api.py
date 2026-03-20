@@ -9,6 +9,11 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 from apps.accounts.api.views import MfaTokenObtainPairView
+from core.websocket.health_views import (
+    websocket_health,
+    websocket_status,
+    websocket_metrics,
+)
 
 app_name = 'api'
 
@@ -48,4 +53,9 @@ urlpatterns = [
     path('referral/', include('apps.referral.api.urls')),
     path('shipping/', include('apps.shipping.api.urls')),
     path('subscriptions/', include('apps.subscriptions.api.urls')),
+    
+    # WebSocket Health & Monitoring
+    path('health/websocket/', websocket_health, name='websocket-health'),
+    path('health/websocket/status/', websocket_status, name='websocket-status'),
+    path('health/websocket/metrics/', websocket_metrics, name='websocket-metrics'),
 ]

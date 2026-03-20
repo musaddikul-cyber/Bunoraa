@@ -9,6 +9,8 @@ from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from urllib.parse import urlparse
 from decimal import Decimal
 from core.pagination import StandardResultsSetPagination
@@ -60,6 +62,7 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 # Cart ViewSet
 # =============================================================================
 
+@method_decorator(csrf_exempt, name='dispatch')
 class CartViewSet(viewsets.ViewSet):
     """ViewSet for cart operations."""
     
@@ -544,6 +547,7 @@ class CartViewSet(viewsets.ViewSet):
 # Wishlist ViewSet
 # =============================================================================
 
+@method_decorator(csrf_exempt, name='dispatch')
 class WishlistViewSet(viewsets.ViewSet):
     """ViewSet for wishlist operations."""
     

@@ -87,7 +87,7 @@ DATABASES = {
         default=DATABASE_URL,
         conn_max_age=DB_CONN_MAX_AGE,
         conn_health_checks=True,
-        ssl_require=False,
+        ssl_require=True,
     )
 }
 

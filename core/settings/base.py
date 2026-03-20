@@ -130,6 +130,7 @@ if importlib.util.find_spec('daphne') is not None:
     DJANGO_APPS.insert(DJANGO_APPS.index('django.contrib.staticfiles'), 'daphne')
 
 THIRD_PARTY_APPS = [
+    'channels',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',

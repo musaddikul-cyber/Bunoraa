@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.bunoraa.admin.core.database.AdminDatabase
 import com.bunoraa.admin.core.datastore.SecureTokenStore
 import com.bunoraa.admin.core.network.ApiClient
+import com.bunoraa.admin.core.network.RealtimeClient
 import com.bunoraa.admin.feature.auth.AuthRepository
 import com.bunoraa.admin.feature.dashboard.DashboardRepository
 
@@ -24,6 +25,14 @@ class AppContainer(context: Context) {
         "bunoraa_admin.db",
     ).fallbackToDestructiveMigration().build()
 
+    private val realtimeClient = RealtimeClient(tokenStore)
+
     val authRepository = AuthRepository(api, tokenStore)
-    val dashboardRepository = DashboardRepository(api, database.dashboardDao())
+    val dashboardRepository = DashboardRepository(
+        api,
+        database.dashboardDao(),
+        realtimeClient,
+        BuildConfig.WS_BASE_URL,
+    )
+    val pushTokenRegistrar = PushTokenRegistrar(context, api, tokenStore)
 }

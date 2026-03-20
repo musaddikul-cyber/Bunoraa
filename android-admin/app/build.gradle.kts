@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -21,6 +22,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "API_BASE_URL", "\"https://api.bunoraa.com/api/v1/\"")
+        buildConfigField("String", "WS_BASE_URL", "\"wss://api.bunoraa.com\"")
         buildConfigField("String", "OIDC_GOOGLE_CLIENT_ID", "\"$googleClientId\"")
         buildConfigField("String", "OIDC_MICROSOFT_CLIENT_ID", "\"$microsoftClientId\"")
         buildConfigField("String", "OIDC_MICROSOFT_TENANT", "\"$microsoftTenant\"")
@@ -48,6 +50,10 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+
+    baselineProfile {
+        mergeIntoMain = true
     }
 }
 
@@ -79,6 +85,9 @@ dependencies {
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+    implementation(libs.androidx.profileinstaller)
+
+    baselineProfile(project(":baselineprofile"))
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

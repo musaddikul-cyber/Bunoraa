@@ -65,3 +65,19 @@ import kotlinx.serialization.Serializable
     @SerialName("window_days") val windowDays: Int,
     val totals: DashboardTotals,
 )
+
+@Serializable
+data class PushTokenRequest(
+    val token: String,
+    @SerialName("device_type") val deviceType: String,
+    @SerialName("device_name") val deviceName: String? = null,
+    val platform: String? = null,
+    @SerialName("app_version") val appVersion: String? = null,
+    val locale: String? = null,
+    val timezone: String? = null,
+)
+
+@Serializable
+data class PushTokenResponse(
+    @SerialName("token_id") val tokenId: String? = null,
+)

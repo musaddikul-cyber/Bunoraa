@@ -4,18 +4,26 @@ import com.bunoraa.admin.core.database.DashboardDao
 import com.bunoraa.admin.core.database.DashboardEntity
 import com.bunoraa.admin.core.network.AdminApiService
 import com.bunoraa.admin.core.network.DashboardPayload
+import com.bunoraa.admin.core.network.RealtimeClient
+import com.bunoraa.admin.core.network.RealtimeEvent
+import com.bunoraa.admin.core.network.RealtimeStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class DashboardRepository(
     private val api: AdminApiService,
     private val dao: DashboardDao,
+    private val realtimeClient: RealtimeClient,
+    private val wsBaseUrl: String,
 ) {
     fun observeDashboard(): Flow<DashboardUiModel?> {
         return dao.observeDashboard().map { entity ->
             entity?.toUiModel()
         }
     }
+
+    val realtimeEvents: Flow<RealtimeEvent> = realtimeClient.events
+    val realtimeStatus: Flow<RealtimeStatus> = realtimeClient.status
 
     suspend fun refresh(): Result<DashboardUiModel> {
         return try {
@@ -31,6 +39,14 @@ class DashboardRepository(
         } catch (exc: Exception) {
             Result.failure(exc)
         }
+    }
+
+    fun connectRealtime() {
+        realtimeClient.connect(wsBaseUrl, "/ws/notifications/")
+    }
+
+    fun disconnectRealtime() {
+        realtimeClient.disconnect()
     }
 
     private fun DashboardPayload.toEntity(): DashboardEntity {

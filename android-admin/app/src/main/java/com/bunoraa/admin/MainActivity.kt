@@ -6,6 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,9 +23,11 @@ import com.bunoraa.admin.feature.dashboard.DashboardViewModel
 
 class MainActivity : ComponentActivity() {
     private val container by lazy { (application as BunoraaAdminApp).container }
+    private val deepLinkState = mutableStateOf<AdminDeepLink?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        deepLinkState.value = AdminDeepLinkParser.fromIntent(intent)
 
         setContent {
             BunoraaAdminTheme(darkTheme = false) {
@@ -33,6 +37,7 @@ class MainActivity : ComponentActivity() {
                 val dashboardViewModel = remember { DashboardViewModel(container.dashboardRepository) }
                 val ssoManager = remember { SsoAuthManager(context) }
                 var pendingProvider by remember { mutableStateOf<SsoProvider?>(null) }
+                val authState by authViewModel.state.collectAsState()
                 val ssoLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.StartActivityForResult(),
                 ) { result ->
@@ -48,6 +53,12 @@ class MainActivity : ComponentActivity() {
 
                 DisposableEffect(Unit) {
                     onDispose { ssoManager.dispose() }
+                }
+
+                LaunchedEffect(authState.isAuthenticated) {
+                    if (authState.isAuthenticated) {
+                        container.pushTokenRegistrar.registerIfPossible()
+                    }
                 }
 
                 AppNavHost(
@@ -68,8 +79,15 @@ class MainActivity : ComponentActivity() {
                             is Result.Err -> authViewModel.setError(result.message)
                         }
                     },
+                    deepLink = deepLinkState.value,
+                    onDeepLinkHandled = { deepLinkState.value = null },
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent?) {
+        super.onNewIntent(intent)
+        deepLinkState.value = AdminDeepLinkParser.fromIntent(intent)
     }
 }

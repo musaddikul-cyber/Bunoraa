@@ -13,15 +13,35 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.bunoraa.admin.AdminDeepLink
+import com.bunoraa.admin.core.network.RealtimeStatus
 
 @Composable
-fun DashboardRoute(viewModel: DashboardViewModel) {
+fun DashboardRoute(
+    viewModel: DashboardViewModel,
+    deepLink: AdminDeepLink? = null,
+    onDeepLinkHandled: () -> Unit = {},
+) {
     val state by viewModel.state.collectAsState()
     val snapshot = state.latest ?: state.cached
+
+    DisposableEffect(Unit) {
+        viewModel.startRealtime()
+        onDispose { viewModel.stopRealtime() }
+    }
+
+    LaunchedEffect(deepLink) {
+        if (deepLink != null) {
+            viewModel.handleDeepLink(deepLink)
+            onDeepLinkHandled()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -31,6 +51,20 @@ fun DashboardRoute(viewModel: DashboardViewModel) {
     ) {
         Text("Admin Dashboard", style = MaterialTheme.typography.headlineSmall)
         Text("Last updated: ${snapshot?.generatedAt ?: "-"}")
+        RealtimeBadge(state.realtimeStatus)
+
+        if (state.lastDeepLink != null) {
+            NotificationCard(
+                title = state.lastDeepLink.title,
+                message = state.lastDeepLink.message,
+            )
+        }
+        if (state.lastRealtimeEvent != null) {
+            NotificationCard(
+                title = "Realtime event: ${state.lastRealtimeEvent.type}",
+                message = state.lastRealtimeEvent.payload.toString(),
+            )
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MetricCard("Users", snapshot?.users?.toString() ?: "-")
@@ -47,6 +81,27 @@ fun DashboardRoute(viewModel: DashboardViewModel) {
         }
         if (state.error != null) {
             Text(state.error ?: "", color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@Composable
+private fun RealtimeBadge(status: RealtimeStatus) {
+    val label = when (status) {
+        RealtimeStatus.Connected -> "Realtime: connected"
+        RealtimeStatus.Disconnected -> "Realtime: disconnected"
+        is RealtimeStatus.Error -> "Realtime error: ${status.message}"
+    }
+    Text(label, style = MaterialTheme.typography.labelMedium)
+}
+
+@Composable
+private fun NotificationCard(title: String, message: String) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(message, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

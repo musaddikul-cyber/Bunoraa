@@ -19,4 +19,7 @@ interface AdminApiService {
 
     @GET("admin/dashboard/")
     suspend fun getDashboard(): ApiEnvelope<DashboardPayload>
+
+    @POST("notifications/push-tokens/")
+    suspend fun registerPushToken(@Body request: PushTokenRequest): ApiEnvelope<PushTokenResponse>
 }

@@ -20,6 +20,8 @@ fun AppNavHost(
     authViewModel: AuthViewModel,
     dashboardViewModel: DashboardViewModel,
     onSsoRequested: (String) -> Unit,
+    deepLink: AdminDeepLink? = null,
+    onDeepLinkHandled: () -> Unit = {},
 ) {
     NavHost(navController = navController, startDestination = AdminRoutes.Auth) {
         composable(AdminRoutes.Auth) {
@@ -30,7 +32,11 @@ fun AppNavHost(
             )
         }
         composable(AdminRoutes.Dashboard) {
-            DashboardRoute(viewModel = dashboardViewModel)
+            DashboardRoute(
+                viewModel = dashboardViewModel,
+                deepLink = deepLink,
+                onDeepLinkHandled = onDeepLinkHandled,
+            )
         }
     }
 }

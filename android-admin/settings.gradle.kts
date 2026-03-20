@@ -25,4 +25,6 @@ include(
     ":core:designsystem",
     ":feature:auth",
     ":feature:dashboard",
+    ":baselineprofile",
+    ":benchmark",
 )

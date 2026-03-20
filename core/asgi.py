@@ -91,7 +91,7 @@ async def _shutdown_aware_ws_app(scope, receive, send):
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 from core.routing import websocket_urlpatterns
-from core.websocket_auth import JWTAuthMiddlewareStack
+from core.websocket.auth import JWTAuthMiddlewareStack
 
 
 application = ProtocolTypeRouter({

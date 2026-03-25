@@ -191,13 +191,17 @@ services:
         value: "5"
       - key: GUNICORN_LOG_LEVEL
         value: "warning"
+      - key: RUN_PRODUCTION_OPTIMIZERS
+        value: "false"
+      - key: RUN_SEO_SCHEDULE_SETUP
+        value: "false"
     plan: free
 
   - type: web
     name: Bunoraa-Frontend
     runtime: node
     rootDir: frontend
-    buildCommand: "npm ci && npm run build && npm prune --omit=dev"
+    buildCommand: "npm ci --no-audit --prefer-offline && npm run build"
     startCommand: "npm run start"
     envVars:
       - key: NODE_OPTIONS

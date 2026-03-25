@@ -11,7 +11,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/**'
+              - 'core/**'
+              - 'config/**'
+              - 'manage.py'
+              - 'requirements*.txt'
+              - 'build.sh'
+              - 'gunicorn_conf.py'
+              - 'render.yaml'
+              - 'render-worker.yaml'
+              - 'scripts/**'
+              - '.github/workflows/ci-cd.yml'
+            frontend:
+              - 'frontend/**'
+              - 'render.yaml'
+              - '.github/workflows/ci-cd.yml'
+
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,6 +64,8 @@ jobs:
         run: python manage.py check --deploy
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -52,26 +86,38 @@ jobs:
 
   deploy:
     needs:
+      - changes
       - backend
       - frontend
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true') &&
+      (needs.backend.result == 'success' || needs.backend.result == 'skipped') &&
+      (needs.frontend.result == 'success' || needs.frontend.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Render deploys
         env:
           BACKEND_HOOK: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}
           FRONTEND_HOOK: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}
+          BACKEND_CHANGED: ${{ needs.changes.outputs.backend }}
+          FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
         run: |
           set -euo pipefail
-          if [ -n "${BACKEND_HOOK}" ]; then
+          if [ "${BACKEND_CHANGED}" = "true" ] && [ -n "${BACKEND_HOOK}" ]; then
             echo "Triggering backend deploy"
             curl -fsS -X POST "$BACKEND_HOOK"
+          elif [ "${BACKEND_CHANGED}" != "true" ]; then
+            echo "Backend unchanged, skipping backend deploy"
           else
             echo "RENDER_BACKEND_DEPLOY_HOOK is not set, skipping backend deploy"
           fi
-          if [ -n "${FRONTEND_HOOK}" ]; then
+          if [ "${FRONTEND_CHANGED}" = "true" ] && [ -n "${FRONTEND_HOOK}" ]; then
             echo "Triggering frontend deploy"
             curl -fsS -X POST "$FRONTEND_HOOK"
+          elif [ "${FRONTEND_CHANGED}" != "true" ]; then
+            echo "Frontend unchanged, skipping frontend deploy"
           else
             echo "RENDER_FRONTEND_DEPLOY_HOOK is not set, skipping frontend deploy"
           fi

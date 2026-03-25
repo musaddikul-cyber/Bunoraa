@@ -418,6 +418,11 @@ a:hover {
   min-width: 0;
 }
 
+.auth-content--solo {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
 .auth-card {
   background: var(--auth-card);
   padding: 1.45rem;

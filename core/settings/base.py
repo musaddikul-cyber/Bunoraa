@@ -362,6 +362,13 @@ FORCE_DEFAULT_CURRENCY = False  # Set to True for single-currency deployments
 LOGIN_URL = '/account/login/'
 LOGIN_REDIRECT_URL = '/account/dashboard/'
 
+# Admin form performance
+ADMIN_CATEGORY_TREE_WIDGET_ENABLED = os.environ.get(
+    "ADMIN_CATEGORY_TREE_WIDGET_ENABLED",
+    "1" if DEBUG else "0",
+).lower() in ("1", "true", "yes")
+ADMIN_CATEGORY_TREE_WIDGET_MAX = int(os.environ.get("ADMIN_CATEGORY_TREE_WIDGET_MAX", "400"))
+
 # Social Auth (Google) - using python-social-auth (social-auth-app-django)
 # Install: pip install social-auth-app-django
 AUTHENTICATION_BACKENDS = (

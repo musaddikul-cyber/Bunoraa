@@ -377,7 +377,8 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     list_per_page = 25
     list_editable = ("is_active",)
     save_on_top = False
-    filter_horizontal = ("categories", "tags")
+    filter_horizontal = ()
+    autocomplete_fields = ("primary_category", "categories", "tags")
     
     # Export fields
     export_fields = ['sku', 'name', 'price', 'sale_price', 'stock_quantity', 

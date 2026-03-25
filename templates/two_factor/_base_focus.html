@@ -3,20 +3,8 @@
 
 {% block content_wrapper %}
   <main class="auth-main">
-    <div class="auth-layout">
-      <aside class="auth-panel">
-        <p class="auth-eyebrow">{% trans "Bunoraa Control Center" %}</p>
-        <h2>{% block hero_title %}{% trans "Secure access for staff accounts" %}{% endblock %}</h2>
-        <p>{% block hero_description %}{% trans "Sign in with your password and one-time verification code to continue." %}{% endblock %}</p>
-        <ul class="auth-highlights">
-          <li>{% trans "Admin-only authentication flow" %}</li>
-          <li>{% trans "OTP and backup-token support" %}</li>
-          <li>{% trans "Theme-aware interface settings" %}</li>
-        </ul>
-      </aside>
-      <section class="auth-content">
-        {% block content %}{% endblock %}
-      </section>
-    </div>
+    <section class="auth-content auth-content--solo">
+      {% block content %}{% endblock %}
+    </section>
   </main>
 {% endblock %}

@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib import admin
 from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 from django.db import models
@@ -62,13 +63,24 @@ class CategoryTreeWidget(forms.Widget):
         """
         return mark_safe(html)
 
+def _should_use_category_tree_widget() -> bool:
+    enabled = getattr(settings, "ADMIN_CATEGORY_TREE_WIDGET_ENABLED", False)
+    if not enabled:
+        return False
+
+    max_count = int(getattr(settings, "ADMIN_CATEGORY_TREE_WIDGET_MAX", 0) or 0)
+    if max_count <= 0:
+        return True
+
+    try:
+        count = Category.objects.all_with_deleted().filter(is_deleted=False).count()
+    except Exception:
+        return False
+
+    return count <= max_count
+
+
 class ProductAdminForm(forms.ModelForm):
-    primary_category = forms.ModelChoiceField(
-        queryset=Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path'),
-        required=False,
-        widget=CategoryTreeWidget,
-        label='Primary Category',
-    )
     currency = forms.ModelChoiceField(
         queryset=I18nCurrency.objects.none(),
         to_field_name='code',
@@ -89,7 +101,13 @@ class ProductAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         request = kwargs.pop("request", None)
         super().__init__(*args, **kwargs)
-        self.fields['categories'].queryset = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
+        categories_qs = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
+        if "categories" in self.fields:
+            self.fields['categories'].queryset = categories_qs
+        if "primary_category" in self.fields:
+            self.fields["primary_category"].queryset = categories_qs
+            if _should_use_category_tree_widget():
+                self.fields["primary_category"].widget = CategoryTreeWidget()
         currencies = I18nCurrency.objects.order_by('sort_order', 'code')
         self.fields['currency'].queryset = currencies
         current_aspect = (

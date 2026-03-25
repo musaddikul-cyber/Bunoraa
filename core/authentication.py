@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
@@ -36,7 +37,12 @@ class OptionalJWTAuthentication(JWTAuthentication):
             logger.debug("Ignoring invalid JWT token: %s", exc)
             return None
 
-        return self.get_user(validated_token), validated_token
+        try:
+            return self.get_user(validated_token), validated_token
+        except AuthenticationFailed as exc:
+            # Treat missing/invalid users as anonymous for optional auth flows.
+            logger.debug("Ignoring JWT user lookup failure: %s", exc)
+            return None
 
 
 class CsrfExemptSessionAuthentication(SessionAuthentication):

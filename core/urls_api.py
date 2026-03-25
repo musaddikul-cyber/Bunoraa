@@ -4,11 +4,9 @@ All API endpoints under /api/v1/
     """
 from django.urls import path, include
 from django.conf import settings
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
-    TokenVerifyView,
-)
+from rest_framework_simplejwt.views import TokenVerifyView
 from apps.accounts.api.views import MfaTokenObtainPairView
+from core.jwt_views import SafeTokenRefreshView
 from core.websocket.health_views import (
     websocket_health,
     websocket_status,
@@ -20,7 +18,7 @@ app_name = 'api'
 urlpatterns = [
     # Authentication
     path('auth/token/', MfaTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/token/refresh/', SafeTokenRefreshView.as_view(), name='token_refresh'),
     path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
 
     # Admin API

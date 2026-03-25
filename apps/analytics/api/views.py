@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAdminUser
 from django.contrib.auth import get_user_model 
+from core.authentication import OptionalJWTAuthentication, CsrfExemptSessionAuthentication
 
 User = get_user_model()
 
@@ -180,6 +181,7 @@ class TrackingViewSet(viewsets.ViewSet):
     POST /api/v1/analytics/track/ - Track an event
     """
     permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication, CsrfExemptSessionAuthentication]
     
     def create(self, request):
         """Track an event."""

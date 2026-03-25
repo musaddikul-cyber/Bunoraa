@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 
+from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
@@ -36,3 +37,15 @@ class OptionalJWTAuthentication(JWTAuthentication):
             return None
 
         return self.get_user(validated_token), validated_token
+
+
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    """
+    Session auth variant without CSRF enforcement.
+
+    Use only on low-risk endpoints where CSRF is intentionally not required
+    (for example, telemetry ingest endpoints).
+    """
+
+    def enforce_csrf(self, request):
+        return

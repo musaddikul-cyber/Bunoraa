@@ -11,6 +11,10 @@ from django.conf import settings
 # ============================================================================
 WEBSOCKET_PING_INTERVAL = int(os.environ.get('WS_PING_INTERVAL', '30'))
 WEBSOCKET_PONG_TIMEOUT = int(os.environ.get('WS_PONG_TIMEOUT', '10'))
+# Application-level pong requirement.
+# Browsers may not implement custom app pong handlers, so keep this disabled by default.
+WEBSOCKET_REQUIRE_APP_PONG = os.environ.get('WS_REQUIRE_APP_PONG', 'false').lower() == 'true'
+WEBSOCKET_APP_PONG_MISS_LIMIT = int(os.environ.get('WS_APP_PONG_MISS_LIMIT', '3'))
 
 # ============================================================================
 # RATE LIMITING SETTINGS (per consumer type)

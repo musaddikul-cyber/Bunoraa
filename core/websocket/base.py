@@ -12,6 +12,7 @@ Features:
 import asyncio
 import json
 import logging
+import os
 import time
 from typing import Any, Dict, Optional, Set, Callable
 from channels.generic.websocket import AsyncWebsocketConsumer, AsyncJsonWebsocketConsumer
@@ -47,8 +48,10 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
     
     # Override these in subclasses
     CONSUMER_NAME = "BaseConsumer"
-    PING_INTERVAL = 30  # seconds
-    PONG_TIMEOUT = 10   # seconds
+    PING_INTERVAL = int(os.environ.get("WS_PING_INTERVAL", "30"))  # seconds
+    PONG_TIMEOUT = int(os.environ.get("WS_PONG_TIMEOUT", "10"))  # seconds
+    REQUIRE_APP_PONG = os.environ.get("WS_REQUIRE_APP_PONG", "false").lower() == "true"
+    APP_PONG_MISS_LIMIT = int(os.environ.get("WS_APP_PONG_MISS_LIMIT", "3"))
     RATE_LIMIT_ENABLED = True
     RATE_LIMIT_MESSAGES = 100  # messages per window
     RATE_LIMIT_WINDOW = 60     # seconds
@@ -62,6 +65,7 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
         self.message_count = 0
         self.last_pong_time = time.time()
         self.pong_received = asyncio.Event()
+        self.missed_pongs = 0
         self.keep_alive_task = None
         self._rate_limit_key = self.get_rate_limit_key()
         
@@ -114,20 +118,33 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
                         'type': 'ping',
                         'timestamp': time.time(),
                     }))
-                    
+
+                    # Most browser clients do not implement app-level pong.
+                    # Keep strict closes optional and configurable.
+                    if not self.REQUIRE_APP_PONG:
+                        continue
+
                     # Wait for pong with timeout
                     try:
                         await asyncio.wait_for(
                             self.pong_received.wait(),
                             timeout=self.PONG_TIMEOUT
                         )
+                        self.missed_pongs = 0
                     except asyncio.TimeoutError:
-                        logger.warning(
-                            f"[{self.CONSUMER_NAME}] No pong received, closing connection",
-                            extra={'user': self.user.id if self.user else None}
+                        self.missed_pongs += 1
+                        if self.missed_pongs >= max(1, self.APP_PONG_MISS_LIMIT):
+                            logger.warning(
+                                f"[{self.CONSUMER_NAME}] No pong received, closing connection",
+                                extra={'user': self.user.id if self.user else None}
+                            )
+                            await self.close(code=1000)
+                            return
+                        logger.debug(
+                            f"[{self.CONSUMER_NAME}] Pong timeout (%s/%s), keeping connection open",
+                            self.missed_pongs,
+                            self.APP_PONG_MISS_LIMIT,
                         )
-                        await self.close(code=1000)
-                        return
                         
                 except Exception as e:
                     logger.error(
@@ -185,6 +202,7 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         """Handle incoming text with validation and rate limiting."""
         self.message_count += 1
+        self.last_pong_time = time.time()
         
         # Check rate limit
         if await self.is_rate_limited():
@@ -287,8 +305,10 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
     """
     
     CONSUMER_NAME = "BaseJsonConsumer"
-    PING_INTERVAL = 30
-    PONG_TIMEOUT = 10
+    PING_INTERVAL = int(os.environ.get("WS_PING_INTERVAL", "30"))
+    PONG_TIMEOUT = int(os.environ.get("WS_PONG_TIMEOUT", "10"))
+    REQUIRE_APP_PONG = os.environ.get("WS_REQUIRE_APP_PONG", "false").lower() == "true"
+    APP_PONG_MISS_LIMIT = int(os.environ.get("WS_APP_PONG_MISS_LIMIT", "3"))
     RATE_LIMIT_ENABLED = True
     RATE_LIMIT_MESSAGES = 100
     RATE_LIMIT_WINDOW = 60
@@ -302,6 +322,7 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
         self.message_count = 0
         self.last_pong_time = time.time()
         self.pong_received = asyncio.Event()
+        self.missed_pongs = 0
         self.keep_alive_task = None
         self._rate_limit_key = self.get_rate_limit_key()
         
@@ -346,19 +367,30 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
                 try:
                     self.pong_received.clear()
                     await self.send_json({'type': 'ping', 'timestamp': time.time()})
-                    
+
+                    if not self.REQUIRE_APP_PONG:
+                        continue
+
                     try:
                         await asyncio.wait_for(
                             self.pong_received.wait(),
                             timeout=self.PONG_TIMEOUT
                         )
+                        self.missed_pongs = 0
                     except asyncio.TimeoutError:
-                        logger.warning(
-                            f"[{self.CONSUMER_NAME}] No pong, closing",
-                            extra={'user': self.user.id if self.user else None}
+                        self.missed_pongs += 1
+                        if self.missed_pongs >= max(1, self.APP_PONG_MISS_LIMIT):
+                            logger.warning(
+                                f"[{self.CONSUMER_NAME}] No pong, closing",
+                                extra={'user': self.user.id if self.user else None}
+                            )
+                            await self.close(code=1000)
+                            return
+                        logger.debug(
+                            f"[{self.CONSUMER_NAME}] Pong timeout (%s/%s), keeping connection open",
+                            self.missed_pongs,
+                            self.APP_PONG_MISS_LIMIT,
                         )
-                        await self.close(code=1000)
-                        return
                 except Exception as e:
                     logger.error(
                         f"[{self.CONSUMER_NAME}] Keep-alive error: {e}",
@@ -399,6 +431,7 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
     async def receive_json(self, content):
         """Handle incoming JSON."""
         self.message_count += 1
+        self.last_pong_time = time.time()
         
         if await self.is_rate_limited():
             await self.send_error("Rate limit exceeded")

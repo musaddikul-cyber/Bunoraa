@@ -16,6 +16,7 @@ object AdminDeepLinkParser {
     private const val EXTRA_MESSAGE = "admin_message"
     private const val EXTRA_TYPE = "admin_type"
     private const val EXTRA_URL = "admin_url"
+    private const val EXTRA_MODULE = "admin_module"
 
     fun toIntent(intent: Intent, deepLink: AdminDeepLink): Intent {
         return intent.apply {
@@ -24,6 +25,7 @@ object AdminDeepLinkParser {
             putExtra(EXTRA_MESSAGE, deepLink.message)
             putExtra(EXTRA_TYPE, deepLink.type)
             putExtra(EXTRA_URL, deepLink.url)
+            putExtra(EXTRA_MODULE, deepLink.route)
         }
     }
 
@@ -34,18 +36,20 @@ object AdminDeepLinkParser {
         val message = intent.getStringExtra(EXTRA_MESSAGE) ?: ""
         val type = intent.getStringExtra(EXTRA_TYPE)
         val url = intent.getStringExtra(EXTRA_URL)
-        return AdminDeepLink(route = route, title = title, message = message, type = type, url = url)
+        val module = intent.getStringExtra(EXTRA_MODULE)
+        return AdminDeepLink(
+            route = module ?: route,
+            title = title,
+            message = message,
+            type = type,
+            url = url,
+        )
     }
 
     fun fromPayload(payload: Map<String, String>, title: String, message: String): AdminDeepLink {
-        val type = payload["type"] ?: payload["notification_type"]
+        val type = payload["type"] ?: payload["notification_type"] ?: payload["event_type"]
         val url = payload["url"]
-        val route = when {
-            type?.startsWith("order_") == true -> AdminRoutes.Dashboard
-            type?.startsWith("review_") == true -> AdminRoutes.Dashboard
-            type?.contains("chat", ignoreCase = true) == true -> AdminRoutes.Dashboard
-            else -> AdminRoutes.Dashboard
-        }
+        val route = resolveRoute(payload = payload, type = type)
         return AdminDeepLink(
             route = route,
             title = title,
@@ -53,5 +57,23 @@ object AdminDeepLinkParser {
             type = type,
             url = url,
         )
+    }
+
+    private fun resolveRoute(payload: Map<String, String>, type: String?): String {
+        val explicit = payload["route"] ?: payload["module"]
+        if (!explicit.isNullOrBlank()) return explicit
+        return when {
+            type?.startsWith("order_") == true -> "orders"
+            type?.startsWith("payment_") == true -> "payments"
+            type?.startsWith("review_") == true -> "reviews"
+            type?.contains("coupon", ignoreCase = true) == true -> "promotions"
+            type?.contains("promo", ignoreCase = true) == true -> "promotions"
+            type?.contains("stock", ignoreCase = true) == true -> "catalog"
+            type?.contains("price", ignoreCase = true) == true -> "pricing"
+            type?.contains("subscription", ignoreCase = true) == true -> "subscriptions"
+            type?.contains("chat", ignoreCase = true) == true -> "support"
+            type?.contains("health", ignoreCase = true) == true -> "system-health"
+            else -> AdminRoutes.Dashboard
+        }
     }
 }

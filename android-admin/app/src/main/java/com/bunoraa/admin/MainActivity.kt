@@ -1,5 +1,8 @@
 package com.bunoraa.admin
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.bunoraa.admin.auth.SsoAuthManager
 import com.bunoraa.admin.auth.SsoProvider
@@ -50,9 +54,24 @@ class MainActivity : ComponentActivity() {
                         onError = { message -> authViewModel.setError(message) },
                     )
                 }
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission(),
+                ) { }
 
                 DisposableEffect(Unit) {
                     onDispose { ssoManager.dispose() }
+                }
+
+                LaunchedEffect(Unit) {
+                    if (
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.POST_NOTIFICATIONS,
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
                 }
 
                 LaunchedEffect(authState.isAuthenticated) {

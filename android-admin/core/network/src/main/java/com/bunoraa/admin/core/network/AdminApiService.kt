@@ -3,6 +3,7 @@ package com.bunoraa.admin.core.network
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 interface AdminApiService {
     @POST("auth/token/")
@@ -20,6 +21,12 @@ interface AdminApiService {
     @GET("admin/dashboard/")
     suspend fun getDashboard(): ApiEnvelope<DashboardPayload>
 
-    @POST("notifications/push-tokens/")
+    @GET("admin/realtime/events/")
+    suspend fun pollRealtimeEvents(
+        @Query("since") since: String? = null,
+        @Query("limit") limit: Int = 50,
+    ): ApiEnvelope<RealtimePollingPayload>
+
+    @POST("admin/notifications/push-tokens/")
     suspend fun registerPushToken(@Body request: PushTokenRequest): ApiEnvelope<PushTokenResponse>
 }

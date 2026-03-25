@@ -2,13 +2,14 @@ package com.bunoraa.admin.core.network
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
  data class ApiEnvelope<T>(
     val success: Boolean,
     val message: String? = null,
     val data: T? = null,
-    val meta: Map<String, String>? = null,
+    val meta: JsonObject? = null,
 )
 
 @Serializable

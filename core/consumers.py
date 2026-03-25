@@ -37,9 +37,16 @@ class NotificationConsumer(ProducerWebSocketConsumer):
         await super().connect()  # Initialize base class
         
         self.user = self.scope.get('user')
+        path = (self.scope.get('path') or '')
+        requires_staff = path.startswith('/ws/admin/')
         
         if self.user and self.user.is_authenticated:
             self.user_group = f'user_{self.user.id}'
+            self.is_staff = bool(getattr(self.user, 'is_staff', False))
+
+            if requires_staff and not self.is_staff:
+                await self.close(code=1008)  # Policy violation
+                return
             
             # Join user-specific group
             await self.channel_layer.group_add(
@@ -52,6 +59,13 @@ class NotificationConsumer(ProducerWebSocketConsumer):
                 'broadcast',
                 self.channel_name
             )
+
+            # Staff listeners also get admin operational events.
+            if self.is_staff:
+                await self.channel_layer.group_add(
+                    'admin_updates',
+                    self.channel_name
+                )
             
             await self.accept()
             await self.start_keep_alive()
@@ -61,11 +75,15 @@ class NotificationConsumer(ProducerWebSocketConsumer):
             await self.send(json.dumps({
                 'type': 'connection_established',
                 'unread_count': unread_count,
+                'roles': ['staff'] if self.is_staff else ['user'],
                 'timestamp': __import__('time').time(),
             }))
             
             logger.info(f"[NotificationConsumer] Connected: user {self.user.id}")
         else:
+            if requires_staff:
+                await self.close(code=1008)  # Policy violation
+                return
             # Allow anonymous connections for broadcasts only
             await self.channel_layer.group_add(
                 'broadcast',
@@ -80,6 +98,12 @@ class NotificationConsumer(ProducerWebSocketConsumer):
         if hasattr(self, 'user_group'):
             await self.channel_layer.group_discard(
                 self.user_group,
+                self.channel_name
+            )
+
+        if getattr(self, 'is_staff', False):
+            await self.channel_layer.group_discard(
+                'admin_updates',
                 self.channel_name
             )
         
@@ -148,6 +172,17 @@ class NotificationConsumer(ProducerWebSocketConsumer):
             'product_id': event['product_id'],
             'in_stock': event['in_stock'],
             'quantity': event.get('quantity'),
+        }))
+
+    async def admin_update(self, event):
+        """Send admin operational update messages."""
+        await self.send(json.dumps({
+            'type': event.get('event_type', 'admin_update'),
+            'module': event.get('module'),
+            'entity_type': event.get('entity_type'),
+            'entity_id': event.get('entity_id'),
+            'payload': event.get('payload', {}),
+            'timestamp': event.get('timestamp') or __import__('time').time(),
         }))
     
     @database_sync_to_async

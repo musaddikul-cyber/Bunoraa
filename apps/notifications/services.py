@@ -78,6 +78,27 @@ def resolve_priority(notification_type: str) -> str:
     return NotificationPriority.NORMAL
 
 
+def resolve_admin_push_route(notification_type: str, reference_type: str | None = None) -> str:
+    """Map notification types to admin route buckets for push deep-link routing."""
+    ntype = (notification_type or "").lower()
+    rtype = (reference_type or "").lower()
+    if ntype.startswith("order_") or rtype == "order":
+        return "orders"
+    if ntype.startswith("payment_") or "refund" in ntype or rtype == "payment":
+        return "payments"
+    if ntype.startswith("review_") or rtype == "review":
+        return "reviews"
+    if "stock" in ntype or "price" in ntype:
+        return "catalog"
+    if "promo" in ntype or "coupon" in ntype:
+        return "promotions"
+    if "subscription" in ntype:
+        return "subscriptions"
+    if "chat" in ntype or rtype in {"conversation", "message"}:
+        return "support"
+    return "notifications"
+
+
 class PreferenceResolver:
     """Resolve allowed channels and delivery timing based on preferences."""
 
@@ -916,6 +937,7 @@ class DeliveryService:
 
         body = DeliveryService._render_channel_body(notification, NotificationChannel.PUSH, user)
         title = notification.title or 'Notification'
+        route = resolve_admin_push_route(notification.type, notification.reference_type)
 
         result = PushNotificationManager.send_to_user(
             user_id=user.id,
@@ -925,6 +947,11 @@ class DeliveryService:
             data={
                 'notification_id': str(notification.id),
                 'type': notification.type,
+                'route': route,
+                'module': route,
+                'reference_type': notification.reference_type or "",
+                'reference_id': notification.reference_id or "",
+                'url': notification.url or "",
             },
             click_action=notification.url,
         )

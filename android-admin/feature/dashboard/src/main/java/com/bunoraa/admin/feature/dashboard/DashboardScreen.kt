@@ -55,7 +55,7 @@ fun DashboardRoute(
 
         if (state.lastDeepLink != null) {
             NotificationCard(
-                title = state.lastDeepLink.title,
+                title = "${state.lastDeepLink.title} (${state.lastDeepLink.route})",
                 message = state.lastDeepLink.message,
             )
         }
@@ -88,6 +88,8 @@ fun DashboardRoute(
 @Composable
 private fun RealtimeBadge(status: RealtimeStatus) {
     val label = when (status) {
+        RealtimeStatus.Connecting -> "Realtime: connecting"
+        is RealtimeStatus.Reconnecting -> "Realtime: reconnecting (${status.attempt})"
         RealtimeStatus.Connected -> "Realtime: connected"
         RealtimeStatus.Disconnected -> "Realtime: disconnected"
         is RealtimeStatus.Error -> "Realtime error: ${status.message}"

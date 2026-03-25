@@ -133,6 +133,9 @@ class SsoAuthManager(
     }
 
     private fun redirectUri(): Uri {
+        if (BuildConfig.OIDC_REDIRECT_URI.isNotBlank()) {
+            return Uri.parse(BuildConfig.OIDC_REDIRECT_URI)
+        }
         return Uri.parse("${BuildConfig.OIDC_REDIRECT_SCHEME}:/oauth2redirect")
     }
 }

@@ -7,6 +7,7 @@ import com.bunoraa.admin.core.network.RealtimeEvent
 import com.bunoraa.admin.core.network.RealtimeStatus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,7 @@ class DashboardViewModel(
     val state: StateFlow<DashboardUiState> = _state.asStateFlow()
     private var realtimeJob: Job? = null
     private var pollingJob: Job? = null
+    private var pollingSince: String? = null
 
     init {
         viewModelScope.launch {
@@ -31,6 +33,7 @@ class DashboardViewModel(
         viewModelScope.launch {
             repository.realtimeStatus.collectLatest { status ->
                 _state.update { it.copy(realtimeStatus = status) }
+                syncPollingForStatus(status)
             }
         }
     }
@@ -54,14 +57,12 @@ class DashboardViewModel(
                 handleRealtimeEvent(event)
             }
         }
-        startPolling()
     }
 
     fun stopRealtime() {
         realtimeJob?.cancel()
         realtimeJob = null
-        pollingJob?.cancel()
-        pollingJob = null
+        stopPolling()
         repository.disconnectRealtime()
     }
 
@@ -72,19 +73,44 @@ class DashboardViewModel(
 
     private fun handleRealtimeEvent(event: RealtimeEvent) {
         _state.update { it.copy(lastRealtimeEvent = event) }
-        if (event.type in setOf("notification", "order_update", "price_update", "stock_update")) {
+        if (event.type in setOf("notification", "order_update", "price_update", "stock_update", "payment_update", "chat_update", "admin_update")) {
             refresh()
+        }
+    }
+
+    private fun syncPollingForStatus(status: RealtimeStatus) {
+        val shouldPoll = realtimeJob != null && status !is RealtimeStatus.Connected
+        if (shouldPoll) {
+            startPolling()
+        } else {
+            stopPolling()
         }
     }
 
     private fun startPolling() {
         if (pollingJob != null) return
         pollingJob = viewModelScope.launch {
-            while (true) {
-                delay(60_000)
-                refresh()
+            while (isActive) {
+                val result = repository.pollRealtimeEvents(pollingSince)
+                result.fold(
+                    onSuccess = { payload ->
+                        pollingSince = payload.nextSince ?: pollingSince
+                        payload.events.forEach { event ->
+                            handleRealtimeEvent(RealtimeEvent(type = event.type, payload = event.payload))
+                        }
+                    },
+                    onFailure = { error ->
+                        _state.update { it.copy(error = error.message ?: "Realtime polling failed") }
+                    },
+                )
+                delay(30_000)
             }
         }
+    }
+
+    private fun stopPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
     }
 }
 

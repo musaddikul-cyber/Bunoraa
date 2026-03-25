@@ -6,6 +6,7 @@ import com.bunoraa.admin.core.network.AdminApiService
 import com.bunoraa.admin.core.network.DashboardPayload
 import com.bunoraa.admin.core.network.RealtimeClient
 import com.bunoraa.admin.core.network.RealtimeEvent
+import com.bunoraa.admin.core.network.RealtimePollingPayload
 import com.bunoraa.admin.core.network.RealtimeStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -41,8 +42,22 @@ class DashboardRepository(
         }
     }
 
+    suspend fun pollRealtimeEvents(since: String?): Result<RealtimePollingPayload> {
+        return try {
+            val response = api.pollRealtimeEvents(since = since, limit = 50)
+            val payload = response.data
+            if (response.success && payload != null) {
+                Result.success(payload)
+            } else {
+                Result.failure(RuntimeException(response.message ?: "Realtime polling failed"))
+            }
+        } catch (exc: Exception) {
+            Result.failure(exc)
+        }
+    }
+
     fun connectRealtime() {
-        realtimeClient.connect(wsBaseUrl, "/ws/notifications/")
+        realtimeClient.connect(wsBaseUrl, "/ws/admin/updates/")
     }
 
     fun disconnectRealtime() {

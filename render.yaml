@@ -30,11 +30,15 @@ services:
       - key: NEXT_FRONTEND_ORIGIN
         value: "https://bunoraa.com"
       - key: ML_ENABLED
-        value: "true"
+        value: "false"
+      - key: ML_API_ENABLED
+        value: "false"
+      - key: ML_CELERY_BEAT_ENABLED
+        value: "false"
       - key: ML_CHAT_ASSISTANT
-        value: "true"
+        value: "false"
       - key: CHAT_AI_LOCAL_MODEL_ENABLED
-        value: "true"
+        value: "false"
       - key: CHAT_AI_DEFAULT_MODEL
         value: "Qwen/Qwen2.5-1.5B-Instruct"
       - key: CHAT_AI_ALLOWED_MODELS

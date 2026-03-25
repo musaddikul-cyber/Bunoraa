@@ -1,21 +1,34 @@
-# This is an OPTIONAL configuration for running Celery workers separately from the web server
-# This helps memory management by separating concerns
-# Only use this if you need to run background tasks
+# Optional worker blueprint for queue isolation.
+# Use this when you want ML workloads separated from normal Celery jobs.
 
 services:
   - type: background_worker
     name: Bunoraa-Celery-Worker
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "celery -A core worker -n worker@%h --pool=solo -l warning --max-tasks-per-child=100"
+    startCommand: "celery -A core worker -n worker@%h --pool=solo -Q celery,payments,notifications,chat,analytics -l warning --max-tasks-per-child=100"
     envVars:
       - key: ENVIRONMENT
         value: "production"
       - key: DJANGO_SETTINGS_MODULE
         value: "core.settings.production"
+      - key: DEBUG
+        value: "false"
       - key: ML_ENABLED
         value: "false"
+      - key: ML_API_ENABLED
+        value: "false"
+      - key: ML_CELERY_BEAT_ENABLED
+        value: "false"
+      - key: ML_CHAT_ASSISTANT
+        value: "false"
+      - key: CHAT_AI_LOCAL_MODEL_ENABLED
+        value: "false"
       - key: PRERENDER_ENABLED
+        value: "false"
+      - key: RUN_PRODUCTION_OPTIMIZERS
+        value: "false"
+      - key: RUN_SEO_SCHEDULE_SETUP
         value: "false"
       - key: LIBRETRANSLATE_URL
         value: "http://bunoraa-libretranslate:5000"
@@ -99,8 +112,134 @@ services:
         value: ""
       - key: STEADFAST_API_SANDBOX
         value: "False"
+      - key: EMAIL_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        value: "musaddikul.amin123@gmail.com"
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: EMAIL_SERVICE_TRANSPORT
+        value: "smtp"
+      - key: EMAIL_SERVICE_HTTP_FALLBACK_ON_SMTP_FAILURE
+        value: "false"
+    plan: free
+
+  - type: background_worker
+    name: Bunoraa-ML-Worker
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "celery -A core worker -n ml@%h --pool=solo --concurrency=1 -Q ml,ml_training,catalog_ai,chat_ai -l warning --max-tasks-per-child=20"
+    envVars:
+      - key: ENVIRONMENT
+        value: "production"
+      - key: DJANGO_SETTINGS_MODULE
+        value: "core.settings.production"
       - key: DEBUG
-        value: false
+        value: "false"
+      - key: ML_ENABLED
+        value: "true"
+      - key: ML_API_ENABLED
+        value: "false"
+      - key: ML_CELERY_BEAT_ENABLED
+        value: "false"
+      - key: ML_CHAT_ASSISTANT
+        value: "true"
+      - key: CHAT_AI_LOCAL_MODEL_ENABLED
+        value: "true"
+      - key: ML_USE_GPU
+        value: "false"
+      - key: PRERENDER_ENABLED
+        value: "false"
+      - key: RUN_PRODUCTION_OPTIMIZERS
+        value: "false"
+      - key: RUN_SEO_SCHEDULE_SETUP
+        value: "false"
+      - key: LIBRETRANSLATE_URL
+        value: "http://bunoraa-libretranslate:5000"
+      - key: LIBRETRANSLATE_API_KEY
+        value: ""
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_CONN_MAX_AGE
+        value: "60"
+      - key: DB_STATEMENT_TIMEOUT_MS
+        value: "30000"
+      - key: DB_IDLE_TX_TIMEOUT_MS
+        value: "60000"
+      - key: SECRET_KEY
+        sync: false
+      - key: USE_S3
+        value: "True"
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_STORAGE_BUCKET_NAME
+        value: "bunoraa"
+      - key: AWS_S3_REGION_NAME
+        value: "us-east-1"
+      - key: AWS_S3_ENDPOINT_URL
+        value: "https://558bc0d014e2ae8268244260bf05b597.r2.cloudflarestorage.com"
+      - key: AWS_S3_CUSTOM_DOMAIN
+        value: "media.bunoraa.com"
+      - key: AWS_DEFAULT_ACL
+        value: "None"
+      - key: AWS_S3_CACHE_CONTROL
+        value: "max-age=86400"
+      - key: MEDIA_URL
+        value: "https://media.bunoraa.com/"
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_MAX_CONNECTIONS
+        value: "50"
+      - key: REDIS_USE_BLOCKING_POOL
+        value: "true"
+      - key: REDIS_POOL_BLOCKING_TIMEOUT
+        value: "5"
+      - key: CHANNEL_LAYERS_REDIS_URL
+        sync: false
+      - key: CELERY_BROKER_URL
+        sync: false
+      - key: CELERY_RESULT_BACKEND
+        sync: false
+      - key: CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP
+        value: "true"
+      - key: CELERY_BROKER_CONNECTION_MAX_RETRIES
+        value: "100"
+      - key: CELERY_TASK_TIME_LIMIT
+        value: "600"
+      - key: CELERY_TASK_SOFT_TIME_LIMIT
+        value: "540"
+      - key: CELERY_RESULT_EXPIRES
+        value: "3600"
+      - key: CELERY_WORKER_PREFETCH_MULTIPLIER
+        value: "1"
+      - key: CELERY_WORKER_MAX_TASKS_PER_CHILD
+        value: "500"
+      - key: CELERY_TASK_ACKS_LATE
+        value: "true"
+      - key: CELERY_TASK_REJECT_ON_WORKER_LOST
+        value: "true"
+      - key: CELERY_TASK_ACKS_ON_FAILURE_OR_TIMEOUT
+        value: "true"
+      - key: CELERY_TASK_DEFAULT_RETRY_DELAY
+        value: "60"
+      - key: CELERY_TASK_MAX_RETRIES
+        value: "3"
+      - key: ML_REDIS_URL
+        sync: false
+      - key: STEADFAST_API_KEY
+        sync: false
+      - key: STEADFAST_SECRET_KEY
+        sync: false
+      - key: STEADFAST_API_ENDPOINT
+        value: ""
+      - key: STEADFAST_API_SANDBOX
+        value: "False"
       - key: EMAIL_HOST
         value: "smtp.gmail.com"
       - key: EMAIL_PORT

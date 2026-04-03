@@ -11,12 +11,13 @@ type LoadingScreenProps = {
 };
 
 export function LoadingScreen({
-  title = "Bunoraa",
-  subtitle = "Curating your next discovery.",
+  title,
+  subtitle,
   fullScreen = false,
   className,
 }: LoadingScreenProps) {
   const [progress, setProgress] = React.useState(6);
+  const [dots, setDots] = React.useState("..");
 
   React.useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -41,6 +42,23 @@ export function LoadingScreen({
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
+  React.useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (media.matches) {
+      setDots("..");
+      return;
+    }
+
+    const frames = [".", "..", "..."];
+    let index = 1;
+    const timer = window.setInterval(() => {
+      index = (index + 1) % frames.length;
+      setDots(frames[index]);
+    }, 500);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <div
       role="status"
@@ -56,14 +74,18 @@ export function LoadingScreen({
       <div className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 translate-x-1/3 rounded-full bg-gradient-to-tr from-primary/10 via-accent/10 to-transparent blur-3xl" />
       <div className="relative z-10 flex flex-col items-center gap-4 text-center">
         <span className="text-xs font-semibold uppercase tracking-[0.4em] text-foreground/50">
-          Loading
+          Loading{dots}
         </span>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-          {title}
-        </h1>
-        <p className="max-w-md text-sm text-foreground/70 sm:text-base">
-          {subtitle}
-        </p>
+        {title ? (
+          <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            {title}
+          </h1>
+        ) : null}
+        {subtitle ? (
+          <p className="max-w-md text-sm text-foreground/70 sm:text-base">
+            {subtitle}
+          </p>
+        ) : null}
         <div className="mt-2 w-44 space-y-1.5">
           <div
             role="progressbar"

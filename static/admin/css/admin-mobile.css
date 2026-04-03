@@ -1,0 +1,154 @@
+/* Mobile-friendly overrides for Django admin. */
+
+@media (max-width: 1024px) {
+  #header {
+    padding: 12px 16px;
+  }
+
+  #branding,
+  #user-tools {
+    float: none;
+  }
+
+  #user-tools {
+    margin-top: 6px;
+  }
+
+  #content {
+    padding: 16px;
+  }
+
+  #content-main,
+  #content-related {
+    float: none;
+    width: auto;
+    margin-left: 0;
+  }
+
+  #nav-sidebar,
+  #nav-filter {
+    position: static;
+    width: auto;
+    margin: 0 0 16px;
+  }
+
+  .breadcrumbs {
+    font-size: 12px;
+    padding: 8px 16px;
+  }
+
+  .object-tools {
+    float: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0 16px;
+    padding: 0;
+  }
+
+  .object-tools li {
+    float: none;
+    margin: 0;
+  }
+
+  .object-tools a {
+    padding: 6px 12px;
+  }
+
+  #changelist-form,
+  #changelist-form .results,
+  #result_list {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  #changelist-filter {
+    float: none;
+    width: auto;
+    margin-top: 16px;
+  }
+
+  #toolbar {
+    padding: 8px 0;
+  }
+
+  #toolbar form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  #toolbar form input[type="text"] {
+    flex: 1 1 12rem;
+    min-width: 12rem;
+  }
+
+  #toolbar form input[type="submit"] {
+    flex: 0 0 auto;
+  }
+
+  .paginator {
+    white-space: normal;
+  }
+
+  .form-row,
+  .aligned .form-row {
+    display: block;
+  }
+
+  .aligned .form-row > div {
+    width: 100%;
+  }
+
+  .aligned .form-row .help {
+    margin-left: 0;
+  }
+
+  .aligned .form-row .checkbox-row {
+    margin-left: 0;
+  }
+
+  fieldset {
+    min-width: 0;
+  }
+
+  .submit-row {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--body-bg, #fff);
+    padding: 10px 12px;
+    margin: 16px -16px -16px;
+    border-top: 1px solid var(--hairline-color, #e5e5e5);
+  }
+
+  .submit-row input,
+  .submit-row a {
+    margin: 4px 6px 0 0;
+  }
+
+  .inline-group,
+  .inline-related {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  #header {
+    padding: 10px 12px;
+  }
+
+  #content {
+    padding: 12px;
+  }
+
+  .object-tools a {
+    font-size: 12px;
+  }
+
+  .submit-row {
+    margin: 12px -12px -12px;
+  }
+}

@@ -97,7 +97,7 @@ async def _shutdown_aware_ws_app(scope, receive, send):
         )
         return
     return await AllowedHostsOriginValidator(
-        JWTAuthMiddlewareStack(
+        JWTOrSessionAuthMiddlewareStack(
             URLRouter(websocket_urlpatterns)
         )
     )(scope, receive, send)
@@ -105,7 +105,7 @@ async def _shutdown_aware_ws_app(scope, receive, send):
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 from core.routing import websocket_urlpatterns
-from core.websocket.auth import JWTAuthMiddlewareStack
+from core.websocket.auth import JWTOrSessionAuthMiddlewareStack
 
 
 application = ProtocolTypeRouter({

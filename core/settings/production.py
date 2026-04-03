@@ -4,6 +4,7 @@ Optimized for performance, security, and scalability.
 Uses PostgreSQL, Redis, Cloudflare R2 storage.
 """
 import os
+import socket
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import dj_database_url
 from .base import *
@@ -60,6 +61,13 @@ def _env_int(name: str, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _append_pg_option(existing_options: str, option: str) -> str:
+    existing_options = (existing_options or '').strip()
+    if option in existing_options:
+        return existing_options
+    return f"{existing_options} {option}".strip()
 
 
 def _normalize_rediss_url(url: str | None) -> str | None:
@@ -119,6 +127,7 @@ if not DATABASE_URL:
 DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 0)
 DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 30000)
 DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
+DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 60000)
 
 DATABASES = {
     'default': dj_database_url.config(
@@ -130,11 +139,20 @@ DATABASES = {
 }
 
 # Connection pooling optimizations - Reduce connection exhaustion
+_pg_options = ''
+if DB_STATEMENT_TIMEOUT_MS > 0:
+    _pg_options = _append_pg_option(_pg_options, f'-c statement_timeout={DB_STATEMENT_TIMEOUT_MS}')
+if DB_IDLE_TX_TIMEOUT_MS > 0:
+    _pg_options = _append_pg_option(_pg_options, f'-c idle_in_transaction_session_timeout={DB_IDLE_TX_TIMEOUT_MS}')
+if DB_IDLE_SESSION_TIMEOUT_MS > 0:
+    _pg_options = _append_pg_option(_pg_options, f'-c idle_session_timeout={DB_IDLE_SESSION_TIMEOUT_MS}')
+
 DATABASES['default']['OPTIONS'] = {
     'connect_timeout': 10,
-    'options': f'-c statement_timeout={DB_STATEMENT_TIMEOUT_MS} -c idle_in_transaction_session_timeout={DB_IDLE_TX_TIMEOUT_MS}',
     'isolation_level': 1,  # READ_COMMITTED - Reduces lock memory
 }
+if _pg_options:
+    DATABASES['default']['OPTIONS']['options'] = _pg_options
 
 # =============================================================================
 # SECURITY
@@ -168,6 +186,10 @@ REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL'))
 if REDIS_URL:
     REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 5)
     REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 5)
+    REDIS_SOCKET_KEEPALIVE = _env_bool('REDIS_SOCKET_KEEPALIVE', True)
+    REDIS_SOCKET_KEEPALIVE_IDLE = _env_int('REDIS_SOCKET_KEEPALIVE_IDLE', 0)
+    REDIS_SOCKET_KEEPALIVE_INTERVAL = _env_int('REDIS_SOCKET_KEEPALIVE_INTERVAL', 0)
+    REDIS_SOCKET_KEEPALIVE_COUNT = _env_int('REDIS_SOCKET_KEEPALIVE_COUNT', 0)
     REDIS_HEALTH_CHECK_INTERVAL = _env_int('REDIS_HEALTH_CHECK_INTERVAL', 30)
     REDIS_MAX_CONNECTIONS = _env_int('REDIS_MAX_CONNECTIONS', 50)
     REDIS_RETRY_ON_TIMEOUT = _env_bool('REDIS_RETRY_ON_TIMEOUT', True)
@@ -195,6 +217,18 @@ if REDIS_URL:
         else 'redis.connection.ConnectionPool'
     )
 
+    def _socket_keepalive_options() -> dict[int, int] | None:
+        options: dict[int, int] = {}
+        if REDIS_SOCKET_KEEPALIVE_IDLE > 0 and hasattr(socket, 'TCP_KEEPIDLE'):
+            options[getattr(socket, 'TCP_KEEPIDLE')] = REDIS_SOCKET_KEEPALIVE_IDLE
+        if REDIS_SOCKET_KEEPALIVE_INTERVAL > 0 and hasattr(socket, 'TCP_KEEPINTVL'):
+            options[getattr(socket, 'TCP_KEEPINTVL')] = REDIS_SOCKET_KEEPALIVE_INTERVAL
+        if REDIS_SOCKET_KEEPALIVE_COUNT > 0 and hasattr(socket, 'TCP_KEEPCNT'):
+            options[getattr(socket, 'TCP_KEEPCNT')] = REDIS_SOCKET_KEEPALIVE_COUNT
+        return options or None
+
+    _redis_keepalive_options = _socket_keepalive_options()
+
     _session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKIE_AGE)
     CACHES = {
         'default': {
@@ -206,6 +240,8 @@ if REDIS_URL:
                 'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(REDIS_MAX_CONNECTIONS),
                 'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
                 'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
+                'SOCKET_KEEPALIVE': REDIS_SOCKET_KEEPALIVE,
+                **({'SOCKET_KEEPALIVE_OPTIONS': _redis_keepalive_options} if _redis_keepalive_options else {}),
                 'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
                 'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
             },
@@ -221,6 +257,8 @@ if REDIS_URL:
                 'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(max(5, REDIS_MAX_CONNECTIONS // 2)),
                 'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
                 'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
+                'SOCKET_KEEPALIVE': REDIS_SOCKET_KEEPALIVE,
+                **({'SOCKET_KEEPALIVE_OPTIONS': _redis_keepalive_options} if _redis_keepalive_options else {}),
                 'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
                 'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
             },
@@ -229,10 +267,18 @@ if REDIS_URL:
         }
     }
     
-    # Keep session data durable even if Redis evicts entries.
-    SESSION_ENGINE = os.environ.get('SESSION_ENGINE', 'django.contrib.sessions.backends.cached_db')
+    # Prefer cache-only sessions to reduce DB connections when Redis is available.
+    SESSION_ENGINE = os.environ.get('SESSION_ENGINE')
+    if not SESSION_ENGINE:
+        SESSION_ENGINE = (
+            'django.contrib.sessions.backends.cache'
+            if REDIS_URL
+            else 'django.contrib.sessions.backends.cached_db'
+        )
     SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
     SESSION_CACHE_ALIAS = 'sessions'
+
+    WS_SESSION_AUTH_ENABLED = _env_bool('WS_SESSION_AUTH_ENABLED', False)
 
 # =============================================================================
 # CLOUDFLARE R2 STORAGE
@@ -298,6 +344,12 @@ CELERY_RESULT_EXPIRES = _env_int('CELERY_RESULT_EXPIRES', 3600)  # 1 hour
 CELERY_TASK_DEFAULT_RETRY_DELAY = _env_int('CELERY_TASK_DEFAULT_RETRY_DELAY', 60)
 CELERY_TASK_MAX_RETRIES = _env_int('CELERY_TASK_MAX_RETRIES', 3)
 
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'socket_connect_timeout': REDIS_SOCKET_CONNECT_TIMEOUT,
+    'socket_timeout': REDIS_SOCKET_TIMEOUT,
+    'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+}
+
 # =============================================================================
 # CHANNEL LAYERS - WebSockets with Redis
 # =============================================================================
@@ -310,7 +362,15 @@ if REDIS_URL:
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                'hosts': [channel_layers_redis_url],
+                'hosts': [
+                    {
+                        'address': channel_layers_redis_url,
+                        'socket_connect_timeout': REDIS_SOCKET_CONNECT_TIMEOUT,
+                        'socket_timeout': REDIS_SOCKET_TIMEOUT,
+                        'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
+                        'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+                    }
+                ],
                 'capacity': 1500,  # Max messages per channel
                 'expiry': 10,  # Message expiry in seconds
             },

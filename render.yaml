@@ -19,6 +19,8 @@ services:
         value: "30000"
       - key: DB_IDLE_TX_TIMEOUT_MS
         value: "60000"
+      - key: DB_IDLE_SESSION_TIMEOUT_MS
+        value: "60000"
       - key: SECRET_KEY
         sync: false
       - key: ALLOWED_HOSTS
@@ -57,10 +59,30 @@ services:
         sync: false
       - key: REDIS_MAX_CONNECTIONS
         value: "50"
+      - key: REDIS_SOCKET_CONNECT_TIMEOUT
+        value: "10"
+      - key: REDIS_SOCKET_TIMEOUT
+        value: "10"
+      - key: REDIS_SOCKET_KEEPALIVE
+        value: "true"
+      - key: REDIS_SOCKET_KEEPALIVE_IDLE
+        value: "30"
+      - key: REDIS_SOCKET_KEEPALIVE_INTERVAL
+        value: "10"
+      - key: REDIS_SOCKET_KEEPALIVE_COUNT
+        value: "3"
+      - key: REDIS_HEALTH_CHECK_INTERVAL
+        value: "15"
+      - key: REDIS_RETRY_ON_TIMEOUT
+        value: "true"
       - key: REDIS_USE_BLOCKING_POOL
         value: "true"
       - key: REDIS_POOL_BLOCKING_TIMEOUT
         value: "5"
+      - key: SESSION_ENGINE
+        value: "django.contrib.sessions.backends.cache"
+      - key: WS_SESSION_AUTH_ENABLED
+        value: "false"
       - key: CHANNEL_LAYERS_REDIS_URL
         sync: false
       - key: CELERY_BROKER_URL

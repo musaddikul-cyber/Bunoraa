@@ -2,6 +2,7 @@
 S3/Cloudflare settings for local development or testing
 """
 import os
+import socket
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import dj_database_url
 from .base import *
@@ -105,6 +106,7 @@ DB_ALLOW_WRITE = _env_bool('DB_ALLOW_WRITE', True)
 DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 0)
 DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 10000)
 DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
+DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 60000)
 
 DATABASES = {
     'default': dj_database_url.config(
@@ -136,6 +138,8 @@ if DB_STATEMENT_TIMEOUT_MS > 0:
     _pg_options = _append_pg_option(_pg_options, f'-c statement_timeout={DB_STATEMENT_TIMEOUT_MS}')
 if DB_IDLE_TX_TIMEOUT_MS > 0:
     _pg_options = _append_pg_option(_pg_options, f'-c idle_in_transaction_session_timeout={DB_IDLE_TX_TIMEOUT_MS}')
+if DB_IDLE_SESSION_TIMEOUT_MS > 0:
+    _pg_options = _append_pg_option(_pg_options, f'-c idle_session_timeout={DB_IDLE_SESSION_TIMEOUT_MS}')
 if _pg_options:
     DATABASES['default']['OPTIONS']['options'] = _pg_options
 
@@ -157,6 +161,9 @@ _session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKI
 REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 5)
 REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 5)
 REDIS_SOCKET_KEEPALIVE = _env_bool('REDIS_SOCKET_KEEPALIVE', True)
+REDIS_SOCKET_KEEPALIVE_IDLE = _env_int('REDIS_SOCKET_KEEPALIVE_IDLE', 0)
+REDIS_SOCKET_KEEPALIVE_INTERVAL = _env_int('REDIS_SOCKET_KEEPALIVE_INTERVAL', 0)
+REDIS_SOCKET_KEEPALIVE_COUNT = _env_int('REDIS_SOCKET_KEEPALIVE_COUNT', 0)
 REDIS_HEALTH_CHECK_INTERVAL = _env_int('REDIS_HEALTH_CHECK_INTERVAL', 30)
 REDIS_MAX_CONNECTIONS = _env_int('REDIS_MAX_CONNECTIONS', 20)
 REDIS_RETRY_ON_TIMEOUT = _env_bool('REDIS_RETRY_ON_TIMEOUT', True)
@@ -164,6 +171,9 @@ REDIS_IGNORE_EXCEPTIONS = _env_bool('REDIS_IGNORE_EXCEPTIONS', True)
 REDIS_LOG_IGNORED_EXCEPTIONS = _env_bool('REDIS_LOG_IGNORED_EXCEPTIONS', True)
 REDIS_USE_BLOCKING_POOL = _env_bool('REDIS_USE_BLOCKING_POOL', True)
 REDIS_POOL_BLOCKING_TIMEOUT = _env_int('REDIS_POOL_BLOCKING_TIMEOUT', 5)
+
+# WebSocket auth behavior: prefer JWT-only to avoid DB hits on connect.
+WS_SESSION_AUTH_ENABLED = _env_bool('WS_SESSION_AUTH_ENABLED', False)
 
 DJANGO_REDIS_IGNORE_EXCEPTIONS = REDIS_IGNORE_EXCEPTIONS
 DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = REDIS_LOG_IGNORED_EXCEPTIONS
@@ -185,6 +195,20 @@ _redis_pool_class = (
 )
 
 
+def _socket_keepalive_options() -> dict[int, int] | None:
+    options: dict[int, int] = {}
+    if REDIS_SOCKET_KEEPALIVE_IDLE > 0 and hasattr(socket, 'TCP_KEEPIDLE'):
+        options[getattr(socket, 'TCP_KEEPIDLE')] = REDIS_SOCKET_KEEPALIVE_IDLE
+    if REDIS_SOCKET_KEEPALIVE_INTERVAL > 0 and hasattr(socket, 'TCP_KEEPINTVL'):
+        options[getattr(socket, 'TCP_KEEPINTVL')] = REDIS_SOCKET_KEEPALIVE_INTERVAL
+    if REDIS_SOCKET_KEEPALIVE_COUNT > 0 and hasattr(socket, 'TCP_KEEPCNT'):
+        options[getattr(socket, 'TCP_KEEPCNT')] = REDIS_SOCKET_KEEPALIVE_COUNT
+    return options or None
+
+
+_redis_keepalive_options = _socket_keepalive_options()
+
+
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -196,6 +220,7 @@ CACHES = {
             'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
             'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
             'SOCKET_KEEPALIVE': REDIS_SOCKET_KEEPALIVE,
+            **({'SOCKET_KEEPALIVE_OPTIONS': _redis_keepalive_options} if _redis_keepalive_options else {}),
             'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
             'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
         },
@@ -212,6 +237,7 @@ CACHES = {
             'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
             'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
             'SOCKET_KEEPALIVE': REDIS_SOCKET_KEEPALIVE,
+            **({'SOCKET_KEEPALIVE_OPTIONS': _redis_keepalive_options} if _redis_keepalive_options else {}),
             'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
             'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
         },
@@ -224,15 +250,29 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [channel_layers_redis_url],
+            'hosts': [
+                {
+                    'address': channel_layers_redis_url,
+                    'socket_connect_timeout': REDIS_SOCKET_CONNECT_TIMEOUT,
+                    'socket_timeout': REDIS_SOCKET_TIMEOUT,
+                    'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
+                    'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+                }
+            ],
             'capacity': 1500,
             'expiry': 10,
         },
     },
 }
 
-# Keep session data durable even if Redis evicts entries.
-SESSION_ENGINE = os.environ.get('SESSION_ENGINE', 'django.contrib.sessions.backends.cached_db')
+# Prefer cache-only sessions to reduce database connections when Redis is available.
+SESSION_ENGINE = os.environ.get('SESSION_ENGINE')
+if not SESSION_ENGINE:
+    SESSION_ENGINE = (
+        'django.contrib.sessions.backends.cache'
+        if REDIS_URL
+        else 'django.contrib.sessions.backends.cached_db'
+    )
 SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
 SESSION_CACHE_ALIAS = 'sessions'
 
@@ -251,6 +291,12 @@ CELERY_TASK_SOFT_TIME_LIMIT = _env_int('CELERY_TASK_SOFT_TIME_LIMIT', 540)
 CELERY_RESULT_EXPIRES = _env_int('CELERY_RESULT_EXPIRES', 3600)
 CELERY_TASK_DEFAULT_RETRY_DELAY = _env_int('CELERY_TASK_DEFAULT_RETRY_DELAY', 60)
 CELERY_TASK_MAX_RETRIES = _env_int('CELERY_TASK_MAX_RETRIES', 3)
+
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'socket_connect_timeout': REDIS_SOCKET_CONNECT_TIMEOUT,
+    'socket_timeout': REDIS_SOCKET_TIMEOUT,
+    'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+}
 
 # Security settings: in DEBUG (development), do not set secure-only cookies so CSRF cookie
 # will be sent over plain HTTP. In production (DEBUG=False), enable stricter security.

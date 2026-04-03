@@ -100,6 +100,36 @@ def SafeAuthMiddlewareStack(inner):
     return CookieMiddleware(SessionMiddleware(SafeAuthMiddleware(inner)))
 
 
-def JWTAuthMiddlewareStack(inner):
-    """Session auth + JWT fallback stack."""
-    return SafeAuthMiddlewareStack(JWTAuthMiddleware(inner))
+class JWTAuthMiddlewareStack:
+    """Session auth + JWT fallback stack (always loads sessions)."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self._stack = SafeAuthMiddlewareStack(JWTAuthMiddleware(inner))
+
+    async def __call__(self, scope, receive, send):
+        return await self._stack(scope, receive, send)
+
+
+class JWTOrSessionAuthMiddleware:
+    """
+    Prefer JWT auth (no session DB hit) when a token is provided.
+    Fall back to session auth when no token is present.
+    """
+
+    def __init__(self, inner):
+        self.inner = inner
+        self._token_stack = JWTAuthMiddleware(inner)
+        self._session_stack = SafeAuthMiddlewareStack(inner)
+
+    async def __call__(self, scope, receive, send):
+        if _extract_ws_token(scope):
+            return await self._token_stack(scope, receive, send)
+        if not getattr(settings, "WS_SESSION_AUTH_ENABLED", True):
+            scope["user"] = AnonymousUser()
+            return await self.inner(scope, receive, send)
+        return await self._session_stack(scope, receive, send)
+
+
+def JWTOrSessionAuthMiddlewareStack(inner):
+    return JWTOrSessionAuthMiddleware(inner)

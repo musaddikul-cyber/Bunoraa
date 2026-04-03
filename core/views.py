@@ -57,6 +57,7 @@ def health_check_detailed(request):
         'database': check_database(),
         'cache': check_cache(),
         'redis': check_redis(),
+        'upstash_rest': check_upstash_rest(),
         'storage': check_storage(),
     }
 
@@ -147,6 +148,15 @@ def check_redis():
             'status': 'error',
             'error': str(e)
         }
+
+
+def check_upstash_rest():
+    """Check Upstash Redis REST connectivity (optional)."""
+    try:
+        from core.services.upstash_rest import health_check as upstash_health
+    except Exception:
+        return {'status': 'skipped', 'reason': 'Upstash REST helper not available'}
+    return upstash_health()
 
 
 def check_storage():

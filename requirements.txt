@@ -325,6 +325,7 @@ python-slugify
 PyYAML
 
 redis
+upstash-redis
 
 referencing
 

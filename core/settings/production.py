@@ -183,6 +183,8 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 # CACHE - Redis
 # =============================================================================
 REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL'))
+UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip()
+UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
 if REDIS_URL:
     REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 5)
     REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 5)

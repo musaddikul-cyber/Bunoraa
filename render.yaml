@@ -57,6 +57,10 @@ services:
         value: ""
       - key: REDIS_URL
         sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
       - key: REDIS_MAX_CONNECTIONS
         value: "50"
       - key: REDIS_SOCKET_CONNECT_TIMEOUT

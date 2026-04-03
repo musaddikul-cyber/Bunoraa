@@ -68,6 +68,10 @@ services:
         value: "https://media.bunoraa.com/"
       - key: REDIS_URL
         sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
       - key: REDIS_MAX_CONNECTIONS
         value: "50"
       - key: REDIS_SOCKET_CONNECT_TIMEOUT
@@ -217,6 +221,10 @@ services:
       - key: MEDIA_URL
         value: "https://media.bunoraa.com/"
       - key: REDIS_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
         sync: false
       - key: REDIS_MAX_CONNECTIONS
         value: "50"

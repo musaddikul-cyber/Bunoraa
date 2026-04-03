@@ -12,16 +12,19 @@ export function ProductGrid({
   products,
   view = "grid",
   cardVariant,
+  cardStyle = "default",
   isLoading = false,
   emptyMessage = "We could not find any products matching your current filters.",
 }: {
   products: ProductListItem[];
   view?: "grid" | "list";
   cardVariant?: ProductCardVariantName;
+  cardStyle?: "default" | "minimal";
   isLoading?: boolean;
   emptyMessage?: string;
 }) {
   const [quickViewSlug, setQuickViewSlug] = React.useState<string | null>(null);
+  const allowQuickView = cardStyle !== "minimal";
 
   if (isLoading) {
     return (
@@ -50,7 +53,9 @@ export function ProductGrid({
       <div
         className={cn(
           "grid gap-4 sm:gap-6",
-          view === "list"
+          cardStyle === "minimal"
+            ? "grid-cols-2 gap-y-6 sm:grid-cols-3 lg:grid-cols-4"
+            : view === "list"
             ? "grid-cols-1"
             : "sm:grid-cols-2 lg:grid-cols-3"
         )}
@@ -61,24 +66,26 @@ export function ProductGrid({
               key={product.id}
               product={product}
               variant={cardVariant}
-              onQuickView={setQuickViewSlug}
+              onQuickView={allowQuickView ? setQuickViewSlug : undefined}
             />
           ) : (
             <ProductCard
               key={product.id}
               product={product}
-              variant={view === "list" ? "list" : "grid"}
-              showQuickView
-              onQuickView={setQuickViewSlug}
+              variant={cardStyle === "minimal" ? "minimal" : view === "list" ? "list" : "grid"}
+              showQuickView={allowQuickView}
+              onQuickView={allowQuickView ? setQuickViewSlug : undefined}
             />
           )
         ))}
       </div>
-      <QuickViewModal
-        slug={quickViewSlug}
-        isOpen={Boolean(quickViewSlug)}
-        onClose={() => setQuickViewSlug(null)}
-      />
+      {allowQuickView ? (
+        <QuickViewModal
+          slug={quickViewSlug}
+          isOpen={Boolean(quickViewSlug)}
+          onClose={() => setQuickViewSlug(null)}
+        />
+      ) : null}
     </>
   );
 }

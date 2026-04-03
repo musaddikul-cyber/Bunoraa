@@ -50,6 +50,7 @@ export function FilterPanel({
   productCount,
   className,
   filterParams,
+  variant = "default",
 }: {
   filters: ProductFilterResponse | null;
   facets?: CategoryFacet[];
@@ -57,6 +58,7 @@ export function FilterPanel({
   productCount?: number;
   className?: string;
   filterParams?: Record<string, string>;
+  variant?: "default" | "minimal";
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -204,9 +206,169 @@ export function FilterPanel({
       }),
     [categories]
   );
+  const isMinimal = variant === "minimal";
+
+  const attributeEntries = React.useMemo(
+    () => Object.entries(activeFilters?.attributes || {}),
+    [activeFilters]
+  );
+  const normalize = (value: string) => value.toLowerCase();
+  const sizeGroup = attributeEntries.find(([name, info]) => {
+    const nameLower = normalize(name);
+    const slugLower = normalize(info.slug || "");
+    return nameLower.includes("size") && !nameLower.includes("pant") && !slugLower.includes("pant");
+  });
+  const pantGroup = attributeEntries.find(([name, info]) => {
+    const nameLower = normalize(name);
+    const slugLower = normalize(info.slug || "");
+    return nameLower.includes("pant") || slugLower.includes("pant");
+  });
+  const currencySymbol =
+    activeFilters?.price_range?.currency_symbol ||
+    activeFilters?.price_range?.currency ||
+    "$";
+  const formatLabel = (value: number) => {
+    if (currencySymbol && currencySymbol.length <= 3) {
+      return `${currencySymbol} ${Math.round(value)}`;
+    }
+    return formatMoney(value, currencyCode);
+  };
+  const bucketCount = 4;
+  const bucketStep = Math.max(1, Math.ceil(maxRange / bucketCount));
+  const priceBuckets = [
+    { label: `Under ${formatLabel(bucketStep)}`, min: null, max: bucketStep },
+    {
+      label: `${formatLabel(bucketStep)} - ${formatLabel(bucketStep * 2)}`,
+      min: bucketStep,
+      max: bucketStep * 2,
+    },
+    {
+      label: `${formatLabel(bucketStep * 2)} - ${formatLabel(bucketStep * 3)}`,
+      min: bucketStep * 2,
+      max: bucketStep * 3,
+    },
+    { label: `${formatLabel(bucketStep * 3)}+`, min: bucketStep * 3, max: null },
+  ];
 
   if (shouldHideFilters) {
     return null;
+  }
+
+  if (isMinimal) {
+    return (
+      <div className={cn("space-y-6 text-[13px] text-foreground/80", className)}>
+        {sizeGroup ? (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground/80">
+              Size
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {sizeGroup[1].values.map((value) => {
+                const currentValues = current.attrs[sizeGroup[1].slug] || [];
+                const isSelected = currentValues.includes(value);
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={cn(
+                      "inline-flex min-h-9 items-center rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.18em]",
+                      isSelected
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border text-foreground/75"
+                    )}
+                    onClick={() => {
+                      const params = toggleMultiValue(
+                        searchParams,
+                        `attr_${sizeGroup[1].slug}`,
+                        value
+                      );
+                      router.push(`?${params.toString()}`);
+                    }}
+                  >
+                    {value}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {pantGroup ? (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground/80">
+              Pant-Size
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {pantGroup[1].values.map((value) => {
+                const currentValues = current.attrs[pantGroup[1].slug] || [];
+                const isSelected = currentValues.includes(value);
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className={cn(
+                      "inline-flex min-h-9 items-center rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.18em]",
+                      isSelected
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border text-foreground/75"
+                    )}
+                    onClick={() => {
+                      const params = toggleMultiValue(
+                        searchParams,
+                        `attr_${pantGroup[1].slug}`,
+                        value
+                      );
+                      router.push(`?${params.toString()}`);
+                    }}
+                  >
+                    {value}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-foreground/80">
+            Price ({currencySymbol})
+          </h3>
+          <ul className="space-y-1">
+            {priceBuckets.map((bucket) => {
+              const isActive =
+                String(current.priceMin || "") === String(bucket.min || "") &&
+                String(current.priceMax || "") === String(bucket.max || "");
+              return (
+                <li key={bucket.label}>
+                  <button
+                    type="button"
+                    className={cn(
+                      "text-left text-[13px] text-foreground/70 hover:text-foreground",
+                      isActive && "font-semibold text-foreground"
+                    )}
+                    onClick={() => {
+                      let params = updateParamValue(
+                        searchParams,
+                        "price_min",
+                        bucket.min === null ? null : String(bucket.min)
+                      );
+                      params = updateParamValue(
+                        params,
+                        "price_max",
+                        bucket.max === null ? null : String(bucket.max)
+                      );
+                      router.push(`?${params.toString()}`);
+                    }}
+                  >
+                    {bucket.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    );
   }
 
   return (

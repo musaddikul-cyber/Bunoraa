@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { getAppliedFilters, parseFilters, removeAppliedFilter, clearAllFilters } from "@/lib/productFilters";
 
-export function AppliedFilters() {
+export function AppliedFilters({ variant = "default" }: { variant?: "default" | "minimal" } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const filters = parseFilters(searchParams);
   const applied = getAppliedFilters(filters);
 
+  if (variant === "minimal") return null;
   if (!applied.length) return null;
 
   return (

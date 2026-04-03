@@ -4,17 +4,12 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type {
   Collection,
-  PreorderCategory,
   ProductListItem,
   SiteSettings,
-  SubscriptionPlan,
-  Bundle,
 } from "@/lib/types";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { ProductGrid } from "@/components/products/ProductGrid";
-import { QuickViewTriggerButton } from "@/components/products/QuickViewTriggerButton";
-import { SearchBar } from "@/components/search/SearchBar";
+import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
+import { HomeProductTabs } from "@/components/products/HomeProductTabs";
 import { HeroBannerSlider, type HeroBanner } from "@/components/promotions/HeroBannerSlider";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
@@ -66,16 +61,11 @@ type Banner = HeroBanner & {
   position?: string | null;
 };
 
-type FaqItem = {
+type CategorySummary = {
   id: string;
-  question: string;
-  answer: string;
-  category?: string | null;
-};
-
-type BundleSummary = Bundle & {
-  price?: string | null;
-  item_count?: number | null;
+  name: string;
+  slug: string;
+  image?: string | null;
 };
 
 const DEFAULT_HOMEPAGE_DATA: HomepageData = {
@@ -95,13 +85,6 @@ const pickText = (...values: Array<string | null | undefined>) => {
   return "";
 };
 
-const formatNumber = (value?: number | string | null) => {
-  if (value === null || value === undefined) return "0";
-  const numeric = typeof value === "string" ? Number(value) : value;
-  if (Number.isNaN(numeric)) return String(value);
-  return new Intl.NumberFormat("en-US").format(numeric);
-};
-
 const getImage = (product: ProductListItem | null | undefined) => {
   if (!product) return null;
   const primary = product.primary_image as unknown as
@@ -113,13 +96,6 @@ const getImage = (product: ProductListItem | null | undefined) => {
   return primary.image || null;
 };
 
-const getPrice = (product: ProductListItem) => {
-  return product.current_price || product.sale_price || product.price || "";
-};
-
-const getCurrency = (product: ProductListItem) => {
-  return product.currency || (product as unknown as { currency_code?: string }).currency_code || "";
-};
 
 async function getHomepageData(headers: Record<string, string>) {
   try {
@@ -161,56 +137,6 @@ async function getSiteSettings(headers: Record<string, string>) {
   }
 }
 
-async function getPreorderCategories(headers: Record<string, string>) {
-  try {
-    const response = await apiFetch<PreorderCategory[]>("/preorders/categories/", {
-      headers,
-      params: { page_size: 4 },
-      next: { revalidate },
-    });
-    return asArray<PreorderCategory>(response.data);
-  } catch {
-    return [] as PreorderCategory[];
-  }
-}
-
-async function getSubscriptionPlans(headers: Record<string, string>) {
-  try {
-    const response = await apiFetch<SubscriptionPlan[]>("/subscriptions/plans/", {
-      headers,
-      next: { revalidate },
-    });
-    return asArray<SubscriptionPlan>(response.data);
-  } catch {
-    return [] as SubscriptionPlan[];
-  }
-}
-
-async function getFaqs(headers: Record<string, string>) {
-  try {
-    const response = await apiFetch<FaqItem[]>("/pages/faqs/", {
-      headers,
-      next: { revalidate },
-    });
-    return asArray<FaqItem>(response.data);
-  } catch {
-    return [] as FaqItem[];
-  }
-}
-
-async function getBundles(headers: Record<string, string>) {
-  try {
-    const response = await apiFetch<BundleSummary[]>("/catalog/bundles/", {
-      headers,
-      params: { page_size: 4 },
-      next: { revalidate },
-    });
-    return asArray<BundleSummary>(response.data);
-  } catch {
-    return [] as BundleSummary[];
-  }
-}
-
 async function getBanners(headers: Record<string, string>, position?: string) {
   try {
     const response = await apiFetch<Banner[]>("/promotions/banners/", {
@@ -224,40 +150,47 @@ async function getBanners(headers: Record<string, string>, position?: string) {
   }
 }
 
+async function getCategoryProducts(headers: Record<string, string>, slug: string) {
+  try {
+    const response = await apiFetch<
+      ProductListItem[] | { results?: ProductListItem[] }
+    >("/catalog/products/by-category/", {
+      headers,
+      params: { category: slug, page_size: 8 },
+      next: { revalidate },
+    });
+    const payload = response.data as ProductListItem[] | { results?: ProductListItem[] };
+    if (Array.isArray(payload)) return payload;
+    return asArray<ProductListItem>(payload.results);
+  } catch {
+    return [] as ProductListItem[];
+  }
+}
+
+async function getShowByCategories(headers: Record<string, string>) {
+  try {
+    const response = await apiFetch<CategorySummary[]>("/catalog/categories/", {
+      headers,
+      params: { page_size: 3, has_products: true },
+      next: { revalidate },
+    });
+    return asArray<CategorySummary>(response.data);
+  } catch {
+    return [] as CategorySummary[];
+  }
+}
+
 export default async function Home() {
   const localeHeaders = await getServerLocaleHeaders();
   const [
     homepageData,
-    siteSettings,
-    preorderCategories,
-    subscriptionPlans,
-    faqs,
-    bundles,
     heroBanners,
-    secondaryBanners,
+    siteSettings,
   ] = await Promise.all([
     getHomepageData(localeHeaders),
-    getSiteSettings(localeHeaders),
-    getPreorderCategories(localeHeaders),
-    getSubscriptionPlans(localeHeaders),
-    getFaqs(localeHeaders),
-    getBundles(localeHeaders),
     getBanners(localeHeaders, "home_hero"),
-    getBanners(localeHeaders, "home_secondary"),
+    getSiteSettings(localeHeaders),
   ]);
-
-  const brandName = pickText(siteSettings?.site_name) || "Bunoraa";
-  const heroTitle =
-    pickText(siteSettings?.tagline, siteSettings?.site_tagline) ||
-    "Handcrafted collections for modern living";
-  const heroDescription =
-    pickText(siteSettings?.site_description) ||
-    "Discover curated craftsmanship, artisan bundles, and bespoke orders delivered with clarity and care.";
-
-  const supportEmail = pickText(siteSettings?.support_email, siteSettings?.contact_email);
-  const supportPhone = pickText(siteSettings?.contact_phone);
-  const supportReplyNote =
-    pickText(siteSettings?.support_reply_time_note) || "We reply within 1 business day.";
 
   const featuredProducts = asArray<ProductListItem>(homepageData.featured_products);
   const newArrivals = asArray<ProductListItem>(homepageData.new_arrivals);
@@ -268,73 +201,28 @@ export default async function Home() {
     if (category.product_count === null || category.product_count === undefined) return true;
     return Number(category.product_count) > 0;
   });
-  const topCategoryChips = featuredCategoriesWithProducts.slice(0, 5);
+  const homepageCategories = featuredCategoriesWithProducts.slice(0, 3);
+  const categoryProducts = await Promise.all(
+    homepageCategories.map((category) => getCategoryProducts(localeHeaders, category.slug))
+  );
+  const categoryBands = homepageCategories.map((category, index) => ({
+    category,
+    products: categoryProducts[index] || [],
+  }));
+  const categoryBandsWithProducts = categoryBands.filter(
+    (band) => band.products.length > 0
+  );
+  const showByCategories = await getShowByCategories(localeHeaders);
+  const topCategoryChips = categoryBandsWithProducts.map((band) => band.category);
   const collections = asArray<Collection>(homepageData.collections);
-  const featuredCollections = collections.slice(0, 4);
-  const featuredBundles = bundles.slice(0, 4);
+  const brandName = pickText(siteSettings?.site_name);
+  const heroDescription = pickText(
+    siteSettings?.site_tagline,
+    siteSettings?.tagline,
+    siteSettings?.site_description
+  );
 
-  const heroStats = [
-    {
-      label: "Featured products",
-      count: featuredProducts.length,
-      description: "Handpicked right now",
-      href: "/products/",
-    },
-    {
-      label: "New arrivals",
-      count: newArrivals.length,
-      description: "Fresh inventory drops",
-      href: "/products/?ordering=-created_at",
-    },
-    {
-      label: "Collections",
-      count: collections.length,
-      description: "Curated themes",
-      href: "/collections/",
-    },
-    {
-      label: "On sale",
-      count: onSale.length,
-      description: "Limited offers",
-      href: "/products/?ordering=on_sale",
-    },
-  ]
-    .filter((stat) => stat.count > 0)
-    .map((stat) => ({
-      ...stat,
-      value: formatNumber(stat.count),
-    }));
-
-  const productSections = [
-    {
-      id: "featured",
-      title: "Featured picks",
-      description: "Best-in-class selections across the catalog.",
-      href: "/products/",
-      products: featuredProducts.slice(0, 6),
-    },
-    {
-      id: "new",
-      title: "New arrivals",
-      description: "Recently released pieces from our artisan partners.",
-      href: "/products/?ordering=-created_at",
-      products: newArrivals.slice(0, 6),
-    },
-  ];
-
-  const compactShowcase = [
-    {
-      title: "On sale",
-      href: "/products/?ordering=on_sale",
-      items: onSale.slice(0, 4),
-    },
-    {
-      title: "Bestsellers",
-      href: "/products/?ordering=-sales_count",
-      items: bestsellers.slice(0, 4),
-    },
-  ].filter((block) => block.items.length > 0);
-  const productSectionsWithProducts = productSections.filter((section) => section.products.length > 0);
+  const seasonalFavs = (onSale.length ? onSale : featuredProducts).slice(0, 8);
 
   const homePageSchema = cleanObject({
     "@context": "https://schema.org",
@@ -374,465 +262,108 @@ export default async function Home() {
   ];
 
   const sectionWrapperClass = "mx-auto w-full max-w-7xl px-4 sm:px-6";
-  const compactActionClass = "min-h-11 px-4 sm:px-4";
-  const primaryHeroCtaClass = "min-h-11 w-full justify-center sm:min-h-10 sm:w-auto";
-  const sectionHeaderClass = "flex items-end justify-between gap-3 sm:items-center";
-  const sectionTitleClass = "text-xl font-semibold leading-tight sm:text-2xl";
-  const sectionDescriptionClass = "mt-1 text-xs text-foreground/60 sm:mt-2 sm:text-sm";
-  const sectionActionClass = "min-h-10 shrink-0 whitespace-nowrap px-3 sm:px-4";
 
   return (
     <div className="bg-background text-foreground">
-      <section className="relative overflow-hidden motion-safe:animate-fade-in">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute bottom-0 left-0 h-72 w-72 rounded-full bg-accent/15 blur-3xl"
-        />
-        <div className={`${sectionWrapperClass} py-10 sm:py-14 lg:py-24`}>
-          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-10">
-            <div className="space-y-8">
-              <div className="space-y-4">
-                <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
-                  {brandName}
-                </p>
-                <h1 className="text-3xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
-                  <span className="text-gradient text-gradient-primary font-display">
-                    {heroTitle}
-                  </span>
-                </h1>
-                <p className="max-w-2xl text-base text-foreground/60 sm:text-lg">
-                  {heroDescription}
-                </p>
-              </div>
-              <div className="grid gap-3 sm:flex sm:flex-wrap">
-                <Button asChild variant="primary" className={primaryHeroCtaClass}>
-                  <Link href="/products/">Shop products</Link>
-                </Button>
-                <Button asChild variant="secondary" className={primaryHeroCtaClass}>
-                  <Link href="/preorders/">Start a preorder</Link>
-                </Button>
-                <Button asChild variant="secondary" className={primaryHeroCtaClass}>
-                  <Link href="/collections/">Browse collections</Link>
-                </Button>
-              </div>
-              <Card variant="glass" className="flex flex-col gap-4 p-4">
-                <div>
-                  <p className="text-sm font-semibold">Find your next piece</p>
-                  <p className="text-xs text-foreground/55">
-                    Search across products, categories, and artisan bundles.
-                  </p>
-                </div>
-                <SearchBar />
-              </Card>
-              {topCategoryChips.length ? (
-                <div className="flex flex-wrap gap-2 text-xs text-foreground/60">
-                  {topCategoryChips.map((category) => (
-                    <Link
-                      key={category.id}
-                      href={buildCategoryPath(category.slug)}
-                      className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
-                    >
-                      {category.name}
-                    </Link>
-                  ))}
-                  <Link
-                    href="/categories/"
-                    className="inline-flex min-h-11 items-center rounded-full border border-border bg-card px-3 py-1 transition hover:border-primary/50 hover:text-foreground"
-                  >
-                    All categories
-                  </Link>
-                </div>
-              ) : null}
+      <section className="border-b border-border/70">
+        <div className={`${sectionWrapperClass} py-6`}>
+          {heroBanners.length ? (
+            <HeroBannerSlider banners={heroBanners} className="mx-auto" />
+          ) : (
+            <div className="aspect-[16/7] w-full bg-muted" />
+          )}
+          {topCategoryChips.length ? (
+            <div className="mt-6 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-foreground/70">
+              {topCategoryChips.map((category) => (
+                <Link
+                  key={category.id}
+                  href={buildCategoryPath(category.slug)}
+                  className="hover:text-foreground"
+                >
+                  {category.name}
+                </Link>
+              ))}
+              <Link href="/products/" className="hover:text-foreground">
+                View All
+              </Link>
             </div>
-
-            <div className="grid gap-5">
-              {heroStats.length ? (
-                <Card variant="glass" className="space-y-6 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">
-                        Marketplace pulse
-                      </p>
-                      <h2 className="text-xl font-semibold">Live commerce overview</h2>
-                    </div>
-                    <Button asChild variant="secondary" size="sm" className={compactActionClass}>
-                      <Link href="/products/">View catalog</Link>
-                    </Button>
-                  </div>
-                  <dl className="grid gap-4 sm:grid-cols-2">
-                    {heroStats.map((stat) => (
-                      <div key={stat.label} className="rounded-xl border border-border/60 bg-card/70 p-4">
-                        <dt className="text-xs uppercase tracking-[0.2em] text-foreground/50">
-                          {stat.label}
-                        </dt>
-                        <dd className="mt-2 text-2xl font-semibold">{stat.value}</dd>
-                        <p className="mt-1 text-xs text-foreground/55">{stat.description}</p>
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="secondary"
-                          className={`mt-3 ${compactActionClass}`}
-                        >
-                          <Link href={stat.href}>Explore</Link>
-                        </Button>
-                      </div>
-                    ))}
-                  </dl>
-                  {(supportEmail || supportPhone) && (
-                    <div className="rounded-xl border border-border/60 bg-card/70 p-4 text-sm">
-                      <p className="font-semibold">Support concierge</p>
-                      <div className="mt-2 space-y-1 text-foreground/60">
-                        {supportEmail ? (
-                          <p>
-                            Email: <Link href={`mailto:${supportEmail}`}>{supportEmail}</Link>
-                          </p>
-                        ) : null}
-                        {supportPhone ? (
-                          <p>
-                            Phone: <Link href={`tel:${supportPhone}`}>{supportPhone}</Link>
-                          </p>
-                        ) : null}
-                        {supportReplyNote ? <p>{supportReplyNote}</p> : null}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ) : null}
-
-            </div>
-          </div>
+          ) : null}
         </div>
       </section>
-      {heroBanners.length ? (
-        <section className={`${sectionWrapperClass} py-8 sm:py-10`}>
-          <HeroBannerSlider banners={heroBanners} className="mx-auto" />
-        </section>
-      ) : null}
-      {secondaryBanners.length ? (
-        <section className={`${sectionWrapperClass} pb-12`}>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {secondaryBanners.map((banner) => {
-              const content = (
-                <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-card sm:aspect-[16/10]">
-                  <picture>
-                    {banner.image_mobile ? (
-                      <source media="(max-width: 640px)" srcSet={banner.image_mobile} />
-                    ) : null}
-                    <img
-                      src={banner.image}
-                      alt={banner.title}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </picture>
-                  <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/60 via-black/10 to-transparent p-5 text-white">
-                    <h3 className="text-lg font-semibold">{banner.title}</h3>
-                    {banner.subtitle ? (
-                      <p className="mt-1 text-xs text-white/80">{banner.subtitle}</p>
-                    ) : null}
-                  </div>
-                </div>
-              );
-              if (banner.link_url) {
-                return (
-                  <a
-                    key={banner.id}
-                    href={banner.link_url}
-                    className="block transition hover:-translate-y-0.5"
-                  >
-                    {content}
-                  </a>
-                );
-              }
-              return <div key={banner.id}>{content}</div>;
-            })}
-          </div>
-        </section>
-      ) : null}
-      {productSectionsWithProducts.length ? (
-        <section className={`${sectionWrapperClass} space-y-12 py-12`} id="highlights">
-          {productSectionsWithProducts.map((section) => (
-            <div key={section.id} className="space-y-6">
-              <div className={sectionHeaderClass}>
-                <div className="min-w-0">
-                  <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
-                    {section.title}
-                  </p>
-                  <p className={sectionDescriptionClass}>{section.description}</p>
-                </div>
-                <Button
-                  asChild
-                  variant="secondary"
-                  size="sm"
-                  className={sectionActionClass}
-                >
-                  <Link href={section.href}>View all</Link>
-                </Button>
-              </div>
-              <ProductGrid products={section.products} />
-            </div>
-          ))}
-        </section>
-      ) : null}
-      {featuredCategoriesWithProducts.length ? (
-        <section className={`${sectionWrapperClass} py-12`} id="categories">
-          <div className={sectionHeaderClass}>
-            <div className="min-w-0">
-              <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Categories</p>
-              <h2 className={sectionTitleClass}>Shop by category</h2>
-            </div>
-            <Button
-              asChild
-              variant="secondary"
-              size="sm"
-              className={sectionActionClass}
+
+      {categoryBandsWithProducts.map((band) => (
+        <section key={band.category.id} className={`${sectionWrapperClass} py-8`}>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+              {band.category.name}
+            </h2>
+            <Link
+              href={buildCategoryPath(band.category.slug)}
+              className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60 hover:text-foreground"
             >
-              <Link href="/categories/">Browse all</Link>
-            </Button>
+              View All
+            </Link>
           </div>
-          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredCategoriesWithProducts.map((category) => (
-              <Card key={category.id} variant="bordered" className="flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-lg font-semibold">{category.name}</p>
-                  {category.product_count ? (
-                    <span className="text-xs text-foreground/55">
-                      {formatNumber(category.product_count)} items
-                    </span>
+          <div className="mt-4">
+            <ProductGrid products={band.products} cardStyle="minimal" />
+          </div>
+        </section>
+      ))}
+
+      {seasonalFavs.length ? (
+        <section className={`${sectionWrapperClass} py-8`}>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+            Seasonal Favs
+          </h2>
+          <div className="mt-4">
+            <ProductGrid products={seasonalFavs} cardStyle="minimal" />
+          </div>
+        </section>
+      ) : null}
+
+      <section className={`${sectionWrapperClass} py-8`}>
+        <HomeProductTabs newDrops={newArrivals} trending={bestsellers} />
+      </section>
+
+      <section className={`${sectionWrapperClass} py-8`}>
+        <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+          Recently Stalked
+        </h2>
+        <div className="mt-4">
+          <RecentlyViewedSection />
+        </div>
+      </section>
+
+      {showByCategories.length ? (
+        <section className={`${sectionWrapperClass} py-8`}>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+            Show By Category
+          </h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            {showByCategories.map((category) => (
+              <Link
+                key={category.id}
+                href={buildCategoryPath(category.slug)}
+                className="group"
+              >
+                <div className="aspect-[4/3] overflow-hidden bg-muted">
+                  {category.image ? (
+                    <img
+                      src={category.image}
+                      alt={category.name}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                    />
                   ) : null}
                 </div>
-                <p className="text-sm text-foreground/60">
-                  Curated pieces selected for quality and delivery readiness.
-                </p>
-                <Button asChild size="sm" variant="secondary" className={compactActionClass}>
-                  <Link href={buildCategoryPath(category.slug)}>Shop category</Link>
-                </Button>
-              </Card>
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {compactShowcase.length ? (
-        <section className={`${sectionWrapperClass} py-12`} id="marketplace">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {compactShowcase.map((block) => (
-              <Card key={block.title} variant="bordered" className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold sm:text-lg">{block.title}</h3>
-                  <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
-                    <Link href={block.href}>View all</Link>
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {block.items.map((product) => (
-                    <div key={product.id} className="flex min-w-0 items-center gap-3 sm:gap-4">
-                      <div className="h-14 w-14 overflow-hidden rounded-xl bg-muted">
-                        {getImage(product) ? (
-                          <img
-                            src={getImage(product) || ""}
-                            alt={product.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : null}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={buildProductPath(product)}
-                          className="block truncate text-sm font-semibold"
-                        >
-                          {product.name}
-                        </Link>
-                        <p className="truncate text-xs text-foreground/55">
-                          {getPrice(product)} {getCurrency(product)}
-                        </p>
-                      </div>
-                      <QuickViewTriggerButton
-                        slug={product.slug}
-                        className={compactActionClass}
-                        label="View"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {featuredCollections.length || featuredBundles.length ? (
-        <section className={`${sectionWrapperClass} py-12`} id="collections">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {featuredCollections.length ? (
-              <Card variant="bordered" className="space-y-4">
-                <div className={sectionHeaderClass}>
-                  <div className="min-w-0">
-                    <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Collections</p>
-                    <h2 className={sectionTitleClass}>Curated themes</h2>
-                  </div>
-                  <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
-                    <Link href="/collections/">Browse all</Link>
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {featuredCollections.map((collection) => (
-                    <Link
-                      key={collection.id}
-                      href={`/collections/${collection.slug}/`}
-                      className="flex min-w-0 items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
-                    >
-                      <span className="min-w-0 truncate pr-3 font-semibold">{collection.name}</span>
-                      <span className="text-xs text-foreground/55">Explore</span>
-                    </Link>
-                  ))}
-                </div>
-              </Card>
-            ) : null}
-
-            {featuredBundles.length ? (
-              <Card variant="bordered" className="space-y-4">
-                <div className={sectionHeaderClass}>
-                  <div className="min-w-0">
-                    <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Bundles</p>
-                    <h2 className={sectionTitleClass}>Ready-to-ship sets</h2>
-                  </div>
-                  <Button asChild size="sm" variant="secondary" className={sectionActionClass}>
-                    <Link href="/bundles/">Browse all</Link>
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {featuredBundles.map((bundle) => (
-                    <Link
-                      key={bundle.id}
-                      href={`/bundles/${bundle.slug}/`}
-                      className="flex min-w-0 items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3 text-sm transition hover:border-primary/40"
-                    >
-                      <div className="min-w-0 pr-3">
-                        <p className="truncate font-semibold">{bundle.name}</p>
-                        {bundle.item_count ? (
-                          <p className="text-xs text-foreground/55">{bundle.item_count} items</p>
-                        ) : null}
-                      </div>
-                      <span className="text-xs text-foreground/55">
-                        {bundle.price ? `${bundle.price}` : "Details"}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </Card>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-      {preorderCategories.length ? (
-        <section className={`${sectionWrapperClass} py-12`} id="preorders">
-          <div className={sectionHeaderClass}>
-            <div className="min-w-0">
-              <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Preorders</p>
-              <h2 className={sectionTitleClass}>Made-to-order programs</h2>
-              <p className={sectionDescriptionClass}>
-                Launch custom production runs with transparent timelines.
-              </p>
-            </div>
-            <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
-              <Link href="/preorders/">Manage preorders</Link>
-            </Button>
-          </div>
-          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {preorderCategories.slice(0, 4).map((category) => (
-              <Card key={category.id} variant="bordered" className="space-y-3">
-                <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">
+                <p className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-foreground/70">
                   {category.name}
                 </p>
-                <p className="text-sm text-foreground/60">
-                  {category.description || "Configure a custom run with artisan oversight."}
-                </p>
-                <div className="text-xs text-foreground/55">
-                  {category.base_price ? `Starting at ${category.base_price}` : "Pricing by quote"}
-                </div>
-                <Button asChild size="sm" variant="secondary" className={compactActionClass}>
-                  <Link href={`/preorders/category/${category.slug}/`}>Explore</Link>
-                </Button>
-              </Card>
+              </Link>
             ))}
           </div>
         </section>
       ) : null}
-      {subscriptionPlans.length ? (
-        <section className={`${sectionWrapperClass} py-12`} id="subscriptions">
-          <div className={sectionHeaderClass}>
-            <div className="min-w-0">
-              <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Subscriptions</p>
-              <h2 className={sectionTitleClass}>Recurring delivery plans</h2>
-            </div>
-            <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
-              <Link href="/subscriptions/">See all plans</Link>
-            </Button>
-          </div>
-          <div className="mt-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {subscriptionPlans.slice(0, 3).map((plan) => (
-              <Card key={plan.id} variant="bordered" className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold">{plan.name}</h3>
-                  <p className="text-sm text-foreground/60">{plan.description}</p>
-                </div>
-                <p className="text-base font-semibold">
-                  {plan.price_amount} {plan.currency} / {plan.interval}
-                </p>
-                <Button asChild size="sm" variant="secondary" className={compactActionClass}>
-                  <Link href={`/subscriptions/plans/${plan.id}/`}>View plan</Link>
-                </Button>
-              </Card>
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {faqs.length ? (
-        <section className={`${sectionWrapperClass} py-12`} id="faq">
-          <div className={sectionHeaderClass}>
-            <div className="min-w-0">
-              <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">FAQ</p>
-              <h2 className={sectionTitleClass}>Answers at a glance</h2>
-            </div>
-            <Button asChild variant="secondary" size="sm" className={sectionActionClass}>
-              <Link href="/faq/">Visit FAQ</Link>
-            </Button>
-          </div>
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
-            {faqs.slice(0, 3).map((faq) => (
-              <Card key={faq.id} variant="bordered" className="space-y-2">
-                <h3 className="text-lg font-semibold">{faq.question}</h3>
-                <p className="text-sm text-foreground/60">{faq.answer}</p>
-              </Card>
-            ))}
-          </div>
-        </section>
-      ) : null}
-      <section className={`${sectionWrapperClass} pb-16`} id="cta">
-        <Card
-          variant="modern-gradient"
-          className="flex flex-col gap-6 p-5 sm:p-6 md:flex-row md:items-center md:justify-between md:p-8"
-        >
-          <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-foreground/50">Ready to start</p>
-            <h2 className="text-2xl font-semibold">Build your next collection with Bunoraa</h2>
-            <p className="mt-2 text-sm text-foreground/60">
-              Launch curated catalogs, manage preorders, and delight customers with a polished experience.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:flex sm:flex-wrap">
-            <Button asChild variant="primary" className={primaryHeroCtaClass}>
-              <Link href="/products/">Shop now</Link>
-            </Button>
-            <Button asChild variant="secondary" className={primaryHeroCtaClass}>
-              <Link href="/contact/">Talk to us</Link>
-            </Button>
-          </div>
-        </Card>
-      </section>
+
       <JsonLd data={jsonLd} />
     </div>
   );

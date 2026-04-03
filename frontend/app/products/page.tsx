@@ -7,13 +7,12 @@ import { FilterPanel } from "@/components/products/FilterPanel";
 import { FilterDrawer } from "@/components/products/FilterDrawer";
 import { AppliedFilters } from "@/components/products/AppliedFilters";
 import { SortMenu } from "@/components/products/SortMenu";
-import { ViewToggle } from "@/components/products/ViewToggle";
-import { Button } from "@/components/ui/Button";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 import { buildProductPath } from "@/lib/productPaths";
+import { cn } from "@/lib/utils";
 
 export const revalidate = 300;
 
@@ -178,6 +177,13 @@ export default async function ProductsPage({
     params.set("page", String(page));
     return `?${params.toString()}`;
   };
+  const totalPages = pagination?.total_pages || 1;
+  const windowSize = 5;
+  const startPage = Math.max(1, Math.min(currentPage - 2, totalPages - windowSize + 1));
+  const endPage = Math.min(totalPages, startPage + windowSize - 1);
+  const pageNumbers = Array.from({ length: Math.max(0, endPage - startPage + 1) }, (_, i) => startPage + i);
+  const showFirst = startPage > 1;
+  const showLast = endPage < totalPages;
 
   const listId = "/products/#itemlist";
   const productList = buildItemList(
@@ -199,62 +205,97 @@ export default async function ProductsPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-12">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
-              Products
-            </p>
-            <h1 className="text-3xl font-semibold">Shop the catalog</h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-10">
+        <nav className="text-xs uppercase tracking-[0.2em] text-foreground/60">
+          <Link href="/" className="hover:text-foreground">Home</Link> / Products
+        </nav>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold uppercase tracking-[0.12em] sm:text-3xl">
+            Products
+          </h1>
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
             {showFilters ? (
               <FilterDrawer
                 filters={filterData}
                 productCount={totalCount}
                 className="lg:hidden"
                 filterParams={filterParams}
+                variant="minimal"
               />
             ) : null}
-            <SortMenu />
-            <ViewToggle />
+            <SortMenu variant="minimal" />
           </div>
         </div>
 
-        <div className={showFilters ? "grid gap-8 lg:grid-cols-[260px_1fr]" : "grid gap-8"}>
+        <div className={showFilters ? "mt-8 grid gap-8 lg:grid-cols-[220px_1fr]" : "mt-8 grid gap-8"}>
           {showFilters ? (
             <aside className="hidden lg:block">
-              <FilterPanel filters={filterData} productCount={totalCount} filterParams={filterParams} />
+              <FilterPanel
+                filters={filterData}
+                productCount={totalCount}
+                filterParams={filterParams}
+                variant="minimal"
+              />
             </aside>
           ) : null}
           <div className="space-y-6">
-            <AppliedFilters />
-            <ProductGrid products={products} view={view} />
+            <AppliedFilters variant="minimal" />
+            <ProductGrid products={products} view={view} cardStyle="minimal" />
 
             {showPagination ? (
-              <div className="mt-10 flex items-center justify-between">
+              <div className="mt-10 flex flex-wrap items-center justify-center gap-2 text-sm">
                 {pagination?.previous ? (
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href={pageLink(currentPage - 1)}>Previous</Link>
-                  </Button>
-                ) : (
-                  <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
-                    Previous
-                  </span>
-                )}
-                <span className="text-sm text-foreground/60">
-                  Page {currentPage}
-                  {pagination?.total_pages ? ` of ${pagination.total_pages}` : ""}
-                </span>
+                  <Link
+                    href={pageLink(currentPage - 1)}
+                    className="rounded-full border border-border px-3 py-1.5 hover:border-foreground"
+                  >
+                    Prev
+                  </Link>
+                ) : null}
+                {showFirst ? (
+                  <>
+                    <Link
+                      href={pageLink(1)}
+                      className="rounded-full border border-border px-3 py-1.5 hover:border-foreground"
+                    >
+                      1
+                    </Link>
+                    <span className="px-2 text-foreground/50">...</span>
+                  </>
+                ) : null}
+                {pageNumbers.map((page) => (
+                  <Link
+                    key={page}
+                    href={pageLink(page)}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5",
+                      page === currentPage
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border hover:border-foreground"
+                    )}
+                  >
+                    {page}
+                  </Link>
+                ))}
+                {showLast ? (
+                  <>
+                    <span className="px-2 text-foreground/50">...</span>
+                    <Link
+                      href={pageLink(totalPages)}
+                      className="rounded-full border border-border px-3 py-1.5 hover:border-foreground"
+                    >
+                      {totalPages}
+                    </Link>
+                  </>
+                ) : null}
                 {pagination?.next ? (
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href={pageLink(currentPage + 1)}>Next</Link>
-                  </Button>
-                ) : (
-                  <span className="rounded-xl px-4 py-2 text-sm text-foreground/40">
+                  <Link
+                    href={pageLink(currentPage + 1)}
+                    className="rounded-full border border-border px-3 py-1.5 hover:border-foreground"
+                  >
                     Next
-                  </span>
-                )}
+                  </Link>
+                ) : null}
               </div>
             ) : null}
           </div>

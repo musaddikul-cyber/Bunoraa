@@ -26,6 +26,13 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _ensure_trailing_slash(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return value
+    return value if value.endswith('/') else f"{value}/"
+
+
 def _normalize_rediss_url(url: str | None) -> str | None:
     if not url:
         return url
@@ -57,8 +64,25 @@ DEBUG = _env_bool('DEBUG', True)
 # Use S3/Cloudflare for media files
 USE_S3 = True
 
-# MEDIA_URL will be set by base.py S3 logic
-# Do not set LOCAL_MEDIA_URL or MEDIA_ROOT here
+# Ensure MEDIA_URL is normalized if provided via env.
+if os.environ.get('MEDIA_URL'):
+    MEDIA_URL = _ensure_trailing_slash(os.environ['MEDIA_URL'])
+
+# Align R2 defaults with production when using Cloudflare R2 endpoints.
+_s3_endpoint_url = os.environ.get('AWS_S3_ENDPOINT_URL', '').strip()
+if _s3_endpoint_url and 'r2.cloudflarestorage.com' in _s3_endpoint_url:
+    AWS_S3_REGION_NAME = 'auto'
+    AWS_QUERYSTRING_AUTH = _env_bool('AWS_QUERYSTRING_AUTH', False)
+    if not os.environ.get('MEDIA_URL'):
+        if os.environ.get('AWS_S3_CUSTOM_DOMAIN'):
+            MEDIA_URL = _ensure_trailing_slash(f"https://{os.environ['AWS_S3_CUSTOM_DOMAIN'].strip()}")
+        elif os.environ.get('AWS_STORAGE_BUCKET_NAME'):
+            MEDIA_URL = _ensure_trailing_slash(
+                f"{_s3_endpoint_url.rstrip('/')}/{os.environ['AWS_STORAGE_BUCKET_NAME'].strip()}"
+            )
+
+# MEDIA_URL will be set by base.py S3 logic if still unset.
+# Do not set LOCAL_MEDIA_URL or MEDIA_ROOT here.
 
 # Optionally override ALLOWED_HOSTS for local testing
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')

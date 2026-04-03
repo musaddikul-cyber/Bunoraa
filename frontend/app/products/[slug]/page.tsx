@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { apiFetch, ApiError } from "@/lib/api";
-import type { ProductDetail, ProductListItem } from "@/lib/types";
+import type { ProductDetail } from "@/lib/types";
 import { notFound, redirect } from "next/navigation";
 import { ProductDetailClient } from "@/components/products/ProductDetailClient";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
@@ -24,14 +24,6 @@ async function getProduct(slug: string) {
     }
     throw error;
   }
-}
-
-async function getRelated(slug: string) {
-  const response = await apiFetch<ProductListItem[]>(
-    `/catalog/products/${slug}/related/`,
-    { params: { limit: 8 }, headers: await getServerLocaleHeaders(), next: { revalidate } }
-  );
-  return response.data;
 }
 
 export async function generateMetadata({
@@ -63,10 +55,7 @@ export default async function ProductDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [product, relatedProducts] = await Promise.all([
-    getProduct(slug),
-    getRelated(slug).catch(() => []),
-  ]);
+  const product = await getProduct(slug);
 
   const canonicalPath = buildProductPath(product);
   const legacyPath = `/products/${product.slug}/`;
@@ -97,7 +86,7 @@ export default async function ProductDetailPage({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-12">
-        <ProductDetailClient product={product} relatedProducts={relatedProducts} />
+        <ProductDetailClient product={product} />
       </div>
       <JsonLd data={jsonLd} />
     </div>

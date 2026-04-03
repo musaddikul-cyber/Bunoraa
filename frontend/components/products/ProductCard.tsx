@@ -21,7 +21,7 @@ export function ProductCard({
   onQuickView,
 }: {
   product: ProductListItem;
-  variant?: "grid" | "list";
+  variant?: "grid" | "list" | "minimal";
   showQuickView?: boolean;
   onQuickView?: (slug: string) => void;
 }) {
@@ -31,6 +31,51 @@ export function ProductCard({
       ? product.primary_image
       : (product.primary_image as unknown as { image?: string | null })?.image || null;
   const productHref = buildProductPath(product);
+
+  if (variant === "minimal") {
+    return (
+      <div className="group">
+        <div className="relative aspect-[4/5] overflow-hidden bg-muted">
+          <Link
+            href={productHref}
+            className="absolute inset-0 z-10"
+            aria-label={`View ${product.name}`}
+          />
+          {image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={image}
+              alt={product.name}
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            />
+          ) : null}
+        </div>
+        <div className="mt-3 space-y-1">
+          {!product.is_in_stock ? (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/70">
+              Sold Out
+            </p>
+          ) : null}
+          <Link
+            href={productHref}
+            className="block text-sm font-semibold leading-snug text-foreground"
+          >
+            {product.name}
+          </Link>
+          <ProductPrice
+            price={product.price}
+            salePrice={product.sale_price}
+            currentPrice={product.current_price}
+            currency={product.currency}
+            className="text-foreground"
+            priceClassName="text-sm font-semibold"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card

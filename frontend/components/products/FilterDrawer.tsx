@@ -17,6 +17,7 @@ export function FilterDrawer({
   productCount,
   className,
   filterParams,
+  variant = "default",
 }: {
   filters: ProductFilterResponse | null;
   facets?: CategoryFacet[];
@@ -24,6 +25,7 @@ export function FilterDrawer({
   productCount?: number;
   className?: string;
   filterParams?: Record<string, string>;
+  variant?: "default" | "minimal";
 }) {
   const [open, setOpen] = React.useState(false);
   const shouldHideFilters = typeof productCount === "number" && productCount <= 1;
@@ -113,6 +115,7 @@ export function FilterDrawer({
                   categories={categories}
                   productCount={productCount}
                   filterParams={filterParams}
+                  variant={variant}
                 />
               </div>
               <div className="border-t border-border bg-background px-4 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-3 sm:hidden">

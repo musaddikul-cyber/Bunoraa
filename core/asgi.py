@@ -51,6 +51,20 @@ for _sig_name in ("SIGINT", "SIGTERM"):
 # Initialize Django ASGI application early to ensure apps are loaded
 django_asgi_app = get_asgi_application()
 
+def _print_media_storage_settings() -> None:
+    try:
+        from django.conf import settings
+
+        media_url = getattr(settings, "MEDIA_URL", None)
+        storage = getattr(settings, "DEFAULT_FILE_STORAGE", None)
+        if media_url or storage:
+            print(f"[media-storage] MEDIA_URL={media_url} STORAGE={storage}")
+    except Exception:
+        pass
+
+
+_print_media_storage_settings()
+
 
 async def _shutdown_aware_http_app(scope, receive, send):
     if _SHUTTING_DOWN:

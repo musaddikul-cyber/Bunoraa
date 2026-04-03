@@ -15,10 +15,29 @@ const orderingOptions = [
   { value: "-average_rating", label: "Top rated" },
 ];
 
-export function SortMenu({ className }: { className?: string } = {}) {
+const minimalOrderingOptions = [
+  { value: "", label: "Default Sorting" },
+  { value: "-created_at", label: "Latest" },
+  { value: "price", label: "Sort by price: low to high" },
+  { value: "-price", label: "Sort by price: high to low" },
+];
+
+export function SortMenu({
+  className,
+  variant = "default",
+}: {
+  className?: string;
+  variant?: "default" | "minimal";
+} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentOrdering = searchParams.get("ordering") || "-created_at";
+  const options = variant === "minimal" ? minimalOrderingOptions : orderingOptions;
+  const fallbackOrdering = variant === "minimal" ? "" : "-created_at";
+  const currentOrdering = searchParams.get("ordering") ?? fallbackOrdering;
+  const selectClass =
+    variant === "minimal"
+      ? "h-9 w-full border border-border bg-transparent px-2 text-xs uppercase tracking-[0.18em] text-foreground sm:w-[13rem]"
+      : "h-10 min-h-10 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground sm:w-[12.5rem]";
 
   return (
     <label className={cn("flex w-full items-center gap-2 text-sm text-foreground/70 sm:w-auto", className)}>
@@ -31,10 +50,10 @@ export function SortMenu({ className }: { className?: string } = {}) {
           const params = updateParamValue(searchParams, "ordering", event.target.value);
           router.push(`?${params.toString()}`);
         }}
-        className="h-10 min-h-10 w-full rounded-xl border border-border bg-card px-3 text-sm text-foreground sm:w-[12.5rem]"
+        className={selectClass}
       >
-        {orderingOptions.map((option) => (
-          <option key={option.value} value={option.value}>
+        {options.map((option) => (
+          <option key={option.value || "default"} value={option.value}>
             {option.label}
           </option>
         ))}

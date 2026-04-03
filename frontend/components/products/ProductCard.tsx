@@ -32,15 +32,28 @@ export function ProductCard({
       : (product.primary_image as unknown as { image?: string | null })?.image || null;
   const productHref = buildProductPath(product);
 
+  const canQuickView = typeof onQuickView === "function";
+
   if (variant === "minimal") {
     return (
       <div className="group">
         <div className="relative aspect-[4/5] overflow-hidden bg-muted">
-          <Link
-            href={productHref}
-            className="absolute inset-0 z-10"
-            aria-label={`View ${product.name}`}
-          />
+          {canQuickView ? (
+            <button
+              type="button"
+              className="absolute inset-0 z-10"
+              onClick={() => onQuickView?.(product.slug)}
+              aria-label={`Quick view ${product.name}`}
+            >
+              <span className="sr-only">Quick view</span>
+            </button>
+          ) : (
+            <Link
+              href={productHref}
+              className="absolute inset-0 z-10"
+              aria-label={`View ${product.name}`}
+            />
+          )}
           {image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -91,11 +104,22 @@ export function ProductCard({
           variant === "list" ? "h-40 w-full sm:h-40 sm:w-56" : "aspect-[4/5]"
         )}
       >
-        <Link
-          href={productHref}
-          className="absolute inset-0 z-0"
-          aria-label={`View ${product.name}`}
-        />
+        {canQuickView ? (
+          <button
+            type="button"
+            className="absolute inset-0 z-0"
+            onClick={() => onQuickView?.(product.slug)}
+            aria-label={`Quick view ${product.name}`}
+          >
+            <span className="sr-only">Quick view</span>
+          </button>
+        ) : (
+          <Link
+            href={productHref}
+            className="absolute inset-0 z-0"
+            aria-label={`View ${product.name}`}
+          />
+        )}
         <WishlistIconButton
           productId={product.id}
           variant="ghost"

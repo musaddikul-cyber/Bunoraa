@@ -172,18 +172,32 @@ function BaseMedia({
   className,
   showBadges = true,
   showWishlist = true,
+  onQuickView,
 }: {
   product: ProductListItem;
   className?: string;
   showBadges?: boolean;
   showWishlist?: boolean;
+  onQuickView?: (slug: string) => void;
 }) {
   const image = resolveImage(product);
   const productHref = buildProductPath(product);
+  const canQuickView = typeof onQuickView === "function";
 
   return (
     <div className={cn("relative overflow-hidden rounded-xl bg-muted", className)}>
-      <Link href={productHref} className="absolute inset-0 z-0" aria-label={`View ${product.name}`} />
+      {canQuickView ? (
+        <button
+          type="button"
+          className="absolute inset-0 z-0"
+          onClick={() => onQuickView?.(product.slug)}
+          aria-label={`Quick view ${product.name}`}
+        >
+          <span className="sr-only">Quick view</span>
+        </button>
+      ) : (
+        <Link href={productHref} className="absolute inset-0 z-0" aria-label={`View ${product.name}`} />
+      )}
       {showWishlist ? (
         <WishlistIconButton
           productId={product.id}
@@ -239,7 +253,7 @@ function StandardVariant({
 }: RenderProps) {
   return (
     <Card variant="bordered" className={cn("group flex flex-col gap-4 p-4 sm:p-5", className)}>
-      <BaseMedia product={product} className="aspect-[4/5]" />
+      <BaseMedia product={product} className="aspect-[4/5]" onQuickView={onQuickView} />
       <div className="space-y-2">
         <p className="text-[11px] uppercase tracking-[0.16em] text-foreground/60">
           {getCategoryLabel(product)}
@@ -279,7 +293,7 @@ function StandardVariant({
 function CompactVariant({ product, onQuickView, className }: RenderProps) {
   return (
     <Card variant="bordered" className={cn("flex flex-col gap-3 p-3", className)}>
-      <BaseMedia product={product} className="aspect-square" showBadges={false} />
+      <BaseMedia product={product} className="aspect-square" showBadges={false} onQuickView={onQuickView} />
       <div className="space-y-1">
         <SharedTitle product={product} className="line-clamp-2 text-sm" />
         <ProductPrice
@@ -309,11 +323,12 @@ function HorizontalVariant({
   product,
   isInCompare,
   onToggleCompare,
+  onQuickView,
   className,
 }: RenderProps) {
   return (
     <Card variant="bordered" className={cn("flex flex-col gap-4 p-4 sm:flex-row sm:items-center", className)}>
-      <BaseMedia product={product} className="h-40 w-full sm:h-36 sm:w-44" />
+      <BaseMedia product={product} className="h-40 w-full sm:h-36 sm:w-44" onQuickView={onQuickView} />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <p className="text-xs uppercase tracking-[0.16em] text-foreground/60">{getCategoryLabel(product)}</p>
         <SharedTitle product={product} className="line-clamp-2 text-lg" />
@@ -349,7 +364,7 @@ function OverlayVariant({ product, onQuickView, className }: RenderProps) {
       variant="bordered"
       className={cn("relative overflow-hidden p-0 shadow-soft transition hover:shadow-soft-lg", className)}
     >
-      <BaseMedia product={product} className="aspect-[4/5]" showBadges={false} />
+      <BaseMedia product={product} className="aspect-[4/5]" showBadges={false} onQuickView={onQuickView} />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 z-20 p-4 text-white">
         <p className="text-[10px] uppercase tracking-[0.2em] text-white/75">{getCategoryLabel(product)}</p>
@@ -375,12 +390,12 @@ function OverlayVariant({ product, onQuickView, className }: RenderProps) {
   );
 }
 
-function DealVariant({ product, className }: RenderProps) {
+function DealVariant({ product, onQuickView, className }: RenderProps) {
   const discount = getDiscountPercent(product);
 
   return (
     <Card variant="modern-gradient" className={cn("flex flex-col gap-4 border border-primary/20 p-4", className)}>
-      <BaseMedia product={product} className="aspect-[16/10]" showBadges={false} />
+      <BaseMedia product={product} className="aspect-[16/10]" showBadges={false} onQuickView={onQuickView} />
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <StockBadge product={product} />
@@ -413,7 +428,7 @@ function DealVariant({ product, className }: RenderProps) {
 function QuickAddVariant({ product, onQuickView, className }: RenderProps) {
   return (
     <Card variant="bordered" className={cn("space-y-4 p-4", className)}>
-      <BaseMedia product={product} className="aspect-[3/2]" />
+      <BaseMedia product={product} className="aspect-[3/2]" onQuickView={onQuickView} />
       <div className="space-y-2">
         <SharedTitle product={product} className="text-lg" />
         <ProductPrice
@@ -437,11 +452,17 @@ function QuickAddVariant({ product, onQuickView, className }: RenderProps) {
   );
 }
 
-function MinimalVariant({ product, className }: RenderProps) {
+function MinimalVariant({ product, onQuickView, className }: RenderProps) {
   return (
     <Card variant="bordered" className={cn("flex flex-col gap-3 p-3", className)}>
       <div className="flex items-center gap-3">
-        <BaseMedia product={product} className="h-20 w-20 shrink-0" showBadges={false} showWishlist={false} />
+        <BaseMedia
+          product={product}
+          className="h-20 w-20 shrink-0"
+          showBadges={false}
+          showWishlist={false}
+          onQuickView={onQuickView}
+        />
         <div className="min-w-0 flex-1">
           <p className="text-[11px] uppercase tracking-[0.16em] text-foreground/60">{getCategoryLabel(product)}</p>
           <SharedTitle product={product} className="line-clamp-2 text-sm font-medium" />
@@ -466,10 +487,10 @@ function MinimalVariant({ product, className }: RenderProps) {
   );
 }
 
-function EditorialVariant({ product, className }: RenderProps) {
+function EditorialVariant({ product, onQuickView, className }: RenderProps) {
   return (
     <Card variant="glass" className={cn("space-y-4 border border-border/70 p-4 sm:p-5", className)}>
-      <BaseMedia product={product} className="aspect-[5/4]" showBadges={false} />
+      <BaseMedia product={product} className="aspect-[5/4]" showBadges={false} onQuickView={onQuickView} />
       <div className="space-y-2">
         <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">Curated pick</p>
         <SharedTitle product={product} className="text-xl" />
@@ -509,11 +530,12 @@ function RatingFocusVariant({
   product,
   isInCompare,
   onToggleCompare,
+  onQuickView,
   className,
 }: RenderProps) {
   return (
     <Card variant="bordered" className={cn("space-y-4 p-4", className)}>
-      <BaseMedia product={product} className="aspect-square" />
+      <BaseMedia product={product} className="aspect-square" onQuickView={onQuickView} />
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <RatingStars
@@ -557,11 +579,12 @@ function CompareFocusVariant({
   product,
   isInCompare,
   onToggleCompare,
+  onQuickView,
   className,
 }: RenderProps) {
   return (
     <Card variant="bordered" className={cn("flex flex-col gap-4 p-4", className)}>
-      <BaseMedia product={product} className="aspect-[4/3]" showBadges={false} />
+      <BaseMedia product={product} className="aspect-[4/3]" showBadges={false} onQuickView={onQuickView} />
       <div className="space-y-2">
         <SharedTitle product={product} className="line-clamp-2 text-lg" />
         <div className="flex flex-wrap gap-2 text-xs text-foreground/70">
@@ -603,6 +626,7 @@ function CompareFocusVariant({
 function InventoryFocusVariant({
   product,
   inCart,
+  onQuickView,
   className,
 }: RenderProps) {
   return (
@@ -616,7 +640,7 @@ function InventoryFocusVariant({
         ) : null}
       </div>
       <div className="flex items-center gap-3">
-        <BaseMedia product={product} className="h-24 w-24 shrink-0" showBadges={false} />
+        <BaseMedia product={product} className="h-24 w-24 shrink-0" showBadges={false} onQuickView={onQuickView} />
         <div className="min-w-0 space-y-1">
           <SharedTitle product={product} className="line-clamp-2 text-base" />
           <ProductPrice
@@ -651,6 +675,7 @@ function DenseRowVariant({
   product,
   isInCompare,
   onToggleCompare,
+  onQuickView,
   className,
 }: RenderProps) {
   return (
@@ -658,7 +683,13 @@ function DenseRowVariant({
       variant="bordered"
       className={cn("grid grid-cols-1 items-center gap-3 p-3 sm:grid-cols-[84px_minmax(0,1fr)_auto_auto_auto]", className)}
     >
-      <BaseMedia product={product} className="h-20 w-20" showBadges={false} showWishlist={false} />
+      <BaseMedia
+        product={product}
+        className="h-20 w-20"
+        showBadges={false}
+        showWishlist={false}
+        onQuickView={onQuickView}
+      />
       <div className="min-w-0">
         <SharedTitle product={product} className="line-clamp-1 text-sm sm:text-base" />
         <p className="text-xs text-foreground/60">{getCategoryLabel(product)}</p>

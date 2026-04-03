@@ -24,7 +24,8 @@ export function ProductGrid({
   emptyMessage?: string;
 }) {
   const [quickViewSlug, setQuickViewSlug] = React.useState<string | null>(null);
-  const allowQuickView = cardStyle !== "minimal";
+  const allowQuickView = true;
+  const showQuickViewButton = cardStyle !== "minimal";
 
   if (isLoading) {
     return (
@@ -73,7 +74,7 @@ export function ProductGrid({
               key={product.id}
               product={product}
               variant={cardStyle === "minimal" ? "minimal" : view === "list" ? "list" : "grid"}
-              showQuickView={allowQuickView}
+              showQuickView={showQuickViewButton}
               onQuickView={allowQuickView ? setQuickViewSlug : undefined}
             />
           )

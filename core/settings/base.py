@@ -197,6 +197,7 @@ MIDDLEWARE = [
     'django.middleware.gzip.GZipMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'core.middleware.api_preflight.ApiPreflightMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'apps.i18n.middleware.LocaleMiddleware',

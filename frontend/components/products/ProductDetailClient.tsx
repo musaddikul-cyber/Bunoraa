@@ -7,6 +7,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "@/lib/api";
 import type {
   ProductDetail,
+  ProductListItem,
   Review,
   ReviewStatistics,
   ShippingRateResponse,
@@ -23,6 +24,7 @@ import { useAuthContext } from "@/components/providers/AuthProvider";
 import { addRecentlyViewed } from "@/lib/recentlyViewed";
 import { cn } from "@/lib/utils";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
+import { ProductGrid } from "@/components/products/ProductGrid";
 import { buildProductPath } from "@/lib/productPaths";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X } from "lucide-react";
@@ -806,7 +808,13 @@ function ProductReviews({ product }: { product: ProductDetail }) {
   );
 }
 
-export function ProductDetailClient({ product }: { product: ProductDetail }) {
+export function ProductDetailClient({
+  product,
+  relatedProducts,
+}: {
+  product: ProductDetail;
+  relatedProducts?: ProductListItem[];
+}) {
   const variants = React.useMemo<Variant[]>(
     () => product.variants ?? [],
     [product.variants]
@@ -1287,6 +1295,15 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
           excludeProductSlug={product.slug}
         />
       </section>
+
+      {relatedProducts && relatedProducts.length ? (
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+            Related Products
+          </h2>
+          <ProductGrid products={relatedProducts} cardStyle="minimal" />
+        </section>
+      ) : null}
 
       <section id="reviews" className="space-y-2">
         <ProductReviews product={product} />

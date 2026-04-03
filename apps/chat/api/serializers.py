@@ -13,7 +13,29 @@ from apps.chat.services import user_can_access_conversation, get_agent_for_user
 User = get_user_model()
 
 
-class UserMinimalSerializer(serializers.ModelSerializer):
+class SiteLogoMixin:
+    """Provide a cached site logo URL for support avatars."""
+
+    def _get_site_logo_url(self):
+        if hasattr(self, '_site_logo_url_cache'):
+            return self._site_logo_url_cache
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        logo_url = None
+        try:
+            from apps.pages.models import SiteSettings
+            site_settings = SiteSettings.get_settings()
+            logo_field = site_settings.logo or site_settings.logo_dark
+            if logo_field:
+                logo_url = logo_field.url
+                if request:
+                    logo_url = request.build_absolute_uri(logo_url)
+        except Exception:
+            logo_url = None
+        self._site_logo_url_cache = logo_url
+        return logo_url
+
+
+class UserMinimalSerializer(SiteLogoMixin, serializers.ModelSerializer):
     """Minimal user serializer for chat display."""
     
     full_name = serializers.SerializerMethodField()
@@ -29,13 +51,17 @@ class UserMinimalSerializer(serializers.ModelSerializer):
 
     def get_avatar_url(self, obj):
         request = self.context.get('request')
+        if obj.is_staff or obj.is_superuser:
+            site_logo_url = self._get_site_logo_url()
+            if site_logo_url:
+                return site_logo_url
         if obj.avatar:
             return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
         from django.conf import settings
         return settings.DEFAULT_AGENT_AVATAR_URL
 
 
-class ChatAgentSerializer(serializers.ModelSerializer):
+class ChatAgentSerializer(SiteLogoMixin, serializers.ModelSerializer):
     """Serializer for Chat Agents."""
     
     user = UserMinimalSerializer(read_only=True)
@@ -72,6 +98,10 @@ class ChatAgentSerializer(serializers.ModelSerializer):
 
     def get_avatar_url(self, obj):
         """Return the agent's avatar URL or a default if not set."""
+        if obj.user.is_staff or obj.user.is_superuser:
+            site_logo_url = self._get_site_logo_url()
+            if site_logo_url:
+                return site_logo_url
         if obj.avatar:
             request = self.context.get('request')
             return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
@@ -93,7 +123,7 @@ class ChatAgentSerializer(serializers.ModelSerializer):
         return obj.last_active_at
 
 
-class ChatAgentPublicSerializer(serializers.ModelSerializer):
+class ChatAgentPublicSerializer(SiteLogoMixin, serializers.ModelSerializer):
     """Public agent info (for customers)."""
     
     display_name = serializers.SerializerMethodField()
@@ -107,6 +137,10 @@ class ChatAgentPublicSerializer(serializers.ModelSerializer):
 
     def get_avatar_url(self, obj):
         """Return the agent's avatar URL or a default if not set."""
+        if obj.user.is_staff or obj.user.is_superuser:
+            site_logo_url = self._get_site_logo_url()
+            if site_logo_url:
+                return site_logo_url
         if obj.avatar:
             request = self.context.get('request')
             return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
@@ -145,7 +179,7 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
         return None
 
 
-class MessageSerializer(serializers.ModelSerializer):
+class MessageSerializer(SiteLogoMixin, serializers.ModelSerializer):
     """Serializer for Chat Messages."""
     
     sender = UserMinimalSerializer(read_only=True)
@@ -218,6 +252,11 @@ class MessageSerializer(serializers.ModelSerializer):
         if not sender:
             from django.conf import settings
             return settings.DEFAULT_AGENT_AVATAR_URL
+
+        if sender.is_staff or sender.is_superuser:
+            site_logo_url = self._get_site_logo_url()
+            if site_logo_url:
+                return site_logo_url
 
         # Prefer explicit agent avatar for support users.
         agent_profile = getattr(sender, 'chat_agent_profile', None)

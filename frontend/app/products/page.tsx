@@ -206,10 +206,7 @@ export default async function ProductsPage({
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-10">
-        <nav className="text-xs uppercase tracking-[0.2em] text-foreground/60">
-          <Link href="/" className="hover:text-foreground">Home</Link> / Products
-        </nav>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold uppercase tracking-[0.12em] sm:text-3xl">
             Products
           </h1>

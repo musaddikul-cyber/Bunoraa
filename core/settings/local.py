@@ -34,12 +34,15 @@ DATABASES = {
 # =============================================================================
 # LOCAL MEDIA STORAGE
 # =============================================================================
+# Respect USE_S3 env in local dev. If enabled, keep S3 settings from base.py.
 USE_S3 = False
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+if not USE_S3:
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 
-# Create media directory
-MEDIA_ROOT.mkdir(exist_ok=True)
+    # Create media directory
+    MEDIA_ROOT.mkdir(exist_ok=True)
 
 # =============================================================================
 # EMAIL - Console Backend for Development (overrideable via env)

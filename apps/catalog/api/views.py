@@ -637,10 +637,21 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         slug_or_id = request.query_params.get('category')
         if not slug_or_id:
             return Response({'detail': 'category parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
+        category = None
         try:
-            category = Category.objects.get(Q(id=slug_or_id) | Q(slug=slug_or_id))
-        except Category.DoesNotExist:
+            UUID(str(slug_or_id))
+            category = Category.objects.filter(id=slug_or_id).first()
+        except (ValueError, TypeError):
+            category = None
+
+        if not category:
+            category = Category.objects.filter(slug=slug_or_id).first()
+        if not category:
+            try:
+                category = CategoryService.get_category_by_path(slug_or_id)
+            except Exception:
+                category = None
+        if not category:
             return Response({'detail': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
         
         products = CategoryService.get_category_products(category)

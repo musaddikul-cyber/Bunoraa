@@ -67,6 +67,7 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
         self.pong_received = asyncio.Event()
         self.missed_pongs = 0
         self.keep_alive_task = None
+        self._closing = False
         self._rate_limit_key = self.get_rate_limit_key()
         
         logger.info(
@@ -82,6 +83,7 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
     
     async def disconnect(self, close_code):
         """Handle disconnection and cleanup."""
+        self._closing = True
         # Stop keep-alive task
         if self.keep_alive_task:
             self.keep_alive_task.cancel()
@@ -104,20 +106,30 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
     async def start_keep_alive(self):
         """Start the keep-alive ping/pong mechanism."""
         self.keep_alive_task = asyncio.create_task(self._keep_alive_loop())
+
+    async def close(self, code=None):
+        self._closing = True
+        return await super().close(code=code)
     
     async def _keep_alive_loop(self):
         """Periodic keep-alive ping/pong loop."""
         try:
             while True:
                 await asyncio.sleep(self.PING_INTERVAL)
-                
+                if self._closing:
+                    return
                 try:
                     # Send ping
                     self.pong_received.clear()
-                    await self.send(json.dumps({
-                        'type': 'ping',
-                        'timestamp': time.time(),
-                    }))
+                    try:
+                        await self.send(json.dumps({
+                            'type': 'ping',
+                            'timestamp': time.time(),
+                        }))
+                    except RuntimeError as e:
+                        if "websocket.send" in str(e):
+                            return
+                        raise
 
                     # Most browser clients do not implement app-level pong.
                     # Keep strict closes optional and configurable.
@@ -275,6 +287,8 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
     async def send_error(self, message: str):
         """Send error message to client."""
         try:
+            if self._closing:
+                return
             await self.send(json.dumps({
                 'type': 'error',
                 'message': message,
@@ -289,6 +303,8 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
     async def send_success(self, data: Dict[str, Any]):
         """Send success message with data."""
         try:
+            if self._closing:
+                return
             data['timestamp'] = time.time()
             await self.send(json.dumps(data))
         except Exception as e:
@@ -324,6 +340,7 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
         self.pong_received = asyncio.Event()
         self.missed_pongs = 0
         self.keep_alive_task = None
+        self._closing = False
         self._rate_limit_key = self.get_rate_limit_key()
         
         logger.info(
@@ -337,6 +354,7 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
     
     async def disconnect(self, close_code):
         """Handle disconnection and cleanup."""
+        self._closing = True
         if self.keep_alive_task:
             self.keep_alive_task.cancel()
             try:
@@ -358,15 +376,26 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
     async def start_keep_alive(self):
         """Start keep-alive mechanism."""
         self.keep_alive_task = asyncio.create_task(self._keep_alive_loop())
+
+    async def close(self, code=None):
+        self._closing = True
+        return await super().close(code=code)
     
     async def _keep_alive_loop(self):
         """Periodic keep-alive loop."""
         try:
             while True:
                 await asyncio.sleep(self.PING_INTERVAL)
+                if self._closing:
+                    return
                 try:
                     self.pong_received.clear()
-                    await self.send_json({'type': 'ping', 'timestamp': time.time()})
+                    try:
+                        await self.send_json({'type': 'ping', 'timestamp': time.time()})
+                    except RuntimeError as e:
+                        if "websocket.send" in str(e):
+                            return
+                        raise
 
                     if not self.REQUIRE_APP_PONG:
                         continue
@@ -470,6 +499,8 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
     async def send_error(self, message: str):
         """Send error JSON."""
         try:
+            if self._closing:
+                return
             await self.send_json({'type': 'error', 'message': message, 'timestamp': time.time()})
         except Exception as e:
             logger.error(f"[{self.CONSUMER_NAME}] Send error failed: {e}", exc_info=True)
@@ -477,6 +508,8 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
     async def send_success(self, data: Dict[str, Any]):
         """Send success JSON."""
         try:
+            if self._closing:
+                return
             data['timestamp'] = time.time()
             await self.send_json(data)
         except Exception as e:

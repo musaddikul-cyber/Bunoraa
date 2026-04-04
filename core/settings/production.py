@@ -371,6 +371,8 @@ if REDIS_URL:
                         'socket_timeout': REDIS_SOCKET_TIMEOUT,
                         'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
                         'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+                        'socket_keepalive': REDIS_SOCKET_KEEPALIVE,
+                        **({'socket_keepalive_options': _redis_keepalive_options} if _redis_keepalive_options else {}),
                     }
                 ],
                 'capacity': 1500,  # Max messages per channel

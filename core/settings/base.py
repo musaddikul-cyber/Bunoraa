@@ -13,7 +13,6 @@ Features:
 """
 import importlib.util
 import os
-import socket
 import sys
 from pathlib import Path
 from datetime import timedelta
@@ -69,183 +68,6 @@ def _normalize_rediss_url(url: str) -> str:
         params['ssl_cert_reqs'] = os.environ.get('CELERY_REDIS_SSL_CERT_REQS', 'required')
         return urlunparse(parsed._replace(query=urlencode(params)))
     return url
-
-
-def _append_pg_option(existing_options: str, option: str) -> str:
-    existing_options = (existing_options or '').strip()
-    if option in existing_options:
-        return existing_options
-    return f"{existing_options} {option}".strip()
-
-
-def _redis_db_url(redis_url: str, db: int) -> str:
-    parsed = urlparse(redis_url)
-    return urlunparse(parsed._replace(path=f'/{db}'))
-
-
-def _redis_pool_class(use_blocking_pool: bool) -> str:
-    return (
-        'redis.connection.BlockingConnectionPool'
-        if use_blocking_pool
-        else 'redis.connection.ConnectionPool'
-    )
-
-
-def _redis_pool_kwargs(
-    *,
-    max_connections: int,
-    retry_on_timeout: bool,
-    health_check_interval: int,
-    use_blocking_pool: bool,
-    pool_blocking_timeout: int,
-) -> dict[str, object]:
-    kwargs: dict[str, object] = {
-        'max_connections': max_connections,
-        'retry_on_timeout': retry_on_timeout,
-        'health_check_interval': health_check_interval,
-    }
-    if use_blocking_pool:
-        kwargs['timeout'] = pool_blocking_timeout
-    return kwargs
-
-
-def _socket_keepalive_options(
-    idle: int,
-    interval: int,
-    count: int,
-) -> dict[int, int] | None:
-    options: dict[int, int] = {}
-    if idle > 0 and hasattr(socket, 'TCP_KEEPIDLE'):
-        options[getattr(socket, 'TCP_KEEPIDLE')] = idle
-    if interval > 0 and hasattr(socket, 'TCP_KEEPINTVL'):
-        options[getattr(socket, 'TCP_KEEPINTVL')] = interval
-    if count > 0 and hasattr(socket, 'TCP_KEEPCNT'):
-        options[getattr(socket, 'TCP_KEEPCNT')] = count
-    return options or None
-
-
-def _redis_env_settings(default_max_connections: int) -> dict[str, object]:
-    return {
-        'socket_connect_timeout': _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 5),
-        'socket_timeout': _env_int('REDIS_SOCKET_TIMEOUT', 5),
-        'socket_keepalive': _env_bool('REDIS_SOCKET_KEEPALIVE', True),
-        'socket_keepalive_idle': _env_int('REDIS_SOCKET_KEEPALIVE_IDLE', 0),
-        'socket_keepalive_interval': _env_int('REDIS_SOCKET_KEEPALIVE_INTERVAL', 0),
-        'socket_keepalive_count': _env_int('REDIS_SOCKET_KEEPALIVE_COUNT', 0),
-        'health_check_interval': _env_int('REDIS_HEALTH_CHECK_INTERVAL', 30),
-        'max_connections': _env_int('REDIS_MAX_CONNECTIONS', default_max_connections),
-        'retry_on_timeout': _env_bool('REDIS_RETRY_ON_TIMEOUT', True),
-        'ignore_exceptions': _env_bool('REDIS_IGNORE_EXCEPTIONS', True),
-        'log_ignored_exceptions': _env_bool('REDIS_LOG_IGNORED_EXCEPTIONS', True),
-        'use_blocking_pool': _env_bool('REDIS_USE_BLOCKING_POOL', True),
-        'pool_blocking_timeout': _env_int('REDIS_POOL_BLOCKING_TIMEOUT', 5),
-    }
-
-
-def _build_redis_cache(
-    *,
-    location: str,
-    key_prefix: str,
-    timeout: int,
-    redis_settings: dict[str, object],
-    keepalive_options: dict[int, int] | None,
-    max_connections: int | None = None,
-) -> dict[str, object]:
-    resolved_max_connections = max_connections or int(redis_settings['max_connections'])
-    options: dict[str, object] = {
-        'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        'CONNECTION_POOL_CLASS': _redis_pool_class(bool(redis_settings['use_blocking_pool'])),
-        'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(
-            max_connections=resolved_max_connections,
-            retry_on_timeout=bool(redis_settings['retry_on_timeout']),
-            health_check_interval=int(redis_settings['health_check_interval']),
-            use_blocking_pool=bool(redis_settings['use_blocking_pool']),
-            pool_blocking_timeout=int(redis_settings['pool_blocking_timeout']),
-        ),
-        'SOCKET_CONNECT_TIMEOUT': int(redis_settings['socket_connect_timeout']),
-        'SOCKET_TIMEOUT': int(redis_settings['socket_timeout']),
-        'SOCKET_KEEPALIVE': bool(redis_settings['socket_keepalive']),
-        'IGNORE_EXCEPTIONS': bool(redis_settings['ignore_exceptions']),
-        'LOG_IGNORED_EXCEPTIONS': bool(redis_settings['log_ignored_exceptions']),
-    }
-    if keepalive_options:
-        options['SOCKET_KEEPALIVE_OPTIONS'] = keepalive_options
-
-    return {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': location,
-        'OPTIONS': options,
-        'KEY_PREFIX': key_prefix,
-        'TIMEOUT': timeout,
-    }
-
-
-def _build_redis_caches(
-    *,
-    redis_url: str,
-    session_url: str,
-    session_timeout: int,
-    redis_settings: dict[str, object],
-    keepalive_options: dict[int, int] | None,
-    key_prefix: str = 'bunoraa',
-    session_key_prefix: str = 'session',
-    default_timeout: int = 300,
-) -> dict[str, object]:
-    max_connections = int(redis_settings['max_connections'])
-    session_max_connections = max(5, max_connections // 2)
-    return {
-        'default': _build_redis_cache(
-            location=redis_url,
-            key_prefix=key_prefix,
-            timeout=default_timeout,
-            redis_settings=redis_settings,
-            keepalive_options=keepalive_options,
-            max_connections=max_connections,
-        ),
-        'sessions': _build_redis_cache(
-            location=session_url,
-            key_prefix=session_key_prefix,
-            timeout=session_timeout,
-            redis_settings=redis_settings,
-            keepalive_options=keepalive_options,
-            max_connections=session_max_connections,
-        ),
-    }
-
-
-def _build_redis_channel_layers(
-    *,
-    channel_layers_redis_url: str,
-    redis_settings: dict[str, object],
-    capacity: int = 1500,
-    expiry: int = 10,
-) -> dict[str, object]:
-    return {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                'hosts': [
-                    {
-                        'address': channel_layers_redis_url,
-                        'socket_connect_timeout': int(redis_settings['socket_connect_timeout']),
-                        'socket_timeout': int(redis_settings['socket_timeout']),
-                        'health_check_interval': int(redis_settings['health_check_interval']),
-                        'retry_on_timeout': bool(redis_settings['retry_on_timeout']),
-                    }
-                ],
-                'capacity': capacity,
-                'expiry': expiry,
-            },
-        },
-    }
-
-
-def _redis_celery_transport_options(redis_settings: dict[str, object]) -> dict[str, object]:
-    return {
-        'socket_connect_timeout': int(redis_settings['socket_connect_timeout']),
-        'socket_timeout': int(redis_settings['socket_timeout']),
-        'retry_on_timeout': bool(redis_settings['retry_on_timeout']),
-    }
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -375,7 +197,6 @@ MIDDLEWARE = [
     'django.middleware.gzip.GZipMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    'core.middleware.api_preflight.ApiPreflightMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'apps.i18n.middleware.LocaleMiddleware',
@@ -509,11 +330,6 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# Media files
-# Default MEDIA_URL, can be overridden by environment or per-environment settings
-# MEDIA_URL = os.environ.get('MEDIA_URL', '/media/')
-# MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

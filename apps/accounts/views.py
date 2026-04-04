@@ -13,6 +13,7 @@ from django.urls import reverse_lazy
 from django.conf import settings
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.core.exceptions import ValidationError
+from urllib.parse import urlencode
 from .services import UserService, AddressService
 from .models import Address
 from apps.i18n.services import GeoService as CountryService
@@ -30,6 +31,40 @@ class OAuthCallbackRedirectView(View):
             return redirect("/")
         target = f"{frontend_origin}{request.get_full_path()}"
         return redirect(target)
+
+
+def _get_frontend_origin():
+    origin = (
+        getattr(settings, "NEXT_FRONTEND_ORIGIN", "").strip()
+        or getattr(settings, "SITE_URL", "").strip()
+    ).rstrip("/")
+    return origin
+
+
+def _build_frontend_url(path, next_url=None):
+    origin = _get_frontend_origin()
+    if not origin:
+        return None
+    if next_url:
+        return f"{origin}{path}?{urlencode({'next': next_url})}"
+    return f"{origin}{path}"
+
+
+def _get_safe_next_url_for_request(request):
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if not next_url:
+        return None
+
+    allowed_hosts = {request.get_host()}
+    allowed_hosts.update(getattr(settings, 'ALLOWED_HOSTS', []))
+
+    if url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts=allowed_hosts,
+        require_https=request.is_secure(),
+    ):
+        return next_url
+    return None
 
 
 class AccountDashboardView(LoginRequiredMixin, TemplateView):
@@ -200,6 +235,11 @@ class LoginView(FormView):
     success_url = reverse_lazy('accounts:dashboard')
 
     def dispatch(self, request, *args, **kwargs):
+        if request.method == "GET":
+            safe_next = self._get_safe_next_url()
+            frontend_login = _build_frontend_url("/account/login/", safe_next)
+            if frontend_login:
+                return redirect(frontend_login)
         if request.user.is_authenticated:
             redirect_url = self._get_safe_next_url()
             return redirect(redirect_url or self.get_success_url())
@@ -207,16 +247,7 @@ class LoginView(FormView):
 
     def _get_safe_next_url(self):
         """Return a safe `next` parameter if provided."""
-        next_url = self.request.POST.get('next') or self.request.GET.get('next')
-        if not next_url:
-            return None
-
-        allowed_hosts = {self.request.get_host()}
-        allowed_hosts.update(getattr(settings, 'ALLOWED_HOSTS', []))
-
-        if url_has_allowed_host_and_scheme(next_url, allowed_hosts=allowed_hosts, require_https=self.request.is_secure()):
-            return next_url
-        return None
+        return _get_safe_next_url_for_request(self.request)
 
     def get_success_url(self):
         return self._get_safe_next_url() or super().get_success_url()
@@ -257,6 +288,11 @@ class RegisterView(FormView):
     success_url = reverse_lazy('accounts:dashboard')
 
     def dispatch(self, request, *args, **kwargs):
+        if request.method == "GET":
+            safe_next = _get_safe_next_url_for_request(request)
+            frontend_register = _build_frontend_url("/account/register/", safe_next)
+            if frontend_register:
+                return redirect(frontend_register)
         if request.user.is_authenticated:
             return redirect('accounts:dashboard')
         return super().dispatch(request, *args, **kwargs)

@@ -12,6 +12,7 @@
 
   #user-tools {
     margin-top: 6px;
+    text-align: left;
   }
 
   #content {
@@ -30,6 +31,10 @@
     position: static;
     width: auto;
     margin: 0 0 16px;
+  }
+
+  #nav-sidebar .module {
+    margin-bottom: 12px;
   }
 
   .breadcrumbs {
@@ -61,12 +66,25 @@
     display: block;
     width: 100%;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .change-list #result_list {
+    min-width: 720px;
+  }
+
+  .change-list table {
+    width: 100%;
   }
 
   #changelist-filter {
     float: none;
     width: auto;
     margin-top: 16px;
+  }
+
+  #changelist-filter h2 {
+    margin-top: 0;
   }
 
   #toolbar {
@@ -98,8 +116,23 @@
     display: block;
   }
 
+  .form-row .flex-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-row .fieldBox {
+    width: 100%;
+  }
+
   .aligned .form-row > div {
     width: 100%;
+  }
+
+  .aligned label {
+    float: none;
+    width: auto;
+    margin: 0 0 6px;
   }
 
   .aligned .form-row .help {
@@ -112,6 +145,34 @@
 
   fieldset {
     min-width: 0;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="url"],
+  input[type="password"],
+  input[type="search"],
+  textarea,
+  select {
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .related-widget-wrapper,
+  .selector {
+    width: 100%;
+  }
+
+  .selector .selector-available,
+  .selector .selector-chosen {
+    width: 100%;
+  }
+
+  .selector .selector-filter,
+  .selector select {
+    width: 100%;
   }
 
   .submit-row {
@@ -133,6 +194,10 @@
   .inline-related {
     overflow-x: auto;
   }
+
+  .inline-related .form-row > div {
+    padding-right: 0;
+  }
 }
 
 @media (max-width: 640px) {
@@ -148,7 +213,45 @@
     font-size: 12px;
   }
 
+  .change-list #result_list {
+    min-width: 560px;
+  }
+
+  .paginator {
+    font-size: 12px;
+  }
+
   .submit-row {
     margin: 12px -12px -12px;
+  }
+}
+
+@media (max-width: 480px) {
+  #header {
+    padding: 10px;
+  }
+
+  #content {
+    padding: 10px;
+  }
+
+  .breadcrumbs {
+    padding: 6px 10px;
+  }
+
+  .change-list #result_list {
+    min-width: 480px;
+  }
+
+  .object-tools {
+    gap: 6px;
+  }
+
+  .object-tools a {
+    padding: 5px 10px;
+  }
+
+  .submit-row {
+    padding: 8px 10px;
   }
 }

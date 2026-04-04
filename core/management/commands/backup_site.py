@@ -23,6 +23,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command
 from django.apps import apps as django_apps
 from django.conf import settings
+from django.db import connections
 
 # Optional boto3 for uploads
 try:
@@ -88,6 +89,9 @@ class Command(BaseCommand):
         try:
             fixtures_dir = tmpdir / 'fixtures'
             fixtures_dir.mkdir()
+            failed_apps: List[str] = []
+            connection = connections['default']
+            existing_tables = set(connection.introspection.table_names())
 
             # Dump per-app fixtures
             for label in sorted(set(app_labels)):
@@ -101,9 +105,34 @@ class Command(BaseCommand):
 
                 filename = fixtures_dir / f'{label}.json'
                 self.stdout.write(self.style.NOTICE(f'Dumping fixtures for app: {label} -> {filename}'))
-                with open(filename, 'w', encoding='utf-8') as fh:
-                    # Using call_command('dumpdata', app_label) to write JSON
-                    call_command('dumpdata', label, indent=2, stdout=fh, stdout_is_stream=True)
+                exclude_models: List[str] = []
+                for model in config.get_models():
+                    if model.__name__.startswith('Historical'):
+                        exclude_models.append(f"{label}.{model._meta.model_name}")
+                        continue
+                    if model._meta.proxy or not model._meta.managed:
+                        exclude_models.append(f"{label}.{model._meta.model_name}")
+                        continue
+                    if model._meta.db_table not in existing_tables:
+                        exclude_models.append(f"{label}.{model._meta.model_name}")
+
+                try:
+                    with open(filename, 'w', encoding='utf-8') as fh:
+                        # Using call_command('dumpdata', app_label) to write JSON
+                        if exclude_models:
+                            call_command('dumpdata', label, indent=2, stdout=fh, exclude=exclude_models)
+                        else:
+                            call_command('dumpdata', label, indent=2, stdout=fh)
+                except Exception as exc:
+                    failed_apps.append(label)
+                    try:
+                        if filename.exists():
+                            filename.unlink()
+                    except Exception:
+                        pass
+                    self.stdout.write(self.style.WARNING(
+                        f'Skipping app {label}: failed to dump fixtures ({exc})'
+                    ))
 
             # Optionally copy media/static
             if include_media:
@@ -132,6 +161,10 @@ class Command(BaseCommand):
                     tar.add(p, arcname=p.name)
 
             self.stdout.write(self.style.SUCCESS(f'Backup created: {out_path}'))
+            if failed_apps:
+                self.stdout.write(self.style.WARNING(
+                    f'Backup completed with skipped apps: {", ".join(sorted(set(failed_apps)))}'
+                ))
 
             # Optional upload to S3
             if options.get('upload_s3'):

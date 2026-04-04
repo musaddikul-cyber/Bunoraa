@@ -151,9 +151,17 @@ REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL', '').strip())
 if not REDIS_URL:
     raise ValueError("REDIS_URL must be set in core.settings.s3")
 
-channel_layers_redis_url = _normalize_rediss_url(
-    os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2)).strip()
-)
+# Upstash REST (optional)
+UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip()
+UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
+
+CHANNEL_LAYERS_USE_REDIS = _env_bool('CHANNEL_LAYERS_USE_REDIS', not DEBUG)
+channel_layers_redis_url = None
+if CHANNEL_LAYERS_USE_REDIS:
+    channel_layers_redis_url = _normalize_rediss_url(
+        os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2)).strip()
+    )
+
 CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', _redis_db_url(REDIS_URL, 1)).strip())
 CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip())
 
@@ -246,24 +254,31 @@ CACHES = {
     }
 }
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [
-                {
-                    'address': channel_layers_redis_url,
-                    'socket_connect_timeout': REDIS_SOCKET_CONNECT_TIMEOUT,
-                    'socket_timeout': REDIS_SOCKET_TIMEOUT,
-                    'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
-                    'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
-                }
-            ],
-            'capacity': 1500,
-            'expiry': 10,
+if CHANNEL_LAYERS_USE_REDIS and channel_layers_redis_url:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [
+                    {
+                        'address': channel_layers_redis_url,
+                        'socket_connect_timeout': REDIS_SOCKET_CONNECT_TIMEOUT,
+                        'socket_timeout': REDIS_SOCKET_TIMEOUT,
+                        'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
+                        'retry_on_timeout': REDIS_RETRY_ON_TIMEOUT,
+                    }
+                ],
+                'capacity': 1500,
+                'expiry': 10,
+            },
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 # Prefer cache-only sessions to reduce database connections when Redis is available.
 SESSION_ENGINE = os.environ.get('SESSION_ENGINE')

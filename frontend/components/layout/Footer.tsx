@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronDown, ChevronRight, CircleMinus } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleMinus, Mail, MapPinHouse, PhoneCall } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type {
   Category,
@@ -107,6 +107,14 @@ type FooterLinkItem = {
   label: string;
   href: string;
   isCta?: boolean;
+};
+
+type ContactItem = {
+  key: string;
+  label: string;
+  value: string;
+  href?: string;
+  kind: "email" | "phone" | "address";
 };
 
 function hasHref<T extends { href?: string | null }>(item: T): item is T & { href: string } {
@@ -437,6 +445,7 @@ export async function Footer() {
       label: item.label,
       value: item.value,
       href: `mailto:${item.value}`,
+      kind: "email" as const,
     })),
     ...(phone
       ? [
@@ -445,6 +454,7 @@ export async function Footer() {
             label: "Phone",
             value: phone,
             href: `tel:${phone}`,
+            kind: "phone" as const,
           },
         ]
       : []),
@@ -455,10 +465,21 @@ export async function Footer() {
             label: "",
             value: address,
             href: "",
+            kind: "address" as const,
           },
         ]
       : []),
-  ];
+  ] as ContactItem[];
+
+  const contactIconMap = {
+    email: Mail,
+    phone: PhoneCall,
+    address: MapPinHouse,
+  } as const;
+  const contactIconContainerClass =
+    "mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center text-foreground/60";
+  const contactIconSize = 18;
+  const contactIconStroke = 1.9;
 
   const footerAccordionClass =
     "group rounded-xl border border-border bg-background/40";
@@ -568,18 +589,30 @@ export async function Footer() {
                 />
               </summary>
               <ul className={footerListClass}>
-                {contactItems.map((item) => (
-                  <li key={item.key}>
-                    {item.label ? (
-                      <>
-                        <span className="text-foreground/60">{item.label}:</span>{" "}
-                        {item.href ? <Link href={item.href}>{item.value}</Link> : item.value}
-                      </>
-                    ) : (
-                      item.value
-                    )}
-                  </li>
-                ))}
+                {contactItems.map((item) => {
+                  const Icon = contactIconMap[item.kind];
+                  return (
+                    <li key={item.key} className="flex items-start gap-2">
+                      <span
+                        className={contactIconContainerClass}
+                        aria-hidden="true"
+                      >
+                        <Icon
+                          size={contactIconSize}
+                          strokeWidth={contactIconStroke}
+                        />
+                      </span>
+                      <span className="sr-only">
+                        {item.label || item.kind}
+                      </span>
+                      {item.href ? (
+                        <Link href={item.href}>{item.value}</Link>
+                      ) : (
+                        <span>{item.value}</span>
+                      )}
+                    </li>
+                  );
+                })}
                 {socialLinks.length ? (
                   <li className="pt-1">
                     <div className="flex items-center gap-2">
@@ -669,18 +702,30 @@ export async function Footer() {
           <div>
             <p className="text-sm font-semibold">Contact & Location</p>
             <ul className="mt-3 space-y-2 text-sm text-foreground/70">
-              {contactItems.map((item) => (
-                <li key={item.key}>
-                  {item.label ? (
-                    <>
-                      <span className="text-foreground/60">{item.label}:</span>{" "}
-                      {item.href ? <Link href={item.href}>{item.value}</Link> : item.value}
-                    </>
-                  ) : (
-                    item.value
-                  )}
-                </li>
-              ))}
+              {contactItems.map((item) => {
+                const Icon = contactIconMap[item.kind];
+                return (
+                  <li key={item.key} className="flex items-start gap-2">
+                    <span
+                      className={contactIconContainerClass}
+                      aria-hidden="true"
+                    >
+                      <Icon
+                        size={contactIconSize}
+                        strokeWidth={contactIconStroke}
+                      />
+                    </span>
+                    <span className="sr-only">
+                      {item.label || item.kind}
+                    </span>
+                    {item.href ? (
+                      <Link href={item.href}>{item.value}</Link>
+                    ) : (
+                      <span>{item.value}</span>
+                    )}
+                  </li>
+                );
+              })}
               {socialLinks.length ? (
                 <li className="pt-1">
                   <div className="flex items-center gap-2">
@@ -733,3 +778,4 @@ export async function Footer() {
     </footer>
   );
 }
+

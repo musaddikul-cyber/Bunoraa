@@ -33,6 +33,25 @@
     margin: 0 0 16px;
   }
 
+  #nav-sidebar {
+    display: block;
+    visibility: visible;
+    left: 0;
+  }
+
+  .main > #nav-sidebar {
+    visibility: visible;
+  }
+
+  .main > #nav-sidebar + .content,
+  .main.shifted > #nav-sidebar + .content {
+    max-width: 100%;
+  }
+
+  #toggle-nav-sidebar {
+    display: none;
+  }
+
   #nav-sidebar .module {
     margin-bottom: 12px;
   }

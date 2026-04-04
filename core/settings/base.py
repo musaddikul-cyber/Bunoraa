@@ -330,6 +330,14 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -849,7 +857,13 @@ if os.environ.get('USE_S3', 'False').lower() in ('1', 'true', 'yes') or os.envir
     AWS_S3_SIGNATURE_VERSION = os.environ.get('AWS_S3_SIGNATURE_VERSION', 's3v4')
     AWS_S3_ADDRESSING_STYLE = os.environ.get('AWS_S3_ADDRESSING_STYLE', 'virtual')
 
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3.S3Storage'
+    STORAGES = {
+        **STORAGES,
+        'default': {
+            'BACKEND': 'storages.backends.s3.S3Storage',
+        },
+    }
 
     if os.environ.get('MEDIA_URL'):
         MEDIA_URL = os.environ['MEDIA_URL']
@@ -1193,7 +1207,8 @@ ENV_REGISTRY_SCHEMA_PATH = os.environ.get(
 )
 ENV_REGISTRY_AUTOSEED = os.environ.get('ENV_REGISTRY_AUTOSEED', 'True').lower() in ('1', 'true', 'yes')
 ENV_REGISTRY_AUTOSYNC_RUNTIME = os.environ.get('ENV_REGISTRY_AUTOSYNC_RUNTIME', 'True').lower() in ('1', 'true', 'yes')
-ENV_REGISTRY_SYNC_ON_REQUEST = os.environ.get('ENV_REGISTRY_SYNC_ON_REQUEST', 'True').lower() in ('1', 'true', 'yes')
+# Running schema sync at request-start can hold transactions open under load.
+ENV_REGISTRY_SYNC_ON_REQUEST = os.environ.get('ENV_REGISTRY_SYNC_ON_REQUEST', 'False').lower() in ('1', 'true', 'yes')
 ENV_REGISTRY_AUTOEXPORT = os.environ.get('ENV_REGISTRY_AUTOEXPORT', 'False').lower() in ('1', 'true', 'yes')
 
 # Admin site customization

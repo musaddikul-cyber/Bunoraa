@@ -125,6 +125,7 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set in production environment")
 
 DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 0)
+DB_CONNECT_TIMEOUT_SECONDS = _env_int('DB_CONNECT_TIMEOUT_SECONDS', 30)
 DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 30000)
 DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
 DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 60000)
@@ -148,7 +149,7 @@ if DB_IDLE_SESSION_TIMEOUT_MS > 0:
     _pg_options = _append_pg_option(_pg_options, f'-c idle_session_timeout={DB_IDLE_SESSION_TIMEOUT_MS}')
 
 DATABASES['default']['OPTIONS'] = {
-    'connect_timeout': 10,
+    'connect_timeout': DB_CONNECT_TIMEOUT_SECONDS,
     'isolation_level': 1,  # READ_COMMITTED - Reduces lock memory
 }
 if _pg_options:
@@ -186,8 +187,8 @@ REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL'))
 UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip()
 UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
 if REDIS_URL:
-    REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 5)
-    REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 5)
+    REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 10)
+    REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 10)
     REDIS_SOCKET_KEEPALIVE = _env_bool('REDIS_SOCKET_KEEPALIVE', True)
     REDIS_SOCKET_KEEPALIVE_IDLE = _env_int('REDIS_SOCKET_KEEPALIVE_IDLE', 0)
     REDIS_SOCKET_KEEPALIVE_INTERVAL = _env_int('REDIS_SOCKET_KEEPALIVE_INTERVAL', 0)
@@ -302,7 +303,13 @@ if R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY:
     AWS_QUERYSTRING_AUTH = False  # Use public URLs
     
     # Use R2 for media files
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3.S3Storage'
+    STORAGES = {
+        **STORAGES,
+        'default': {
+            'BACKEND': 'storages.backends.s3.S3Storage',
+        },
+    }
     MEDIA_URL = f'https://{R2_CUSTOM_DOMAIN}/'
 
 # =============================================================================

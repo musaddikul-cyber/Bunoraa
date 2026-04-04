@@ -40,6 +40,16 @@ if not USE_S3:
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
     DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    STORAGES = {
+        **STORAGES,
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+            'OPTIONS': {
+                'location': MEDIA_ROOT,
+                'base_url': MEDIA_URL,
+            },
+        },
+    }
 
     # Create media directory
     MEDIA_ROOT.mkdir(exist_ok=True)

@@ -23,6 +23,14 @@ class CoreConfig(AppConfig):
             from django.db.models import FileField, ImageField
 
             storage_path = getattr(settings, 'DEFAULT_FILE_STORAGE', None)
+            storage_options = None
+            if not storage_path:
+                storages = getattr(settings, 'STORAGES', None)
+                if isinstance(storages, dict):
+                    default_storage_cfg = storages.get('default') or {}
+                    storage_path = default_storage_cfg.get('BACKEND')
+                    storage_options = default_storage_cfg.get('OPTIONS')
+
             media_root = getattr(settings, 'MEDIA_ROOT', None)
             media_url = getattr(settings, 'MEDIA_URL', None)
 
@@ -37,13 +45,18 @@ class CoreConfig(AppConfig):
             except Exception:
                 cls_name = ''
 
+            options = {}
+            if isinstance(storage_options, dict):
+                options.update(storage_options)
+
             if 'filesystemstorage' in cls_name or storage_cls is FileSystemStorage:
-                if media_root:
-                    storage_instance = storage_cls(location=media_root, base_url=media_url)
-                else:
-                    storage_instance = storage_cls()
+                if 'location' not in options and media_root:
+                    options['location'] = media_root
+                if 'base_url' not in options and media_url:
+                    options['base_url'] = media_url
+                storage_instance = storage_cls(**options)
             else:
-                storage_instance = storage_cls()
+                storage_instance = storage_cls(**options)
 
             # Iterate all models and set storage for FileField/ImageField where needed
             for model in apps.get_models():

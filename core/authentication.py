@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 
+from django.db import DatabaseError
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -42,6 +43,10 @@ class OptionalJWTAuthentication(JWTAuthentication):
         except AuthenticationFailed as exc:
             # Treat missing/invalid users as anonymous for optional auth flows.
             logger.debug("Ignoring JWT user lookup failure: %s", exc)
+            return None
+        except DatabaseError as exc:
+            # Optional auth must not hard-fail public endpoints when DB is saturated.
+            logger.warning("Skipping optional JWT user lookup due to DB error: %s", exc)
             return None
 
 

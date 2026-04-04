@@ -64,6 +64,13 @@ DEBUG = _env_bool('DEBUG', True)
 
 # Use S3/Cloudflare for media files
 USE_S3 = True
+DEFAULT_FILE_STORAGE = 'storages.backends.s3.S3Storage'
+STORAGES = {
+    **STORAGES,
+    'default': {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+    },
+}
 
 # Ensure MEDIA_URL is normalized if provided via env.
 if os.environ.get('MEDIA_URL'):
@@ -104,6 +111,7 @@ if not DATABASE_URL:
 
 DB_ALLOW_WRITE = _env_bool('DB_ALLOW_WRITE', True)
 DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 0)
+DB_CONNECT_TIMEOUT_SECONDS = _env_int('DB_CONNECT_TIMEOUT_SECONDS', 30)
 DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 10000)
 DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
 DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 60000)
@@ -129,7 +137,7 @@ if 'OPTIONS' not in DATABASES['default']:
     DATABASES['default']['OPTIONS'] = {}
 
 DATABASES['default']['OPTIONS'].update({
-    'connect_timeout': 10,
+    'connect_timeout': DB_CONNECT_TIMEOUT_SECONDS,
     'isolation_level': 1,  # READ_COMMITTED
 })
 
@@ -166,8 +174,8 @@ CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', _r
 CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip())
 
 _session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKIE_AGE)
-REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 5)
-REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 5)
+REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 10)
+REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 10)
 REDIS_SOCKET_KEEPALIVE = _env_bool('REDIS_SOCKET_KEEPALIVE', True)
 REDIS_SOCKET_KEEPALIVE_IDLE = _env_int('REDIS_SOCKET_KEEPALIVE_IDLE', 0)
 REDIS_SOCKET_KEEPALIVE_INTERVAL = _env_int('REDIS_SOCKET_KEEPALIVE_INTERVAL', 0)

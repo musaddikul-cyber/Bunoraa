@@ -3,6 +3,7 @@ S3/Cloudflare settings for local development or testing
 """
 import os
 import socket
+import sys
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import dj_database_url
 from .base import *
@@ -52,6 +53,13 @@ def _append_pg_option(existing_options: str, option: str) -> str:
     if option in existing_options:
         return existing_options
     return f"{existing_options} {option}".strip()
+
+
+def _is_schema_command() -> bool:
+    if len(sys.argv) < 2:
+        return False
+    command = (sys.argv[1] or '').strip().lower()
+    return command in {'migrate', 'makemigrations', 'showmigrations', 'sqlmigrate'}
 
 
 # Sites framework defaults for production (override base if needed)
@@ -115,6 +123,12 @@ DB_CONNECT_TIMEOUT_SECONDS = _env_int('DB_CONNECT_TIMEOUT_SECONDS', 30)
 DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 10000)
 DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
 DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 60000)
+
+# Schema migrations can legitimately exceed runtime query timeouts.
+if _is_schema_command():
+    DB_STATEMENT_TIMEOUT_MS = _env_int('DB_MIGRATION_STATEMENT_TIMEOUT_MS', 0)
+    DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_MIGRATION_IDLE_TX_TIMEOUT_MS', 0)
+    DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_MIGRATION_IDLE_SESSION_TIMEOUT_MS', 0)
 
 DATABASES = {
     'default': dj_database_url.config(

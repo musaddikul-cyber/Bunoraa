@@ -5,6 +5,7 @@ Uses PostgreSQL, Redis, Cloudflare R2 storage.
 """
 import os
 import socket
+import sys
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import dj_database_url
 from .base import *
@@ -88,6 +89,13 @@ def _redis_db_url(redis_url: str, db: int) -> str:
     return urlunparse(parsed._replace(path=f'/{db}'))
 
 
+def _is_schema_command() -> bool:
+    if len(sys.argv) < 2:
+        return False
+    command = (sys.argv[1] or '').strip().lower()
+    return command in {'migrate', 'makemigrations', 'showmigrations', 'sqlmigrate'}
+
+
 # Parse ALLOWED_HOSTS from environment
 _env_allowed = os.environ.get('ALLOWED_HOSTS', '')
 if _env_allowed:
@@ -129,6 +137,12 @@ DB_CONNECT_TIMEOUT_SECONDS = _env_int('DB_CONNECT_TIMEOUT_SECONDS', 30)
 DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 30000)
 DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
 DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 60000)
+
+# Schema migrations can legitimately exceed runtime query timeouts.
+if _is_schema_command():
+    DB_STATEMENT_TIMEOUT_MS = _env_int('DB_MIGRATION_STATEMENT_TIMEOUT_MS', 0)
+    DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_MIGRATION_IDLE_TX_TIMEOUT_MS', 0)
+    DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_MIGRATION_IDLE_SESSION_TIMEOUT_MS', 0)
 
 DATABASES = {
     'default': dj_database_url.config(

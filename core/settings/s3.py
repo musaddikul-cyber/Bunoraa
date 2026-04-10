@@ -118,11 +118,24 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set in core.settings.s3")
 
 DB_ALLOW_WRITE = _env_bool('DB_ALLOW_WRITE', True)
-DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 0)
+
+# Connection Pooling Configuration (same as production.py)
+# DB_CONN_MAX_AGE: How long (seconds) a connection is kept alive
+# Default: 600 seconds (10 minutes) for S3/testing settings too
+# - 0 = no pooling (creates new connection per request - NOT recommended)
+# - 600 = keep connection for 10 minutes (recommended for development)
+# - 3600 = keep for 1 hour (for high traffic testing)
+DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 600)  # 10 minutes default
+
 DB_CONNECT_TIMEOUT_SECONDS = _env_int('DB_CONNECT_TIMEOUT_SECONDS', 30)
 DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 10000)
 DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
 DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 60000)
+
+# Connection Pool Settings (same as production.py)
+CONN_POOL_MIN_SIZE = _env_int('CONN_POOL_MIN_SIZE', 5)      # Minimum connections
+CONN_POOL_MAX_SIZE = _env_int('CONN_POOL_MAX_SIZE', 20)     # Maximum connections
+CONN_POOL_TIMEOUT = _env_int('CONN_POOL_TIMEOUT', 30)       # Wait time (seconds)
 
 # Schema migrations can legitimately exceed runtime query timeouts.
 if _is_schema_command():

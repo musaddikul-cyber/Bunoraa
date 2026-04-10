@@ -2,7 +2,15 @@ import multiprocessing
 import os
 
 # ============================================
-# WORKER CONFIGURATION - Memory Optimized
+# STARTUP OPTIMIZATION - CRITICAL
+# ============================================
+# Fast startup mode - skip heavy operations
+os.environ.setdefault('SKIP_MIGRATIONS_CHECK', 'True')
+os.environ.setdefault('PROCESS_TYPE', 'web')
+os.environ.setdefault('ML_ENABLED', 'False')  # Disable ML on web servers
+
+# ============================================
+# WORKER CONFIGURATION - Memory & Speed Optimized
 # ============================================
 # Reduce workers for memory-constrained environments (Render free/starter)
 # Each worker consumes significant memory, especially with Django ORM
@@ -11,8 +19,13 @@ _default_workers = 1
 workers = int(os.environ.get('GUNICORN_WORKERS', str(_default_workers)))
 
 bind = '0.0.0.0:' + os.environ.get('PORT', '8000')
-# Preloading increases memory usage; keep it off for low-RAM instances.
-preload_app = False
+
+# ============================================
+# FAST STARTUP (CRITICAL)
+# ============================================
+# Preload app ONCE then fork for faster startup
+# Only safe if using sync worker, not threaded
+preload_app = os.environ.get('GUNICORN_PRELOAD', 'True').lower() in ('true', '1', 'yes')
 
 # ============================================
 # TIMEOUT SETTINGS
@@ -34,9 +47,11 @@ worker_tmp_dir = '/tmp'
 # ============================================
 # WORKER CLASS & THREADING
 # ============================================
+# sync = fastest startup
 # gthread = threaded workers (good for blocking I/O, lower memory than sync)
-worker_class = os.environ.get('GUNICORN_WORKER_CLASS', 'gthread')
-threads = int(os.environ.get('GUNICORN_THREADS', '2'))  # Reduced from 4
+worker_class = os.environ.get('GUNICORN_WORKER_CLASS', 'sync')  # Changed to sync for faster startup
+threads = int(os.environ.get('GUNICORN_THREADS', '1'))  # Reduced to 1 for sync workers
+worker_connections = int(os.environ.get('GUNICORN_WORKER_CONNECTIONS', '100'))  # Reduced from 500
 
 # ============================================
 # LOGGING CONFIGURATION
@@ -44,3 +59,12 @@ threads = int(os.environ.get('GUNICORN_THREADS', '2'))  # Reduced from 4
 accesslog = '-'
 errorlog = '-'
 loglevel = os.environ.get('GUNICORN_LOG_LEVEL', 'warning')  # Changed from 'info' to reduce logging overhead
+
+# ============================================
+# PERFORMANCE TUNING
+# ============================================
+# Faster WSGI app loading
+on_starting = None
+on_started = None
+when_ready = None
+

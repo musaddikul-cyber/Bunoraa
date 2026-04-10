@@ -5,6 +5,3 @@
 # For ML features: pip install -r requirements-ml.txt
 
 -r requirements-base.txt
-
-# ML packages (optional)
--r requirements-ml.txt

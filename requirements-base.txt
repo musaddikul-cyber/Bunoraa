@@ -54,7 +54,7 @@ django-admin-list-filter-dropdown==1.0.3
 # Content & Media
 django-ckeditor-5==0.2.19
 Pillow==12.1.1
-imagio==2.37.2
+imageio==2.37.2
 django-weasyprint==2.4.0
 weasyprint==68.1
 
@@ -144,7 +144,7 @@ gevent==25.9.1
 greenlet==3.3.2
 
 # Upstash Redis Client
-upstash-redis==1.0.1
+upstash-redis==1.0.0
 
 # Rich ASCII art
 rich==14.3.3

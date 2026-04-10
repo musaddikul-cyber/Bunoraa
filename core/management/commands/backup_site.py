@@ -176,7 +176,19 @@ class Command(BaseCommand):
                 elif boto3 is None:
                     self.stdout.write(self.style.ERROR('boto3 is not installed. Install with: pip install boto3'))
                 else:
-                    client = boto3.client('s3')
+                    client_kwargs = {}
+                    endpoint_url = getattr(settings, 'AWS_S3_ENDPOINT_URL', '') or ''
+                    if endpoint_url.strip():
+                        client_kwargs['endpoint_url'] = endpoint_url.strip()
+                    access_key = getattr(settings, 'AWS_ACCESS_KEY_ID', '') or ''
+                    secret_key = getattr(settings, 'AWS_SECRET_ACCESS_KEY', '') or ''
+                    if access_key and secret_key:
+                        client_kwargs['aws_access_key_id'] = access_key
+                        client_kwargs['aws_secret_access_key'] = secret_key
+                    region_name = getattr(settings, 'AWS_S3_REGION_NAME', '') or ''
+                    if region_name.strip():
+                        client_kwargs['region_name'] = region_name.strip()
+                    client = boto3.client('s3', **client_kwargs)
                     key_name = f"{key_prefix.rstrip('/')}/{out_path.name}" if key_prefix else out_path.name
                     self.stdout.write(self.style.NOTICE(f'Uploading backup to s3://{bucket}/{key_name}'))
                     try:

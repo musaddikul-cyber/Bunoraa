@@ -456,7 +456,7 @@ if REDIS_URL:
 # LOGGING - Production Level
 # =============================================================================
 LOGGING['handlers']['console']['level'] = 'INFO'
-LOGGING['handlers']['console']['filters'] = ['require_debug_false']
+LOGGING['handlers']['console']['filters'] = ['require_debug_false', 'request_id']
 LOGGING['loggers']['django']['level'] = 'WARNING'
 LOGGING['loggers']['bunoraa']['level'] = 'INFO'
 LOGGING['root']['level'] = 'WARNING'

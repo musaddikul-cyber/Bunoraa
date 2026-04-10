@@ -227,6 +227,118 @@ services:
         value: "false"
     plan: free
 
+  - type: worker
+    name: Bunoraa-Celery-Worker
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "bash scripts/start_celery_worker.sh"
+    envVars:
+      - key: ENVIRONMENT
+        value: "production"
+      - key: DJANGO_SETTINGS_MODULE
+        value: "core.settings.production"
+      - key: DEBUG
+        value: "false"
+      - key: PROCESS_TYPE
+        value: "worker"
+      - key: ML_ENABLED
+        value: "false"
+      - key: ML_API_ENABLED
+        value: "false"
+      - key: ML_CELERY_BEAT_ENABLED
+        value: "false"
+      - key: ML_CHAT_ASSISTANT
+        value: "false"
+      - key: CHAT_AI_LOCAL_MODEL_ENABLED
+        value: "false"
+      - key: PRERENDER_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: USE_S3
+        value: "True"
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_STORAGE_BUCKET_NAME
+        value: "bunoraa"
+      - key: AWS_S3_REGION_NAME
+        value: "us-east-1"
+      - key: AWS_S3_ENDPOINT_URL
+        value: "https://558bc0d014e2ae8268244260bf05b597.r2.cloudflarestorage.com"
+      - key: AWS_S3_CUSTOM_DOMAIN
+        value: "media.bunoraa.com"
+      - key: AWS_DEFAULT_ACL
+        value: "None"
+      - key: AWS_S3_CACHE_CONTROL
+        value: "max-age=86400"
+      - key: MEDIA_URL
+        value: "https://media.bunoraa.com/"
+      - key: EMAIL_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        value: "musaddikul.amin123@gmail.com"
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+    plan: starter
+
+  - type: worker
+    name: Bunoraa-Celery-Beat
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "bash scripts/start_celery_beat.sh"
+    envVars:
+      - key: ENVIRONMENT
+        value: "production"
+      - key: DJANGO_SETTINGS_MODULE
+        value: "core.settings.production"
+      - key: DEBUG
+        value: "false"
+      - key: PROCESS_TYPE
+        value: "scheduler"
+      - key: BACKUP_ENABLED
+        value: "true"
+      - key: ML_ENABLED
+        value: "false"
+      - key: ML_API_ENABLED
+        value: "false"
+      - key: ML_CELERY_BEAT_ENABLED
+        value: "false"
+      - key: ML_CHAT_ASSISTANT
+        value: "false"
+      - key: CHAT_AI_LOCAL_MODEL_ENABLED
+        value: "false"
+      - key: PRERENDER_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+    plan: starter
+
   - type: web
     name: Bunoraa-Frontend
     runtime: node

@@ -415,8 +415,8 @@ if DEBUG:
 
 # Enhanced console handler with timestamps and structured format
 LOGGING['handlers']['console']['level'] = 'WARNING'
-LOGGING['handlers']['console']['filters'] = []  # Remove require_debug_true filter
-LOGGING['formatters']['simple']['format'] = '[{asctime}] {levelname:<8} [{name}:{lineno}] {message}'
+LOGGING['handlers']['console']['filters'] = ['request_id']  # Remove require_debug_true filter
+LOGGING['formatters']['simple']['format'] = '[{asctime}] {levelname:<8} [{request_id}] [{name}:{lineno}] {message}'
 LOGGING['formatters']['simple']['style'] = '{'
 LOGGING['handlers']['console']['formatter'] = 'simple'
 

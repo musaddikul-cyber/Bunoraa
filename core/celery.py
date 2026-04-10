@@ -341,6 +341,34 @@ app.conf.beat_schedule = {
 }
 
 # -----------------------------------------------------------------------------
+# Backup schedule controls
+# -----------------------------------------------------------------------------
+# Keep backup jobs behind a single switch so small deployments can disable them.
+if getattr(settings, "BACKUP_ENABLED", False):
+    app.conf.beat_schedule.update(
+        {
+            # Daily database backup at 3 AM Bangladesh time.
+            "daily-database-backup": {
+                "task": "core.tasks.backup_database_to_r2",
+                "schedule": crontab(hour=3, minute=0),
+                "options": {"queue": "backups"},
+            },
+            # Daily incremental media sync at 2 AM.
+            "daily-media-sync": {
+                "task": "core.tasks.sync_media_incremental",
+                "schedule": crontab(hour=2, minute=0),
+                "options": {"queue": "backups"},
+            },
+            # Weekly full media backup on Sunday at 4 AM.
+            "weekly-media-backup": {
+                "task": "core.tasks.backup_media_to_r2",
+                "schedule": crontab(hour=4, minute=0, day_of_week=0),
+                "options": {"queue": "backups"},
+            },
+        }
+    )
+
+# -----------------------------------------------------------------------------
 # ML schedule controls
 # -----------------------------------------------------------------------------
 _legacy_ml_keys = (

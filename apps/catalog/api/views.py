@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnl
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.generics import CreateAPIView 
 from rest_framework.pagination import PageNumberPagination 
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q, Avg, F
 from django.db import models

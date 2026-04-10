@@ -286,6 +286,45 @@ class CatalogRegressionTests(TestCase):
             ["zulu", "beta", "alpha"],
         )
 
+    def test_category_api_nested_slug_path_supports_detail_and_products(self):
+        root = Category.objects.create(name="Fashion Apparel", slug="fashion-apparel", is_active=True)
+        child = Category.objects.create(
+            name="Women",
+            slug="women",
+            parent=root,
+            is_active=True,
+        )
+        Product.objects.create(
+            name="Summer Dress",
+            slug="summer-dress",
+            price=Decimal("45.00"),
+            primary_category=child,
+            is_active=True,
+            is_deleted=False,
+        )
+
+        factory = RequestFactory()
+
+        detail_view = CategoryViewSet.as_view({"get": "retrieve"})
+        detail_response = detail_view(
+            factory.get("/api/v1/catalog/categories/fashion-apparel/women/"),
+            slug="fashion-apparel/women",
+        )
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.data["slug"], "women")
+
+        products_view = CategoryViewSet.as_view({"get": "products"})
+        products_response = products_view(
+            factory.get("/api/v1/catalog/categories/fashion-apparel/women/products/"),
+            slug="fashion-apparel/women",
+        )
+        self.assertEqual(products_response.status_code, 200)
+        products_data = products_response.data
+        if isinstance(products_data, dict) and "results" in products_data:
+            products_data = products_data["results"]
+        self.assertEqual(len(products_data), 1)
+        self.assertEqual(products_data[0]["slug"], "summer-dress")
+
     def test_search_api_excludes_hidden_and_inactive_categories_from_suggestions(self):
         hidden_direct = Category.objects.create(
             name="Decor Hidden",

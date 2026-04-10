@@ -196,6 +196,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     'core.middleware.health_check.HealthCheckMiddleware',
+    'core.middleware.request_id.RequestIdMiddleware',
     'core.middleware.ensure_trailing.EnsureTrailingSlashMiddleware',
     'core.middleware.api_trailing_slash.ApiTrailingSlashMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -887,11 +888,11 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'format': '{levelname} {asctime} [{request_id}] {module} {process:d} {thread:d} {message}',
             'style': '{',
         },
         'simple': {
-            'format': '{levelname} {message}',
+            'format': '{levelname} [{request_id}] {message}',
             'style': '{',
         },
     },
@@ -905,16 +906,20 @@ LOGGING = {
         'ignore_cancelled_error': {
             '()': 'core.logging_filters.IgnoreCancelledErrorFilter',
         },
+        'request_id': {
+            '()': 'core.logging_filters.RequestIdFilter',
+        },
     },
     'handlers': {
         'console': {
             'level': 'INFO',
-            'filters': ['require_debug_true'],
+            'filters': ['require_debug_true', 'request_id'],
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
         'file': {
             'level': 'INFO',
+            'filters': ['request_id'],
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / 'logs' / 'bunoraa.log',
             'formatter': 'verbose',
@@ -1003,6 +1008,7 @@ R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY', '')
 R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME', 'bunoraa')
 R2_CUSTOM_DOMAIN = os.environ.get('R2_CUSTOM_DOMAIN', 'media.bunoraa.com')
 R2_BACKUP_BUCKET = os.environ.get('R2_BACKUP_BUCKET', 'bunoraa-backups')
+AWS_BACKUP_S3_BUCKET = os.environ.get('AWS_BACKUP_S3_BUCKET', R2_BACKUP_BUCKET)
 
 # =============================================================================
 # USER DATA COLLECTION SETTINGS

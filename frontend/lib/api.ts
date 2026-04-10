@@ -25,6 +25,7 @@ const FALLBACK_SITE_URL =
 const DISABLE_BUILD_PRERENDER =
   process.env.NEXT_DISABLE_BUILD_PRERENDER === "true" ||
   process.env.NEXT_DISABLE_BUILD_PRERENDER === "1";
+const IS_BUILD_TIME = process.env.NEXT_PHASE === "phase-production-build";
 let refreshPromise: Promise<string | null> | null = null;
 
 function ensureTrailingSlash(path: string) {
@@ -294,7 +295,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   const localeHeaders = getLocaleHeaders();
   const isFormData =
     typeof FormData !== "undefined" && body instanceof FormData;
-  const forceNoStore = DISABLE_BUILD_PRERENDER && typeof window === "undefined";
+  const forceNoStore = DISABLE_BUILD_PRERENDER && IS_BUILD_TIME && typeof window === "undefined";
   const effectiveCache = forceNoStore ? "no-store" : cache;
   const effectiveNext = forceNoStore ? undefined : next;
 

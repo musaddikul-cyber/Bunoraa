@@ -5,6 +5,12 @@ import logging
 import asyncio
 import concurrent.futures
 
+try:
+    from core.request_context import get_request_id
+except Exception:  # pragma: no cover
+    def get_request_id() -> str:  # type: ignore[no-redef]
+        return "-"
+
 
 class IgnoreCancelledErrorFilter(logging.Filter):
     """
@@ -34,4 +40,16 @@ class IgnoreCancelledErrorFilter(logging.Filter):
             ):
                 return False
         
+        return True
+
+
+class RequestIdFilter(logging.Filter):
+    """Attach `request_id` to log records for correlation."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            value = get_request_id() or "-"
+        except Exception:
+            value = "-"
+        record.request_id = value
         return True

@@ -23,6 +23,12 @@ router.register(r'badges', BadgeViewSet, basename='api-badge')
 urlpatterns = [
     # Router URLs
     path('', include(router.urls)),
+
+    # Nested category path support for detail actions
+    path('categories/<path:slug>/children/', CategoryViewSet.as_view({'get': 'children'}), name='api-category-children-by-path'),
+    path('categories/<path:slug>/facets/', CategoryViewSet.as_view({'get': 'facets'}), name='api-category-facets-by-path'),
+    path('categories/<path:slug>/products/', CategoryViewSet.as_view({'get': 'products'}), name='api-category-products-by-path'),
+    path('categories/<path:slug>/', CategoryViewSet.as_view({'get': 'retrieve'}), name='api-category-detail-by-path'),
     
     # Standalone views
     path('search/', SearchAPIView.as_view(), name='api-search'),

@@ -52,6 +52,8 @@ export function ProductCard({
               href={productHref}
               className="absolute inset-0 z-10"
               aria-label={`View ${product.name}`}
+              target="_blank"
+              rel="noopener noreferrer"
             />
           )}
           {image ? (
@@ -74,6 +76,8 @@ export function ProductCard({
           <Link
             href={productHref}
             className="block text-sm font-semibold leading-snug text-foreground"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             {product.name}
           </Link>
@@ -118,6 +122,8 @@ export function ProductCard({
             href={productHref}
             className="absolute inset-0 z-0"
             aria-label={`View ${product.name}`}
+            target="_blank"
+            rel="noopener noreferrer"
           />
         )}
         <WishlistIconButton
@@ -162,6 +168,8 @@ export function ProductCard({
           <Link
             href={productHref}
             className="block text-base font-semibold leading-snug sm:text-lg"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             {product.name}
           </Link>

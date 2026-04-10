@@ -2,7 +2,7 @@
 Commerce services - Business logic for cart, checkout, and wishlist
 """
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import timedelta
 
@@ -601,6 +601,131 @@ class CartService:
         cart.coupon = None
         cart.save(update_fields=['coupon'])
         return False, message or "Coupon removed because it is no longer valid."
+
+    @classmethod
+    def get_gift_wrap_settings(cls) -> Dict[str, Any]:
+        """Return normalized gift-wrap settings used across checkout/cart flows."""
+        label = "Gift Wrap"
+        enabled = False
+        base_amount = Decimal("0")
+        currency_code = "BDT"
+
+        try:
+            settings_obj = CartSettings.get_settings()
+            enabled = bool(settings_obj.gift_wrap_enabled)
+            label = settings_obj.gift_wrap_label or label
+            base_amount = Decimal(str(settings_obj.gift_wrap_amount or 0))
+        except Exception:
+            settings_obj = None
+
+        try:
+            from apps.i18n.services import CurrencyService
+
+            default_currency = CurrencyService.get_default_currency()
+            if default_currency and getattr(default_currency, "code", None):
+                currency_code = default_currency.code
+        except Exception:
+            pass
+
+        return {
+            "enabled": enabled,
+            "label": label,
+            "base_amount": base_amount,
+            "currency_code": currency_code,
+            "settings": settings_obj,
+        }
+
+    @classmethod
+    def calculate_dynamic_gift_wrap_amount(
+        cls,
+        cart: Optional[Cart],
+        gift_settings: Optional[Dict[str, Any]] = None,
+    ) -> Decimal:
+        """
+        Calculate gift-wrap fee using quantity, category spread, and packaging complexity.
+        """
+        settings_payload = gift_settings or cls.get_gift_wrap_settings()
+        if not settings_payload.get("enabled"):
+            return Decimal("0")
+
+        base_amount = Decimal(str(settings_payload.get("base_amount") or 0))
+        if base_amount <= 0:
+            return Decimal("0")
+
+        if not cart:
+            return base_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        items = list(
+            cart.items.select_related("product", "product__primary_category")
+        )
+        if not items:
+            return base_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        total_quantity = sum(max(0, int(item.quantity or 0)) for item in items)
+        if total_quantity <= 0:
+            total_quantity = 1
+
+        category_ids = set()
+        featured_category_hits = 0
+        heavy_items = 0
+        bulky_items = 0
+
+        for item in items:
+            product = getattr(item, "product", None)
+            if not product:
+                continue
+
+            if getattr(product, "primary_category_id", None):
+                category_ids.add(str(product.primary_category_id))
+                try:
+                    if (
+                        getattr(product, "primary_category", None)
+                        and product.primary_category.is_featured
+                    ):
+                        featured_category_hits += 1
+                except Exception:
+                    pass
+
+            try:
+                weight = Decimal(str(getattr(product, "weight", 0) or 0))
+            except Exception:
+                weight = Decimal("0")
+            if weight >= Decimal("1.5"):
+                heavy_items += 1
+
+            try:
+                length = Decimal(str(getattr(product, "length", 0) or 0))
+                width = Decimal(str(getattr(product, "width", 0) or 0))
+                height = Decimal(str(getattr(product, "height", 0) or 0))
+                volume = length * width * height
+            except Exception:
+                volume = Decimal("0")
+            if volume >= Decimal("5000"):
+                bulky_items += 1
+
+        quantity_factor = Decimal("1") + (
+            Decimal(max(0, total_quantity - 1)) * Decimal("0.08")
+        )
+        if quantity_factor > Decimal("2.20"):
+            quantity_factor = Decimal("2.20")
+
+        category_factor = Decimal("1") + (
+            Decimal(max(0, len(category_ids) - 1)) * Decimal("0.06")
+        )
+        if category_factor > Decimal("1.40"):
+            category_factor = Decimal("1.40")
+
+        complexity_hits = min(
+            3,
+            heavy_items + bulky_items + min(featured_category_hits, 2),
+        )
+        complexity_factor = Decimal("1") + (Decimal(complexity_hits) * Decimal("0.04"))
+
+        computed = base_amount * quantity_factor * category_factor * complexity_factor
+        if computed < base_amount:
+            computed = base_amount
+
+        return computed.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @classmethod
     @transaction.atomic

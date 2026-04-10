@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { ProductBadge, ProductListItem } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
@@ -34,7 +35,7 @@ export function QuickViewModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ["quick-view", slug],
     queryFn: () => fetchQuickView(slug as string),
     enabled: isOpen && !!slug,
@@ -92,8 +93,13 @@ export function QuickViewModal({
             </Button>
           </div>
 
-          {isLoading || !data ? (
-            <div className="h-40 animate-pulse rounded-xl bg-muted" />
+          {isLoading || isFetching || !data ? (
+            <div className="flex h-48 items-center justify-center rounded-xl border border-border bg-muted/20">
+              <div className="flex items-center gap-2 text-sm text-foreground/70">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading quick view...
+              </div>
+            </div>
           ) : (
             <div className="grid gap-4 sm:gap-6 md:grid-cols-[1fr_1.2fr]">
               <div className="aspect-[4/5] max-h-[50dvh] overflow-hidden rounded-xl bg-muted md:max-h-none">
@@ -102,6 +108,8 @@ export function QuickViewModal({
                   <img
                     src={data.primary_image}
                     alt={data.name}
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover"
                   />
                 ) : null}
@@ -139,7 +147,13 @@ export function QuickViewModal({
                     size="sm"
                     className="h-11 w-full px-4"
                   >
-                    <Link href={buildProductPath(data)}>View details</Link>
+                    <Link
+                      href={buildProductPath(data)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View details
+                    </Link>
                   </Button>
                 </div>
               </div>

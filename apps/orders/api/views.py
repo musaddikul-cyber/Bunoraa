@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from django.db.models import Q
 
 from ..models import Order
 from ..services import OrderService
@@ -62,6 +63,36 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(created_at__date__gte=date_from)
         if date_to:
             queryset = queryset.filter(created_at__date__lte=date_to)
+
+        query = (request.query_params.get('q') or '').strip()
+        if query:
+            queryset = queryset.filter(
+                Q(order_number__icontains=query)
+                | Q(status__icontains=query)
+                | Q(email__icontains=query)
+                | Q(tracking_number__icontains=query)
+            ).distinct()
+
+        ordering_param = (
+            request.query_params.get('ordering')
+            or request.query_params.get('sort')
+            or ''
+        ).strip()
+        ordering_map = {
+            'newest': ('-created_at',),
+            'oldest': ('created_at',),
+            'total_high': ('-total', '-created_at'),
+            'total_low': ('total', '-created_at'),
+            'status': ('status', '-created_at'),
+            'created_at': ('created_at',),
+            '-created_at': ('-created_at',),
+            'total': ('total',),
+            '-total': ('-total',),
+            'order_number': ('order_number',),
+            '-order_number': ('-order_number',),
+        }
+        if ordering_param in ordering_map:
+            queryset = queryset.order_by(*ordering_map[ordering_param])
 
         # Pagination
         page = self.paginate_queryset(queryset)
@@ -190,6 +221,38 @@ class OrderAdminViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(created_at__date__gte=date_from)
         if date_to:
             queryset = queryset.filter(created_at__date__lte=date_to)
+
+        query = (request.query_params.get('q') or '').strip()
+        if query:
+            queryset = queryset.filter(
+                Q(order_number__icontains=query)
+                | Q(email__icontains=query)
+                | Q(status__icontains=query)
+                | Q(tracking_number__icontains=query)
+                | Q(shipping_first_name__icontains=query)
+                | Q(shipping_last_name__icontains=query)
+            ).distinct()
+
+        ordering_param = (
+            request.query_params.get('ordering')
+            or request.query_params.get('sort')
+            or ''
+        ).strip()
+        ordering_map = {
+            'newest': ('-created_at',),
+            'oldest': ('created_at',),
+            'total_high': ('-total', '-created_at'),
+            'total_low': ('total', '-created_at'),
+            'status': ('status', '-created_at'),
+            'created_at': ('created_at',),
+            '-created_at': ('-created_at',),
+            'total': ('total',),
+            '-total': ('-total',),
+            'order_number': ('order_number',),
+            '-order_number': ('-order_number',),
+        }
+        if ordering_param in ordering_map:
+            queryset = queryset.order_by(*ordering_map[ordering_param])
         
         # Pagination
         page = self.paginate_queryset(queryset)

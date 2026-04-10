@@ -152,12 +152,12 @@ class CategoryService:
     
     @classmethod
     def get_featured_categories(cls, limit=6):
-        """Get categories with most products for homepage."""
+        """Get featured categories for homepage, with product-count fallback ordering."""
         return Category.objects.filter(
             is_active=True,
             is_visible=True,
             is_deleted=False
-        ).order_by('-product_count')[:limit]
+        ).order_by('-is_featured', '-product_count', 'sort_order', 'name')[:limit]
     
     @classmethod
     def get_category_by_slug(cls, slug: str) -> Optional[Category]:

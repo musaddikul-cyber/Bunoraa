@@ -196,7 +196,13 @@ function BaseMedia({
           <span className="sr-only">Quick view</span>
         </button>
       ) : (
-        <Link href={productHref} className="absolute inset-0 z-0" aria-label={`View ${product.name}`} />
+        <Link
+          href={productHref}
+          className="absolute inset-0 z-0"
+          aria-label={`View ${product.name}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
       )}
       {showWishlist ? (
         <WishlistIconButton
@@ -238,7 +244,12 @@ function SharedTitle({
   className?: string;
 }) {
   return (
-    <Link href={buildProductPath(product)} className={cn("block font-semibold leading-snug", className)}>
+    <Link
+      href={buildProductPath(product)}
+      className={cn("block font-semibold leading-snug", className)}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
       {product.name}
     </Link>
   );
@@ -368,7 +379,12 @@ function OverlayVariant({ product, onQuickView, className }: RenderProps) {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 z-20 p-4 text-white">
         <p className="text-[10px] uppercase tracking-[0.2em] text-white/75">{getCategoryLabel(product)}</p>
-        <Link href={href} className="mt-1 block text-lg font-semibold leading-tight">
+        <Link
+          href={href}
+          className="mt-1 block text-lg font-semibold leading-tight"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           {product.name}
         </Link>
         <div className="mt-2 flex items-center justify-between gap-2">
@@ -479,6 +495,8 @@ function MinimalVariant({ product, onQuickView, className }: RenderProps) {
         <Link
           href={buildProductPath(product)}
           className="inline-flex min-h-10 items-center rounded-lg border border-border px-3 text-sm font-semibold hover:bg-muted"
+          target="_blank"
+          rel="noopener noreferrer"
         >
           View
         </Link>
@@ -511,6 +529,8 @@ function EditorialVariant({ product, onQuickView, className }: RenderProps) {
         <Link
           href={buildProductPath(product)}
           className="inline-flex min-h-10 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-white hover:bg-primary/90"
+          target="_blank"
+          rel="noopener noreferrer"
         >
           Explore product
         </Link>
@@ -615,6 +635,8 @@ function CompareFocusVariant({
         <Link
           href={buildProductPath(product)}
           className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border bg-card px-3 text-sm font-semibold hover:bg-muted"
+          target="_blank"
+          rel="noopener noreferrer"
         >
           View specs
         </Link>

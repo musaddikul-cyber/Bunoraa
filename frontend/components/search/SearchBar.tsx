@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { ArrowUpRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { ProductListItem } from "@/lib/types";
@@ -19,13 +20,41 @@ function useDebouncedValue<T>(value: T, delay = 300) {
 
 type SearchResponse = {
   products: ProductListItem[];
-  categories: Array<{ id: string; name: string; slug: string }>;
+  categories: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    image?: string | null;
+    product_count?: number | null;
+  }>;
   query: string;
 };
 
 type SearchBarProps = {
   hideSubmitButtonOnDesktop?: boolean;
 };
+
+type SuggestionOption = {
+  id: string;
+  label: string;
+  href: string;
+  kind: "product" | "category";
+  newTab?: boolean;
+};
+
+function getProductImage(product: ProductListItem) {
+  const primary = product.primary_image as unknown as
+    | string
+    | { image?: string | null }
+    | null;
+  if (!primary) return null;
+  if (typeof primary === "string") return primary;
+  return primary.image || null;
+}
+
+function getProductPrice(product: ProductListItem) {
+  return product.current_price || product.sale_price || product.price || "";
+}
 
 export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps) {
   const router = useRouter();
@@ -35,7 +64,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const inputId = React.useId();
   const listboxId = React.useId();
-  const debounced = useDebouncedValue(query, 400);
+  const debounced = useDebouncedValue(query, 350);
 
   const suggestions = useQuery({
     queryKey: ["search", "suggestions", debounced],
@@ -50,30 +79,41 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
 
   const productSuggestions = suggestions.data?.products ?? [];
   const categorySuggestions = suggestions.data?.categories ?? [];
-  const visibleProductCount = productSuggestions.slice(0, 5).length;
-  const options = [
-    ...productSuggestions.slice(0, 5).map((item) => ({
-      id: `product-${item.id}`,
-      label: item.name,
-      href: buildProductPath(item),
-    })),
-    ...categorySuggestions.slice(0, 5).map((item) => ({
+  const productOptions: SuggestionOption[] = productSuggestions.slice(0, 6).map((item) => ({
+    id: `product-${item.id}`,
+    label: item.name,
+    href: buildProductPath(item),
+    kind: "product",
+    newTab: true,
+  }));
+  const categoryOptions: SuggestionOption[] = categorySuggestions
+    .slice(0, 5)
+    .map((item) => ({
       id: `category-${item.id}`,
       label: item.name,
       href: buildCategoryPath(item.slug),
-    })),
-  ];
+      kind: "category",
+      newTab: false,
+    }));
+  const options = [...productOptions, ...categoryOptions];
+
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length >= 2;
   const hasSuggestions = options.length > 0;
   const showSuggestions = isInputFocused && hasQuery;
 
-  const onSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (activeIndex >= 0 && options[activeIndex]) {
-      handleSelection(options[activeIndex].href);
+  const handleSelection = (href: string, newTab = false) => {
+    setQuery("");
+    setActiveIndex(-1);
+    setIsInputFocused(false);
+    if (newTab) {
+      window.open(href, "_blank", "noopener,noreferrer");
       return;
     }
+    router.push(href);
+  };
+
+  const handleSearchResults = () => {
     if (!trimmedQuery) return;
     router.push(`/search/?q=${encodeURIComponent(trimmedQuery)}`);
     setQuery("");
@@ -81,11 +121,14 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
     setIsInputFocused(false);
   };
 
-  const handleSelection = (href: string) => {
-    setQuery("");
-    setActiveIndex(-1);
-    setIsInputFocused(false);
-    router.push(href);
+  const onSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (activeIndex >= 0 && options[activeIndex]) {
+      const selected = options[activeIndex];
+      handleSelection(selected.href, Boolean(selected.newTab));
+      return;
+    }
+    handleSearchResults();
   };
 
   React.useEffect(() => {
@@ -118,7 +161,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
         <input
           id={inputId}
           className={`${
-            hideSubmitButtonOnDesktop ? "h-11 min-h-11 lg:h-10 lg:min-h-10" : "h-11 min-h-11"
+            hideSubmitButtonOnDesktop ? "h-10 min-h-10 lg:h-9 lg:min-h-9" : "h-10 min-h-10"
           } w-full rounded-full border border-border bg-card px-4 py-1 text-sm shadow-sm transition focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
             hideSubmitButtonOnDesktop ? "pr-24 lg:pr-4" : "pr-24"
           }`}
@@ -156,7 +199,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
         />
         <button
           type="submit"
-          className={`absolute right-1 top-1/2 inline-flex h-9 min-h-9 -translate-y-1/2 items-center justify-center rounded-full bg-primary px-3 text-xs font-semibold text-white transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+          className={`absolute right-1 top-1/2 inline-flex h-8 min-h-8 -translate-y-1/2 items-center justify-center rounded-full bg-primary px-3 text-xs font-semibold text-white transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
             hideSubmitButtonOnDesktop ? "lg:hidden" : ""
           }`}
           aria-label="Search"
@@ -172,6 +215,13 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
           role="listbox"
           aria-label="Search suggestions"
         >
+          <div className="mb-3 flex items-center justify-between text-xs text-foreground/60">
+            <p className="uppercase tracking-[0.18em]">Live results</p>
+            <p>
+              {productSuggestions.length} products • {categorySuggestions.length} categories
+            </p>
+          </div>
+
           {suggestions.isFetching ? (
             <p className="text-sm text-foreground/60">Searching...</p>
           ) : null}
@@ -179,35 +229,56 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
           {productSuggestions.length > 0 ? (
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">Products</p>
-              <ul className="mt-2 space-y-1">
-                {productSuggestions.slice(0, 5).map((item, index) => (
-                  <li key={item.id}>
-                    <button
-                      id={`product-${item.id}`}
-                      type="button"
-                      role="option"
-                      aria-selected={activeIndex === index}
-                      className={`w-full rounded-lg px-2 py-2 text-left text-sm transition ${
-                        activeIndex === index
-                          ? "bg-muted text-foreground"
-                          : "text-foreground/80 hover:bg-muted hover:text-foreground"
-                      }`}
-                      onClick={() => handleSelection(buildProductPath(item))}
-                      onMouseEnter={() => setActiveIndex(index)}
-                    >
-                      {item.name}
-                    </button>
-                  </li>
-                ))}
+              <ul className="mt-2 space-y-1.5">
+                {productSuggestions.slice(0, 6).map((item, index) => {
+                  const image = getProductImage(item);
+                  return (
+                    <li key={item.id}>
+                      <button
+                        id={`product-${item.id}`}
+                        type="button"
+                        role="option"
+                        aria-selected={activeIndex === index}
+                        className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition ${
+                          activeIndex === index
+                            ? "bg-muted text-foreground"
+                            : "text-foreground/80 hover:bg-muted hover:text-foreground"
+                        }`}
+                        onClick={() => handleSelection(buildProductPath(item), true)}
+                        onMouseEnter={() => setActiveIndex(index)}
+                      >
+                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
+                          {image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={image}
+                              alt={item.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : null}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-1 font-medium">{item.name}</p>
+                          <p className="line-clamp-1 text-xs text-foreground/60">
+                            {item.primary_category_name || "Product"} • {getProductPrice(item)}{" "}
+                            {item.currency}
+                          </p>
+                        </div>
+                        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-foreground/60" />
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           ) : null}
+
           {categorySuggestions.length > 0 ? (
             <div className="mt-3">
               <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">Categories</p>
               <ul className="mt-2 space-y-1">
                 {categorySuggestions.slice(0, 5).map((item, index) => {
-                  const optionIndex = visibleProductCount + index;
+                  const optionIndex = productOptions.length + index;
                   return (
                     <li key={item.id}>
                       <button
@@ -223,7 +294,8 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                         onClick={() => handleSelection(buildCategoryPath(item.slug))}
                         onMouseEnter={() => setActiveIndex(optionIndex)}
                       >
-                        {item.name}
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-xs text-foreground/60">Category</p>
                       </button>
                     </li>
                   );
@@ -237,6 +309,16 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
               No direct matches. Press Enter to search all results.
             </p>
           ) : null}
+
+          <div className="mt-3 border-t border-border pt-2">
+            <button
+              type="button"
+              className="w-full rounded-lg px-2 py-2 text-left text-sm font-medium text-primary transition hover:bg-primary/10"
+              onClick={handleSearchResults}
+            >
+              View all results for "{trimmedQuery}"
+            </button>
+          </div>
         </div>
       ) : null}
     </div>

@@ -1,12 +1,19 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import type { ProductListItem } from "@/lib/types";
 import { ProductCard } from "@/components/products/ProductCard";
 import { ProductCardVariant, type ProductCardVariantName } from "@/components/products/ProductCardVariants";
 import { ProductCardSkeleton } from "@/components/products/ProductCardSkeleton";
-import { QuickViewModal } from "@/components/products/QuickViewModal";
 import { cn } from "@/lib/utils";
+
+const QuickViewModal = dynamic(
+  () => import("@/components/products/QuickViewModal").then((mod) => mod.QuickViewModal),
+  {
+    ssr: false,
+  }
+);
 
 export function ProductGrid({
   products,

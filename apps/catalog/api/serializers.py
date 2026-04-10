@@ -111,6 +111,7 @@ class CategoryListSerializer(ContentTranslationMixin, serializers.ModelSerialize
             'icon',
             'product_count',
             'is_active',
+            'is_featured',
         )
 
 
@@ -126,7 +127,7 @@ class CategorySerializer(ContentTranslationMixin, serializers.ModelSerializer):
         model = Category
         fields = (
             'id', 'name', 'slug', 'parent', 'path', 'depth', 'sort_order',
-            'is_active', 'is_visible', 'meta_title', 'meta_description', 'meta_keywords',
+            'is_active', 'is_visible', 'is_featured', 'meta_title', 'meta_description', 'meta_keywords',
             'image', 'icon', 'aspect_ratio', 'product_count',
             'children', 'breadcrumbs', 'created_at', 'updated_at'
         )

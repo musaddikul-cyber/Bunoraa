@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import type { OrderDetail } from "@/lib/types";
@@ -162,11 +161,11 @@ export default function OrderDetailPage() {
                       <div key={item.id} className="flex gap-4">
                         <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-muted">
                           {item.product_image ? (
-                            <Image
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
                               src={item.product_image}
                               alt={item.product_name}
-                              fill
-                              className="object-cover"
+                              className="h-full w-full object-cover"
                             />
                           ) : null}
                         </div>

@@ -83,6 +83,7 @@ export function ChatWidget() {
   const [open, setOpen] = React.useState(false);
   const [input, setInput] = React.useState("");
   const [wsState, setWsState] = React.useState<"idle" | "connecting" | "open" | "error">("idle");
+  const autoGreetingSentRef = React.useRef(false);
 
   const activeConversation = useQuery({
     queryKey: ["chat", "active"],
@@ -121,6 +122,9 @@ export function ChatWidget() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chat", "active"] });
     },
+    onError: () => {
+      autoGreetingSentRef.current = false;
+    },
   });
 
   const sendMessage = useMutation({
@@ -135,6 +139,27 @@ export function ChatWidget() {
       queryClient.invalidateQueries({ queryKey: ["chat", "active"] });
     },
   });
+
+  React.useEffect(() => {
+    if (!open) {
+      autoGreetingSentRef.current = false;
+      return;
+    }
+    if (!hasToken) return;
+    if (activeConversation.isLoading) return;
+    if (conversationId) return;
+    if (createConversation.isPending) return;
+    if (autoGreetingSentRef.current) return;
+
+    autoGreetingSentRef.current = true;
+    createConversation.mutate("Hello! How can we help you today?");
+  }, [
+    activeConversation.isLoading,
+    conversationId,
+    createConversation,
+    hasToken,
+    open,
+  ]);
 
   React.useEffect(() => {
     if (!wsEnabled || !open || !conversationId || !hasToken) {
@@ -229,8 +254,15 @@ export function ChatWidget() {
       ) : null}
 
       {open ? (
-        <div className="chat-widget-mobile-open-offset fixed inset-x-3 bottom-3 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6">
-          <div className="chat-widget-mobile-panel flex w-full min-h-[22rem] max-h-[calc(100dvh-1.5rem)] flex-col rounded-2xl border border-border bg-card p-4 shadow-xl sm:w-96 sm:max-h-[38rem]">
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[2px]"
+            onClick={() => setOpen(false)}
+            aria-label="Close support chat"
+          />
+          <div className="chat-widget-mobile-open-offset fixed inset-x-3 bottom-3 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6">
+            <div className="chat-widget-mobile-panel flex h-[min(78dvh,34rem)] min-h-[22rem] w-full flex-col overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-xl sm:h-[38rem] sm:w-96">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="relative h-8 w-8 overflow-hidden rounded-full bg-muted">
@@ -354,8 +386,9 @@ export function ChatWidget() {
                 </div>
               </>
             )}
+            </div>
           </div>
-        </div>
+        </>
       ) : null}
     </>
   );

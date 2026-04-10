@@ -178,6 +178,7 @@ function CartItemRow({
   onUpdate,
   onRemove,
   onMoveToWishlist,
+  onShare,
   isUpdating,
   isRemoving,
   resetSignal,
@@ -188,6 +189,7 @@ function CartItemRow({
   onUpdate: (itemId: string, quantity: number) => void;
   onRemove: (itemId: string) => void;
   onMoveToWishlist: (item: CartItem) => void;
+  onShare: (item: CartItem) => void;
   isUpdating: boolean;
   isRemoving: boolean;
   resetSignal: number;
@@ -294,6 +296,8 @@ function CartItemRow({
           <Link
             href={`/products/${item.product_slug}/`}
             className="line-clamp-2 text-sm font-semibold leading-5 hover:underline"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             {item.product_name}
           </Link>
@@ -392,7 +396,7 @@ function CartItemRow({
             </button>
           </div>
         </div>
-        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
+        <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
           <Button
             variant="ghost"
             size="sm"
@@ -401,6 +405,15 @@ function CartItemRow({
             disabled={isUpdating || isRemoving}
           >
             Save for later
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={() => onShare(item)}
+            disabled={isUpdating || isRemoving}
+          >
+            Share
           </Button>
           <Button
             variant="ghost"
@@ -449,11 +462,13 @@ export function CartPage() {
     password: "",
   });
   const [shareResult, setShareResult] = React.useState<ShareResult | null>(null);
+  const [isShareSectionOpen, setIsShareSectionOpen] = React.useState(false);
   const [updatingItemId, setUpdatingItemId] = React.useState<string | null>(null);
   const [removingItemId, setRemovingItemId] = React.useState<string | null>(null);
   const [resetCounter, setResetCounter] = React.useState(0);
   const [resetItemId, setResetItemId] = React.useState<string | null>(null);
   const giftSaveTimerRef = React.useRef<number | null>(null);
+  const shareSectionRef = React.useRef<HTMLDivElement | null>(null);
   const lastSubmittedGiftStateRef = React.useRef<GiftState>(DEFAULT_GIFT_STATE);
   const updateGiftMutateRef = React.useRef(updateGiftOptions.mutateAsync);
   const pushRef = React.useRef(push);
@@ -749,6 +764,7 @@ export function CartPage() {
 
   const handleShareCart = async () => {
     try {
+      setIsShareSectionOpen(true);
       const response = await shareCart.mutateAsync({
         name: shareState.name || undefined,
         permission: shareState.permission || undefined,
@@ -794,6 +810,16 @@ export function CartPage() {
       push(getApiErrorMessage(error, "Could not copy link."), "error");
     }
   };
+
+  const handleOpenShareSection = React.useCallback(() => {
+    setIsShareSectionOpen(true);
+    window.requestAnimationFrame(() => {
+      shareSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+  }, []);
 
   if (cartQuery.isLoading) {
     return (
@@ -891,12 +917,35 @@ export function CartPage() {
                 onUpdate={handleUpdateItem}
                 onRemove={handleRemoveItem}
                 onMoveToWishlist={handleMoveToWishlist}
+                onShare={handleOpenShareSection}
                 isUpdating={updatingItemId === item.id}
                 isRemoving={removingItemId === item.id}
                 resetSignal={resetCounter}
                 resetTargetId={resetItemId}
               />
             ))}
+
+            <Card variant="bordered" className="space-y-2">
+              <h3 className="text-base font-semibold">Bag health</h3>
+              <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                  onClick={handleValidateCart}
+                >
+                  Validate bag
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleLockPrices}
+                  className="w-full border border-border bg-card text-foreground hover:bg-muted sm:w-auto"
+                >
+                  Lock prices for 24h
+                </Button>
+              </div>
+            </Card>
 
             {validationResult ? (
               <Card variant="bordered" className="space-y-3 text-sm">
@@ -1001,30 +1050,34 @@ export function CartPage() {
 
             <Card variant="bordered" className="space-y-4">
               <h3 className="text-base font-semibold">Promo code</h3>
-              <form onSubmit={handleApplyCoupon} className="space-y-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <input
-                    type="text"
-                    value={couponCode}
-                    onChange={(event) => setCouponCode(event.target.value)}
-                    placeholder="Enter coupon code"
-                    readOnly={Boolean(appliedCouponCode)}
-                    className={cn(
-                      "h-11 rounded-xl border border-border bg-transparent px-3 text-sm sm:flex-1",
-                      appliedCouponCode && "cursor-not-allowed opacity-70"
-                    )}
-                  />
-                  {appliedCouponCode ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="w-full cursor-default border-primary/35 bg-primary/10 text-primary hover:bg-primary/10 disabled:opacity-100 sm:w-auto sm:min-w-[110px]"
-                      disabled
-                    >
-                      Applied
-                    </Button>
-                  ) : (
+              {appliedCouponCode ? (
+                <div className="flex flex-col gap-3 rounded-xl border border-success-500/30 bg-success-500/5 p-3">
+                  <p className="text-sm text-foreground/80">
+                    Applied coupon:{" "}
+                    <span className="font-semibold text-success-600">
+                      {appliedCouponCode}
+                    </span>
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="w-full sm:w-auto sm:self-start"
+                    onClick={handleRemoveCoupon}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleApplyCoupon} className="space-y-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(event) => setCouponCode(event.target.value)}
+                      placeholder="Enter coupon code"
+                      className="h-11 rounded-xl border border-border bg-transparent px-3 text-sm sm:flex-1"
+                    />
                     <Button
                       type="submit"
                       size="sm"
@@ -1033,27 +1086,9 @@ export function CartPage() {
                     >
                       Apply
                     </Button>
-                  )}
-                </div>
-                {appliedCouponCode ? (
-                  <div className="flex justify-stretch sm:justify-end">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="w-full sm:w-auto"
-                      onClick={handleRemoveCoupon}
-                    >
-                      Remove
-                    </Button>
                   </div>
-                ) : null}
-              </form>
-              {appliedCouponCode ? (
-                <p className="text-xs text-foreground/60">
-                  Applied coupon: {appliedCouponCode}
-                </p>
-              ) : null}
+                </form>
+              )}
             </Card>
 
             <Card variant="bordered" className="space-y-3">
@@ -1114,151 +1149,138 @@ export function CartPage() {
               ) : null}
             </Card>
 
-            <Card variant="bordered" className="space-y-3">
-              <h3 className="text-base font-semibold">Share bag</h3>
-              <div className="grid gap-2">
-                <input
-                  type="text"
-                  placeholder="Name (optional)"
-                  value={shareState.name}
-                  onChange={(event) =>
-                    setShareState((prev) => ({ ...prev, name: event.target.value }))
-                  }
-                  className="h-10 rounded-xl border border-border bg-transparent px-3 text-sm"
-                />
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <select
-                    value={shareState.permission}
-                    onChange={(event) =>
-                      setShareState((prev) => ({
-                        ...prev,
-                        permission: event.target.value,
-                      }))
-                    }
-                    className="h-10 rounded-xl border border-border bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            <div ref={shareSectionRef}>
+              <Card variant="bordered" className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold">Share bag</h3>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="px-3"
+                    onClick={() => setIsShareSectionOpen((prev) => !prev)}
                   >
-                    <option value="view">View only</option>
-                    <option value="edit">Can edit items</option>
-                    <option value="purchase">Can purchase</option>
-                  </select>
-                  <div className="relative">
+                    {isShareSectionOpen ? "Hide" : "Open"}
+                  </Button>
+                </div>
+                {isShareSectionOpen || shareResult?.share_url ? (
+                  <div className="grid gap-2">
                     <input
-                      type="number"
-                      min={1}
-                      max={365}
-                      value={shareState.expires_days}
+                      type="text"
+                      placeholder="Name (optional)"
+                      value={shareState.name}
+                      onChange={(event) =>
+                        setShareState((prev) => ({ ...prev, name: event.target.value }))
+                      }
+                      className="h-10 rounded-xl border border-border bg-transparent px-3 text-sm"
+                    />
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <select
+                        value={shareState.permission}
+                        onChange={(event) =>
+                          setShareState((prev) => ({
+                            ...prev,
+                            permission: event.target.value,
+                          }))
+                        }
+                        className="h-10 rounded-xl border border-border bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="view">View only</option>
+                        <option value="edit">Can edit items</option>
+                        <option value="purchase">Can purchase</option>
+                      </select>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={shareState.expires_days}
+                          onChange={(event) =>
+                            setShareState((prev) => ({
+                              ...prev,
+                              expires_days: Number(event.target.value || 7),
+                            }))
+                          }
+                          className="no-spin h-10 w-full rounded-xl border border-border bg-card px-3 pr-10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          placeholder="Expires in days"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                        />
+                        <div className="absolute right-1 top-1 flex h-8 w-8 flex-col overflow-hidden rounded-lg border border-border bg-muted/40">
+                          <button
+                            type="button"
+                            className="flex h-4 items-center justify-center border-b border-border/70 text-foreground/70 hover:bg-muted"
+                            aria-label="Increase days"
+                            onClick={() =>
+                              setShareState((prev) => ({
+                                ...prev,
+                                expires_days: Math.min(365, (prev.expires_days || 7) + 1),
+                              }))
+                            }
+                          >
+                            <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
+                          </button>
+                          <button
+                            type="button"
+                            className="flex h-4 items-center justify-center text-foreground/70 hover:bg-muted"
+                            aria-label="Decrease days"
+                            onClick={() =>
+                              setShareState((prev) => ({
+                                ...prev,
+                                expires_days: Math.max(1, (prev.expires_days || 7) - 1),
+                              }))
+                            }
+                          >
+                            <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Password (optional)"
+                      value={shareState.password}
                       onChange={(event) =>
                         setShareState((prev) => ({
                           ...prev,
-                          expires_days: Number(event.target.value || 7),
+                          password: event.target.value,
                         }))
                       }
-                      className="no-spin h-10 w-full rounded-xl border border-border bg-card px-3 pr-10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                      placeholder="Expires in days"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
+                      className="h-10 rounded-xl border border-border bg-transparent px-3 text-sm"
                     />
-                    <div className="absolute right-1 top-1 flex h-8 w-8 flex-col overflow-hidden rounded-lg border border-border bg-muted/40">
-                      <button
-                        type="button"
-                        className="flex h-4 items-center justify-center border-b border-border/70 text-foreground/70 hover:bg-muted"
-                        aria-label="Increase days"
-                        onClick={() =>
-                          setShareState((prev) => ({
-                            ...prev,
-                            expires_days: Math.min(365, (prev.expires_days || 7) + 1),
-                          }))
-                        }
+                    <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="w-full sm:w-auto"
+                        onClick={handleShareCart}
                       >
-                        <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
-                      </button>
-                      <button
-                        type="button"
-                        className="flex h-4 items-center justify-center text-foreground/70 hover:bg-muted"
-                        aria-label="Decrease days"
-                        onClick={() =>
-                          setShareState((prev) => ({
-                            ...prev,
-                            expires_days: Math.max(1, (prev.expires_days || 7) - 1),
-                          }))
-                        }
-                      >
-                        <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
-                      </button>
+                        Create link
+                      </Button>
+                      {shareResult?.share_url ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full sm:w-auto"
+                          onClick={handleCopyShare}
+                        >
+                          Copy link
+                        </Button>
+                      ) : null}
                     </div>
+                    {shareResult?.share_url ? (
+                      <p className="break-all text-xs text-foreground/60">
+                        {shareResult.share_url}
+                      </p>
+                    ) : null}
                   </div>
-                </div>
-                <input
-                  type="password"
-                  placeholder="Password (optional)"
-                  value={shareState.password}
-                  onChange={(event) =>
-                    setShareState((prev) => ({
-                      ...prev,
-                      password: event.target.value,
-                    }))
-                  }
-                  className="h-10 rounded-xl border border-border bg-transparent px-3 text-sm"
-                />
-                <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="w-full sm:w-auto"
-                    onClick={handleShareCart}
-                  >
-                    Create link
-                  </Button>
-                  {shareResult?.share_url ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="w-full sm:w-auto"
-                      onClick={handleCopyShare}
-                    >
-                      Copy link
-                    </Button>
-                  ) : null}
-                </div>
-                {shareResult?.share_url ? (
-                  <p className="break-all text-xs text-foreground/60">
-                    {shareResult.share_url}
+                ) : (
+                  <p className="text-sm text-foreground/70">
+                    Share your current bag with family, team members, or your personal shopper.
                   </p>
-                ) : null}
-              </div>
-            </Card>
+                )}
+              </Card>
+            </div>
 
-            <Card variant="bordered" className="space-y-2">
-              <h3 className="text-base font-semibold">Bag health</h3>
-              <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="w-full sm:w-auto"
-                  onClick={handleValidateCart}
-                >
-                  Validate bag
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleLockPrices}
-                  className="w-full border border-border bg-card text-foreground hover:bg-muted sm:w-auto"
-                >
-                  Lock prices for 24h
-                </Button>
-              </div>
-              <div className="border-t border-border pt-2">
-                <p className="text-xs text-foreground/55">Danger zone</p>
-                <button
-                  type="button"
-                  className="mt-1 text-xs text-foreground/60 underline-offset-4 hover:text-error-500 hover:underline"
-                  onClick={handleClearCart}
-                >
-                  Clear bag
-                </button>
-              </div>
-            </Card>
           </div>
         </div>
 
@@ -1270,9 +1292,9 @@ export function CartPage() {
                 <Link href="/products/">View all</Link>
               </Button>
             </div>
-            <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-6 grid grid-flow-col auto-cols-[78%] gap-4 overflow-x-auto pb-2 snap-x snap-mandatory sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
               {relatedQuery.data.map((product) => (
-                <Card key={product.id} variant="bordered" className="flex flex-col gap-3">
+                <Card key={product.id} variant="bordered" className="snap-start flex flex-col gap-3">
                   <div className="aspect-[4/5] overflow-hidden rounded-xl bg-muted">
                     {getProductImage(product) ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -1302,7 +1324,13 @@ export function CartPage() {
                       Add to bag
                     </Button>
                     <Button asChild size="sm" variant="ghost" className="w-full">
-                      <Link href={buildProductPath(product)}>View</Link>
+                      <Link
+                        href={buildProductPath(product)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View
+                      </Link>
                     </Button>
                   </div>
                 </Card>

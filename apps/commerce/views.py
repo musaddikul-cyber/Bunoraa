@@ -17,7 +17,7 @@ from decimal import Decimal
 
 from .models import (
     Cart, CartItem, Wishlist, WishlistItem, WishlistShare,
-    CheckoutSession, CartSettings
+    CheckoutSession
 )
 from .services import CartService, WishlistService, CheckoutService, EnhancedCartService
 from apps.i18n.api.serializers import convert_currency_fields
@@ -211,23 +211,14 @@ def build_checkout_cart_summary(request, cart, checkout_session):
             except Exception:
                 shipping_estimate = False
 
-        gift_wrap_amount = Decimal('0')
-        gift_wrap_from_code = from_code
-        gift_wrap_enabled = False
-        gift_wrap_label = 'Gift Wrap'
-        try:
-            settings = CartSettings.get_settings()
-            gift_wrap_enabled = bool(settings.gift_wrap_enabled)
-            gift_wrap_label = settings.gift_wrap_label or gift_wrap_label
-            gift_wrap_amount = Decimal(str(settings.gift_wrap_amount or 0))
-            try:
-                base_currency = CurrencyService.get_default_currency()
-                if base_currency and base_currency.code:
-                    gift_wrap_from_code = base_currency.code
-            except Exception:
-                gift_wrap_from_code = from_code
-        except Exception:
-            gift_wrap_enabled = False
+        gift_settings = CartService.get_gift_wrap_settings()
+        gift_wrap_enabled = bool(gift_settings.get('enabled'))
+        gift_wrap_label = gift_settings.get('label') or 'Gift Wrap'
+        gift_wrap_amount = CartService.calculate_dynamic_gift_wrap_amount(
+            cart,
+            gift_settings=gift_settings,
+        )
+        gift_wrap_from_code = gift_settings.get('currency_code') or from_code
 
         gift_state = {
             'is_gift': bool(getattr(checkout_session, 'is_gift', False)) if checkout_session else False,
@@ -626,13 +617,16 @@ class CartView(TemplateView):
         formatted_gift_wrap = ''
 
         if cart:
-            try:
-                settings = CartSettings.get_settings()
-                gift_wrap_enabled = bool(settings.gift_wrap_enabled)
-                gift_wrap_label = settings.gift_wrap_label or gift_wrap_label
-                gift_wrap_amount = Decimal(str(settings.gift_wrap_amount or 0))
-            except Exception:
-                gift_wrap_enabled = False
+            gift_settings = CartService.get_gift_wrap_settings()
+            gift_wrap_enabled = bool(gift_settings.get('enabled'))
+            gift_wrap_label = gift_settings.get('label') or gift_wrap_label
+            gift_wrap_amount = CartService.calculate_dynamic_gift_wrap_amount(
+                cart,
+                gift_settings=gift_settings,
+            )
+            gift_wrap_from_code = gift_settings.get('currency_code') or (
+                getattr(cart, 'currency', None) or 'BDT'
+            )
 
             checkout_session = CheckoutService.get_active_session(
                 cart=cart,
@@ -645,14 +639,16 @@ class CartView(TemplateView):
                 gift_state['gift_message'] = checkout_session.gift_message or ''
                 gift_state['gift_wrap'] = bool(checkout_session.gift_wrap) if gift_wrap_enabled else False
 
-            from_code = getattr(cart, 'currency', None) or 'BDT'
             target_currency = CurrencyService.get_user_currency(request=self.request) or CurrencyService.get_default_currency()
 
             display_gift_wrap_amount = gift_wrap_amount
-            if target_currency and target_currency.code != from_code:
+            if target_currency and target_currency.code != gift_wrap_from_code:
                 try:
                     display_gift_wrap_amount = CurrencyConversionService.convert_by_code(
-                        gift_wrap_amount, from_code, target_currency.code, round_result=True
+                        gift_wrap_amount,
+                        gift_wrap_from_code,
+                        target_currency.code,
+                        round_result=True,
                     )
                 except Exception:
                     display_gift_wrap_amount = gift_wrap_amount
@@ -1209,13 +1205,16 @@ class CheckoutUpdateInfoView(View):
         gift_message = (request.POST.get('gift_message') or '').strip() if is_gift else ''
         gift_wrap = str(request.POST.get('gift_wrap', '')).lower() in {'1', 'true', 'on', 'yes'}
         gift_wrap_cost = Decimal('0')
-        try:
-            from .models import CartSettings
-            settings = CartSettings.get_settings()
-            if gift_wrap and settings.gift_wrap_enabled:
-                gift_wrap_cost = Decimal(str(settings.gift_wrap_amount or 0))
-        except Exception:
-            gift_wrap_cost = Decimal('0')
+        if gift_wrap:
+            try:
+                gift_settings = CartService.get_gift_wrap_settings()
+                if gift_settings.get('enabled'):
+                    gift_wrap_cost = CartService.calculate_dynamic_gift_wrap_amount(
+                        cart,
+                        gift_settings=gift_settings,
+                    )
+            except Exception:
+                gift_wrap_cost = Decimal('0')
 
         try:
             CheckoutService.update_shipping_info(checkout_session, data)
@@ -1341,13 +1340,16 @@ class CheckoutSelectShippingView(View):
         
         if gift_wrap or gift_message or is_gift:
             gift_wrap_cost = Decimal('0')
-            try:
-                from .models import CartSettings
-                settings = CartSettings.get_settings()
-                if gift_wrap and settings.gift_wrap_enabled:
-                    gift_wrap_cost = Decimal(str(settings.gift_wrap_amount or 0))
-            except Exception:
-                gift_wrap_cost = Decimal('0')
+            if gift_wrap:
+                try:
+                    gift_settings = CartService.get_gift_wrap_settings()
+                    if gift_settings.get('enabled'):
+                        gift_wrap_cost = CartService.calculate_dynamic_gift_wrap_amount(
+                            cart,
+                            gift_settings=gift_settings,
+                        )
+                except Exception:
+                    gift_wrap_cost = Decimal('0')
             
             checkout_session.gift_wrap = gift_wrap
             checkout_session.gift_wrap_cost = gift_wrap_cost

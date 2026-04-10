@@ -104,10 +104,10 @@ class ProductAdminForm(forms.ModelForm):
         categories_qs = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
         if "categories" in self.fields:
             self.fields['categories'].queryset = categories_qs
+            self.fields['categories'].required = False
         if "primary_category" in self.fields:
             self.fields["primary_category"].queryset = categories_qs
-            if _should_use_category_tree_widget():
-                self.fields["primary_category"].widget = CategoryTreeWidget()
+            self.fields["primary_category"].required = True
         currencies = I18nCurrency.objects.order_by('sort_order', 'code')
         self.fields['currency'].queryset = currencies
         current_aspect = (

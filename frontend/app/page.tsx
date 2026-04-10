@@ -196,6 +196,7 @@ export default async function Home() {
   const newArrivals = asArray<ProductListItem>(homepageData.new_arrivals);
   const bestsellers = asArray<ProductListItem>(homepageData.bestsellers);
   const onSale = asArray<ProductListItem>(homepageData.on_sale);
+  const spotlights = asArray<Spotlight>(homepageData.spotlights);
   const featuredCategories = asArray<FeaturedCategory>(homepageData.featured_categories);
   const featuredCategoriesWithProducts = featuredCategories.filter((category) => {
     if (category.product_count === null || category.product_count === undefined) return true;
@@ -290,6 +291,69 @@ export default async function Home() {
           ) : null}
         </div>
       </section>
+
+      {spotlights.length ? (
+        <section className={`${sectionWrapperClass} py-8`}>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+            Spotlights
+          </h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {spotlights.map((spotlight) => {
+              const spotlightProduct = spotlight.product || null;
+              const spotlightCategory = spotlight.category || null;
+              const spotlightTitle =
+                spotlight.name ||
+                spotlightProduct?.name ||
+                spotlightCategory?.name ||
+                "Spotlight";
+              const spotlightSubtitle =
+                spotlightProduct?.short_description ||
+                (spotlightCategory?.product_count
+                  ? `${spotlightCategory.product_count} products`
+                  : "Curated highlight");
+              const spotlightImage =
+                getImage(spotlightProduct) ||
+                spotlightCategory?.image ||
+                null;
+              const href = spotlightProduct
+                ? buildProductPath(spotlightProduct)
+                : spotlightCategory
+                ? buildCategoryPath(spotlightCategory.slug)
+                : "/products/";
+              const isProductSpotlight = Boolean(spotlightProduct);
+
+              return (
+                <Link
+                  key={spotlight.id}
+                  href={href}
+                  className="group overflow-hidden rounded-2xl border border-border bg-card"
+                  target={isProductSpotlight ? "_blank" : undefined}
+                  rel={isProductSpotlight ? "noopener noreferrer" : undefined}
+                >
+                  <div className="aspect-[16/10] overflow-hidden bg-muted">
+                    {spotlightImage ? (
+                      <img
+                        src={spotlightImage}
+                        alt={spotlightTitle}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="space-y-1 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">
+                      {spotlight.placement || "home"}
+                    </p>
+                    <p className="line-clamp-1 text-lg font-semibold">{spotlightTitle}</p>
+                    <p className="line-clamp-2 text-sm text-foreground/70">
+                      {spotlightSubtitle || "Explore this featured recommendation."}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {categoryBandsWithProducts.map((band) => (
         <section key={band.category.id} className={`${sectionWrapperClass} py-8`}>

@@ -21,6 +21,7 @@ from django.conf import settings
 
 from core.admin_mixins import (
     ImportExportEnhancedModelAdmin,
+    SafeModelResource,
     EnhancedTabularInline,
     ExportCSVMixin,
     BulkActivateMixin,
@@ -33,6 +34,15 @@ from core.admin_mixins import (
     format_number,
     truncate_text,
 )
+
+try:
+    from import_export import fields as ie_fields
+    from import_export.widgets import DateTimeWidget, ForeignKeyWidget, ManyToManyWidget
+except Exception:  # pragma: no cover - optional dependency
+    ie_fields = None
+    DateTimeWidget = None
+    ForeignKeyWidget = None
+    ManyToManyWidget = None
 
 from .models import (
     AspectRatioChoice,
@@ -153,6 +163,110 @@ class ProductQuestionInline(EnhancedTabularInline):
 from .forms import CategoryAdminForm, ProductAdminForm
 
 
+if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
+    class ProductResource(SafeModelResource):
+        primary_category = ie_fields.Field(
+            column_name="primary_category",
+            attribute="primary_category",
+            widget=ForeignKeyWidget(Category, field="id"),
+        )
+        categories = ie_fields.Field(
+            column_name="categories",
+            attribute="categories",
+            widget=ManyToManyWidget(Category, field="id", separator="|"),
+        )
+        tags = ie_fields.Field(
+            column_name="tags",
+            attribute="tags",
+            widget=ManyToManyWidget(Tag, field="id", separator="|"),
+        )
+        eco_certifications = ie_fields.Field(
+            column_name="eco_certifications",
+            attribute="eco_certifications",
+            widget=ManyToManyWidget(EcoCertification, field="id", separator="|"),
+        )
+        shipping_material = ie_fields.Field(
+            column_name="shipping_material",
+            attribute="shipping_material",
+            widget=ForeignKeyWidget(ShippingMaterial, field="id"),
+        )
+        publish_from = ie_fields.Field(
+            column_name="publish_from",
+            attribute="publish_from",
+            widget=DateTimeWidget(),
+        )
+        publish_until = ie_fields.Field(
+            column_name="publish_until",
+            attribute="publish_until",
+            widget=DateTimeWidget(),
+        )
+        image_urls = ie_fields.Field(column_name="image_urls", readonly=True)
+        image_alt_texts = ie_fields.Field(column_name="image_alt_texts", readonly=True)
+
+        class Meta:
+            model = Product
+            import_id_fields = ("id",)
+            fields = (
+                "id",
+                "sku",
+                "name",
+                "slug",
+                "short_description",
+                "description",
+                "price",
+                "sale_price",
+                "cost",
+                "currency",
+                "stock_quantity",
+                "low_stock_threshold",
+                "allow_backorder",
+                "primary_category",
+                "categories",
+                "tags",
+                "shipping_material",
+                "weight",
+                "length",
+                "width",
+                "height",
+                "aspect_ratio",
+                "meta_title",
+                "meta_description",
+                "meta_keywords",
+                "publish_from",
+                "publish_until",
+                "is_active",
+                "is_featured",
+                "is_bestseller",
+                "is_new_arrival",
+                "can_be_customized",
+                "is_mobile_optimized",
+                "voice_keywords",
+                "eco_certifications",
+                "carbon_footprint_kg",
+                "recycled_content_percentage",
+                "sustainability_score",
+                "ethical_sourcing_notes",
+                "image_urls",
+                "image_alt_texts",
+            )
+            export_order = fields
+            skip_unchanged = True
+            report_skipped = True
+
+        def dehydrate_image_urls(self, obj):
+            urls = [img.image.url for img in obj.images.all() if getattr(img, "image", None)]
+            return "|".join(urls)
+
+        def dehydrate_image_alt_texts(self, obj):
+            alts = [str(img.alt_text or "") for img in obj.images.all()]
+            return "|".join(alts)
+
+else:  # pragma: no cover - import-export optional
+    class ProductResource(SafeModelResource):
+        class Meta:
+            model = Product
+
+
 @admin.register(Category)
 class CategoryAdmin(ImportExportEnhancedModelAdmin):
     form = CategoryAdminForm
@@ -164,15 +278,16 @@ class CategoryAdmin(ImportExportEnhancedModelAdmin):
         "depth",
         "sort_order",
         "product_count",
+        "is_featured",
         "is_active",
         "is_visible",
         "aspect_ratio",
     )
     search_fields = ("name", "slug")
-    list_filter = ("is_active", "is_visible", "is_deleted", "aspect_ratio", "parent", "depth")
+    list_filter = ("is_active", "is_visible", "is_featured", "is_deleted", "aspect_ratio", "parent", "depth")
     prepopulated_fields = {"slug": ("name",)}
     ordering = ["depth", "sort_order", "name"]
-    list_editable = ("sort_order",)
+    list_editable = ("sort_order", "is_featured")
     
     actions = [
         "seed_default_tree",
@@ -186,6 +301,8 @@ class CategoryAdmin(ImportExportEnhancedModelAdmin):
         "make_disabled",
         "make_visible",
         "make_hidden",
+        "mark_featured",
+        "unmark_featured",
         "export_selected_csv",
     ]
 
@@ -336,6 +453,18 @@ class CategoryAdmin(ImportExportEnhancedModelAdmin):
         self.message_user(request, f"Marked {updated} categories as hidden.")
     make_hidden.short_description = "Mark selected as hidden"
 
+    def mark_featured(self, request, queryset):
+        """Mark selected categories as featured."""
+        updated = queryset.update(is_featured=True)
+        self.message_user(request, f"Marked {updated} categories as featured.")
+    mark_featured.short_description = "Mark selected as featured"
+
+    def unmark_featured(self, request, queryset):
+        """Remove featured flag from selected categories."""
+        updated = queryset.update(is_featured=False)
+        self.message_user(request, f"Removed featured flag for {updated} categories.")
+    unmark_featured.short_description = "Remove featured flag"
+
     def export_selected_csv(self, request, queryset):
         """Export selected categories to CSV."""
         import csv
@@ -359,6 +488,9 @@ class CategoryAdmin(ImportExportEnhancedModelAdmin):
 @admin.register(Product)
 class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeaturedMixin):
     form = ProductAdminForm 
+    resource_class = ProductResource
+    skip_export_form = False
+    skip_export_form_from_action = False
     change_form_template = "admin/catalog/product/change_form.html"
     list_display = (
         "thumbnail_preview", "name", "sku", "primary_category_display", 
@@ -381,8 +513,32 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     autocomplete_fields = ("primary_category", "categories", "tags")
     
     # Export fields
-    export_fields = ['sku', 'name', 'price', 'sale_price', 'stock_quantity', 
-                     'is_active', 'is_featured', 'views_count', 'sales_count']
+    export_fields = [
+        "id",
+        "sku",
+        "name",
+        "slug",
+        "price",
+        "sale_price",
+        "stock_quantity",
+        "low_stock_threshold",
+        "allow_backorder",
+        "export_primary_category_id",
+        "export_category_ids",
+        "export_tag_ids",
+        "meta_title",
+        "meta_description",
+        "meta_keywords",
+        "publish_from",
+        "publish_until",
+        "is_active",
+        "is_featured",
+        "is_bestseller",
+        "is_new_arrival",
+        "export_image_urls",
+        "views_count",
+        "sales_count",
+    ]
     
     actions = [
         'export_as_csv', 'export_as_json',
@@ -400,7 +556,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "classes": ("wide",)
         }),
         (_('SEO'), {
-            "fields": ("meta_title", "meta_description"),
+            "fields": ("meta_title", "meta_description", "meta_keywords"),
             "classes": ("collapse",),
         }),
         (_('Categories & Tags'), {
@@ -415,8 +571,12 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "description": "Set product pricing. Sale price will override regular price when set."
         }),
         (_('Inventory'), {
-            "fields": ("stock_quantity", "low_stock_threshold"),
+            "fields": ("stock_quantity", "low_stock_threshold", "allow_backorder"),
             "description": "Manage inventory levels and tracking."
+        }),
+        (_('Publishing'), {
+            "fields": ("publish_from", "publish_until"),
+            "classes": ("collapse",),
         }),
         (_('Display'), {
             "fields": ("aspect_ratio",),
@@ -480,17 +640,8 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
         max_images = int(getattr(settings, "PRODUCT_AI_MAX_IMAGES", 4))
         context = dict(context)
-        inline_formsets = list(context.get("inline_admin_formsets") or [])
-        top_inline_formsets = []
-        remaining_inline_formsets = []
-        for inline_formset in inline_formsets:
-            inline_model = getattr(getattr(inline_formset, "opts", None), "model", None)
-            if inline_model is ProductImage:
-                top_inline_formsets.append(inline_formset)
-            else:
-                remaining_inline_formsets.append(inline_formset)
-        context["top_inline_admin_formsets"] = top_inline_formsets
-        context["inline_admin_formsets"] = remaining_inline_formsets
+        # Keep default inline rendering order to preserve admin-interface tab behavior.
+        context["top_inline_admin_formsets"] = []
         context["product_ai_enabled"] = bool(getattr(settings, "PRODUCT_AI_ENABLED", False))
         context["product_ai_frontend_debug"] = bool(getattr(settings, "PRODUCT_AI_FRONTEND_DEBUG", False))
         context["product_ai_max_images"] = max_images
@@ -1437,6 +1588,26 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             if obj.primary_category:
                 obj.primary_category.product_count = obj.primary_category.products.count()
                 obj.primary_category.save()
+
+    def export_primary_category_id(self, obj):
+        return obj.primary_category_id or ""
+    export_primary_category_id.short_description = "Primary category ID"
+
+    def export_category_ids(self, obj):
+        return "|".join(str(value) for value in obj.categories.values_list("id", flat=True))
+    export_category_ids.short_description = "Category IDs"
+
+    def export_tag_ids(self, obj):
+        return "|".join(str(value) for value in obj.tags.values_list("id", flat=True))
+    export_tag_ids.short_description = "Tag IDs"
+
+    def export_image_urls(self, obj):
+        return "|".join(
+            img.image.url
+            for img in obj.images.all()
+            if getattr(img, "image", None)
+        )
+    export_image_urls.short_description = "Image URLs"
     
     def thumbnail_preview(self, obj):
         # Try to get primary image or first image

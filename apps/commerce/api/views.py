@@ -16,7 +16,7 @@ from decimal import Decimal
 from core.pagination import StandardResultsSetPagination
 from ..models import (
     Cart, CartItem, Wishlist, WishlistItem, WishlistShare,
-    CheckoutSession, CartSettings
+    CheckoutSession
 )
 from ..services import (
     CartService,
@@ -332,22 +332,20 @@ class CartViewSet(viewsets.ViewSet):
             gift_wrap = False
 
         gift_wrap_cost = Decimal('0')
-        gift_wrap_amount = Decimal('0')
-        gift_wrap_label = 'Gift Wrap'
-        gift_wrap_enabled = False
-
-        try:
-            settings = CartSettings.get_settings()
-            gift_wrap_enabled = bool(settings.gift_wrap_enabled)
-            gift_wrap_label = settings.gift_wrap_label or gift_wrap_label
-            gift_wrap_amount = Decimal(str(settings.gift_wrap_amount or 0))
-            if not gift_wrap_enabled:
-                gift_wrap = False
-            if gift_wrap and gift_wrap_enabled:
-                gift_wrap_cost = gift_wrap_amount
-        except Exception:
+        gift_settings = CartService.get_gift_wrap_settings()
+        gift_wrap_enabled = bool(gift_settings.get('enabled'))
+        gift_wrap_label = gift_settings.get('label') or 'Gift Wrap'
+        gift_wrap_amount = CartService.calculate_dynamic_gift_wrap_amount(
+            cart,
+            gift_settings=gift_settings,
+        )
+        gift_wrap_from_code = gift_settings.get('currency_code') or (
+            getattr(cart, 'currency', None) or 'BDT'
+        )
+        if not gift_wrap_enabled:
             gift_wrap = False
-            gift_wrap_cost = Decimal('0')
+        if gift_wrap and gift_wrap_enabled:
+            gift_wrap_cost = gift_wrap_amount
 
         checkout_session.is_gift = is_gift
         checkout_session.gift_message = gift_message
@@ -367,19 +365,24 @@ class CartViewSet(viewsets.ViewSet):
         except Exception:
             pass
 
-        from_code = getattr(cart, 'currency', None) or 'BDT'
         target_currency = CurrencyService.get_user_currency(request=request) or CurrencyService.get_default_currency()
 
         display_gift_wrap_amount = gift_wrap_amount
         display_gift_wrap_cost = gift_wrap_cost
 
-        if target_currency and target_currency.code != from_code:
+        if target_currency and target_currency.code != gift_wrap_from_code:
             try:
                 display_gift_wrap_amount = CurrencyConversionService.convert_by_code(
-                    gift_wrap_amount, from_code, target_currency.code, round_result=True
+                    gift_wrap_amount,
+                    gift_wrap_from_code,
+                    target_currency.code,
+                    round_result=True,
                 )
                 display_gift_wrap_cost = CurrencyConversionService.convert_by_code(
-                    gift_wrap_cost, from_code, target_currency.code, round_result=True
+                    gift_wrap_cost,
+                    gift_wrap_from_code,
+                    target_currency.code,
+                    round_result=True,
                 )
             except Exception:
                 display_gift_wrap_amount = gift_wrap_amount

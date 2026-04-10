@@ -203,6 +203,7 @@ class Category(TimeStampedMixin):
         db_index=True,
         help_text="Disabled categories are excluded from catalog APIs and storefront listings.",
     )
+    is_featured = models.BooleanField(default=False, db_index=True)
     is_visible = models.BooleanField(default=True, db_index=True)
     is_deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -244,6 +245,7 @@ class Category(TimeStampedMixin):
             models.Index(fields=["slug"]),
             models.Index(fields=["sort_order"]),
             models.Index(fields=["is_active"]),
+            models.Index(fields=["is_featured"]),
             models.Index(fields=["is_visible"]),
             models.Index(fields=["path"]),
             models.Index(fields=["product_count"]),

@@ -112,16 +112,35 @@ class ExportJSONMixin:
     
     def export_as_json(self, request, queryset):
         """Export selected items as JSON."""
-        from django.core.serializers import serialize
-        
         model_name = self.model._meta.model_name
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f'{model_name}_export_{timestamp}.json'
-        
+
         response = HttpResponse(content_type='application/json')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        
-        data = serialize('json', queryset, indent=2)
+
+        data = None
+        resource_class = None
+        if hasattr(self, "get_resource_class"):
+            try:
+                resource_class = self.get_resource_class()
+            except Exception:
+                resource_class = None
+
+        if resource_class:
+            try:
+                resource = resource_class()
+                dataset = resource.export(queryset)
+                data = dataset.json
+            except Exception:
+                data = None
+
+        if data is None:
+            from django.core.serializers import serialize
+
+            # Fallback for environments where django-import-export is unavailable.
+            data = serialize('json', queryset, indent=2)
+
         response.write(data)
         
         self.message_user(request, f'Exported {queryset.count()} records to JSON.', messages.SUCCESS)
@@ -1047,6 +1066,59 @@ class SafeModelResource(ModelResource):
     def export_field(self, field, obj):
         value = super().export_field(field, obj)
         return sanitize_export_value(value)
+
+    def before_import(self, dataset, **kwargs):
+        """
+        Accept legacy Django serializer JSON rows:
+        [
+          {"model": "...", "pk": "...", "fields": {...}}
+        ]
+        and normalize to import-export tabular rows.
+        """
+        try:
+            headers = list(dataset.headers or [])
+        except Exception:
+            headers = []
+
+        if headers:
+            if "fields" in headers:
+                normalized_rows = []
+                for row in dataset.dict:
+                    if not isinstance(row, dict):
+                        continue
+
+                    field_payload = row.get("fields")
+                    if isinstance(field_payload, str):
+                        try:
+                            field_payload = json.loads(field_payload)
+                        except Exception:
+                            field_payload = {}
+                    if not isinstance(field_payload, dict):
+                        field_payload = {}
+
+                    normalized = {}
+                    row_id = row.get("id") or row.get("pk")
+                    if row_id not in (None, ""):
+                        normalized["id"] = row_id
+                    normalized.update(field_payload)
+                    normalized_rows.append(normalized)
+
+                if normalized_rows:
+                    dataset.dict = normalized_rows
+            elif "pk" in headers and "id" not in headers:
+                normalized_rows = []
+                for row in dataset.dict:
+                    if not isinstance(row, dict):
+                        continue
+                    row_copy = dict(row)
+                    row_copy["id"] = row.get("pk")
+                    normalized_rows.append(row_copy)
+                if normalized_rows:
+                    dataset.dict = normalized_rows
+
+        base_before_import = getattr(super(), "before_import", None)
+        if callable(base_before_import):
+            return base_before_import(dataset, **kwargs)
 
 
 class ImportExportEnhancedModelAdmin(ImportExportModelAdmin, EnhancedModelAdmin):

@@ -10,45 +10,6 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import dj_database_url
 from .base import *
 
-# Sites framework defaults for production (override base if needed)
-SITE_ID = int(os.environ.get('SITE_ID', '2'))
-SITE_NAME = os.environ.get('SITE_NAME', 'Bunoraa')
-SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'api.bunoraa.com')
-
-# =============================================================================
-# PRODUCTION CONFIGURATION
-# =============================================================================
-DEBUG = False
-ENVIRONMENT = 'production'
-
-# Explicitly disable prerendering in production regardless of environment vars.
-PRERENDER_ENABLED = False
-PRERENDER_PATHS = []
-
-# =============================================================================
-# STARTUP PERFORMANCE OPTIMIZATION
-# =============================================================================
-# Reduce startup time by 50-75%
-
-# Only enable ML on worker processes, not web servers
-ML_ENABLED = os.environ.get('ML_ENABLED', 'False') == 'True'
-PROCESS_TYPE = os.environ.get('PROCESS_TYPE', 'web')  # 'web', 'worker', 'scheduler'
-
-# Fast startup mode - skip heavy operations
-SKIP_MIGRATIONS_CHECK = os.environ.get('SKIP_MIGRATIONS_CHECK', 'True') == 'True'
-
-# Optimize Redis connection timeouts (2s instead of 10s for faster failure)
-REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 2)  # Fast timeout
-REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 2)  # Fast timeout
-
-# Reduce connection pool overhead during startup
-STARTUP_CONN_POOL_MIN = 2  # Minimal connections at startup
-STARTUP_CONN_POOL_MAX = 5  # Reduced pool during startup
-
-# Ensure SECRET_KEY is set
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY must be set in production environment")
-
 # Helpers
 def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(',') if item.strip()]
@@ -115,6 +76,58 @@ def _is_schema_command() -> bool:
     command = (sys.argv[1] or '').strip().lower()
     return command in {'migrate', 'makemigrations', 'showmigrations', 'sqlmigrate'}
 
+# Sites framework defaults for production (override base if needed)
+SITE_ID = int(os.environ.get('SITE_ID', '2'))
+SITE_NAME = os.environ.get('SITE_NAME', 'Bunoraa')
+SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'api.bunoraa.com')
+
+# =============================================================================
+# PRODUCTION CONFIGURATION
+# =============================================================================
+DEBUG = False
+ENVIRONMENT = 'production'
+
+# Explicitly disable prerendering in production regardless of environment vars.
+PRERENDER_ENABLED = False
+PRERENDER_PATHS = []
+
+# =============================================================================
+# STARTUP PERFORMANCE OPTIMIZATION
+# =============================================================================
+# Reduce startup time by 50-75%
+
+# Only enable ML on worker processes, not web servers
+ML_ENABLED = os.environ.get('ML_ENABLED', 'False') == 'True'
+PROCESS_TYPE = os.environ.get('PROCESS_TYPE', 'web')  # 'web', 'worker', 'scheduler'
+
+# Fast startup mode - skip heavy operations
+SKIP_MIGRATIONS_CHECK = os.environ.get('SKIP_MIGRATIONS_CHECK', 'True') == 'True'
+
+# Optimize Redis connection timeouts (2s instead of 10s for faster failure)
+REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 2)  # Fast timeout
+REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 2)  # Fast timeout
+
+# Reduce connection pool overhead during startup
+STARTUP_CONN_POOL_MIN = 2  # Minimal connections at startup
+STARTUP_CONN_POOL_MAX = 5  # Reduced pool during startup
+
+# Ensure SECRET_KEY is set
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY must be set in production environment")
+
+# Force-disable any legacy raw-password storage paths in production.
+ENABLE_RAW_PASSWORD_STORAGE = False
+
+# Ensure credential encryption has a stable key in production. When a dedicated
+# key is not provided, derive one from SECRET_KEY (better than generating a new
+# random key on every deploy, which would break decryptability).
+if not globals().get("CREDENTIAL_ENCRYPTION_KEY"):
+    import base64
+    import hashlib
+
+    CREDENTIAL_ENCRYPTION_KEY = base64.urlsafe_b64encode(
+        hashlib.sha256(SECRET_KEY.encode("utf-8")).digest()
+    ).decode("ascii")
 
 # Parse ALLOWED_HOSTS from environment
 _env_allowed = os.environ.get('ALLOWED_HOSTS', '')

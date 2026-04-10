@@ -2,6 +2,7 @@
 Notifications signals
 """
 import logging
+import os
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -36,6 +37,8 @@ def _module_for_notification(notification_type: str | None, reference_type: str 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_notification_preferences(sender, instance, created, **kwargs):
     """Create notification preferences when user is created."""
+    if kwargs.get("raw", False) or os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+        return
     if created:
         from .models import NotificationPreference
 
@@ -45,6 +48,8 @@ def create_notification_preferences(sender, instance, created, **kwargs):
 @receiver(post_save, sender="accounts.UserPreferences")
 def sync_preferences_from_account(sender, instance, **kwargs):
     """Sync notification preferences from user account preferences."""
+    if kwargs.get("raw", False) or os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+        return
     from .services import NotificationService
 
     try:
@@ -87,6 +92,8 @@ def ensure_notification_preferences(sender, **kwargs):
 @receiver(post_save, sender="notifications.Notification")
 def broadcast_notification(sender, instance, created, **kwargs):
     """Broadcast new notifications to user and admin websocket groups."""
+    if kwargs.get("raw", False) or os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+        return
     if not created:
         return
     try:

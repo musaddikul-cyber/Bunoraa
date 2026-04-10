@@ -370,6 +370,7 @@ if ENVIRONMENT != 'production':
 if DEBUG:
     try:
         import debug_toolbar
+        from debug_toolbar import settings as dt_settings
         INSTALLED_APPS += ['debug_toolbar']
         # Insert after GZipMiddleware
         try:
@@ -387,6 +388,11 @@ if DEBUG:
             # Disable toolbar from intercepting responses that can cause ASGI issues
             'RENDER_PANELS': True,
         }
+        DEBUG_TOOLBAR_PANELS = [
+            panel
+            for panel in dt_settings.PANELS_DEFAULTS
+            if panel != "debug_toolbar.panels.redirects.RedirectsPanel"
+        ]
     except ImportError:
         pass
 

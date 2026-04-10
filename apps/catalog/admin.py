@@ -399,9 +399,16 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "fields": ("name", "slug", "sku", "description", "short_description"),
             "classes": ("wide",)
         }),
+        (_('SEO'), {
+            "fields": ("meta_title", "meta_description"),
+            "classes": ("collapse",),
+        }),
         (_('Categories & Tags'), {
             "fields": ("primary_category", "categories", "tags"),
             "classes": ("wide",)
+        }),
+        (_('Status & Flags'), {
+            "fields": ("is_active", "is_featured", "is_bestseller", "is_new_arrival", "can_be_customized"),
         }),
         (_('Pricing'), {
             "fields": ("price", "sale_price", "cost", "currency"),
@@ -411,11 +418,11 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "fields": ("stock_quantity", "low_stock_threshold"),
             "description": "Manage inventory levels and tracking."
         }),
-        (_('Shipping'), {
-            "fields": ("weight", "length", "width", "height", "shipping_material"),
-        }),
         (_('Display'), {
             "fields": ("aspect_ratio",),
+        }),
+        (_('Shipping'), {
+            "fields": ("weight", "length", "width", "height", "shipping_material"),
         }),
         (_('Sustainability'), {
             "fields": (
@@ -429,13 +436,6 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         }),
         (_('Mobile & Voice'), {
             "fields": ("is_mobile_optimized", "voice_keywords"),
-            "classes": ("collapse",),
-        }),
-        (_('Status & Flags'), {
-            "fields": ("is_active", "is_featured", "is_bestseller", "is_new_arrival", "can_be_customized"),
-        }),
-        (_('SEO'), {
-            "fields": ("meta_title", "meta_description"),
             "classes": ("collapse",),
         }),
     )

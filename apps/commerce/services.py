@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import timedelta
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -497,7 +497,13 @@ class CartService:
             carts = Cart.objects.filter(user=user).order_by('-updated_at', '-created_at')
             cart = carts.first()
             if not cart:
-                cart = Cart.objects.create(user=user)
+                try:
+                    with transaction.atomic():
+                        cart = Cart.objects.create(user=user)
+                except IntegrityError:
+                    cart = Cart.objects.filter(user=user).order_by('-updated_at', '-created_at').first()
+                    if not cart:
+                        raise
             elif carts.count() > 1:
                 duplicates = carts.exclude(pk=cart.pk)
                 logger.warning(
@@ -1274,7 +1280,13 @@ class EnhancedCartService:
             carts = Cart.objects.filter(user=user).order_by('-updated_at', '-created_at')
             cart = carts.first()
             if not cart:
-                cart = Cart.objects.create(user=user)
+                try:
+                    with transaction.atomic():
+                        cart = Cart.objects.create(user=user)
+                except IntegrityError:
+                    cart = Cart.objects.filter(user=user).order_by('-updated_at', '-created_at').first()
+                    if not cart:
+                        raise
             elif carts.count() > 1:
                 duplicates = carts.exclude(pk=cart.pk)
                 logger.warning(

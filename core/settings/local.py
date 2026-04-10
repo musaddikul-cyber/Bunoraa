@@ -91,6 +91,7 @@ CSRF_TRUSTED_ORIGINS = [
 # =============================================================================
 try:
     import debug_toolbar
+    from debug_toolbar import settings as dt_settings
     INSTALLED_APPS += ['debug_toolbar']
     # Insert after GZipMiddleware
     try:
@@ -116,6 +117,11 @@ try:
         'IS_RUNNING_TESTS': False,
         'RENDER_PANELS': True,
     }
+    DEBUG_TOOLBAR_PANELS = [
+        panel
+        for panel in dt_settings.PANELS_DEFAULTS
+        if panel != "debug_toolbar.panels.redirects.RedirectsPanel"
+    ]
 except ImportError:
     pass
 

@@ -7,19 +7,19 @@
     "contact_phone": "+8801701922629",
     "contact_address": "Ulipur, Kurigram, Rangpur, Bangladesh",
     "support_reply_time_note": "We reply within 1 business day.",
-    "currency": "BDT",
     "tax_rate": "10.00",
     "default_meta_title": "Bunoraa",
     "default_meta_description": "Handcrafted artisan marketplace in Bangladesh.",
     "footer_text": "Handcrafted with care.",
-    "copyright_text": "Bunoraa. All rights reserved."
+    "copyright_text": "Bunoraa. All rights reserved.",
+    "currency": "BDT"
   },
   "pages": [
     {
       "title": "Terms of Use",
       "slug": "terms",
-      "excerpt": "Terms governing your use of Bunoraa services in Bangladesh.",
       "content": "<h2>1. Scope</h2><p>These Terms of Use govern your access to and use of Bunoraa websites, mobile experiences, and related services. By using our services, you agree to these terms.</p><h2>2. Applicable Bangladesh Framework</h2><p>Bunoraa operates under applicable laws and regulatory guidance in Bangladesh, including consumer protection and digital commerce requirements issued by competent authorities.</p><h2>3. Account and Checkout Responsibilities</h2><p>You are responsible for accurate account, delivery, and payment information. Orders may be delayed or cancelled when submitted information is incomplete, inaccurate, or cannot be verified.</p><h2>4. Product Information and Pricing</h2><p>We aim to keep product descriptions, prices, stock, and delivery estimates accurate. Minor errors may occur; in such cases we may correct the information and contact you before fulfillment.</p><h2>5. Order Acceptance and Cancellation</h2><p>An order confirmation indicates receipt, not final acceptance. We may decline, cancel, or limit orders for stock, quality, fraud screening, regulatory, or payment risk reasons. Any paid amount for unfulfilled items will be refunded to your original method when possible.</p><h2>6. Payments and Settlement</h2><p>Payments are processed through approved channels, including card, mobile financial services, bank transfer, and cash-on-delivery where available. We may apply anti-fraud checks before shipment.</p><h2>7. Prohibited Use</h2><p>You may not use Bunoraa for unlawful activity, abuse, scraping that harms platform operations, fraudulent transactions, or infringement of intellectual property rights.</p><h2>8. Intellectual Property</h2><p>Bunoraa trademarks, logos, content structure, and platform materials are protected. Product images and brand assets remain property of their respective owners unless otherwise stated.</p><h2>9. Limitation and Service Availability</h2><p>Services are provided on a commercially reasonable basis. We do not guarantee uninterrupted operation and are not liable for indirect or consequential loss to the maximum extent permitted by law.</p><h2>10. Complaints and Dispute Path</h2><p>For complaints, contact our support team first at support@bunoraa.com. If unresolved, consumers in Bangladesh may use the Directorate of National Consumer Rights Protection (DNCRP) channels, including hotline 16121 and official complaint systems.</p><h2>11. Changes to Terms</h2><p>We may update these Terms from time to time. Continued use after updates means you accept the revised terms.</p><p><strong>Last updated:</strong> 2026-02-25</p>",
+      "excerpt": "Terms governing your use of Bunoraa services in Bangladesh.",
       "meta_title": "Terms of Use | Bunoraa Bangladesh",
       "meta_description": "Read Bunoraa terms of use for Bangladesh customers, including ordering, payments, cancellations, and dispute handling.",
       "template": "default",
@@ -31,8 +31,8 @@
     {
       "title": "Privacy Policy",
       "slug": "privacy",
-      "excerpt": "How Bunoraa collects, uses, stores, and protects personal data.",
       "content": "<h2>1. Overview</h2><p>This Privacy Policy explains how Bunoraa collects and processes personal information when you browse, order, message support, or use related services.</p><h2>2. Data We Collect</h2><p>We may collect identity and contact details (name, phone, email), account data, delivery addresses, order records, payment metadata, device and usage data, and support conversation history.</p><h2>3. Why We Use Data</h2><p>We use personal data to provide services, process orders, prevent fraud, deliver customer support, improve operations, meet accounting and legal obligations, and send service updates. Marketing communication is optional where required.</p><h2>4. Sharing and Processors</h2><p>We may share necessary data with logistics partners, payment processors, technology providers, and regulators or authorities where legally required. We do not sell personal data as a business model.</p><h2>5. Cookies and Similar Technology</h2><p>We use cookies and similar tools for session continuity, security, cart behavior, analytics, and user experience optimization. You can control cookies through browser settings, though some features may be limited.</p><h2>6. Retention</h2><p>We retain information only as long as needed for business operations, audit, dispute handling, fraud prevention, and legal compliance. Data no longer required is deleted or anonymized where feasible.</p><h2>7. Security Controls</h2><p>We maintain layered technical and organizational safeguards, including access control, monitoring, and secure transmission practices. No internet system is perfectly secure, but we continuously improve controls.</p><h2>8. Your Rights and Choices</h2><p>You may request access, correction, or deletion of eligible account data, subject to legal and operational constraints. To submit a request, contact support@bunoraa.com with sufficient verification details.</p><h2>9. Cross-Border and Regulatory Context</h2><p>Data may be processed by service providers in Bangladesh or other jurisdictions under contractual and security controls. Bunoraa reviews updates in Bangladesh digital and data governance frameworks and updates this policy as needed.</p><h2>10. Contact</h2><p>Privacy requests and concerns can be sent to support@bunoraa.com. For unresolved consumer matters in Bangladesh, you may contact DNCRP through official channels.</p><p><strong>Last updated:</strong> 2026-02-25</p>",
+      "excerpt": "How Bunoraa collects, uses, stores, and protects personal data.",
       "meta_title": "Privacy Policy | Bunoraa Bangladesh",
       "meta_description": "Learn how Bunoraa handles personal data, cookies, security, and consumer privacy requests in Bangladesh.",
       "template": "default",
@@ -44,8 +44,8 @@
     {
       "title": "Shipping Policy",
       "slug": "shipping",
-      "excerpt": "Delivery timelines, shipping charges, and fulfillment terms for Bangladesh.",
       "content": "<h2>1. Coverage</h2><p>Bunoraa ships across Bangladesh through verified courier and logistics partners. Delivery availability can vary by location, weather, strikes, or public restrictions.</p><h2>2. Processing Time</h2><p>Most ready-stock orders are processed within 1 to 2 business days after payment verification. Preorder or made-to-order products require additional production time shown on the product page.</p><h2>3. Delivery Time Targets</h2><p>Typical delivery targets are up to 5 business days for major city areas and up to 10 business days outside major city zones. Complex locations or force majeure events may require more time.</p><h2>4. Shipping Charges</h2><p>Shipping fees are shown at checkout based on destination, parcel characteristics, and campaign eligibility. We may offer free-shipping thresholds or promotional rates at our discretion.</p><h2>5. Tracking and Delivery Attempts</h2><p>Where available, tracking details are sent by SMS, email, or account notification. Couriers may attempt delivery multiple times; failed attempts can result in return-to-origin handling fees.</p><h2>6. Inspection at Delivery</h2><p>Please check package condition at delivery and report visible damage, item mismatch, or missing items quickly through support channels so we can investigate with courier evidence.</p><h2>7. Cash-on-Delivery and Verification</h2><p>For eligible orders, cash-on-delivery may require phone confirmation or risk checks before dispatch. Bunoraa may cancel high-risk or unverifiable COD orders to prevent fraud.</p><h2>8. Delays and Communication</h2><p>If material delay occurs, we will notify you and provide updated estimated delivery windows where possible. You may contact support for status updates at any time.</p><h2>9. Policy Updates</h2><p>Shipping operations are adjusted based on partner performance, regulation, and service quality. Updated shipping terms are published on this page.</p><p><strong>Last updated:</strong> 2026-02-25</p>",
+      "excerpt": "Delivery timelines, shipping charges, and fulfillment terms for Bangladesh.",
       "meta_title": "Shipping Policy | Bunoraa Bangladesh",
       "meta_description": "Review Bunoraa shipping timelines, courier coverage, delivery attempts, and delay handling for Bangladesh.",
       "template": "default",
@@ -57,8 +57,8 @@
     {
       "title": "Returns and Refunds",
       "slug": "returns",
-      "excerpt": "Eligibility, process, and refund timelines for Bunoraa orders in Bangladesh.",
       "content": "<h2>1. Return Window</h2><p>Eligible products can generally be returned within 7 calendar days from delivery date unless a different product-specific condition is shown at checkout or on the product page.</p><h2>2. Eligibility Conditions</h2><p>Returned items must be unused, in original condition, with tags, packaging, accessories, and proof of purchase. We may reject returns that fail quality or authenticity checks.</p><h2>3. Non-Returnable Items</h2><p>For hygiene, safety, or customization reasons, selected categories may be non-returnable, including personalized items, intimate wear, opened consumables, or products marked final sale.</p><h2>4. Damaged, Wrong, or Missing Items</h2><p>If you receive a damaged, defective, incorrect, or incomplete order, report it as soon as possible with photo or video evidence so we can prioritize replacement or refund resolution.</p><h2>5. Return and Reverse Pickup Process</h2><p>To start a return, contact support@bunoraa.com with order details. When eligible, we arrange reverse pickup or provide courier drop-off instructions based on location and carrier capability.</p><h2>6. Refund Method and Timeline</h2><p>Approved refunds are issued to the original payment method whenever possible. Depending on payment channel, settlement typically completes within 7 to 10 business days after approval.</p><h2>7. COD Refunds</h2><p>For cash-on-delivery orders, refunds are normally sent through bank transfer or mobile financial services to a verified beneficiary account.</p><h2>8. Return Shipping and Deductions</h2><p>If return reason is customer preference (for example size or change of mind), return shipping or handling fees may apply. No deduction is charged for verified seller-side errors.</p><h2>9. Cancellation Rules</h2><p>Orders may be cancelled before dispatch. After dispatch, cancellation requests are processed under return procedures. Bunoraa may cancel orders for stock, fraud, or compliance reasons with refund of paid amounts.</p><h2>10. Consumer Assistance in Bangladesh</h2><p>If you need escalation after support review, you may seek assistance through Bangladesh consumer-rights authorities including DNCRP official channels.</p><p><strong>Last updated:</strong> 2026-02-25</p>",
+      "excerpt": "Eligibility, process, and refund timelines for Bunoraa orders in Bangladesh.",
       "meta_title": "Returns and Refunds | Bunoraa Bangladesh",
       "meta_description": "Understand Bunoraa return eligibility, reverse pickup process, refund timelines, and consumer escalation routes in Bangladesh.",
       "template": "default",
@@ -76,35 +76,36 @@
       "discount_code": "WELCOME10",
       "min_order_amount": "500.00",
       "max_uses": null,
-      "is_active": true
+      "is_active": true,
+      "valid_until": null
     }
   ],
   "blog_categories": [
-    {
-      "name": "Crafting Tips",
-      "slug": "crafting-tips",
-      "description": "Tips and guides for caring for handmade products.",
-      "icon": "sparkles"
-    },
     {
       "name": "Artisan Stories",
       "slug": "artisan-stories",
       "description": "Behind-the-scenes stories from our artisans.",
       "icon": "users"
+    },
+    {
+      "name": "Crafting Tips",
+      "slug": "crafting-tips",
+      "description": "Tips and guides for caring for handmade products.",
+      "icon": "sparkles"
     }
   ],
   "blog_tags": [
     {
-      "name": "Handmade",
-      "slug": "handmade"
+      "name": "Care Guide",
+      "slug": "care-guide"
     },
     {
       "name": "Embroidery",
       "slug": "embroidery"
     },
     {
-      "name": "Care Guide",
-      "slug": "care-guide"
+      "name": "Handmade",
+      "slug": "handmade"
     }
   ],
   "faqs": [

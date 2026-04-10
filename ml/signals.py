@@ -5,6 +5,7 @@ Django signals for tracking user actions.
 """
 
 import logging
+import os
 from functools import wraps
 
 try:
@@ -39,6 +40,8 @@ def safe_ml_signal(func):
     """Decorator to safely handle ML signal handlers."""
     @wraps(func)
     def wrapper(*args, **kwargs):
+        if os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+            return None
         try:
             return func(*args, **kwargs)
         except Exception as e:

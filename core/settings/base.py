@@ -69,6 +69,13 @@ def _normalize_rediss_url(url: str) -> str:
         return urlunparse(parsed._replace(query=urlencode(params)))
     return url
 
+
+def _redis_db_url(redis_url: str, db: int) -> str:
+    if not redis_url:
+        return redis_url
+    parsed = urlparse(redis_url)
+    return urlunparse(parsed._replace(path=f'/{db}'))
+
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -1050,7 +1057,11 @@ ML_FEATURES = {
 }
 
 # ML Cache & Feature Store
-ML_REDIS_URL = _normalize_rediss_url(os.environ.get('ML_REDIS_URL', 'redis://localhost:6379/1'))
+_ml_redis_url = os.environ.get('ML_REDIS_URL', '').strip()
+if not _ml_redis_url:
+    _ml_redis_base = os.environ.get('REDIS_URL', '').strip() or os.environ.get('AIVEN_REDIS_URL', '').strip()
+    _ml_redis_url = _redis_db_url(_ml_redis_base, 1) if _ml_redis_base else 'redis://localhost:6379/1'
+ML_REDIS_URL = _normalize_rediss_url(_ml_redis_url)
 ML_CACHE_BACKEND = os.environ.get('ML_CACHE_BACKEND', 'redis')  # redis, memory
 
 # ML Inference settings

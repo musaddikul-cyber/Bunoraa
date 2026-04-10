@@ -4,6 +4,7 @@ Internationalization Signals
 Signal handlers for cache invalidation and data synchronization.
 """
 import logging
+import os
 from django.apps import apps as django_apps
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
@@ -291,6 +292,8 @@ def _should_auto_translate() -> bool:
 
 def _content_handler_factory(content_type: str, fields: list[str]):
     def _handler(sender, instance, created, **kwargs):
+        if kwargs.get("raw", False) or os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+            return
         if not _should_auto_translate():
             return
         try:
@@ -318,6 +321,8 @@ def _content_handler_factory(content_type: str, fields: list[str]):
 
 
 def _translation_key_handler(sender, instance: TranslationKey, created, **kwargs):
+    if kwargs.get("raw", False) or os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+        return
     if not _should_auto_translate():
         return
     if not instance or not instance.source_text:
@@ -392,6 +397,8 @@ def settings_post_save(sender, instance, created, **kwargs):
 
 def user_created_handler(sender, instance, created, **kwargs):
     """Create locale preference when user is created."""
+    if kwargs.get("raw", False) or os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+        return
     if created:
         try:
             UserLocalePreference.objects.get_or_create(user=instance)

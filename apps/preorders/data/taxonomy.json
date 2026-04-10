@@ -27,7 +27,11 @@
       "description": "Choose base material.",
       "option_type": "select",
       "is_required": true,
+      "min_length": null,
+      "max_length": null,
       "price_modifier": "0.00",
+      "placeholder": "",
+      "help_text": "",
       "order": 1,
       "is_active": true
     },
@@ -37,7 +41,11 @@
       "description": "Select size.",
       "option_type": "select",
       "is_required": true,
+      "min_length": null,
+      "max_length": null,
       "price_modifier": "0.00",
+      "placeholder": "",
+      "help_text": "",
       "order": 2,
       "is_active": true
     },
@@ -47,7 +55,11 @@
       "description": "Add special instructions.",
       "option_type": "textarea",
       "is_required": false,
+      "min_length": null,
+      "max_length": null,
       "price_modifier": "0.00",
+      "placeholder": "",
+      "help_text": "",
       "order": 3,
       "is_active": true
     }
@@ -59,6 +71,7 @@
       "value": "cotton",
       "display_name": "Cotton",
       "price_modifier": "0.00",
+      "color_code": "",
       "order": 1,
       "is_active": true
     },
@@ -68,6 +81,7 @@
       "value": "linen",
       "display_name": "Linen",
       "price_modifier": "100.00",
+      "color_code": "",
       "order": 2,
       "is_active": true
     },
@@ -77,6 +91,7 @@
       "value": "small",
       "display_name": "Small",
       "price_modifier": "0.00",
+      "color_code": "",
       "order": 1,
       "is_active": true
     },
@@ -86,6 +101,7 @@
       "value": "medium",
       "display_name": "Medium",
       "price_modifier": "50.00",
+      "color_code": "",
       "order": 2,
       "is_active": true
     },
@@ -95,6 +111,7 @@
       "value": "large",
       "display_name": "Large",
       "price_modifier": "100.00",
+      "color_code": "",
       "order": 3,
       "is_active": true
     }

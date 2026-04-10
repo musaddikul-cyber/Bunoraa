@@ -1,6 +1,8 @@
 """
 Signals for the accounts app.
 """
+import os
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
@@ -11,5 +13,7 @@ def create_referral_code_for_new_user(sender, instance, created, **kwargs):
     """
     Create a referral code for a new user upon account creation.
     """
+    if kwargs.get("raw", False) or os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+        return
     if created and not instance.is_superuser:
         ReferralCode.objects.get_or_create(user=instance, defaults={'is_active': True})

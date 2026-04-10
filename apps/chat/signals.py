@@ -1,12 +1,14 @@
 """
 Django Signals for Bunoraa Chat System
 """
+import os
+import logging
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-import logging
 
 logger = logging.getLogger('bunoraa.chat')
 User = get_user_model()
@@ -127,15 +129,19 @@ def update_agent_status_broadcast(sender, instance, **kwargs):
 @receiver(post_save, sender=User)
 def create_agent_profile(sender, instance, created, **kwargs):
     """Optionally create agent profile for staff users."""
+    if kwargs.get("raw", False) or os.environ.get("BUNORAA_IMPORTING_FIXTURES") == "1":
+        return
     from apps.chat.models import ChatAgent
     
     # Only auto-create for staff users
     if instance.is_staff and not ChatAgent.objects.filter(user=instance).exists():
         from apps.chat.models import ChatSettings
         settings_obj = ChatSettings.get_settings()
-        ChatAgent.objects.create(
+        ChatAgent.objects.get_or_create(
             user=instance,
-            is_online=False,
-            is_accepting_chats=True,
-            max_concurrent_chats=settings_obj.max_concurrent_chats
+            defaults={
+                "is_online": False,
+                "is_accepting_chats": True,
+                "max_concurrent_chats": settings_obj.max_concurrent_chats,
+            },
         )

@@ -1,6 +1,12 @@
 {% extends "admin/change_form.html" %}
 {% load i18n static %}
 
+{% block formsets %}
+{% for inline_admin_formset in inline_admin_formsets %}
+  {% include inline_admin_formset.opts.template %}
+{% endfor %}
+{% endblock %}
+
 {% block field_sets %}
 {% for inline_admin_formset in top_inline_admin_formsets %}
   {% include inline_admin_formset.opts.template %}

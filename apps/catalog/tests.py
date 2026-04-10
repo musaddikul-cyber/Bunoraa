@@ -2,6 +2,7 @@ import io
 import json
 import os
 import tempfile
+import uuid
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -45,6 +46,7 @@ from apps.catalog.models import (
     ShippingMaterial,
     Tag,
 )
+from apps.i18n.models import Currency
 
 def _image_upload(name: str = "sample.png") -> SimpleUploadedFile:
     bio = io.BytesIO()
@@ -1908,3 +1910,91 @@ class ProductAutofillAdminEndpointTests(TestCase):
         suggestion.refresh_from_db()
         self.assertEqual(suggestion.status, ProductFieldSuggestion.STATUS_REJECTED)
         self.assertTrue(ProductAutofillFeedback.objects.filter(job=job, field_name="description").exists())
+
+
+class ProductImportExportCompatibilityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        Currency.objects.get_or_create(
+            code="BDT",
+            defaults={
+                "name": "Bangladeshi Taka",
+                "symbol": "Tk",
+                "native_symbol": "Tk",
+                "is_active": True,
+                "is_default": True,
+            },
+        )
+
+    def test_product_resource_exports_portable_relation_identifiers(self):
+        from apps.catalog.admin import ProductResource
+
+        root = Category.objects.create(name="Women", slug="women")
+        child = Category.objects.create(name="Kurti", slug="kurti", parent=root)
+        tag = Tag.objects.create(name="Festive")
+        shipping = ShippingMaterial.objects.create(name="Recycled Mailer")
+        eco = EcoCertification.objects.create(name="Global Organic Textile Standard", slug="gots")
+
+        product = Product.objects.create(
+            name="Portable Export Product",
+            slug="portable-export-product",
+            sku="PORTABLE-EXPORT-001",
+            price=Decimal("1990.00"),
+            currency_id="BDT",
+            primary_category=child,
+            shipping_material=shipping,
+        )
+        product.categories.set([child])
+        product.tags.set([tag])
+        product.eco_certifications.set([eco])
+
+        dataset = ProductResource().export(Product.objects.filter(id=product.id))
+        self.assertEqual(len(dataset), 1)
+        row = dataset.dict[0]
+
+        self.assertEqual(row["primary_category"], "women/kurti")
+        self.assertEqual(row["categories"], "women/kurti")
+        self.assertEqual(row["tags"], "Festive")
+        self.assertEqual(row["shipping_material"], "Recycled Mailer")
+        self.assertEqual(row["eco_certifications"], "gots")
+
+    def test_product_resource_imports_legacy_fixture_shape_and_creates_related_records(self):
+        try:
+            import tablib
+        except Exception:
+            self.skipTest("tablib is required for django-import-export dataset tests")
+
+        from apps.catalog.admin import ProductResource
+
+        product_id = str(uuid.uuid4())
+        legacy_payload = [
+            {
+                "model": "catalog.product",
+                "pk": product_id,
+                "fields": {
+                    "name": "Legacy Import Product",
+                    "slug": "legacy-import-product",
+                    "sku": "LEGACY-IMPORT-001",
+                    "price": "1490.00",
+                    "currency": "BDT",
+                    "primary_category": "women/legacy-kurti",
+                    "categories": ["women/legacy-kurti"],
+                    "tags": ["Legacy Tag"],
+                    "shipping_material": "Legacy Mailer",
+                    "eco_certifications": ["legacy-cert"],
+                    "is_active": True,
+                },
+            }
+        ]
+
+        dataset = tablib.Dataset().load(json.dumps(legacy_payload), format="json")
+        result = ProductResource().import_data(dataset, dry_run=False, raise_errors=True)
+        self.assertFalse(result.has_errors())
+
+        product = Product.objects.get(slug="legacy-import-product")
+        self.assertEqual(product.sku, "LEGACY-IMPORT-001")
+        self.assertEqual(product.primary_category.get_slug_path(include_self=True), "women/legacy-kurti")
+        self.assertTrue(product.categories.filter(slug="legacy-kurti").exists())
+        self.assertTrue(product.tags.filter(name="Legacy Tag").exists())
+        self.assertEqual(product.shipping_material.name, "Legacy Mailer")
+        self.assertTrue(product.eco_certifications.filter(slug="legacy-cert").exists())

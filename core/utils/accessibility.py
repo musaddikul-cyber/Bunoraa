@@ -2,9 +2,10 @@
 Accessibility utilities and helpers for WCAG compliance.
 """
 from django import template
-from django.utils.html import format_html
+from django.utils.html import format_html, escape
 from django.utils.safestring import mark_safe
 from typing import Dict, Optional
+from html import escape as html_escape
 
 
 def generate_skip_links() -> str:
@@ -50,27 +51,27 @@ def generate_skip_links() -> str:
 def generate_aria_live_region(region_id: str = 'announcements', politeness: str = 'polite') -> str:
     """
     Generate an ARIA live region for dynamic announcements.
-    
+
     Args:
         region_id: ID for the live region element
         politeness: 'polite', 'assertive', or 'off'
     """
-    return mark_safe(f'''
-        <div 
-            id="{region_id}" 
-            aria-live="{politeness}" 
-            aria-atomic="true" 
-            class="visually-hidden"
-            role="status"
-        ></div>
-    ''')
+    # Validate politeness value
+    if politeness not in ('polite', 'assertive', 'off'):
+        politeness = 'polite'
+
+    return format_html(
+        '<div id="{}" aria-live="{}" aria-atomic="true" '
+        'class="visually-hidden" role="status"></div>',
+        region_id, politeness
+    )
 
 
-def make_image_accessible(src: str, alt: str, decorative: bool = False, 
+def make_image_accessible(src: str, alt: str, decorative: bool = False,
                           loading: str = 'lazy', **attrs) -> str:
     """
     Generate an accessible image tag.
-    
+
     Args:
         src: Image source URL
         alt: Alt text (empty string for decorative images)
@@ -78,36 +79,68 @@ def make_image_accessible(src: str, alt: str, decorative: bool = False,
         loading: 'lazy' or 'eager'
         **attrs: Additional HTML attributes
     """
-    extra_attrs = ' '.join(f'{k}="{v}"' for k, v in attrs.items())
-    
+    # Validate loading attribute
+    if loading not in ('lazy', 'eager'):
+        loading = 'lazy'
+
+    # Build extra attributes safely - escape values
+    extra_attrs = ' '.join(
+        f'{html_escape(str(k))}="{html_escape(str(v))}"'
+        for k, v in attrs.items()
+    )
+
     if decorative:
-        return format_html(
-            '<img src="{}" alt="" role="presentation" loading="{}" {}>',
-            src, loading, mark_safe(extra_attrs)
-        )
+        if extra_attrs:
+            return format_html(
+                '<img src="{}" alt="" role="presentation" loading="{}" {}{}',
+                src, loading, mark_safe(extra_attrs), '>'
+            )
+        else:
+            return format_html(
+                '<img src="{}" alt="" role="presentation" loading="{}">',
+                src, loading
+            )
     else:
-        return format_html(
-            '<img src="{}" alt="{}" loading="{}" {}>',
-            src, alt, loading, mark_safe(extra_attrs)
-        )
+        if extra_attrs:
+            return format_html(
+                '<img src="{}" alt="{}" loading="{}" {}{}',
+                src, alt, loading, mark_safe(extra_attrs), '>'
+            )
+        else:
+            return format_html(
+                '<img src="{}" alt="{}" loading="{}">',
+                src, alt, loading
+            )
 
 
-def make_button_accessible(text: str, button_type: str = 'button', 
+def make_button_accessible(text: str, button_type: str = 'button',
                            aria_label: Optional[str] = None,
                            disabled: bool = False, **attrs) -> str:
     """
     Generate an accessible button element.
     """
-    aria_attr = f'aria-label="{aria_label}"' if aria_label else ''
+    # Validate button_type
+    if button_type not in ('button', 'submit', 'reset'):
+        button_type = 'button'
+
+    # Build extra attributes safely - escape values
+    extra_attrs = ' '.join(
+        f'{html_escape(str(k))}="{html_escape(str(v))}"'
+        for k, v in attrs.items()
+    )
+
+    aria_attr = f'aria-label="{html_escape(aria_label)}"' if aria_label else ''
     disabled_attr = 'disabled aria-disabled="true"' if disabled else ''
-    extra_attrs = ' '.join(f'{k}="{v}"' for k, v in attrs.items())
-    
+
+    parts = [button_type, aria_attr, disabled_attr, extra_attrs, text]
+    parts_str = ' '.join(p for p in parts if p)
+
     return format_html(
-        '<button type="{}" {} {} {}>{}</button>',
-        button_type, 
-        mark_safe(aria_attr),
-        mark_safe(disabled_attr),
-        mark_safe(extra_attrs),
+        '<button type="{}"{}{}{}>{}</button>',
+        button_type,
+        f' {aria_attr}' if aria_attr else '',
+        f' {disabled_attr}' if disabled_attr else '',
+        f' {extra_attrs}' if extra_attrs else '',
         text
     )
 
@@ -134,72 +167,91 @@ def make_icon_accessible(icon_class: str, label: str,
         )
 
 
-def make_link_accessible(href: str, text: str, 
+def make_link_accessible(href: str, text: str,
                         external: bool = False,
                         aria_label: Optional[str] = None,
                         **attrs) -> str:
     """
     Generate an accessible link element.
-    
+
     Args:
         href: Link destination
         text: Link text
         external: If True, opens in new tab with proper attributes
         aria_label: Optional screen reader label
     """
-    extra_attrs = ' '.join(f'{k}="{v}"' for k, v in attrs.items())
-    aria_attr = f'aria-label="{aria_label}"' if aria_label else ''
-    
+    # Build extra attributes safely - escape values
+    extra_attrs = ' '.join(
+        f'{html_escape(str(k))}="{html_escape(str(v))}"'
+        for k, v in attrs.items()
+    )
+
+    aria_attr = f'aria-label="{html_escape(aria_label)}"' if aria_label else ''
+
     if external:
         return format_html(
-            '<a href="{}" {} {} target="_blank" rel="noopener noreferrer">'
+            '<a href="{}"{}{}target="_blank" rel="noopener noreferrer">'
             '{}'
             '<span class="visually-hidden"> (opens in new tab)</span>'
             '</a>',
-            href, mark_safe(aria_attr), mark_safe(extra_attrs), text
+            href,
+            f' {aria_attr}' if aria_attr else '',
+            f' {extra_attrs} ' if extra_attrs else '',
+            text
         )
     else:
         return format_html(
-            '<a href="{}" {} {}>{}</a>',
-            href, mark_safe(aria_attr), mark_safe(extra_attrs), text
+            '<a href="{}"{}{}{}</a>',
+            href,
+            f' {aria_attr}' if aria_attr else '',
+            f' {extra_attrs}' if extra_attrs else '',
+            text
         )
 
 
 def generate_breadcrumb_nav(items: list, current_page: str) -> str:
     """
     Generate an accessible breadcrumb navigation.
-    
+
     Args:
         items: List of tuples (label, url) or just label for current page
         current_page: Label for the current page
     """
     breadcrumb_items = []
-    
+
     for i, item in enumerate(items):
         if isinstance(item, tuple):
             label, url = item
             breadcrumb_items.append(
-                f'<li class="breadcrumb-item">'
-                f'<a href="{url}">{label}</a>'
-                f'</li>'
+                format_html(
+                    '<li class="breadcrumb-item"><a href="{}">{}</a></li>',
+                    url, label
+                )
             )
         else:
             breadcrumb_items.append(
-                f'<li class="breadcrumb-item">{item}</li>'
+                format_html(
+                    '<li class="breadcrumb-item">{}</li>',
+                    item
+                )
             )
-    
+
     # Add current page
     breadcrumb_items.append(
-        f'<li class="breadcrumb-item active" aria-current="page">{current_page}</li>'
+        format_html(
+            '<li class="breadcrumb-item active" aria-current="page">{}</li>',
+            current_page
+        )
     )
-    
-    return mark_safe(f'''
-        <nav aria-label="Breadcrumb" class="breadcrumb-nav">
-            <ol class="breadcrumb">
-                {''.join(breadcrumb_items)}
-            </ol>
-        </nav>
-    ''')
+
+    items_html = ''.join(str(item) for item in breadcrumb_items)
+
+    return format_html(
+        '<nav aria-label="Breadcrumb" class="breadcrumb-nav">'
+        '<ol class="breadcrumb">{}</ol>'
+        '</nav>',
+        mark_safe(items_html)
+    )
 
 
 def generate_form_field(field_id: str, label: str, field_type: str = 'text',
@@ -208,96 +260,95 @@ def generate_form_field(field_id: str, label: str, field_type: str = 'text',
     """
     Generate an accessible form field with proper labeling.
     """
+    # Validate field_type
+    valid_types = ('text', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local')
+    if field_type not in valid_types:
+        field_type = 'text'
+
     required_attr = 'required aria-required="true"' if required else ''
     error_id = f'{field_id}-error'
     help_id = f'{field_id}-help'
-    
+
     aria_describedby = []
     if error_msg:
         aria_describedby.append(error_id)
     if help_text:
         aria_describedby.append(help_id)
-    
+
     describedby_attr = f'aria-describedby="{" ".join(aria_describedby)}"' if aria_describedby else ''
     invalid_attr = 'aria-invalid="true"' if error_msg else ''
-    extra_attrs = ' '.join(f'{k}="{v}"' for k, v in attrs.items())
-    
-    error_html = f'<span id="{error_id}" class="error-message" role="alert">{error_msg}</span>' if error_msg else ''
-    help_html = f'<span id="{help_id}" class="help-text">{help_text}</span>' if help_text else ''
+
+    # Build extra attributes safely - escape values
+    extra_attrs = ' '.join(
+        f'{html_escape(str(k))}="{html_escape(str(v))}"'
+        for k, v in attrs.items()
+    )
+
+    error_html = format_html(
+        '<span id="{}" class="error-message" role="alert">{}</span>',
+        error_id, error_msg
+    ) if error_msg else ''
+
+    help_html = format_html(
+        '<span id="{}" class="help-text">{}</span>',
+        help_id, help_text
+    ) if help_text else ''
+
     required_indicator = '<span class="required-indicator" aria-hidden="true">*</span>' if required else ''
-    
-    return mark_safe(f'''
-        <div class="form-field {'has-error' if error_msg else ''}">
-            <label for="{field_id}" class="form-label">
-                {label} {required_indicator}
-            </label>
-            <input 
-                type="{field_type}" 
-                id="{field_id}" 
-                name="{field_id}"
-                {required_attr}
-                {describedby_attr}
-                {invalid_attr}
-                {extra_attrs}
-                class="form-input"
-            >
-            {error_html}
-            {help_html}
-        </div>
-    ''')
+
+    has_error_class = 'has-error' if error_msg else ''
+
+    return format_html(
+        '<div class="form-field {}">'
+        '<label for="{}" class="form-label">{} {}</label>'
+        '<input type="{}" id="{}" name="{}" {} {} {} {} class="form-input">'
+        '{}{}'
+        '</div>',
+        has_error_class,
+        field_id, label, mark_safe(required_indicator),
+        field_type, field_id, field_id,
+        required_attr, describedby_attr, invalid_attr, mark_safe(extra_attrs),
+        mark_safe(str(error_html)), mark_safe(str(help_html))
+    )
 
 
 def generate_loading_indicator(text: str = 'Loading...') -> str:
     """Generate an accessible loading indicator."""
-    return mark_safe(f'''
-        <div class="loading-indicator" role="status" aria-live="polite">
-            <span class="loading-spinner" aria-hidden="true"></span>
-            <span class="loading-text">{text}</span>
-        </div>
-    ''')
+    return format_html(
+        '<div class="loading-indicator" role="status" aria-live="polite">'
+        '<span class="loading-spinner" aria-hidden="true"></span>'
+        '<span class="loading-text">{}</span>'
+        '</div>',
+        text
+    )
 
 
 def generate_modal_structure(modal_id: str, title: str, content: str) -> str:
     """
     Generate an accessible modal dialog structure.
     """
-    return mark_safe(f'''
-        <div 
-            id="{modal_id}" 
-            class="modal" 
-            role="dialog" 
-            aria-modal="true"
-            aria-labelledby="{modal_id}-title"
-            aria-describedby="{modal_id}-content"
-            hidden
-        >
-            <div class="modal-overlay" data-modal-close></div>
-            <div class="modal-container" role="document">
-                <header class="modal-header">
-                    <h2 id="{modal_id}-title" class="modal-title">{title}</h2>
-                    <button 
-                        type="button" 
-                        class="modal-close" 
-                        data-modal-close
-                        aria-label="Close modal"
-                    >
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </header>
-                <div id="{modal_id}-content" class="modal-body">
-                    {content}
-                </div>
-                <footer class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-modal-close>
-                        Cancel
-                    </button>
-                    <button type="button" class="btn btn-primary">
-                        Confirm
-                    </button>
-                </footer>
-            </div>
-        </div>
-    ''')
+    return format_html(
+        '<div id="{}" class="modal" role="dialog" aria-modal="true" '
+        'aria-labelledby="{}-title" aria-describedby="{}-content" hidden>'
+        '<div class="modal-overlay" data-modal-close></div>'
+        '<div class="modal-container" role="document">'
+        '<header class="modal-header">'
+        '<h2 id="{}-title" class="modal-title">{}</h2>'
+        '<button type="button" class="modal-close" data-modal-close aria-label="Close modal">'
+        '<span aria-hidden="true">&times;</span>'
+        '</button>'
+        '</header>'
+        '<div id="{}-content" class="modal-body">{}</div>'
+        '<footer class="modal-footer">'
+        '<button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>'
+        '<button type="button" class="btn btn-primary">Confirm</button>'
+        '</footer>'
+        '</div>'
+        '</div>',
+        modal_id, modal_id, modal_id,
+        modal_id, title,
+        modal_id, mark_safe(content)  # Content assumed to be pre-rendered/trusted
+    )
 
 
 # CSS for accessibility utilities

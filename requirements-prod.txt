@@ -1,0 +1,7 @@
+# Production Requirements
+# Includes base + ML + ML-optional packages for production use
+-r requirements-base.txt
+
+# ML packages (optional but included in this environment)
+# Comment out if not needed to reduce image size
+-r requirements-ml.txt

@@ -2,12 +2,13 @@ from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Sum, Count, F, Q
-from django.db import OperationalError, transaction
+from django.db import OperationalError, transaction, models as dj_models
 from django.urls import reverse, path
 from django.http import HttpResponse, JsonResponse, HttpResponseNotAllowed, Http404
 from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.utils import timezone, translation
+from django.utils.text import slugify
 import csv
 import json
 import logging
@@ -19,6 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlparse
 from django.conf import settings
 
+from apps.i18n.models import Currency
 from core.admin_mixins import (
     ImportExportEnhancedModelAdmin,
     SafeModelResource,
@@ -164,31 +166,246 @@ from .forms import CategoryAdminForm, ProductAdminForm
 
 
 if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
+    def _is_uuid_like(value):
+        if not value:
+            return False
+        try:
+            uuid.UUID(str(value))
+            return True
+        except (TypeError, ValueError, AttributeError):
+            return False
+
+    def _split_tokens(value, separator="|"):
+        if value in (None, ""):
+            return []
+        if isinstance(value, (list, tuple, set)):
+            return [str(v).strip() for v in value if str(v).strip()]
+        # Backward compatibility for comma-separated values.
+        text = str(value)
+        if separator not in text and "," in text:
+            return [part.strip() for part in text.split(",") if part.strip()]
+        return [part.strip() for part in text.split(separator) if part.strip()]
+
+    def _get_unique_slug(model, base_slug, fallback_prefix):
+        root = (base_slug or "").strip("-")
+        if not root:
+            root = f"{fallback_prefix}-{uuid.uuid4().hex[:8]}"
+        root = root[:200]
+        candidate = root
+        suffix = 2
+        while model.objects.filter(slug=candidate).exists():
+            suffix_token = f"-{suffix}"
+            candidate = f"{root[: max(1, 200 - len(suffix_token))]}{suffix_token}"
+            suffix += 1
+        return candidate
+
+    def _resolve_category_token(token, *, create_missing=True):
+        raw = (token or "").strip()
+        if not raw:
+            return None
+
+        if _is_uuid_like(raw):
+            return Category.objects.filter(id=raw).first()
+
+        # Prefer hierarchical slug path: women/kurti/embroidered
+        if "/" in raw:
+            parent = None
+            current = None
+            for part in [p.strip() for p in raw.split("/") if p.strip()]:
+                slug = slugify(part)[:200]
+                if not slug:
+                    continue
+                current = Category.objects.filter(parent=parent, slug=slug).first()
+                if current is None and create_missing:
+                    name = part.replace("-", " ").strip().title() or part
+                    current = Category.objects.create(name=name, slug=slug, parent=parent)
+                if current is None:
+                    return None
+                parent = current
+            return current
+
+        slug = slugify(raw)[:200]
+        if slug:
+            matches = list(Category.objects.filter(slug=slug).order_by("depth", "sort_order", "name")[:2])
+            if len(matches) == 1:
+                return matches[0]
+
+        matches = list(Category.objects.filter(name__iexact=raw).order_by("depth", "sort_order", "name")[:2])
+        if len(matches) == 1:
+            return matches[0]
+
+        if not create_missing:
+            return None
+
+        category_slug = _get_unique_slug(Category, slug, "category")
+        return Category.objects.create(name=raw[:200], slug=category_slug)
+
+    def _resolve_tag_token(token, *, create_missing=True):
+        raw = (token or "").strip()
+        if not raw:
+            return None
+        if _is_uuid_like(raw):
+            return Tag.objects.filter(id=raw).first()
+        tag = Tag.objects.filter(name__iexact=raw).first()
+        if tag:
+            return tag
+        if not create_missing:
+            return None
+        return Tag.objects.create(name=raw[:100])
+
+    def _resolve_shipping_material_token(token, *, create_missing=True):
+        raw = (token or "").strip()
+        if not raw:
+            return None
+        if _is_uuid_like(raw):
+            return ShippingMaterial.objects.filter(id=raw).first()
+        material = ShippingMaterial.objects.filter(name__iexact=raw).first()
+        if material:
+            return material
+        if not create_missing:
+            return None
+        return ShippingMaterial.objects.create(name=raw[:100])
+
+    def _resolve_eco_certification_token(token, *, create_missing=True):
+        raw = (token or "").strip()
+        if not raw:
+            return None
+        if _is_uuid_like(raw):
+            return EcoCertification.objects.filter(id=raw).first()
+
+        slug = slugify(raw)[:200]
+        cert = None
+        if slug:
+            cert = EcoCertification.objects.filter(slug=slug).first()
+        if cert is None:
+            cert = EcoCertification.objects.filter(name__iexact=raw).first()
+        if cert:
+            return cert
+        if not create_missing:
+            return None
+
+        cert_slug = _get_unique_slug(EcoCertification, slug, "eco")
+        cert_name = raw.replace("-", " ").strip().title()[:200] or raw[:200]
+        return EcoCertification.objects.create(name=cert_name, slug=cert_slug)
+
+    class CategoryPathForeignKeyWidget(ForeignKeyWidget):
+        def clean(self, value, row=None, **kwargs):
+            return _resolve_category_token(value, create_missing=True)
+
+        def render(self, value, obj=None, **kwargs):
+            if not value:
+                return ""
+            return value.get_slug_path(include_self=True)
+
+    class CategoryPathManyToManyWidget(ManyToManyWidget):
+        def clean(self, value, row=None, **kwargs):
+            ids = []
+            for token in _split_tokens(value, separator=self.separator):
+                category = _resolve_category_token(token, create_missing=True)
+                if category:
+                    ids.append(category.id)
+            if not ids:
+                return self.model.objects.none()
+            return self.model.objects.filter(id__in=ids)
+
+        def render(self, value, obj=None, **kwargs):
+            if value is None:
+                return ""
+            manager = value.all() if hasattr(value, "all") else value
+            return self.separator.join(
+                item.get_slug_path(include_self=True) for item in manager if item
+            )
+
+    class TagNameManyToManyWidget(ManyToManyWidget):
+        def clean(self, value, row=None, **kwargs):
+            ids = []
+            for token in _split_tokens(value, separator=self.separator):
+                tag = _resolve_tag_token(token, create_missing=True)
+                if tag:
+                    ids.append(tag.id)
+            if not ids:
+                return self.model.objects.none()
+            return self.model.objects.filter(id__in=ids)
+
+        def render(self, value, obj=None, **kwargs):
+            if value is None:
+                return ""
+            manager = value.all() if hasattr(value, "all") else value
+            return self.separator.join(item.name for item in manager if item)
+
+    class ShippingMaterialNameWidget(ForeignKeyWidget):
+        def clean(self, value, row=None, **kwargs):
+            return _resolve_shipping_material_token(value, create_missing=True)
+
+        def render(self, value, obj=None, **kwargs):
+            if not value:
+                return ""
+            return value.name
+
+    class CurrencyCodeWidget(ForeignKeyWidget):
+        def clean(self, value, row=None, **kwargs):
+            raw = (value or "").strip()
+            if not raw:
+                return None
+            if _is_uuid_like(raw):
+                currency = Currency.objects.filter(id=raw).first()
+                if currency:
+                    return currency
+            return Currency.objects.filter(code__iexact=raw).first()
+
+        def render(self, value, obj=None, **kwargs):
+            if not value:
+                return ""
+            return value.code
+
+    class EcoCertificationSlugManyToManyWidget(ManyToManyWidget):
+        def clean(self, value, row=None, **kwargs):
+            ids = []
+            for token in _split_tokens(value, separator=self.separator):
+                cert = _resolve_eco_certification_token(token, create_missing=True)
+                if cert:
+                    ids.append(cert.id)
+            if not ids:
+                return self.model.objects.none()
+            return self.model.objects.filter(id__in=ids)
+
+        def render(self, value, obj=None, **kwargs):
+            if value is None:
+                return ""
+            manager = value.all() if hasattr(value, "all") else value
+            return self.separator.join(item.slug for item in manager if item)
+
     class ProductResource(SafeModelResource):
+        id = ie_fields.Field(column_name="id", attribute="id", readonly=True)
+        currency = ie_fields.Field(
+            column_name="currency",
+            attribute="currency",
+            widget=CurrencyCodeWidget(Currency, field="code"),
+        )
         primary_category = ie_fields.Field(
             column_name="primary_category",
             attribute="primary_category",
-            widget=ForeignKeyWidget(Category, field="id"),
+            widget=CategoryPathForeignKeyWidget(Category, field="slug"),
         )
         categories = ie_fields.Field(
             column_name="categories",
             attribute="categories",
-            widget=ManyToManyWidget(Category, field="id", separator="|"),
+            widget=CategoryPathManyToManyWidget(Category, field="slug", separator="|"),
         )
         tags = ie_fields.Field(
             column_name="tags",
             attribute="tags",
-            widget=ManyToManyWidget(Tag, field="id", separator="|"),
+            widget=TagNameManyToManyWidget(Tag, field="name", separator="|"),
         )
         eco_certifications = ie_fields.Field(
             column_name="eco_certifications",
             attribute="eco_certifications",
-            widget=ManyToManyWidget(EcoCertification, field="id", separator="|"),
+            widget=EcoCertificationSlugManyToManyWidget(EcoCertification, field="slug", separator="|"),
         )
         shipping_material = ie_fields.Field(
             column_name="shipping_material",
             attribute="shipping_material",
-            widget=ForeignKeyWidget(ShippingMaterial, field="id"),
+            widget=ShippingMaterialNameWidget(ShippingMaterial, field="name"),
         )
         publish_from = ie_fields.Field(
             column_name="publish_from",
@@ -205,7 +422,7 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
 
         class Meta:
             model = Product
-            import_id_fields = ("id",)
+            import_id_fields = ("slug",)
             fields = (
                 "id",
                 "sku",
@@ -252,6 +469,73 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
             export_order = fields
             skip_unchanged = True
             report_skipped = True
+
+        def before_import(self, dataset, **kwargs):
+            """
+            Accept legacy Django serializer JSON exports:
+            [{"model": "catalog.product", "pk": "...", "fields": {...}}, ...]
+            and flatten them into tabular rows expected by django-import-export.
+            """
+            headers = set(dataset.headers or [])
+            if not {"model", "pk", "fields"}.issubset(headers):
+                return
+
+            flattened_rows = []
+            for row in dataset.dict:
+                model_label = str(row.get("model") or "").strip()
+                if model_label and model_label != "catalog.product":
+                    continue
+                fields = row.get("fields")
+                if isinstance(fields, str):
+                    try:
+                        fields = json.loads(fields)
+                    except (TypeError, json.JSONDecodeError):
+                        fields = {}
+                if not isinstance(fields, dict):
+                    fields = {}
+
+                flat = dict(fields)
+                if row.get("pk"):
+                    flat.setdefault("id", row.get("pk"))
+
+                # Convert legacy M2M arrays to import-export separator format.
+                for m2m_field in ("categories", "tags", "eco_certifications"):
+                    value = flat.get(m2m_field)
+                    if isinstance(value, (list, tuple, set)):
+                        flat[m2m_field] = "|".join(str(v) for v in value if v)
+
+                flattened_rows.append(flat)
+
+            if not flattened_rows:
+                return
+
+            allowed_headers = list(self._meta.fields)
+            dataset.wipe()
+            dataset.headers = allowed_headers
+            for flat in flattened_rows:
+                row_values = []
+                for col in allowed_headers:
+                    value = flat.get(col)
+                    if value is None:
+                        try:
+                            model_field = Product._meta.get_field(col)
+                        except Exception:
+                            model_field = None
+
+                        if model_field is not None:
+                            if model_field.has_default():
+                                default = model_field.default
+                                value = default() if callable(default) else default
+                            elif not getattr(model_field, "null", False):
+                                if isinstance(
+                                    model_field,
+                                    (dj_models.CharField, dj_models.TextField, dj_models.SlugField),
+                                ):
+                                    value = ""
+                                elif isinstance(model_field, dj_models.BooleanField):
+                                    value = False
+                    row_values.append(value)
+                dataset.append(row_values)
 
         def dehydrate_image_urls(self, obj):
             urls = [img.image.url for img in obj.images.all() if getattr(img, "image", None)]

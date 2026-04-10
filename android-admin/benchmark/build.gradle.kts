@@ -16,7 +16,7 @@ android {
     }
 
     buildTypes {
-        release {
+        maybeCreate("release").apply {
             isDebuggable = false
         }
     }

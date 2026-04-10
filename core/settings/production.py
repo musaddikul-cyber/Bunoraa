@@ -126,13 +126,21 @@ for raw_origin in _frontend_origins_raw:
         CSRF_TRUSTED_ORIGINS.append(frontend_origin)
 
 # =============================================================================
-# DATABASE - PostgreSQL
+# DATABASE - PostgreSQL with Connection Pooling
 # =============================================================================
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set in production environment")
 
-DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 0)
+# Connection Pooling Configuration
+# DB_CONN_MAX_AGE: How long (seconds) a connection is kept alive
+# Default: 600 seconds (10 minutes) for production
+# - 0 = no pooling (creates new connection per request - BAD for production)
+# - 600 = keep connection for 10 minutes (recommended)
+# - 3600 = keep for 1 hour (for high traffic)
+# Override with: DB_CONN_MAX_AGE=3600
+DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 600)  # 10 minutes default for production
+
 DB_CONNECT_TIMEOUT_SECONDS = _env_int('DB_CONNECT_TIMEOUT_SECONDS', 30)
 DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 30000)
 DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
@@ -148,7 +156,7 @@ DATABASES = {
     'default': dj_database_url.config(
         default=DATABASE_URL,
         conn_max_age=DB_CONN_MAX_AGE,
-        conn_health_checks=True,
+        conn_health_checks=True,  # Verify connections are healthy before using
         ssl_require=True,
     )
 }
@@ -164,10 +172,19 @@ if DB_IDLE_SESSION_TIMEOUT_MS > 0:
 
 DATABASES['default']['OPTIONS'] = {
     'connect_timeout': DB_CONNECT_TIMEOUT_SECONDS,
-    'isolation_level': 1,  # READ_COMMITTED - Reduces lock memory
+    'isolation_level': 1,  # READ_COMMITTED - Reduces lock memory, improves concurrency
 }
 if _pg_options:
     DATABASES['default']['OPTIONS']['options'] = _pg_options
+
+# Database Connection Pool Monitoring
+# Monitor these metrics to optimize pool size:
+# - active_connections: Should stay below max_connections
+# - idle_connections: Too many means pool is too large
+# - connection_wait_time: If high, increase pool size
+CONN_POOL_MIN_SIZE = _env_int('CONN_POOL_MIN_SIZE', 5)  # Minimum connections to maintain
+CONN_POOL_MAX_SIZE = _env_int('CONN_POOL_MAX_SIZE', 20)  # Maximum connections allowed
+CONN_POOL_TIMEOUT = _env_int('CONN_POOL_TIMEOUT', 30)   # Wait time for connection (seconds)
 
 # =============================================================================
 # SECURITY

@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -45,9 +47,9 @@ android {
         }
         else -> configuredRedirectUri
     }
-    val resolvedRedirectPath = runCatching { java.net.URI(redirectUri).path }
-        .getOrNull()
-        .takeIf { !it.isNullOrBlank() } ?: "/oauth2redirect"
+
+    // Standard java.net.URI does not need an import in Gradle KTS
+    val resolvedRedirectPath = runCatching { URI(redirectUri).path }.getOrNull() ?: "/oauth2redirect"
     val resolvedRedirectScheme = redirectUri.substringBefore(":").ifBlank { redirectScheme }
 
     defaultConfig {
@@ -80,6 +82,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 
@@ -97,13 +100,13 @@ android {
 }
 
 dependencies {
-    implementation(projects.core.common)
-    implementation(projects.core.network)
-    implementation(projects.core.database)
-    implementation(projects.core.datastore)
-    implementation(projects.core.designsystem)
-    implementation(projects.feature.auth)
-    implementation(projects.feature.dashboard)
+    implementation(project(":core:common"))
+    implementation(project(":core:network"))
+    implementation(project(":core:database"))
+    implementation(project(":core:datastore"))
+    implementation(project(":core:designsystem"))
+    implementation(project(":feature:auth"))
+    implementation(project(":feature:dashboard"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime)
@@ -126,7 +129,9 @@ dependencies {
     implementation(libs.firebase.messaging)
     implementation(libs.androidx.profileinstaller)
 
-    baselineProfile(project(":baselineprofile"))
+    if (findProject(":baselineprofile") != null) {
+        baselineProfile(project(":baselineprofile"))
+    }
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

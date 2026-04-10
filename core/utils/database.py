@@ -14,9 +14,54 @@ class DatabaseOptimizer:
     """
     PostgreSQL database optimization utilities.
     """
-    
+
     def __init__(self):
         self.is_postgres = 'postgresql' in settings.DATABASES['default']['ENGINE']
+
+    def _validate_table_name(self, table: str) -> bool:
+        """
+        Validate table name to prevent SQL injection.
+        Only allows alphanumeric and underscore characters.
+        """
+        if not table or not isinstance(table, str):
+            return False
+        return all(c.isalnum() or c == '_' for c in table)
+
+    def _validate_column_name(self, column: str) -> bool:
+        """
+        Validate column name to prevent SQL injection.
+        Only allows alphanumeric and underscore characters.
+        """
+        if not column or not isinstance(column, str):
+            return False
+        return all(c.isalnum() or c == '_' for c in column)
+
+    def _validate_index_name(self, index: str) -> bool:
+        """
+        Validate index name to prevent SQL injection.
+        Only allows alphanumeric and underscore characters.
+        """
+        if not index or not isinstance(index, str):
+            return False
+        return all(c.isalnum() or c == '_' for c in index)
+
+    def _get_existing_tables(self) -> set:
+        """Get set of existing table names from database schema."""
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public'
+            """)
+            return {row[0] for row in cursor.fetchall()}
+
+    def _get_existing_columns(self, table: str) -> set:
+        """Get set of existing column names for a table."""
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = %s
+            """, [table])
+            return {row[0] for row in cursor.fetchall()}
     
     def analyze_tables(self, tables: Optional[List[str]] = None) -> Dict:
         """
@@ -25,34 +70,40 @@ class DatabaseOptimizer:
         """
         if not self.is_postgres:
             return {'status': 'skipped', 'reason': 'Not PostgreSQL'}
-        
+
         results = {'analyzed': [], 'errors': []}
-        
+
         with connection.cursor() as cursor:
             if tables is None:
                 # Get all table names
                 cursor.execute("""
-                    SELECT tablename 
-                    FROM pg_tables 
+                    SELECT tablename
+                    FROM pg_tables
                     WHERE schemaname = 'public'
                 """)
                 tables = [row[0] for row in cursor.fetchall()]
-            
+
             for table in tables:
                 try:
+                    # Validate table name to prevent SQL injection
+                    if not self._validate_table_name(table):
+                        results['errors'].append({'table': table, 'error': 'Invalid table name'})
+                        logger.error(f'Invalid table name: {table}')
+                        continue
+
                     cursor.execute(f'ANALYZE "{table}"')
                     results['analyzed'].append(table)
                 except Exception as e:
                     results['errors'].append({'table': table, 'error': str(e)})
                     logger.error(f'Failed to analyze {table}: {e}')
-        
+
         return results
     
-    def vacuum_tables(self, tables: Optional[List[str]] = None, 
+    def vacuum_tables(self, tables: Optional[List[str]] = None,
                       full: bool = False, analyze: bool = True) -> Dict:
         """
         Run VACUUM on specified tables or all tables.
-        
+
         Args:
             tables: List of table names (None for all)
             full: Run VACUUM FULL (reclaims more space but locks tables)
@@ -60,25 +111,31 @@ class DatabaseOptimizer:
         """
         if not self.is_postgres:
             return {'status': 'skipped', 'reason': 'Not PostgreSQL'}
-        
+
         results = {'vacuumed': [], 'errors': []}
-        
+
         # VACUUM cannot run in a transaction
         old_autocommit = connection.connection.autocommit
         connection.connection.autocommit = True
-        
+
         try:
             with connection.cursor() as cursor:
                 if tables is None:
                     cursor.execute("""
-                        SELECT tablename 
-                        FROM pg_tables 
+                        SELECT tablename
+                        FROM pg_tables
                         WHERE schemaname = 'public'
                     """)
                     tables = [row[0] for row in cursor.fetchall()]
-                
+
                 for table in tables:
                     try:
+                        # Validate table name to prevent SQL injection
+                        if not self._validate_table_name(table):
+                            results['errors'].append({'table': table, 'error': 'Invalid table name'})
+                            logger.error(f'Invalid table name: {table}')
+                            continue
+
                         vacuum_type = 'FULL ANALYZE' if full else ('ANALYZE' if analyze else '')
                         cursor.execute(f'VACUUM {vacuum_type} "{table}"')
                         results['vacuumed'].append(table)
@@ -87,7 +144,7 @@ class DatabaseOptimizer:
                         logger.error(f'Failed to vacuum {table}: {e}')
         finally:
             connection.connection.autocommit = old_autocommit
-        
+
         return results
     
     def get_table_stats(self) -> List[Dict]:
@@ -238,59 +295,70 @@ class DatabaseOptimizer:
             ('catalog_product', 'is_active', 'idx_product_active'),
             ('catalog_product', 'created_at', 'idx_product_created'),
             ('catalog_product', 'price', 'idx_product_price'),
-            
+
             # Orders
             ('orders_order', 'user_id', 'idx_order_user'),
             ('orders_order', 'status', 'idx_order_status'),
             ('orders_order', 'created_at', 'idx_order_created'),
-            
+
             # Analytics
             ('analytics_pageview', 'created_at', 'idx_pageview_created'),
-            ('analytics_pageview', 'user_id', 'idx_pageview_user'),  # Changed from session_id
-            
+            ('analytics_pageview', 'user_id', 'idx_pageview_user'),
+
             # User behavior
             ('accounts_userbehaviorprofile', 'user_id', 'idx_behavior_user'),
             ('accounts_userinteraction', 'user_id', 'idx_interaction_user'),
             ('accounts_userinteraction', 'created_at', 'idx_interaction_created'),
         ]
-        
+
         created = []
         errors = []
-        
+
         with connection.cursor() as cursor:
-            # First, get list of existing tables
+            # Get list of existing tables and their columns
             cursor.execute("""
-                SELECT tablename FROM pg_tables 
+                SELECT tablename FROM pg_tables
                 WHERE schemaname = 'public'
             """)
             existing_tables = {row[0] for row in cursor.fetchall()}
-            
+
             for table, column, index_name in indexes:
                 try:
+                    # Validate identifiers to prevent SQL injection
+                    if not self._validate_table_name(table):
+                        logger.error(f'Invalid table name: {table}')
+                        continue
+                    if not self._validate_column_name(column):
+                        logger.error(f'Invalid column name: {column}')
+                        continue
+                    if not self._validate_index_name(index_name):
+                        logger.error(f'Invalid index name: {index_name}')
+                        continue
+
                     # Skip if table doesn't exist
                     if table not in existing_tables:
                         logger.warning(f'Skipping index {index_name}: table "{table}" does not exist')
                         continue
-                    
+
                     # Check if table has the column
                     cursor.execute("""
-                        SELECT 1 FROM information_schema.columns 
+                        SELECT 1 FROM information_schema.columns
                         WHERE table_name = %s AND column_name = %s
                     """, [table, column])
-                    
+
                     if not cursor.fetchone():
                         logger.warning(f'Skipping index {index_name}: column "{column}" does not exist in table "{table}"')
                         continue
-                    
+
                     # Check if index already exists
                     cursor.execute("""
-                        SELECT 1 FROM pg_indexes 
+                        SELECT 1 FROM pg_indexes
                         WHERE indexname = %s
                     """, [index_name])
-                    
+
                     if not cursor.fetchone():
                         cursor.execute(f'''
-                            CREATE INDEX CONCURRENTLY IF NOT EXISTS 
+                            CREATE INDEX CONCURRENTLY IF NOT EXISTS
                             "{index_name}" ON "{table}" ("{column}")
                         ''')
                         created.append(index_name)
@@ -298,10 +366,10 @@ class DatabaseOptimizer:
                     error_msg = f'Failed to create index {index_name}: {e}'
                     logger.error(error_msg)
                     errors.append(error_msg)
-        
+
         if errors:
             logger.warning(f'Index creation had {len(errors)} errors (see above)')
-        
+
         return created
 
 

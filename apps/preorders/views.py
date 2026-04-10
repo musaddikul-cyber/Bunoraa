@@ -896,7 +896,7 @@ class PreOrderPriceCalculatorAPIView(View):
                         choices = PreOrderOptionChoice.objects.filter(id__in=value)
                         for choice in choices:
                             options_price += choice.price_modifier * quantity
-                except:
+                except (PreOrderOption.DoesNotExist, PreOrderOptionChoice.DoesNotExist, ValueError, TypeError):
                     continue
             
             subtotal = base_price + options_price

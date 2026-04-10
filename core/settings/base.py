@@ -212,7 +212,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'apps.admin_api.middleware.AdminAuditMiddleware',
-    'django_otp.middleware.OTPMiddleware',
+    'core.middleware.otp.CompatibleOTPMiddleware',
     'axes.middleware.AxesMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
     # 'core.middleware.bot_prerender.BotPreRenderMiddleware',  # Disabled: Memory overhead

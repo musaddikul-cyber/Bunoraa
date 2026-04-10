@@ -6,6 +6,8 @@ pluginManagement {
     }
 }
 
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -15,6 +17,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "BunoraaAdmin"
+val includePerfModules = providers.gradleProperty("includePerfModules").orNull == "true"
 
 include(
     ":app",
@@ -25,6 +28,11 @@ include(
     ":core:designsystem",
     ":feature:auth",
     ":feature:dashboard",
-    ":baselineprofile",
-    ":benchmark",
 )
+
+if (includePerfModules) {
+    include(
+        ":baselineprofile",
+        ":benchmark",
+    )
+}

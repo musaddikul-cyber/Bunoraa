@@ -94,12 +94,12 @@ def clear_view_cache(request):
         for cache_name in caches.all():
             try:
                 cache_name.clear()
-            except:
-                pass
+            except Exception as cache_err:
+                logger.warning(f"Failed to clear cache: {cache_err}")
         messages.success(request, _("View cache cleared."))
     except Exception as e:
         messages.error(request, f"Error: {str(e)}")
-    
+
     return redirect('admin_cache_management')
 
 

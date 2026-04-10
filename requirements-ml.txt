@@ -1,84 +1,45 @@
-# =============================================================================
-# Bunoraa ML/NN Framework Dependencies
-# =============================================================================
-# This file contains all dependencies for the comprehensive ML/NN framework.
-# Install with: pip install -r requirements-ml.txt
-# For GPU support: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# ML/AI Dependencies
+# Heavy ML packages - install separately for larger environments
 
-# =============================================================================
-# Core Deep Learning
-# =============================================================================
-torch
-torchvision
+# Core ML
+torch==2.7.1
+numpy==2.4.2
+scipy==1.17.0
+scikit-learn==1.8.0
+scikit-image==0.26.0
 
-# =============================================================================
-# Traditional ML & Data Science
-# =============================================================================
-scikit-learn
-numpy
-pandas
-scipy
-# =============================================================================
-# NLP & Transformers
-# =============================================================================
-transformers
-tokenizers
-sentencepiece
-huggingface-hub
+# NLP & Vision
+transformers==4.50.2
+joblib==1.5.3
 
-# =============================================================================
-# Data Processing
-# =============================================================================
-datasets
-pyarrow
-datasets[torch,s3]
-
-# =============================================================================
-# Experiment Tracking & MLOps
-# =============================================================================
-mlflow
-accelerate
-tensorboard
-
-# =============================================================================
-# Storage & Caching (Optional - for distributed deployments)
-# =============================================================================
-s3fs
-redis
-faiss-cpu  # For similarity search; use faiss-gpu for GPU support
-
-# =============================================================================
 # Image Processing
-# =============================================================================
-Pillow
-opencv-python-headless
+opencv-python-headless==4.13.0.92
+imageio==2.37.2
+tifffile==2026.2.20
+PyMatting==1.1.15
+rembg==2.0.72
 
-# =============================================================================
-# Model Optimization (Optional)
-# =============================================================================
-# onnx>=1.15.0
-# onnxruntime>=1.16.0
-# optimum>=1.14.0
+# Numerical Computing  
+pandas==3.0.1
+matplotlib==3.10.8
+seaborn==0.13.2
 
-# =============================================================================
-# Additional Utilities
-# =============================================================================
-tqdm
-python-dateutil
-pydantic
+# Scientific Computing
+networkx==3.6.1
+sympy==1.14.0
+mpmath==1.3.0
+llvmlite==0.46.0
+numba==0.64.0
+threadpoolctl==3.6.0
 
-# =============================================================================
-# Optional: Advanced Features
-# =============================================================================
-peft  # Parameter-efficient fine-tuning
-wandb  # Weights & Biases tracking
-# ray  # Distributed training
-# triton  # For custom CUDA kernels
-# bitsandbytes  # For 8-bit optimization
-# =============================================================================
-# Notes:
-# =============================================================================
-# - For GPU support, ensure CUDA is installed and use PyTorch GPU version
-# - faiss-gpu requires CUDA; install separately if needed
-# - For distributed training, consider adding ray[default]
-# - For cloud storage: pip install 'datasets[s3]' for S3 streaming
+# Visualization
+contourpy==1.3.3
+kiwisolver==1.4.9
+pyparsing==3.3.2
+cycler==0.12.1
+fonttools==4.61.1
+
+# Lazy Loading
+lazy_loader==0.4
+pooch==1.9.0
+tqdm==4.67.3

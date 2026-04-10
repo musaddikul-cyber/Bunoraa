@@ -21,10 +21,10 @@ android {
 }
 
 dependencies {
-    implementation(projects.core.common)
-    implementation(projects.core.network)
-    implementation(projects.core.database)
-    implementation(projects.core.designsystem)
+    implementation(project(":core:common"))
+    implementation(project(":core:network"))
+    implementation(project(":core:database"))
+    implementation(project(":core:designsystem"))
 
     implementation(libs.androidx.lifecycle.viewmodel)
     implementation(libs.kotlinx.coroutines)

@@ -5,6 +5,7 @@ Provides reusable functionality for admin classes.
 import csv
 import json
 import zipfile
+import logging
 from datetime import datetime
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -14,6 +15,7 @@ from django.contrib.admin import SimpleListFilter
 from django.http import HttpResponse
 from django.core.management import call_command
 from django.core.serializers.json import DjangoJSONEncoder
+from django.core.exceptions import FieldDoesNotExist
 from django.conf import settings
 from django.utils import timezone
 from django.utils.html import format_html
@@ -26,6 +28,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     ImportExportModelAdmin = admin.ModelAdmin  # type: ignore[assignment]
     ModelResource = object  # type: ignore[misc,assignment]
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -67,7 +71,7 @@ class ExportCSVMixin:
                 try:
                     field = meta.get_field(field_name)
                     headers.append(field.verbose_name)
-                except:
+                except (FieldDoesNotExist, AttributeError):
                     headers.append(field_name.replace('_', ' ').title())
             else:
                 headers.append(field_name.replace('_', ' ').title())
@@ -121,7 +125,14 @@ class ExportJSONMixin:
 
         data = None
         resource_class = None
-        if hasattr(self, "get_resource_class"):
+        if hasattr(self, "get_export_resource_classes"):
+            try:
+                classes = list(self.get_export_resource_classes(request))
+                if classes:
+                    resource_class = classes[0]
+            except Exception:
+                resource_class = None
+        elif hasattr(self, "get_resource_class"):
             try:
                 resource_class = self.get_resource_class()
             except Exception:
@@ -133,13 +144,37 @@ class ExportJSONMixin:
                 dataset = resource.export(queryset)
                 data = dataset.json
             except Exception:
+                logger.exception(
+                    "JSON export via resource class failed for %s; falling back to generic row export.",
+                    self.model.__name__,
+                )
                 data = None
 
         if data is None:
-            from django.core.serializers import serialize
+            # Fallback to a flat row-based JSON export (import-friendly for admin imports).
+            field_names = list(self.get_export_fields())
+            rows = []
+            for obj in queryset:
+                row = {}
+                for field_name in field_names:
+                    if hasattr(self, field_name) and callable(getattr(self, field_name)):
+                        value = getattr(self, field_name)(obj)
+                    elif hasattr(obj, field_name):
+                        value = getattr(obj, field_name)
+                        if callable(value):
+                            value = value()
+                    else:
+                        value = None
 
-            # Fallback for environments where django-import-export is unavailable.
-            data = serialize('json', queryset, indent=2)
+                    if hasattr(value, "all"):
+                        value = [str(item) for item in value.all()]
+                    elif hasattr(value, "_meta"):
+                        value = str(value)
+                    elif hasattr(value, "__iter__") and not isinstance(value, (str, dict)):
+                        value = list(value)
+                    row[field_name] = value
+                rows.append(row)
+            data = json.dumps(rows, cls=DjangoJSONEncoder, ensure_ascii=False, indent=2)
 
         response.write(data)
         

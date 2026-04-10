@@ -1,0 +1,6 @@
+Created audit artifact files for this task:
+- audit_reports/review-apps-surface.md
+- audit_reports/review-apps-surface-manifest.txt
+
+Important note:
+References to `core/urls.py`, `core/urls_api.py`, `apps/**/api/urls.py`, `tasks.py`, and `admin.py` in the audit are descriptive targets that should exist in the Bunoraa repository for a real audit. They were not created or modified by this task because the visible repository was empty.

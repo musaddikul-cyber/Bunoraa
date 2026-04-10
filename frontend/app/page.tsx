@@ -214,7 +214,6 @@ export default async function Home() {
     (band) => band.products.length > 0
   );
   const showByCategories = await getShowByCategories(localeHeaders);
-  const topCategoryChips = categoryBandsWithProducts.map((band) => band.category);
   const collections = asArray<Collection>(homepageData.collections);
   const brandName = pickText(siteSettings?.site_name);
   const heroDescription = pickText(
@@ -266,29 +265,13 @@ export default async function Home() {
 
   return (
     <div className="bg-background text-foreground">
-      <section className="border-b border-border/70">
-        <div className={`${sectionWrapperClass} py-6`}>
+      <section>
+        <div className={`${sectionWrapperClass} pb-6`}>
           {heroBanners.length ? (
             <HeroBannerSlider banners={heroBanners} className="mx-auto" />
           ) : (
             <div className="aspect-[16/7] w-full bg-muted" />
           )}
-          {topCategoryChips.length ? (
-            <div className="mt-6 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-foreground/70">
-              {topCategoryChips.map((category) => (
-                <Link
-                  key={category.id}
-                  href={buildCategoryPath(category.slug)}
-                  className="hover:text-foreground"
-                >
-                  {category.name}
-                </Link>
-              ))}
-              <Link href="/products/" className="hover:text-foreground">
-                View All
-              </Link>
-            </div>
-          ) : null}
         </div>
       </section>
 

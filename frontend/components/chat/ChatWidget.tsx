@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Paperclip, X } from "lucide-react";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import { getAccessToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
@@ -23,6 +24,15 @@ type ChatAgent = {
   role?: string;
 };
 
+type ChatAttachment = {
+  id: string;
+  file?: string | null;
+  file_name?: string;
+  file_type?: string;
+  file_size?: number;
+  download_url?: string | null;
+};
+
 type ChatMessage = {
   id: string;
   content: string;
@@ -32,6 +42,7 @@ type ChatMessage = {
   sender_display_name?: string;
   sender_avatar_url?: string | null;
   sender_role?: string;
+  attachments?: ChatAttachment[];
   created_at: string;
 };
 
@@ -76,14 +87,38 @@ function initials(name?: string) {
   return chunks.map((part) => part[0]?.toUpperCase() || "").join("");
 }
 
+function formatFileSize(size?: number) {
+  if (!size || size <= 0) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function ChatWidget() {
   const queryClient = useQueryClient();
   const { hasToken } = useAuthContext();
   const wsEnabled = (process.env.NEXT_PUBLIC_WS_ENABLED || "").toLowerCase() === "true";
   const [open, setOpen] = React.useState(false);
   const [input, setInput] = React.useState("");
+  const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
   const [wsState, setWsState] = React.useState<"idle" | "connecting" | "open" | "error">("idle");
   const autoGreetingSentRef = React.useRef(false);
+  const composerRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const resizeComposer = React.useCallback(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    const computedStyles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(computedStyles.lineHeight) || 20;
+    const maxHeight = Math.round(lineHeight * 5 + 16);
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, []);
 
   const activeConversation = useQuery({
     queryKey: ["chat", "active"],
@@ -128,7 +163,19 @@ export function ChatWidget() {
   });
 
   const sendMessage = useMutation({
-    mutationFn: async (payload: { conversation: string; content: string }) => {
+    mutationFn: async (payload: { conversation: string; content: string; files?: File[] }) => {
+      const files = payload.files || [];
+      if (files.length > 0) {
+        const formData = new FormData();
+        formData.append("conversation", payload.conversation);
+        formData.append("content", payload.content);
+        formData.append("message_type", files.some((file) => file.type.startsWith("image/")) ? "image" : "file");
+        files.forEach((file) => formData.append("attachments", file, file.name));
+        return apiFetch("/chat/messages/", {
+          method: "POST",
+          body: formData,
+        });
+      }
       return apiFetch("/chat/messages/", {
         method: "POST",
         body: { conversation: payload.conversation, content: payload.content, message_type: "text" },
@@ -223,20 +270,72 @@ export function ChatWidget() {
     };
   }, [conversationId, hasToken, open, queryClient, wsEnabled]);
 
+  React.useEffect(() => {
+    resizeComposer();
+  }, [input, resizeComposer]);
+
   const messages = conversationDetail.data?.messages || activeConversation.data?.messages || [];
   const assignedAgent = conversationDetail.data?.agent || activeConversation.data?.agent;
+  const receiverName = assignedAgent?.display_name || "Support team";
+  const isSubmitting = sendMessage.isPending || createConversation.isPending;
+
+  const handlePickFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (!selectedFiles.length) return;
+    setPendingFiles((previous) => [...previous, ...selectedFiles].slice(0, 5));
+    event.target.value = "";
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles((previous) => previous.filter((_, fileIndex) => fileIndex !== index));
+  };
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || !hasToken) return;
+    const files = pendingFiles;
+    if ((!text && files.length === 0) || !hasToken) return;
+
+    const draftedText = input;
+    const draftedFiles = pendingFiles;
     setInput("");
+    setPendingFiles([]);
 
-    if (conversationId) {
-      await sendMessage.mutateAsync({ conversation: conversationId, content: text });
-      return;
+    try {
+      let targetConversationId = conversationId;
+      const startedWithoutConversation = !targetConversationId;
+
+      if (!targetConversationId) {
+        autoGreetingSentRef.current = true;
+        const bootstrapText = text || "Hello! How can we help you today?";
+        const createdConversation = await createConversation.mutateAsync(bootstrapText);
+        targetConversationId = createdConversation.id;
+
+        if (files.length === 0) return;
+      }
+
+      if (!targetConversationId) return;
+
+      const fallbackAttachmentLabel =
+        files.length === 1
+          ? `[Attachment: ${files[0].name}]`
+          : `[Attachments: ${files.length} files]`;
+      const contentForSend =
+        files.length > 0
+          ? text && !startedWithoutConversation
+            ? text
+            : fallbackAttachmentLabel
+          : text;
+
+      await sendMessage.mutateAsync({
+        conversation: targetConversationId,
+        content: contentForSend,
+        files,
+      });
+    } catch (error) {
+      setInput(draftedText);
+      setPendingFiles(draftedFiles);
+      throw error;
     }
-
-    await createConversation.mutateAsync(text);
   };
 
   return (
@@ -262,83 +361,86 @@ export function ChatWidget() {
             aria-label="Close support chat"
           />
           <div className="chat-widget-mobile-open-offset fixed inset-x-3 bottom-3 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6">
-            <div className="chat-widget-mobile-panel flex h-[min(78dvh,34rem)] min-h-[22rem] w-full flex-col overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-xl sm:h-[38rem] sm:w-96">
+            <div className="chat-widget-mobile-panel flex h-[min(86dvh,41rem)] min-h-[24rem] w-full flex-col overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-xl sm:h-[44rem] sm:w-96">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <div className="relative h-8 w-8 overflow-hidden rounded-full bg-muted">
+                <div className="relative h-7 w-7 overflow-hidden rounded-full bg-muted">
                   {assignedAgent?.avatar_url ? (
                     <Image
                       src={assignedAgent.avatar_url}
-                      alt={assignedAgent.display_name || "Support"}
+                      alt={receiverName}
                       fill
-                      sizes="32px"
+                      sizes="28px"
                       unoptimized
                       className="object-cover"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-foreground/60">
-                      {initials(assignedAgent?.display_name || "Support")}
+                      {initials(receiverName)}
                     </div>
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">Support chat</p>
+                  <p className="text-sm font-semibold leading-tight">{receiverName}</p>
                   <p className="text-[11px] text-foreground/60">
-                    {wsState === "open" ? "Live" : wsState === "connecting" ? "Connecting..." : "Offline"}
+                    Support chat{" "}
+                    {wsState === "open" ? " - Live" : wsState === "connecting" ? " - Connecting..." : " - Offline"}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                className="rounded-full border border-border bg-background/80 px-2.5 py-1 text-xs text-foreground/70 shadow-sm transition hover:bg-muted hover:text-foreground"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background/80 text-foreground/70 shadow-sm transition hover:bg-muted hover:text-foreground"
                 onClick={() => setOpen(false)}
                 aria-label="Close chat"
               >
-                Close
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             {!hasToken ? (
-              <div className="flex h-full flex-col items-start justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-background/60 p-4">
+              <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-background/60 p-4 text-center">
                 <p className="text-sm text-foreground/70">
                   Sign in to start a secure support chat with your account.
                 </p>
                 <Link
                   href="/account/login/"
-                  className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white"
+                  className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white"
                 >
                   Sign in
                 </Link>
               </div>
             ) : (
               <>
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 text-sm">
+                <div
+                  className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto -mr-2 pr-3 text-sm"
+                  style={{ scrollbarGutter: "stable" }}
+                >
                   {messages.length === 0 ? (
                     <p className="text-foreground/60">Start a conversation.</p>
                   ) : (
                     messages.map((msg) => {
                       const isMine = msg.is_from_customer;
-                      const displayName = msg.sender_display_name || msg.sender?.full_name || "Support";
-                      const avatarUrl = msg.sender_avatar_url || msg.sender?.avatar_url || null;
+                      const avatarUrl = msg.sender_avatar_url || msg.sender?.avatar_url || assignedAgent?.avatar_url || null;
                       return (
                         <div
                           key={msg.id}
                           className={cn("flex gap-2", isMine ? "justify-end" : "justify-start")}
                         >
                           {!isMine ? (
-                            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-muted">
+                            <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-muted">
                               {avatarUrl ? (
                                 <Image
                                   src={avatarUrl}
-                                  alt={displayName}
+                                  alt={receiverName}
                                   fill
-                                  sizes="32px"
+                                  sizes="28px"
                                   unoptimized
                                   className="object-cover"
                                 />
                               ) : (
                                 <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-foreground/60">
-                                  {initials(displayName)}
+                                  {initials(receiverName)}
                                 </div>
                               )}
                             </div>
@@ -349,21 +451,88 @@ export function ChatWidget() {
                               isMine ? "bg-primary text-white" : "bg-muted"
                             )}
                           >
-                            {!isMine ? (
-                              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-foreground/60">
-                                {displayName}
-                              </p>
-                            ) : null}
                             <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                            {msg.attachments?.length ? (
+                              <div className="mt-2 space-y-1.5">
+                                {msg.attachments.map((attachment) => {
+                                  const fileUrl = attachment.download_url || attachment.file;
+                                  if (!fileUrl) return null;
+                                  return (
+                                    <a
+                                      key={attachment.id}
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={cn(
+                                        "flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-[11px]",
+                                        isMine
+                                          ? "border-white/25 bg-white/10 text-white hover:bg-white/15"
+                                          : "border-border bg-background/70 text-foreground hover:bg-background"
+                                      )}
+                                    >
+                                      <span className="flex min-w-0 items-center gap-1.5">
+                                        <Paperclip className="h-3 w-3 shrink-0" />
+                                        <span className="truncate">{attachment.file_name || "Attachment"}</span>
+                                      </span>
+                                      <span className={cn("shrink-0", isMine ? "text-white/80" : "text-foreground/60")}>
+                                        {formatFileSize(attachment.file_size)}
+                                      </span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       );
                     })
                   )}
                 </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 space-y-2">
+                  {pendingFiles.length > 0 ? (
+                    <div className="scrollbar-thin max-h-20 space-y-1 overflow-y-auto pr-1">
+                      {pendingFiles.map((file, index) => (
+                        <div
+                          key={`${file.name}-${file.size}-${index}`}
+                          className="flex items-center justify-between rounded-md border border-border bg-background/70 px-2 py-1 text-xs"
+                        >
+                          <span className="truncate text-foreground/80">
+                            {file.name} {formatFileSize(file.size) ? `(${formatFileSize(file.size)})` : ""}
+                          </span>
+                          <button
+                            type="button"
+                            className="ml-2 flex h-5 w-5 min-h-5 min-w-5 items-center justify-center rounded-full text-foreground/70 hover:bg-muted hover:text-foreground"
+                            onClick={() => removePendingFile(index)}
+                            aria-label={`Remove ${file.name}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   <input
-                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handlePickFiles}
+                    disabled={isSubmitting}
+                  />
+                  <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 min-h-8 min-w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground/70 transition hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSubmitting}
+                    aria-label="Add files"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                  </button>
+                  <textarea
+                    ref={composerRef}
+                    rows={1}
+                    className="scrollbar-thin flex-1 resize-none rounded-lg border border-border bg-background px-3 py-1.5 text-[13px] leading-5"
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
                     onKeyDown={(event) => {
@@ -373,16 +542,17 @@ export function ChatWidget() {
                       }
                     }}
                     placeholder="Type a message"
-                    disabled={sendMessage.isPending || createConversation.isPending}
+                    disabled={isSubmitting}
                   />
                   <button
                     type="button"
-                    className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    className="h-8 min-h-8 self-end rounded-lg bg-primary px-2.5 text-[11px] font-semibold text-white disabled:opacity-60"
                     onClick={handleSend}
-                    disabled={sendMessage.isPending || createConversation.isPending}
+                    disabled={isSubmitting}
                   >
                     Send
                   </button>
+                </div>
                 </div>
               </>
             )}

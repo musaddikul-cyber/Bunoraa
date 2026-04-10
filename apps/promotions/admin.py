@@ -1,7 +1,10 @@
 """
 Promotions admin configuration
 """
+from decimal import Decimal
+
 from django.contrib import admin
+from django import forms
 from .models import Coupon, CouponUsage, Banner, Sale
 from core.admin_mixins import ImportExportEnhancedModelAdmin
 
@@ -52,8 +55,38 @@ class CouponUsageAdmin(ImportExportEnhancedModelAdmin):
     readonly_fields = ['coupon', 'user', 'order', 'discount_applied', 'currency', 'created_at']
 
 
+class BannerAdminForm(forms.ModelForm):
+    overlay_opacity_percent = forms.IntegerField(
+        required=False,
+        min_value=0,
+        max_value=100,
+        label="Overlay opacity (%)",
+        help_text="Set overlay transparency as a percentage (0 to 100).",
+    )
+
+    class Meta:
+        model = Banner
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.overlay_opacity is not None:
+            self.fields["overlay_opacity_percent"].initial = int(
+                round(float(self.instance.overlay_opacity) * 100)
+            )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        percentage = cleaned_data.get("overlay_opacity_percent")
+        cleaned_data["overlay_opacity"] = (
+            None if percentage in (None, "") else (Decimal(percentage) / Decimal("100"))
+        )
+        return cleaned_data
+
+
 @admin.register(Banner)
 class BannerAdmin(ImportExportEnhancedModelAdmin):
+    form = BannerAdminForm
     list_display = [
         'title', 'position', 'is_visible', 'sort_order',
         'start_date', 'end_date', 'is_active'
@@ -78,7 +111,11 @@ class BannerAdmin(ImportExportEnhancedModelAdmin):
                 'style_height', 'style_width', 'style_max_width',
                 'style_border_radius', 'style_border_width',
                 'style_border_color', 'style_background_color',
-                'overlay_color', 'overlay_opacity', 'text_color'
+                'overlay_color', 'overlay_opacity_percent', 'text_color',
+                'content_vertical_position', 'content_horizontal_alignment',
+                'title_font_size', 'subtitle_font_size',
+                'button_alignment', 'button_font_size',
+                'button_padding', 'button_min_height'
             ),
             'classes': ('collapse',),
         }),

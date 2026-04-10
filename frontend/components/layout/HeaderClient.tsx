@@ -203,14 +203,6 @@ export function HeaderClient() {
                 ) : null}
               </div>
               <Link
-                href="/account/dashboard/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                Dashboard
-              </Link>
-              <Link
                 href="/account/profile/"
                 className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 role="menuitem"

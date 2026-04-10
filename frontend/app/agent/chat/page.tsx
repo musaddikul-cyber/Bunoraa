@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Paperclip, X } from "lucide-react";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +14,15 @@ import { cn } from "@/lib/utils";
 
 const statusOptions = ["all", "open", "waiting", "active", "resolved", "closed"];
 
+type MessageAttachment = {
+  id: string;
+  file?: string | null;
+  file_name?: string;
+  file_type?: string;
+  file_size?: number;
+  download_url?: string | null;
+};
+
 type Message = {
   id: string;
   content: string;
@@ -21,6 +31,7 @@ type Message = {
   message_type?: string;
   sender_display_name?: string | null;
   sender_avatar_url?: string | null;
+  attachments?: MessageAttachment[];
   created_at: string;
 };
 
@@ -68,6 +79,13 @@ function initials(name?: string | null) {
     .join("");
 }
 
+function formatFileSize(size?: number) {
+  if (!size || size <= 0) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function Avatar({ name, url }: { name?: string | null; url?: string | null }) {
   return (
     <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-muted">
@@ -101,6 +119,7 @@ function AgentChatConsole() {
   const [customerScope, setCustomerScope] = React.useState("");
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [messageInput, setMessageInput] = React.useState("");
+  const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
   const [noteDraft, setNoteDraft] = React.useState("");
   const [emailSubject, setEmailSubject] = React.useState("");
   const [emailBody, setEmailBody] = React.useState("");
@@ -109,6 +128,20 @@ function AgentChatConsole() {
   const [targetSubject, setTargetSubject] = React.useState("Support");
   const [typingUsers, setTypingUsers] = React.useState<Record<string, boolean>>({});
   const socketRef = React.useRef<WebSocket | null>(null);
+  const composerRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const resizeComposer = React.useCallback(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const computedStyles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(computedStyles.lineHeight) || 20;
+    const maxHeight = Math.round(lineHeight * 5 + 16);
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, []);
 
   const agentProfile = useQuery({
     queryKey: ["agent", "me"],
@@ -148,6 +181,8 @@ function AgentChatConsole() {
   });
 
   React.useEffect(() => setNoteDraft(selectedConversation.data?.internal_notes || ""), [selectedConversation.data?.internal_notes]);
+  React.useEffect(() => resizeComposer(), [messageInput, resizeComposer]);
+  React.useEffect(() => setPendingFiles([]), [selectedId]);
 
   React.useEffect(() => {
     const conversation = selectedConversation.data;
@@ -214,8 +249,18 @@ function AgentChatConsole() {
   });
 
   const sendMessage = useMutation({
-    mutationFn: async (payload: { conversation: string; content: string }) =>
-      apiFetch<Message>("/chat/messages/", { method: "POST", body: { ...payload, message_type: "text" } }),
+    mutationFn: async (payload: { conversation: string; content: string; files?: File[] }) => {
+      const files = payload.files || [];
+      if (files.length > 0) {
+        const formData = new FormData();
+        formData.append("conversation", payload.conversation);
+        formData.append("content", payload.content);
+        formData.append("message_type", files.some((file) => file.type.startsWith("image/")) ? "image" : "file");
+        files.forEach((file) => formData.append("attachments", file, file.name));
+        return apiFetch<Message>("/chat/messages/", { method: "POST", body: formData });
+      }
+      return apiFetch<Message>("/chat/messages/", { method: "POST", body: { ...payload, message_type: "text" } });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agent", "conversation", selectedId] }),
   });
 
@@ -252,6 +297,42 @@ function AgentChatConsole() {
     const q = cannedQuery.toLowerCase();
     return !q || item.title.toLowerCase().includes(q) || item.shortcut.toLowerCase().includes(q) || item.content.toLowerCase().includes(q);
   });
+
+  const isSending = sendMessage.isPending;
+
+  const handlePickFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    if (!selectedFiles.length) return;
+    setPendingFiles((previous) => [...previous, ...selectedFiles].slice(0, 5));
+    event.target.value = "";
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles((previous) => previous.filter((_, fileIndex) => fileIndex !== index));
+  };
+
+  const handleSendMessage = async () => {
+    const text = messageInput.trim();
+    if (!selectedId || (!text && pendingFiles.length === 0)) return;
+
+    const draftedText = messageInput;
+    const draftedFiles = pendingFiles;
+    const fallbackAttachmentLabel =
+      pendingFiles.length === 1
+        ? `[Attachment: ${pendingFiles[0].name}]`
+        : `[Attachments: ${pendingFiles.length} files]`;
+    const content = text || fallbackAttachmentLabel;
+
+    setMessageInput("");
+    setPendingFiles([]);
+    try {
+      await sendMessage.mutateAsync({ conversation: selectedId, content, files: pendingFiles });
+    } catch (error) {
+      setMessageInput(draftedText);
+      setPendingFiles(draftedFiles);
+      throw error;
+    }
+  };
 
   if (profileQuery.isLoading) return <div className="p-8 text-sm text-foreground/70">Loading...</div>;
   if (!isStaff) return <div className="p-8 text-sm text-foreground/70">Staff access required.</div>;
@@ -321,25 +402,148 @@ function AgentChatConsole() {
           {selectedConversation.data && (
             <div className="flex h-full flex-col gap-3">
               <div className="border-b border-border pb-3">
-                <div className="text-2xl font-semibold">{selectedConversation.data.subject || "Conversation"}</div>
-                <div className="text-sm text-foreground/70">{selectedConversation.data.customer_name || selectedConversation.data.customer_email || "Guest"}</div>
+                <div className="flex items-center gap-2">
+                  <Avatar
+                    name={selectedConversation.data.customer_name || selectedConversation.data.customer_email}
+                    url={selectedConversation.data.customer_avatar_url || null}
+                  />
+                  <div>
+                    <div className="text-sm font-semibold">
+                      {selectedConversation.data.customer_name || selectedConversation.data.customer_email || "Guest"}
+                    </div>
+                    <div className="text-xs text-foreground/60">
+                      {selectedConversation.data.subject || "Conversation"}
+                    </div>
+                  </div>
+                </div>
                 {Object.values(typingUsers).some(Boolean) && <div className="text-xs text-primary">Customer typing...</div>}
               </div>
-              <div className="flex-1 space-y-2 overflow-y-auto">
+              <div
+                className="scrollbar-thin flex-1 space-y-3 overflow-y-auto -mr-2 pr-3"
+                style={{ scrollbarGutter: "stable" }}
+              >
                 {messages.map((msg) => (
-                  <div key={msg.id} className={cn("rounded-xl border p-3", msg.is_from_customer ? "border-border bg-muted/40" : "border-primary/20 bg-primary/10")}>
-                    <div className="mb-2 flex items-center gap-2 text-xs text-foreground/60">
-                      <Avatar name={msg.sender_display_name || "User"} url={msg.sender_avatar_url || null} />
-                      <span>{msg.sender_display_name || (msg.is_from_customer ? "Customer" : "Support")}</span>
-                      <span>{new Date(msg.created_at).toLocaleTimeString()}</span>
+                  <div key={msg.id} className={cn("flex gap-2", msg.is_from_customer ? "justify-start" : "justify-end")}>
+                    {msg.is_from_customer ? (
+                      <Avatar
+                        name={selectedConversation.data?.customer_name || selectedConversation.data?.customer_email || "Customer"}
+                        url={msg.sender_avatar_url || selectedConversation.data?.customer_avatar_url || null}
+                      />
+                    ) : null}
+                    <div
+                      className={cn(
+                        "max-w-[80%] rounded-2xl px-3 py-2",
+                        msg.is_from_customer ? "bg-muted text-foreground" : "bg-primary text-white"
+                      )}
+                    >
+                      <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
+                      {msg.attachments?.length ? (
+                        <div className="mt-2 space-y-1.5">
+                          {msg.attachments.map((attachment) => {
+                            const fileUrl = attachment.download_url || attachment.file;
+                            if (!fileUrl) return null;
+                            return (
+                              <a
+                                key={attachment.id}
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={cn(
+                                  "flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-[11px]",
+                                  msg.is_from_customer
+                                    ? "border-border bg-background/70 text-foreground hover:bg-background"
+                                    : "border-white/25 bg-white/10 text-white hover:bg-white/15"
+                                )}
+                              >
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  <Paperclip className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{attachment.file_name || "Attachment"}</span>
+                                </span>
+                                <span className={cn("shrink-0", msg.is_from_customer ? "text-foreground/60" : "text-white/80")}>
+                                  {formatFileSize(attachment.file_size)}
+                                </span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      <div className={cn("mt-1 text-[10px]", msg.is_from_customer ? "text-foreground/50" : "text-white/80")}>
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </div>
                     </div>
-                    <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
                   </div>
                 ))}
               </div>
-              <textarea className="h-24 w-full resize-none rounded border border-border bg-background px-3 py-2 text-sm" value={messageInput} onChange={(e) => { setMessageInput(e.target.value); markTyping(); }} placeholder="Type a response" />
+              <div className="space-y-2">
+                {pendingFiles.length > 0 ? (
+                  <div className="scrollbar-thin max-h-20 space-y-1 overflow-y-auto pr-1">
+                    {pendingFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.size}-${index}`}
+                        className="flex items-center justify-between rounded-md border border-border bg-background/70 px-2 py-1 text-xs"
+                      >
+                        <span className="truncate text-foreground/80">
+                          {file.name} {formatFileSize(file.size) ? `(${formatFileSize(file.size)})` : ""}
+                        </span>
+                        <button
+                          type="button"
+                          className="ml-2 flex h-5 w-5 min-h-5 min-w-5 items-center justify-center rounded-full text-foreground/70 hover:bg-muted hover:text-foreground"
+                          onClick={() => removePendingFile(index)}
+                          aria-label={`Remove ${file.name}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handlePickFiles}
+                  disabled={isSending}
+                />
+                <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 min-h-8 min-w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground/70 transition hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSending}
+                    aria-label="Add files"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                  </button>
+                  <textarea
+                    ref={composerRef}
+                    rows={1}
+                    className="scrollbar-thin flex-1 resize-none rounded border border-border bg-background px-3 py-1.5 text-sm leading-5"
+                    value={messageInput}
+                    onChange={(event) => {
+                      setMessageInput(event.target.value);
+                      markTyping();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void handleSendMessage();
+                      }
+                    }}
+                    placeholder="Type a response"
+                    disabled={isSending}
+                  />
+                  <button
+                    type="button"
+                    className="h-8 min-h-8 self-end rounded-lg bg-primary px-2.5 text-[11px] font-semibold text-white disabled:opacity-60"
+                    onClick={() => void handleSendMessage()}
+                    disabled={isSending}
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" onClick={() => { if (!selectedId || !messageInput.trim()) return; sendMessage.mutate({ conversation: selectedId, content: messageInput.trim() }); setMessageInput(""); }}>Send</Button>
                 <Button size="sm" variant="secondary" onClick={() => selectedId && saveNotes.mutate({ conversationId: selectedId, internal_notes: noteDraft })}>Save Notes</Button>
               </div>
               <textarea className="h-20 w-full resize-none rounded border border-border bg-background px-3 py-2 text-xs" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Internal notes" />

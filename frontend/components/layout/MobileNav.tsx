@@ -232,13 +232,6 @@ export function MobileNav({
                       </p>
                     ) : null}
                     <Link
-                      className={navLinkClass("/account/dashboard/")}
-                      href="/account/dashboard/"
-                      onClick={closeNav}
-                    >
-                      Dashboard
-                    </Link>
-                    <Link
                       className={navLinkClass("/account/profile/")}
                       href="/account/profile/"
                       onClick={closeNav}

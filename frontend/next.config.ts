@@ -74,7 +74,8 @@ const nextConfig: NextConfig = {
       { source: "/catalog/category/:path*", destination: "/categories/:path*", permanent: true },
       { source: "/products/category/:path*", destination: "/categories/:path*", permanent: true },
       { source: "/categories/category/:path*", destination: "/categories/:path*", permanent: true },
-      { source: "/account/", destination: "/account/dashboard/", permanent: false },
+      { source: "/account/", destination: "/account/profile/", permanent: false },
+      { source: "/account/dashboard/", destination: "/account/profile/", permanent: false },
       {
         source: "/account/notifications/preferences/",
         destination: "/account/notifications/",

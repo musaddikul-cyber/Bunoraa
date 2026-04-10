@@ -50,7 +50,11 @@ class BannerSerializer(serializers.ModelSerializer):
             'style_height', 'style_width', 'style_max_width',
             'style_border_radius', 'style_border_width',
             'style_border_color', 'style_background_color',
-            'overlay_color', 'overlay_opacity', 'text_color'
+            'overlay_color', 'overlay_opacity', 'text_color',
+            'content_vertical_position', 'content_horizontal_alignment',
+            'button_alignment',
+            'title_font_size', 'subtitle_font_size',
+            'button_font_size', 'button_padding', 'button_min_height'
         ]
 
 

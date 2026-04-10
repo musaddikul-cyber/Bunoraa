@@ -466,6 +466,60 @@ class Banner(models.Model):
         help_text="Overlay opacity from 0 to 1 (e.g. 0.6)."
     )
     text_color = ColorField(blank=True, null=True)
+    CONTENT_VERTICAL_TOP = 'top'
+    CONTENT_VERTICAL_CENTER = 'center'
+    CONTENT_VERTICAL_BOTTOM = 'bottom'
+    CONTENT_VERTICAL_CHOICES = [
+        (CONTENT_VERTICAL_TOP, 'Top'),
+        (CONTENT_VERTICAL_CENTER, 'Center'),
+        (CONTENT_VERTICAL_BOTTOM, 'Bottom'),
+    ]
+    content_vertical_position = models.CharField(
+        max_length=10,
+        choices=CONTENT_VERTICAL_CHOICES,
+        default=CONTENT_VERTICAL_BOTTOM,
+        help_text="Vertical placement of title/subtitle/button block."
+    )
+    CONTENT_ALIGN_LEFT = 'left'
+    CONTENT_ALIGN_CENTER = 'center'
+    CONTENT_ALIGN_RIGHT = 'right'
+    CONTENT_ALIGN_CHOICES = [
+        (CONTENT_ALIGN_LEFT, 'Left'),
+        (CONTENT_ALIGN_CENTER, 'Center'),
+        (CONTENT_ALIGN_RIGHT, 'Right'),
+    ]
+    content_horizontal_alignment = models.CharField(
+        max_length=10,
+        choices=CONTENT_ALIGN_CHOICES,
+        default=CONTENT_ALIGN_LEFT,
+        help_text="Horizontal alignment for title/subtitle content."
+    )
+    button_alignment = models.CharField(
+        max_length=10,
+        choices=CONTENT_ALIGN_CHOICES,
+        default=CONTENT_ALIGN_LEFT,
+        help_text="Horizontal alignment for button."
+    )
+    title_font_size = models.CharField(
+        max_length=20, blank=True,
+        help_text="CSS font-size for title (e.g. 32px, 2rem)."
+    )
+    subtitle_font_size = models.CharField(
+        max_length=20, blank=True,
+        help_text="CSS font-size for subtitle (e.g. 16px, 1rem)."
+    )
+    button_font_size = models.CharField(
+        max_length=20, blank=True,
+        help_text="CSS font-size for button text (e.g. 12px, 0.875rem)."
+    )
+    button_padding = models.CharField(
+        max_length=30, blank=True,
+        help_text="CSS padding for button (e.g. 6px 16px)."
+    )
+    button_min_height = models.CharField(
+        max_length=20, blank=True,
+        help_text="CSS min-height for button (e.g. 40px)."
+    )
 
     # Positioning
     POSITION_HOME_HERO = 'home_hero'

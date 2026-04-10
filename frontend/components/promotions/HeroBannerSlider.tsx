@@ -21,6 +21,14 @@ export type HeroBanner = {
   overlay_color?: string | null;
   overlay_opacity?: string | number | null;
   text_color?: string | null;
+  content_vertical_position?: "top" | "center" | "bottom" | null;
+  content_horizontal_alignment?: "left" | "center" | "right" | null;
+  button_alignment?: "left" | "center" | "right" | null;
+  title_font_size?: string | null;
+  subtitle_font_size?: string | null;
+  button_font_size?: string | null;
+  button_padding?: string | null;
+  button_min_height?: string | null;
 };
 
 const toCssValue = (value?: string | null) =>
@@ -56,7 +64,7 @@ export function HeroBannerSlider({
 }) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const total = banners.length;
-  const defaultHeight = "clamp(220px, 52vh, 420px)";
+  const defaultHeight = "calc(100dvh - var(--header-offset, 5.5rem))";
 
   React.useEffect(() => {
     if (total <= 1) return;
@@ -75,25 +83,41 @@ export function HeroBannerSlider({
   if (!total) return null;
 
   const primary = banners[0];
-  const activeBanner = banners[Math.min(activeIndex, total - 1)] || primary;
   const containerStyle: React.CSSProperties = {
     height: toCssValue(primary.style_height) || defaultHeight,
     width: toCssValue(primary.style_width),
     maxWidth: toCssValue(primary.style_max_width),
   };
-  const wrapperStyle: React.CSSProperties = {
-    borderRadius: toCssValue(activeBanner.style_border_radius),
-  };
 
   return (
     <div className={cn("w-full", className)} style={containerStyle}>
-      <div className="relative h-full overflow-hidden rounded-2xl" style={wrapperStyle}>
+      <div className="relative h-full overflow-hidden">
         {banners.map((banner, index) => {
           const isActive = index === activeIndex;
           const borderWidth = toCssValue(banner.style_border_width);
           const borderColor = banner.style_border_color || undefined;
           const resolvedBorderWidth = borderWidth || (borderColor ? "1px" : undefined);
-          const borderRadius = toCssValue(banner.style_border_radius);
+          const contentVerticalPosition = banner.content_vertical_position || "bottom";
+          const contentHorizontalAlignment = banner.content_horizontal_alignment || "left";
+          const buttonAlignment = banner.button_alignment || contentHorizontalAlignment;
+          const verticalPositionClass =
+            contentVerticalPosition === "top"
+              ? "justify-start"
+              : contentVerticalPosition === "center"
+                ? "justify-center"
+                : "justify-end";
+          const horizontalAlignmentClass =
+            contentHorizontalAlignment === "center"
+              ? "items-center text-center"
+              : contentHorizontalAlignment === "right"
+                ? "items-end text-right"
+                : "items-start text-left";
+          const buttonAlignmentClass =
+            buttonAlignment === "center"
+              ? "self-center"
+              : buttonAlignment === "right"
+                ? "self-end"
+                : "self-start";
           const overlayOpacityValue =
             banner.overlay_opacity === null || banner.overlay_opacity === undefined
               ? 0.6
@@ -107,7 +131,6 @@ export function HeroBannerSlider({
 
           const slideStyle: React.CSSProperties = {
             height: "100%",
-            borderRadius,
             borderWidth: resolvedBorderWidth,
             borderColor,
             borderStyle: resolvedBorderWidth || borderColor ? "solid" : undefined,
@@ -116,6 +139,17 @@ export function HeroBannerSlider({
 
           const textStyle: React.CSSProperties = {
             color: banner.text_color || undefined,
+          };
+          const titleStyle: React.CSSProperties = {
+            fontSize: toCssValue(banner.title_font_size),
+          };
+          const subtitleStyle: React.CSSProperties = {
+            fontSize: toCssValue(banner.subtitle_font_size),
+          };
+          const buttonStyle: React.CSSProperties = {
+            fontSize: toCssValue(banner.button_font_size),
+            padding: toCssValue(banner.button_padding),
+            minHeight: toCssValue(banner.button_min_height),
           };
 
           const overlayStyle: React.CSSProperties = overlayColor
@@ -138,24 +172,35 @@ export function HeroBannerSlider({
                   src={banner.image}
                   alt={banner.title}
                   className="h-full w-full object-cover"
-                  style={{ borderRadius: "inherit" }}
                 />
               </picture>
               <div
                 className={cn(
-                  "absolute inset-0 flex flex-col justify-end p-4 transition-opacity sm:p-6",
+                  "absolute inset-0 flex flex-col p-4 transition-opacity sm:p-6",
+                  verticalPositionClass,
+                  horizontalAlignmentClass,
                   overlayColor
                     ? ""
                     : "bg-gradient-to-t from-black/60 via-black/10 to-transparent"
                 )}
                 style={{ ...overlayStyle, ...textStyle }}
               >
-                <h2 className="text-xl font-semibold leading-tight sm:text-2xl">{banner.title}</h2>
+                <h2 className="text-xl font-semibold leading-tight sm:text-2xl" style={titleStyle}>
+                  {banner.title}
+                </h2>
                 {banner.subtitle ? (
-                  <p className="mt-2 text-xs opacity-90 sm:text-sm">{banner.subtitle}</p>
+                  <p className="mt-2 text-xs opacity-90 sm:text-sm" style={subtitleStyle}>
+                    {banner.subtitle}
+                  </p>
                 ) : null}
                 {banner.link_text ? (
-                  <span className="mt-4 inline-flex min-h-11 w-fit items-center rounded-full border border-current/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] sm:min-h-0">
+                  <span
+                    className={cn(
+                      "mt-4 inline-flex w-fit items-center rounded-full border border-current/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] sm:min-h-0",
+                      buttonAlignmentClass
+                    )}
+                    style={buttonStyle}
+                  >
                     {banner.link_text}
                   </span>
                 ) : null}
@@ -187,13 +232,13 @@ export function HeroBannerSlider({
       </div>
 
       {total > 1 ? (
-        <div className="mt-3 flex items-center justify-center gap-2">
+        <div className="mt-3 hidden items-center justify-center gap-1.5 sm:flex">
           {banners.map((banner, index) => (
             <button
               key={banner.id}
               type="button"
               className={cn(
-                "h-2.5 w-2.5 rounded-full border border-border",
+                "h-2 w-2 rounded-full border border-border",
                 index === activeIndex ? "bg-primary" : "bg-muted"
               )}
               onClick={() => setActiveIndex(index)}

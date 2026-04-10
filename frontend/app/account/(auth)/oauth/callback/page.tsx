@@ -14,7 +14,7 @@ function OAuthCallbackContent() {
   const searchParams = useSearchParams();
   const [error, setError] = React.useState<string | null>(null);
 
-  const nextUrl = searchParams.get("next") || "/account/dashboard/";
+  const nextUrl = searchParams.get("next") || "/account/profile/";
 
   React.useEffect(() => {
     let cancelled = false;

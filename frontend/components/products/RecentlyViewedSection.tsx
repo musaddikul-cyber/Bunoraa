@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Card } from "@/components/ui/Card";
 import { formatMoney } from "@/lib/money";
 import { apiFetch, ApiError } from "@/lib/api";
 import { getRecentlyViewed, setRecentlyViewed } from "@/lib/recentlyViewed";
 import { useLocale } from "@/components/providers/LocaleProvider";
+import { WishlistIconButton } from "@/components/wishlist/WishlistIconButton";
 import type { ProductDetail } from "@/lib/types";
 
 export function RecentlyViewedSection({
@@ -99,24 +99,61 @@ export function RecentlyViewedSection({
     <div className="space-y-4">
       <h3 className="text-lg font-semibold sm:text-xl">Recently viewed</h3>
       <div className="grid grid-flow-col auto-cols-[78%] gap-3 overflow-x-auto pb-1 snap-x snap-mandatory sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
-        {visibleItems.map((item) => (
-          <Card key={item.id} variant="bordered" className="snap-start flex flex-col gap-3">
-            <div className="aspect-[4/5] overflow-hidden rounded-xl bg-muted">
-              {item.primary_image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.primary_image} alt={item.name} className="h-full w-full object-cover" />
-              ) : null}
+        {visibleItems.map((item) => {
+          const aspectRatio = (item as any).aspect_ratio || (item as any).category?.aspect_ratio || "4/5";
+          let aspectRatioValue = 4 / 5; // default
+          try {
+            const [width, height] = aspectRatio.split('/').map(Number);
+            if (width && height) {
+              aspectRatioValue = width / height;
+            }
+          } catch {
+            aspectRatioValue = 4 / 5;
+          }
+
+          return (
+            <div key={item.id} className="snap-start group">
+              <div
+                className="relative overflow-hidden bg-muted"
+                style={{ aspectRatio: aspectRatioValue }}
+              >
+                <WishlistIconButton
+                  productId={item.id}
+                  variant="ghost"
+                  size="lg"
+                  color="fixed-black"
+                  className="absolute right-0 top-0 z-40 opacity-100 scale-75 transition sm:scale-100 sm:right-2 sm:top-2"
+                />
+                <Link
+                  href={`/products/${item.slug}/`}
+                  className="absolute inset-0 z-10"
+                  aria-label={`View ${item.name}`}
+                />
+                {item.primary_image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.primary_image}
+                    alt={item.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                  />
+                ) : null}
+              </div>
+              <div className="mt-3 space-y-1">
+                <Link
+                  href={`/products/${item.slug}/`}
+                  className="block text-sm font-medium leading-snug text-foreground"
+                >
+                  {item.name}
+                </Link>
+                <p className="text-sm text-foreground/70">
+                  {formatMoney(item.current_price, item.currency || "USD")}
+                </p>
+              </div>
             </div>
-            <div>
-              <Link href={`/products/${item.slug}/`} className="font-semibold">
-                {item.name}
-              </Link>
-              <p className="text-sm text-foreground/70">
-                {formatMoney(item.current_price, item.currency || "USD")}
-              </p>
-            </div>
-          </Card>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

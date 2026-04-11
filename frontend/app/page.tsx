@@ -10,6 +10,10 @@ import type {
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { HomeProductTabs } from "@/components/products/HomeProductTabs";
+import {
+  HomeCategoryTabs,
+  type HomeCategoryTabBand,
+} from "@/components/products/HomeCategoryTabs";
 import { HeroBannerSlider, type HeroBanner } from "@/components/promotions/HeroBannerSlider";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
@@ -37,14 +41,10 @@ type FeaturedCategory = {
 
 type Spotlight = {
   id: string;
-  name: string;
-  placement?: string | null;
+  name?: string;
+  placement?: string;
   product?: ProductListItem | null;
   category?: FeaturedCategory | null;
-  start?: string | null;
-  end?: string | null;
-  priority?: number | null;
-  is_active?: boolean | null;
 };
 
 type HomepageData = {
@@ -55,17 +55,11 @@ type HomepageData = {
   featured_categories: FeaturedCategory[];
   collections: Collection[];
   spotlights?: Spotlight[];
+  show_by_categories?: FeaturedCategory[];
 };
 
 type Banner = HeroBanner & {
   position?: string | null;
-};
-
-type CategorySummary = {
-  id: string;
-  name: string;
-  slug: string;
-  image?: string | null;
 };
 
 const DEFAULT_HOMEPAGE_DATA: HomepageData = {
@@ -76,6 +70,7 @@ const DEFAULT_HOMEPAGE_DATA: HomepageData = {
   featured_categories: [],
   collections: [],
   spotlights: [],
+  show_by_categories: [],
 };
 
 const pickText = (...values: Array<string | null | undefined>) => {
@@ -119,6 +114,7 @@ async function getHomepageData(headers: Record<string, string>) {
       ),
       collections: asArray<Collection>((payload as HomepageData).collections),
       spotlights: asArray<Spotlight>((payload as HomepageData).spotlights),
+      show_by_categories: asArray<FeaturedCategory>((payload as HomepageData).show_by_categories),
     };
   } catch {
     return DEFAULT_HOMEPAGE_DATA;
@@ -167,19 +163,6 @@ async function getCategoryProducts(headers: Record<string, string>, slug: string
   }
 }
 
-async function getShowByCategories(headers: Record<string, string>) {
-  try {
-    const response = await apiFetch<CategorySummary[]>("/catalog/categories/", {
-      headers,
-      params: { page_size: 3, has_products: true },
-      next: { revalidate },
-    });
-    return asArray<CategorySummary>(response.data);
-  } catch {
-    return [] as CategorySummary[];
-  }
-}
-
 export default async function Home() {
   const localeHeaders = await getServerLocaleHeaders();
   const [
@@ -196,8 +179,9 @@ export default async function Home() {
   const newArrivals = asArray<ProductListItem>(homepageData.new_arrivals);
   const bestsellers = asArray<ProductListItem>(homepageData.bestsellers);
   const onSale = asArray<ProductListItem>(homepageData.on_sale);
-  const spotlights = asArray<Spotlight>(homepageData.spotlights);
   const featuredCategories = asArray<FeaturedCategory>(homepageData.featured_categories);
+  const spotlights = asArray<Spotlight>(homepageData.spotlights);
+  const showByCategories = asArray<FeaturedCategory>(homepageData.show_by_categories);
   const featuredCategoriesWithProducts = featuredCategories.filter((category) => {
     if (category.product_count === null || category.product_count === undefined) return true;
     return Number(category.product_count) > 0;
@@ -213,7 +197,6 @@ export default async function Home() {
   const categoryBandsWithProducts = categoryBands.filter(
     (band) => band.products.length > 0
   );
-  const showByCategories = await getShowByCategories(localeHeaders);
   const collections = asArray<Collection>(homepageData.collections);
   const brandName = pickText(siteSettings?.site_name);
   const heroDescription = pickText(
@@ -281,7 +264,7 @@ export default async function Home() {
             Spotlights
           </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {spotlights.map((spotlight) => {
+            {spotlights.map((spotlight: Spotlight) => {
               const spotlightProduct = spotlight.product || null;
               const spotlightCategory = spotlight.category || null;
               const spotlightTitle =

@@ -1234,8 +1234,11 @@ ADMIN_SITE_TITLE = 'Bunoraa Admin'
 ADMIN_INDEX_TITLE = 'Dashboard'
 
 # Default Agent Avatar
-DEFAULT_AGENT_AVATAR_URL = os.environ.get(
+_default_agent_avatar = os.environ.get(
     'DEFAULT_AGENT_AVATAR_URL',
-    STATIC_URL + 'images/assets/favicon.ico' # Fallback for local
-)
+    f"{STATIC_URL.rstrip('/')}/images/assets/favicon.ico",
+).strip()
+if _default_agent_avatar and not _default_agent_avatar.startswith(('http://', 'https://', '/')):
+    _default_agent_avatar = f"/{_default_agent_avatar.lstrip('/')}"
+DEFAULT_AGENT_AVATAR_URL = _default_agent_avatar or '/static/images/assets/favicon.ico'
 

@@ -1,9 +1,31 @@
 """
 Pages API serializers
 """
+from urllib.parse import urlparse
+
 from rest_framework import serializers
 
 from ..models import Page, FAQ, ContactMessage, SiteSettings, Subscriber
+
+
+def normalize_public_asset_url(value: str | None, request=None) -> str:
+    if not value:
+        return ""
+    raw = str(value).strip()
+    if not raw:
+        return ""
+    parsed = urlparse(raw)
+    if parsed.scheme in {"http", "https"}:
+        return raw
+    if raw.startswith("//"):
+        return f"https:{raw}"
+    normalized = raw if raw.startswith("/") else f"/{raw.lstrip('/')}"
+    if request:
+        try:
+            return request.build_absolute_uri(normalized)
+        except Exception:
+            return normalized
+    return normalized
 
 
 class PageListSerializer(serializers.ModelSerializer):
@@ -77,6 +99,9 @@ class ContactMessageCreateSerializer(serializers.Serializer):
 class SiteSettingsSerializer(serializers.ModelSerializer):
     """Serializer for site settings (public)."""
     
+    logo = serializers.SerializerMethodField()
+    logo_dark = serializers.SerializerMethodField()
+    favicon = serializers.SerializerMethodField()
     tagline = serializers.SerializerMethodField()
     address = serializers.SerializerMethodField()
     support_email = serializers.SerializerMethodField()
@@ -110,6 +135,26 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
             'footer_text',
             'copyright_text',
         ]
+
+    def _get_asset_url(self, obj, field_name: str) -> str:
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        field = getattr(obj, field_name, None)
+        if not field:
+            return ""
+        try:
+            url = field.url
+        except Exception:
+            url = ""
+        return normalize_public_asset_url(url, request=request)
+
+    def get_logo(self, obj):
+        return self._get_asset_url(obj, 'logo')
+
+    def get_logo_dark(self, obj):
+        return self._get_asset_url(obj, 'logo_dark')
+
+    def get_favicon(self, obj):
+        return self._get_asset_url(obj, 'favicon')
 
     def get_tagline(self, obj):
         return getattr(obj, "site_tagline", "")

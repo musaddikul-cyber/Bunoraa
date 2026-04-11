@@ -137,8 +137,9 @@ function AgentChatConsole() {
     textarea.style.height = "auto";
     const computedStyles = window.getComputedStyle(textarea);
     const lineHeight = Number.parseFloat(computedStyles.lineHeight) || 20;
-    const maxHeight = Math.round(lineHeight * 5 + 16);
-    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    const minHeight = 40;
+    const maxHeight = Math.round(lineHeight * 5 + 20);
+    const nextHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
     textarea.style.height = `${nextHeight}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, []);
@@ -505,20 +506,20 @@ function AgentChatConsole() {
                   onChange={handlePickFiles}
                   disabled={isSending}
                 />
-                <div className="flex items-end gap-2">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="flex h-8 w-8 min-h-8 min-w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground/70 transition hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    className="flex h-10 w-10 min-h-10 min-w-10 items-center justify-center rounded-lg border border-border bg-background text-foreground/70 transition hover:bg-muted hover:text-foreground disabled:opacity-60"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isSending}
                     aria-label="Add files"
                   >
-                    <Paperclip className="h-3.5 w-3.5" />
+                    <Paperclip className="h-4 w-4" />
                   </button>
                   <textarea
                     ref={composerRef}
                     rows={1}
-                    className="scrollbar-thin flex-1 resize-none rounded border border-border bg-background px-3 py-1.5 text-sm leading-5"
+                    className="scrollbar-thin h-10 min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm leading-5"
                     value={messageInput}
                     onChange={(event) => {
                       setMessageInput(event.target.value);
@@ -535,7 +536,7 @@ function AgentChatConsole() {
                   />
                   <button
                     type="button"
-                    className="h-8 min-h-8 self-end rounded-lg bg-primary px-2.5 text-[11px] font-semibold text-white disabled:opacity-60"
+                    className="h-10 min-h-10 rounded-lg bg-primary px-3 text-sm font-semibold text-white disabled:opacity-60"
                     onClick={() => void handleSendMessage()}
                     disabled={isSending}
                   >

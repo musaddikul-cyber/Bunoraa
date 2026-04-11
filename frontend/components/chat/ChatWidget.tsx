@@ -113,8 +113,8 @@ export function ChatWidget() {
     textarea.style.height = "auto";
     const computedStyles = window.getComputedStyle(textarea);
     const lineHeight = Number.parseFloat(computedStyles.lineHeight) || 20;
-    const minHeight = 36;
-    const maxHeight = Math.round(lineHeight * 5 + 16);
+    const minHeight = 40;
+    const maxHeight = Math.round(lineHeight * 5 + 20);
     const nextHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
 
     textarea.style.height = `${nextHeight}px`;
@@ -520,10 +520,10 @@ export function ChatWidget() {
                     onChange={handlePickFiles}
                     disabled={isSubmitting}
                   />
-                  <div className="flex items-end gap-2">
+                  <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="flex h-9 w-9 min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-background text-foreground/70 transition hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    className="flex h-10 w-10 min-h-10 min-w-10 items-center justify-center rounded-lg border border-border bg-background text-foreground/70 transition hover:bg-muted hover:text-foreground disabled:opacity-60"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isSubmitting}
                     aria-label="Add files"
@@ -533,7 +533,7 @@ export function ChatWidget() {
                   <textarea
                     ref={composerRef}
                     rows={1}
-                    className="scrollbar-thin min-h-9 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] leading-4"
+                    className="scrollbar-thin h-10 min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm leading-5"
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
                     onKeyDown={(event) => {
@@ -547,7 +547,7 @@ export function ChatWidget() {
                   />
                   <button
                     type="button"
-                    className="flex h-9 min-h-9 w-9 min-w-9 items-center justify-center self-end rounded-lg bg-primary text-white disabled:opacity-60"
+                    className="flex h-10 min-h-10 w-10 min-w-10 items-center justify-center rounded-lg bg-primary text-white disabled:opacity-60"
                     onClick={handleSend}
                     disabled={isSubmitting}
                     aria-label="Send message"

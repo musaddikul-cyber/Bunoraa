@@ -1,6 +1,8 @@
 """
 DRF Serializers for Bunoraa Chat System API
 """
+from urllib.parse import urlparse
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
@@ -11,6 +13,35 @@ from apps.chat.models import (
 from apps.chat.services import user_can_access_conversation, get_agent_for_user
 
 User = get_user_model()
+
+
+def normalize_public_asset_url(value: str | None, request=None) -> str:
+    if not value:
+        return ""
+    raw = str(value).strip()
+    if not raw:
+        return ""
+    parsed = urlparse(raw)
+    if parsed.scheme in {"http", "https"}:
+        return raw
+    if raw.startswith("//"):
+        return f"https:{raw}"
+    normalized = raw if raw.startswith("/") else f"/{raw.lstrip('/')}"
+    if request:
+        try:
+            return request.build_absolute_uri(normalized)
+        except Exception:
+            return normalized
+    return normalized
+
+
+def get_default_agent_avatar_url(request=None) -> str:
+    from django.conf import settings
+
+    return normalize_public_asset_url(
+        getattr(settings, "DEFAULT_AGENT_AVATAR_URL", "/static/images/assets/favicon.ico"),
+        request=request,
+    )
 
 
 class SiteLogoMixin:
@@ -26,9 +57,7 @@ class SiteLogoMixin:
             site_settings = SiteSettings.get_settings()
             logo_field = site_settings.logo or site_settings.logo_dark
             if logo_field:
-                logo_url = logo_field.url
-                if request:
-                    logo_url = request.build_absolute_uri(logo_url)
+                logo_url = normalize_public_asset_url(logo_field.url, request=request)
         except Exception:
             logo_url = None
         self._site_logo_url_cache = logo_url
@@ -56,9 +85,8 @@ class UserMinimalSerializer(SiteLogoMixin, serializers.ModelSerializer):
             if site_logo_url:
                 return site_logo_url
         if obj.avatar:
-            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
-        from django.conf import settings
-        return settings.DEFAULT_AGENT_AVATAR_URL
+            return normalize_public_asset_url(obj.avatar.url, request=request)
+        return get_default_agent_avatar_url(request=request)
 
 
 class ChatAgentSerializer(SiteLogoMixin, serializers.ModelSerializer):
@@ -98,16 +126,14 @@ class ChatAgentSerializer(SiteLogoMixin, serializers.ModelSerializer):
 
     def get_avatar_url(self, obj):
         """Return the agent's avatar URL or a default if not set."""
+        request = self.context.get('request')
         if obj.user.is_staff or obj.user.is_superuser:
             site_logo_url = self._get_site_logo_url()
             if site_logo_url:
                 return site_logo_url
         if obj.avatar:
-            request = self.context.get('request')
-            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
-        # Use the default avatar URL from settings
-        from django.conf import settings
-        return settings.DEFAULT_AGENT_AVATAR_URL
+            return normalize_public_asset_url(obj.avatar.url, request=request)
+        return get_default_agent_avatar_url(request=request)
 
     def get_role(self, obj):
         if obj.user.is_superuser:
@@ -137,16 +163,14 @@ class ChatAgentPublicSerializer(SiteLogoMixin, serializers.ModelSerializer):
 
     def get_avatar_url(self, obj):
         """Return the agent's avatar URL or a default if not set."""
+        request = self.context.get('request')
         if obj.user.is_staff or obj.user.is_superuser:
             site_logo_url = self._get_site_logo_url()
             if site_logo_url:
                 return site_logo_url
         if obj.avatar:
-            request = self.context.get('request')
-            return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
-        # Use the default avatar URL from settings
-        from django.conf import settings
-        return settings.DEFAULT_AGENT_AVATAR_URL
+            return normalize_public_asset_url(obj.avatar.url, request=request)
+        return get_default_agent_avatar_url(request=request)
 
     def get_display_name(self, obj):
         return obj.user.get_full_name() or obj.user.email
@@ -240,18 +264,16 @@ class MessageSerializer(SiteLogoMixin, serializers.ModelSerializer):
         settings_obj = self._get_chat_settings()
 
         def _abs(url):
-            return request.build_absolute_uri(url) if request else url
+            return normalize_public_asset_url(url, request=request)
 
         if obj.is_from_bot:
             if settings_obj.bot_avatar:
                 return _abs(settings_obj.bot_avatar.url)
-            from django.conf import settings
-            return settings.DEFAULT_AGENT_AVATAR_URL
+            return get_default_agent_avatar_url(request=request)
 
         sender = obj.sender
         if not sender:
-            from django.conf import settings
-            return settings.DEFAULT_AGENT_AVATAR_URL
+            return get_default_agent_avatar_url(request=request)
 
         if sender.is_staff or sender.is_superuser:
             site_logo_url = self._get_site_logo_url()
@@ -265,8 +287,7 @@ class MessageSerializer(SiteLogoMixin, serializers.ModelSerializer):
         if sender.avatar:
             return _abs(sender.avatar.url)
 
-        from django.conf import settings
-        return settings.DEFAULT_AGENT_AVATAR_URL
+        return get_default_agent_avatar_url(request=request)
 
     def get_sender_role(self, obj):
         if obj.is_from_bot:
@@ -437,9 +458,8 @@ class ConversationSerializer(serializers.ModelSerializer):
     def get_customer_avatar_url(self, obj):
         request = self.context.get('request')
         if obj.customer and obj.customer.avatar:
-            return request.build_absolute_uri(obj.customer.avatar.url) if request else obj.customer.avatar.url
-        from django.conf import settings
-        return settings.DEFAULT_AGENT_AVATAR_URL
+            return normalize_public_asset_url(obj.customer.avatar.url, request=request)
+        return get_default_agent_avatar_url(request=request)
 
 
 class ConversationDetailSerializer(ConversationSerializer):

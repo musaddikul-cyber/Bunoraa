@@ -33,11 +33,35 @@ export function ProductCard({
   const productHref = buildProductPath(product);
 
   const canQuickView = typeof onQuickView === "function";
+  const aspectRatio =
+    (product as any).aspect_ratio ||
+    (product as any).category?.aspect_ratio ||
+    "4/5";
+  
+  let aspectRatioValue = 4 / 5; // default
+  try {
+    const [width, height] = aspectRatio.split('/').map(Number);
+    if (width && height) {
+      aspectRatioValue = width / height;
+    }
+  } catch {
+    aspectRatioValue = 4 / 5;
+  }
 
   if (variant === "minimal") {
     return (
       <div className="group">
-        <div className="relative aspect-[4/5] overflow-hidden bg-muted">
+        <div
+          className="relative overflow-hidden bg-muted"
+          style={{ aspectRatio: aspectRatioValue }}
+        >
+          <WishlistIconButton
+            productId={product.id}
+            variant="ghost"
+            size="lg"
+            color="fixed-black"
+            className="absolute right-0 top-0 z-40 opacity-100 scale-75 transition sm:scale-100 sm:right-2 sm:top-2"
+          />
           {canQuickView ? (
             <button
               type="button"
@@ -52,8 +76,6 @@ export function ProductCard({
               href={productHref}
               className="absolute inset-0 z-10"
               aria-label={`View ${product.name}`}
-              target="_blank"
-              rel="noopener noreferrer"
             />
           )}
           {image ? (
@@ -75,9 +97,7 @@ export function ProductCard({
           ) : null}
           <Link
             href={productHref}
-            className="block text-sm font-semibold leading-snug text-foreground"
-            target="_blank"
-            rel="noopener noreferrer"
+            className="block text-sm font-medium leading-snug text-foreground"
           >
             {product.name}
           </Link>
@@ -87,7 +107,7 @@ export function ProductCard({
             currentPrice={product.current_price}
             currency={product.currency}
             className="text-foreground"
-            priceClassName="text-sm font-semibold"
+            priceClassName="text-[1.5rem] font-semibold"
           />
         </div>
       </div>
@@ -105,8 +125,9 @@ export function ProductCard({
       <div
         className={cn(
           "relative overflow-hidden rounded-xl bg-muted",
-          variant === "list" ? "h-40 w-full sm:h-40 sm:w-56" : "aspect-[4/5]"
+          variant === "list" ? "h-40 w-full sm:h-40 sm:w-56" : ""
         )}
+        style={variant !== "list" ? { aspectRatio: aspectRatioValue } : undefined}
       >
         {canQuickView ? (
           <button
@@ -131,7 +152,7 @@ export function ProductCard({
           variant="ghost"
           size="lg"
           color="fixed-black"
-          className="absolute right-2 top-2 z-20 opacity-100 transition sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100"
+          className="absolute right-0 top-0 z-40 opacity-100 scale-75 transition sm:scale-100 sm:right-2 sm:top-2 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100"
         />
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element

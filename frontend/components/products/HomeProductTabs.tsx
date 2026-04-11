@@ -24,15 +24,17 @@ export function HomeProductTabs({
   const showTrending = active === "trending" && hasTrending;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-6 border-b border-border/70 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
         {hasNew ? (
           <button
             type="button"
             onClick={() => setActive("new")}
             className={cn(
-              "pb-1 transition",
-              active === "new" ? "text-foreground" : "hover:text-foreground"
+              "rounded-full border px-5 py-2 text-sm font-medium uppercase tracking-[0.12em] transition",
+              active === "new"
+                ? "border-foreground bg-foreground text-background"
+                : "border-border bg-transparent text-foreground hover:border-foreground/60"
             )}
           >
             New Drops
@@ -43,8 +45,10 @@ export function HomeProductTabs({
             type="button"
             onClick={() => setActive("trending")}
             className={cn(
-              "pb-1 transition",
-              active === "trending" ? "text-foreground" : "hover:text-foreground"
+              "rounded-full border px-5 py-2 text-sm font-medium uppercase tracking-[0.12em] transition",
+              active === "trending"
+                ? "border-foreground bg-foreground text-background"
+                : "border-border bg-transparent text-foreground hover:border-foreground/60"
             )}
           >
             Most Trending

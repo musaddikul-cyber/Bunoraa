@@ -494,7 +494,7 @@ export async function Footer() {
 
   return (
     <footer id="footer" className="border-t border-border bg-card">
-      <div className="mx-auto w-full max-w-7xl px-4 pb-4 pt-12 sm:px-6">
+      <div className="mx-auto w-full max-w-7xl px-3 pb-4 pt-12 sm:px-5">
         <div className="space-y-8 lg:hidden">
           <div className="space-y-4">
             <div>

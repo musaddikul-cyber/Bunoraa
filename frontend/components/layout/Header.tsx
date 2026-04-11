@@ -45,7 +45,7 @@ export async function Header() {
   return (
     <MobileHeaderVisibility>
       <header className="border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/88">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-3 py-4 sm:px-5">
           <div className="flex min-w-0 items-center gap-6">
             <MobileNav categories={categories} menuPages={menuPages} />
             <HeaderBrand

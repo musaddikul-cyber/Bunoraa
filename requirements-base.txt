@@ -1,204 +1,204 @@
 # Production Core Dependencies
 # Core Django and essential packages
-Django==5.2.11
-djangorestframework==3.16.1
-djangorestframework_simplejwt==5.5.1
-dj-database-url==3.1.2
-django-environ==0.13.0
-psycopg==3.3.3
-psycopg2-binary==2.9.11
+Django
+djangorestframework
+djangorestframework_simplejwt
+dj-database-url
+django-environ
+psycopg
+psycopg2-binary
 
 # Async and Websockets
-asgiref==3.11.1
-channels==4.3.2
-channels_redis==4.3.0
-daphne==4.2.0
-uvicorn==0.41.0
+asgiref
+channels
+channels_redis
+daphne
+uvicorn
 
 # Celery and Task Queue
-celery==5.6.2
-django-celery-beat==2.8.1
-kombu==5.6.2
-redis==7.2.0
-django-redis==6.0.0
+celery
+django-celery-beat
+kombu
+redis
+django-redis
 
 # Authentication & Security
-django-allauth==65.14.3
-django-otp==1.7.0
-django-two-factor-auth==1.18.1
-django-axes==8.3.1
-django-ratelimit==4.1.0
-PyJWT==2.11.0
-pyotp==2.9.0
-argon2-cffi==25.1.0
-cryptography==46.0.5
-social-auth-app-django==5.7.0
+django-allauth
+django-otp
+django-two-factor-auth
+django-axes
+django-ratelimit
+PyJWT
+pyotp
+argon2-cffi
+cryptography
+social-auth-app-django
 
 # Storage & S3
-django-storages==1.14.6
-boto3==1.42.54
-botocore==1.42.54
-s3transfer==0.16.0
+django-storages
+boto3
+botocore
+s3transfer
 
 # API & Documentation
-drf-spectacular==0.29.0
-inflection==0.5.1
+drf-spectacular
+inflection
 
 # Forms & Admin
-django-crispy-forms==2.5
-crispy-bootstrap5==2025.6
-crispy-tailwind==1.0.3
-django-admin-interface==0.32.0
-django-admin-list-filter-dropdown==1.0.3
-django-rangefilter==0.9.1
+django-crispy-forms
+crispy-bootstrap5
+crispy-tailwind
+django-admin-interface
+django-admin-list-filter-dropdown
+django-rangefilter
 
 # Content & Media
-django-ckeditor-5==0.2.19
-Pillow==12.1.1
-imageio==2.37.2
-django-weasyprint==2.4.0
-weasyprint==68.1
+django-ckeditor-5
+Pillow
+imageio
+django-weasyprint
+weasyprint
 
 # Database Utilities
-django-mptt==0.18.0
-django-taggit==6.1.0
-django-simple-history==3.11.0
-django-import-export==4.5.2
+django-mptt
+django-taggit
+django-simple-history
+django-import-export
 
 # ORM & Utilities
-django-filter==25.2
-django-extensions==4.1
-python-slugify==8.0.4
-python-dateutil==2.9.0.post0
+django-filter
+django-extensions
+python-slugify
+python-dateutil
 
 # Email & Notifications
-sentry-sdk==2.53.0
-coloredlogs==15.0.1
+sentry-sdk
+coloredlogs
 
 # Monitoring & Logging
-gunicorn==25.1.0
-whitenoise==6.11.0
+gunicorn
+whitenoise
 
 # API Clients
-requests==2.32.5
-google-api-python-client==2.190.0
-google-auth==2.48.0
-stripe==14.3.0
+requests
+google-api-python-client
+google-auth
+stripe
 
 # Utilities
-arrow==1.4.0
-click==8.3.1
-beautifulsoup4==4.14.3
-defusedxml==0.7.1
-soupsieve==2.8.3
-MarkupSafe==3.0.3
-Jinja2==3.1.6
-certifi==2026.1.4
-urllib3==2.6.3
+arrow
+click
+beautifulsoup4
+defusedxml
+soupsieve
+MarkupSafe
+Jinja2
+certifi
+urllib3
 
 # Search & Analytics
-serpapi==0.1.5
+serpapi
 
 # Localization
-django-rosetta==0.10.3
-polib==1.2.0
+django-rosetta
+polib
 
 # Other Core
-django-browser-reload==1.21.0
-django-htmx==1.27.0
-django-hosts==7.0.0
-django-colorfield==0.14.0
-django-phonenumber-field==8.4.0
-django-countries==8.2.0
-django-timezone-field==7.2.1
-django-widget-tweaks==1.5.1
-django-cors-headers==4.9.0
-django_compressor==4.6.0
-django-formtools==2.5.1
-django_hugeicons_stroke==1.1.2
-python-decouple==3.8
-python-dotenv==1.2.1
-dkimpy==1.1.8
-dnspython==2.8.0
-phonenumbers==9.0.24
-pycountry==26.2.16
-qrcode==8.2
-python-crontab==3.3.0
-cron_descriptor==2.0.6
-webauthn==2.7.1
-python3-openid==3.2.0
+django-browser-reload
+django-htmx
+django-hosts
+django-colorfield
+django-phonenumber-field
+django-countries
+django-timezone-field
+django-widget-tweaks
+django-cors-headers
+django_compressor
+django-formtools
+django_hugeicons_stroke
+python-decouple
+python-dotenv
+dkimpy
+dnspython
+phonenumbers
+pycountry
+qrcode
+python-crontab
+cron_descriptor
+webauthn
+python3-openid
 
 # Async & Networking
-httpx==0.28.1
-anyio==4.12.1
-httpcore==1.0.9
-h11==0.16.0
-sniffio==1.3.1
-websockets==16.0
+httpx
+anyio
+httpcore
+h11
+sniffio
+websockets
 
 # Celery dependencies
-amqp==5.3.1
-billiard==4.2.4
-vine==5.1.0
-eventlet==0.40.4
-gevent==25.9.1
-greenlet==3.3.2
+amqp
+billiard
+vine
+eventlet
+gevent
+greenlet
 
 # Upstash Redis Client
-upstash-redis==1.0.0
+upstash-redis
 
 # Rich ASCII art
-rich==14.3.3
+rich
 
 # Data serialization
-msgpack==1.1.2
-cbor2==5.8.0
+msgpack
+cbor2
 
 # Compression
-brotli==1.2.0
-zopfli==0.4.1
-cssselect2==0.9.0
-tinycss2==1.5.1
-rcssmin==1.2.2
-rjsmin==1.2.5
+brotli
+zopfli
+cssselect2
+tinycss2
+rcssmin
+rjsmin
 
 # Format support
-tablib==3.9.0
+tablib
 
 # ORM/Query support
-sqlparse==0.5.5
+sqlparse
 
 # Auth utils
-oauthlib==3.3.1
-requests-oauthlib==2.0.0
+oauthlib
+requests-oauthlib
 
 # Protobuf
-protobuf==6.33.5
-proto-plus==1.27.1
+protobuf
+proto-plus
 
 # Common dependencies
-packaging==26.0
-attrs==25.4.0
-annotated-types==0.7.0
-typing_extensions==4.15.0
-typing-inspection==0.4.2
+packaging
+attrs
+annotated-types
+typing_extensions
+typing-inspection
 
 # JSON handling
-pydantic==2.12.5
-pydantic_core==2.41.5
-fastjsonschema==2.21.2
-jiter==0.13.0
-jsonschema==4.26.0
-jsonschema-specifications==2025.9.1
-rpds-py==0.30.0
-referencing==0.37.0
+pydantic
+pydantic_core
+fastjsonschema
+jiter
+jsonschema
+jsonschema-specifications
+rpds-py
+referencing
 
 # Compression & Formats
-PyYAML==6.0.3
+PyYAML
 
 # Common utilities
-six==1.17.0
-chardet==5.2.0
-charset-normalizer==3.4.4
-idna==3.11
-distro==1.9.0
+six
+chardet
+charset-normalizer
+idna
+distro

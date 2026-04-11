@@ -140,8 +140,6 @@ websockets
 amqp
 billiard
 vine
-eventlet
-gevent
 greenlet
 
 # Upstash Redis Client

@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 
 # ============================================
@@ -7,7 +6,7 @@ import os
 # Fast startup mode - skip heavy operations
 os.environ.setdefault('SKIP_MIGRATIONS_CHECK', 'True')
 os.environ.setdefault('PROCESS_TYPE', 'web')
-os.environ.setdefault('ML_ENABLED', 'False')  # Disable ML on web servers
+os.environ.setdefault('ML_ENABLED', 'True') # Enable ML features by default, can be overridden
 
 # ============================================
 # WORKER CONFIGURATION - Memory & Speed Optimized
@@ -60,11 +59,4 @@ accesslog = '-'
 errorlog = '-'
 loglevel = os.environ.get('GUNICORN_LOG_LEVEL', 'warning')  # Changed from 'info' to reduce logging overhead
 
-# ============================================
-# PERFORMANCE TUNING
-# ============================================
-# Faster WSGI app loading
-on_starting = None
-on_started = None
-when_ready = None
 

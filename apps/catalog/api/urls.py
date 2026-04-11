@@ -2,6 +2,7 @@
 Catalog API URL Configuration
 """
 from django.urls import path, include
+from django.views.generic import RedirectView
 from core.api.routers import DefaultRouter
 
 from .views import (
@@ -23,6 +24,18 @@ router.register(r'badges', BadgeViewSet, basename='api-badge')
 urlpatterns = [
     # Router URLs
     path('', include(router.urls)),
+
+    # Guard against relative favicon/static requests being interpreted as nested category slugs.
+    path(
+        'categories/static/images/assets/favicon.ico/',
+        RedirectView.as_view(url='/static/images/assets/favicon.ico', permanent=False),
+        name='api-category-favicon-redirect',
+    ),
+    path(
+        'categories/static/images/assets/favicon.ico',
+        RedirectView.as_view(url='/static/images/assets/favicon.ico', permanent=False),
+        name='api-category-favicon-redirect-no-slash',
+    ),
 
     # Nested category path support for detail actions
     path('categories/<path:slug>/children/', CategoryViewSet.as_view({'get': 'children'}), name='api-category-children-by-path'),

@@ -50,7 +50,7 @@ crispy-bootstrap5==2025.6
 crispy-tailwind==1.0.3
 django-admin-interface==0.32.0
 django-admin-list-filter-dropdown==1.0.3
-django-rangefilter==0.8.4
+django-rangefilter==0.9.1
 
 # Content & Media
 django-ckeditor-5==0.2.19
@@ -63,7 +63,7 @@ weasyprint==68.1
 django-mptt==0.18.0
 django-taggit==6.1.0
 django-simple-history==3.11.0
-django-import-export==4.4.0
+django-import-export==4.5.2
 
 # ORM & Utilities
 django-filter==25.2

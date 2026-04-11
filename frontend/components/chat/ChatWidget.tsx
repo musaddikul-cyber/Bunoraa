@@ -4,7 +4,7 @@ import Link from "next/link";
 import * as React from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Paperclip, X } from "lucide-react";
+import { Paperclip, SendHorizontal, X } from "lucide-react";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import { getAccessToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
@@ -113,8 +113,9 @@ export function ChatWidget() {
     textarea.style.height = "auto";
     const computedStyles = window.getComputedStyle(textarea);
     const lineHeight = Number.parseFloat(computedStyles.lineHeight) || 20;
+    const minHeight = 36;
     const maxHeight = Math.round(lineHeight * 5 + 16);
-    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    const nextHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
 
     textarea.style.height = `${nextHeight}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
@@ -360,8 +361,8 @@ export function ChatWidget() {
             onClick={() => setOpen(false)}
             aria-label="Close support chat"
           />
-          <div className="chat-widget-mobile-open-offset fixed inset-x-3 bottom-3 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6">
-            <div className="chat-widget-mobile-panel flex h-[min(86dvh,41rem)] min-h-[24rem] w-full flex-col overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-xl sm:h-[44rem] sm:w-96">
+          <div className="chat-widget-mobile-open-offset fixed inset-x-2 bottom-2 z-50 sm:inset-x-auto sm:bottom-6 sm:right-6">
+            <div className="chat-widget-mobile-panel flex h-[min(90dvh,43rem)] min-h-[24rem] w-full flex-col overflow-hidden rounded-2xl border border-border bg-card p-3 shadow-xl sm:h-[44rem] sm:w-96 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="relative h-7 w-7 overflow-hidden rounded-full bg-muted">
@@ -522,17 +523,17 @@ export function ChatWidget() {
                   <div className="flex items-end gap-2">
                   <button
                     type="button"
-                    className="flex h-8 w-8 min-h-8 min-w-8 items-center justify-center rounded-lg border border-border bg-background text-foreground/70 transition hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    className="flex h-9 w-9 min-h-9 min-w-9 items-center justify-center rounded-lg border border-border bg-background text-foreground/70 transition hover:bg-muted hover:text-foreground disabled:opacity-60"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isSubmitting}
                     aria-label="Add files"
                   >
-                    <Paperclip className="h-3.5 w-3.5" />
+                    <Paperclip className="h-4 w-4" />
                   </button>
                   <textarea
                     ref={composerRef}
                     rows={1}
-                    className="scrollbar-thin flex-1 resize-none rounded-lg border border-border bg-background px-3 py-1.5 text-[13px] leading-5"
+                    className="scrollbar-thin min-h-9 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] leading-4"
                     value={input}
                     onChange={(event) => setInput(event.target.value)}
                     onKeyDown={(event) => {
@@ -546,11 +547,12 @@ export function ChatWidget() {
                   />
                   <button
                     type="button"
-                    className="h-8 min-h-8 self-end rounded-lg bg-primary px-2.5 text-[11px] font-semibold text-white disabled:opacity-60"
+                    className="flex h-9 min-h-9 w-9 min-w-9 items-center justify-center self-end rounded-lg bg-primary text-white disabled:opacity-60"
                     onClick={handleSend}
                     disabled={isSubmitting}
+                    aria-label="Send message"
                   >
-                    Send
+                    <SendHorizontal className="h-4 w-4" />
                   </button>
                 </div>
                 </div>

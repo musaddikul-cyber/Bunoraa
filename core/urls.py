@@ -138,6 +138,11 @@ urlpatterns = [
     path('health/live/', liveness_check, name='liveness_check'),
 
     # SEO helpers
+    path(
+        'favicon.ico',
+        RedirectView.as_view(url=f"{settings.STATIC_URL}images/assets/favicon.ico", permanent=False),
+        name='site-favicon',
+    ),
     path('robots.txt', robots_txt, name='robots_txt'),
 
     # Sitemap index + section sitemaps

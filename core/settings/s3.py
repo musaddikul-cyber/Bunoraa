@@ -62,6 +62,21 @@ def _is_schema_command() -> bool:
     return command in {'migrate', 'makemigrations', 'showmigrations', 'sqlmigrate'}
 
 
+# Align R2-prefixed env vars with django-storages AWS settings used by base.py.
+if os.environ.get('R2_ACCESS_KEY_ID') and not os.environ.get('AWS_ACCESS_KEY_ID'):
+    os.environ['AWS_ACCESS_KEY_ID'] = os.environ['R2_ACCESS_KEY_ID']
+if os.environ.get('R2_SECRET_ACCESS_KEY') and not os.environ.get('AWS_SECRET_ACCESS_KEY'):
+    os.environ['AWS_SECRET_ACCESS_KEY'] = os.environ['R2_SECRET_ACCESS_KEY']
+if os.environ.get('R2_BUCKET_NAME') and not os.environ.get('AWS_STORAGE_BUCKET_NAME'):
+    os.environ['AWS_STORAGE_BUCKET_NAME'] = os.environ['R2_BUCKET_NAME']
+if os.environ.get('R2_CUSTOM_DOMAIN') and not os.environ.get('AWS_S3_CUSTOM_DOMAIN'):
+    os.environ['AWS_S3_CUSTOM_DOMAIN'] = os.environ['R2_CUSTOM_DOMAIN']
+if os.environ.get('R2_ACCOUNT_ID') and not os.environ.get('AWS_S3_ENDPOINT_URL'):
+    os.environ['AWS_S3_ENDPOINT_URL'] = (
+        f"https://{os.environ['R2_ACCOUNT_ID'].strip()}.r2.cloudflarestorage.com"
+    )
+
+
 # Sites framework defaults for production (override base if needed)
 SITE_ID = int(os.environ.get('SITE_ID', '2'))
 SITE_NAME = os.environ.get('SITE_NAME', 'Bunoraa')
@@ -79,6 +94,14 @@ STORAGES = {
         'BACKEND': 'storages.backends.s3.S3Storage',
     },
 }
+AWS_DEFAULT_ACL = None
+AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'auto')
+AWS_S3_SIGNATURE_VERSION = os.environ.get('AWS_S3_SIGNATURE_VERSION', 's3v4')
+AWS_S3_ADDRESSING_STYLE = os.environ.get('AWS_S3_ADDRESSING_STYLE', 'virtual')
+AWS_QUERYSTRING_AUTH = _env_bool('AWS_QUERYSTRING_AUTH', False)
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': os.environ.get('AWS_S3_CACHE_CONTROL', 'max-age=86400')
+}
 
 # Ensure MEDIA_URL is normalized if provided via env.
 if os.environ.get('MEDIA_URL'):
@@ -87,8 +110,6 @@ if os.environ.get('MEDIA_URL'):
 # Align R2 defaults with production when using Cloudflare R2 endpoints.
 _s3_endpoint_url = os.environ.get('AWS_S3_ENDPOINT_URL', '').strip()
 if _s3_endpoint_url and 'r2.cloudflarestorage.com' in _s3_endpoint_url:
-    AWS_S3_REGION_NAME = 'auto'
-    AWS_QUERYSTRING_AUTH = _env_bool('AWS_QUERYSTRING_AUTH', False)
     if not os.environ.get('MEDIA_URL'):
         if os.environ.get('AWS_S3_CUSTOM_DOMAIN'):
             MEDIA_URL = _ensure_trailing_slash(f"https://{os.environ['AWS_S3_CUSTOM_DOMAIN'].strip()}")
@@ -96,6 +117,15 @@ if _s3_endpoint_url and 'r2.cloudflarestorage.com' in _s3_endpoint_url:
             MEDIA_URL = _ensure_trailing_slash(
                 f"{_s3_endpoint_url.rstrip('/')}/{os.environ['AWS_STORAGE_BUCKET_NAME'].strip()}"
             )
+
+# Fallback MEDIA_URL when bucket/custom domain are available in non-R2 compatible setups.
+if not os.environ.get('MEDIA_URL') and not globals().get('MEDIA_URL'):
+    if os.environ.get('AWS_S3_CUSTOM_DOMAIN'):
+        MEDIA_URL = _ensure_trailing_slash(f"https://{os.environ['AWS_S3_CUSTOM_DOMAIN'].strip()}")
+    elif os.environ.get('AWS_STORAGE_BUCKET_NAME') and os.environ.get('AWS_S3_ENDPOINT_URL'):
+        MEDIA_URL = _ensure_trailing_slash(
+            f"{os.environ['AWS_S3_ENDPOINT_URL'].rstrip('/')}/{os.environ['AWS_STORAGE_BUCKET_NAME'].strip()}"
+        )
 
 # MEDIA_URL will be set by base.py S3 logic if still unset.
 # Do not set LOCAL_MEDIA_URL or MEDIA_ROOT here.

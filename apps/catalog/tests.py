@@ -32,7 +32,12 @@ from apps.catalog.ai.providers.research import ResearchDocument, ResearchProvide
 from apps.catalog.ai.providers.research import is_safe_public_url
 from apps.catalog.ai.providers.search import SearchProvider
 from apps.catalog.ai.validators import apply_suggestions_to_product, normalize_raw_suggestions
-from apps.catalog.api.views import CategoryViewSet, SearchAPIView
+from apps.catalog.api.views import (
+    CategoryViewSet,
+    HomepageDataView,
+    ProductViewSet,
+    SearchAPIView,
+)
 from apps.catalog.services import CategoryService
 from apps.catalog.models import (
     AspectRatioChoice,
@@ -375,6 +380,209 @@ class CatalogRegressionTests(TestCase):
         self.assertNotIn(str(hidden_descendant.id), returned_ids)
         self.assertNotIn(str(inactive_descendant.id), returned_ids)
         self.assertIn(str(public_descendant.id), returned_ids)
+
+    def test_homepage_featured_categories_include_all_featured(self):
+        featured_category = Category.objects.create(
+            name="Featured Home",
+            slug="featured-home",
+            is_featured=True,
+        )
+        Category.objects.create(
+            name="Not Featured Home",
+            slug="not-featured-home",
+            is_featured=False,
+        )
+        Category.objects.create(
+            name="Featured Empty",
+            slug="featured-empty",
+            is_featured=True,
+        )
+        Product.objects.create(
+            name="Featured Home Product",
+            slug="featured-home-product",
+            price=Decimal("120.00"),
+            primary_category=featured_category,
+            is_active=True,
+            is_deleted=False,
+        )
+
+        factory = RequestFactory()
+        response = HomepageDataView.as_view()(factory.get("/api/v1/catalog/homepage/"))
+        self.assertEqual(response.status_code, 200)
+        featured_slugs = {item["slug"] for item in response.data["featured_categories"]}
+        self.assertIn("featured-home", featured_slugs)
+        self.assertIn("featured-empty", featured_slugs)
+        self.assertNotIn("not-featured-home", featured_slugs)
+
+    def test_homepage_product_lists_are_scoped_to_featured_primary_categories(self):
+        featured_category = Category.objects.create(
+            name="Featured Scope",
+            slug="featured-scope",
+            is_featured=True,
+        )
+        non_featured_category = Category.objects.create(
+            name="Non Featured Scope",
+            slug="non-featured-scope",
+            is_featured=False,
+        )
+
+        Product.objects.create(
+            name="Featured Scoped Product",
+            slug="featured-scoped-product",
+            price=Decimal("100.00"),
+            primary_category=featured_category,
+            is_active=True,
+            is_deleted=False,
+            is_featured=True,
+            is_new_arrival=True,
+            is_bestseller=True,
+            sale_price=Decimal("80.00"),
+        )
+        Product.objects.create(
+            name="Non Featured Scoped Product",
+            slug="non-featured-scoped-product",
+            price=Decimal("90.00"),
+            primary_category=non_featured_category,
+            is_active=True,
+            is_deleted=False,
+            is_featured=True,
+            is_new_arrival=True,
+            is_bestseller=True,
+            sale_price=Decimal("70.00"),
+        )
+
+        factory = RequestFactory()
+        response = HomepageDataView.as_view()(factory.get("/api/v1/catalog/homepage/"))
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(
+            {item["slug"] for item in response.data["featured_products"]},
+            {"featured-scoped-product"},
+        )
+        self.assertEqual(
+            {item["slug"] for item in response.data["new_arrivals"]},
+            {"featured-scoped-product"},
+        )
+        self.assertEqual(
+            {item["slug"] for item in response.data["bestsellers"]},
+            {"featured-scoped-product"},
+        )
+        self.assertEqual(
+            {item["slug"] for item in response.data["on_sale"]},
+            {"featured-scoped-product"},
+        )
+
+    def test_homepage_product_lists_include_descendant_primary_under_featured_root(self):
+        featured_root = Category.objects.create(
+            name="Featured Root",
+            slug="featured-root",
+            is_featured=True,
+        )
+        child = Category.objects.create(
+            name="Featured Root Child",
+            slug="featured-root-child",
+            parent=featured_root,
+            is_featured=False,
+        )
+        Product.objects.create(
+            name="Child Primary Product",
+            slug="child-primary-product",
+            price=Decimal("130.00"),
+            primary_category=child,
+            is_active=True,
+            is_deleted=False,
+            is_featured=True,
+            is_new_arrival=True,
+            is_bestseller=True,
+            sale_price=Decimal("95.00"),
+        )
+
+        factory = RequestFactory()
+        response = HomepageDataView.as_view()(factory.get("/api/v1/catalog/homepage/"))
+        self.assertEqual(response.status_code, 200)
+        expected_slug = {"child-primary-product"}
+        self.assertEqual({item["slug"] for item in response.data["featured_products"]}, expected_slug)
+        self.assertEqual({item["slug"] for item in response.data["new_arrivals"]}, expected_slug)
+        self.assertEqual({item["slug"] for item in response.data["bestsellers"]}, expected_slug)
+        self.assertEqual({item["slug"] for item in response.data["on_sale"]}, expected_slug)
+
+    def test_products_by_category_primary_only_filters_secondary_assignments(self):
+        category_a = Category.objects.create(name="Category A", slug="category-a")
+        category_b = Category.objects.create(name="Category B", slug="category-b")
+        primary_a = Product.objects.create(
+            name="Primary A",
+            slug="primary-a",
+            price=Decimal("25.00"),
+            primary_category=category_a,
+            is_active=True,
+            is_deleted=False,
+        )
+        secondary_in_a = Product.objects.create(
+            name="Secondary In A",
+            slug="secondary-in-a",
+            price=Decimal("35.00"),
+            primary_category=category_b,
+            is_active=True,
+            is_deleted=False,
+        )
+        primary_a.categories.add(category_a)
+        secondary_in_a.categories.add(category_a, category_b)
+
+        factory = RequestFactory()
+        view = ProductViewSet.as_view({"get": "by_category"})
+
+        primary_only_response = view(
+            factory.get(
+                "/api/v1/catalog/products/by-category/",
+                {
+                    "category": "category-a",
+                    "include_descendants": "false",
+                    "primary_only": "true",
+                },
+            )
+        )
+        self.assertEqual(primary_only_response.status_code, 200)
+        primary_only_data = primary_only_response.data
+        if isinstance(primary_only_data, dict) and "results" in primary_only_data:
+            primary_only_data = primary_only_data["results"]
+        self.assertEqual({item["slug"] for item in primary_only_data}, {"primary-a"})
+
+        default_response = view(
+            factory.get(
+                "/api/v1/catalog/products/by-category/",
+                {"category": "category-a", "include_descendants": "false"},
+            )
+        )
+        self.assertEqual(default_response.status_code, 200)
+        default_data = default_response.data
+        if isinstance(default_data, dict) and "results" in default_data:
+            default_data = default_data["results"]
+        self.assertEqual(
+            {item["slug"] for item in default_data},
+            {"primary-a", "secondary-in-a"},
+        )
+
+    def test_products_by_category_rejects_invalid_primary_only_flag(self):
+        category = Category.objects.create(name="Category", slug="category")
+        Product.objects.create(
+            name="Category Product",
+            slug="category-product",
+            price=Decimal("15.00"),
+            primary_category=category,
+            is_active=True,
+            is_deleted=False,
+        )
+
+        factory = RequestFactory()
+        view = ProductViewSet.as_view({"get": "by_category"})
+        response = view(
+            factory.get(
+                "/api/v1/catalog/products/by-category/",
+                {"category": "category", "primary_only": "maybe"},
+            )
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("primary_only", str(response.data.get("detail", "")))
 
 
 class CatalogDeepResearchProviderTests(SimpleTestCase):

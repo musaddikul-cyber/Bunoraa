@@ -44,6 +44,7 @@ export type ProductListItem = {
   sale_price?: string | null;
   current_price: string;
   currency: string;
+  aspect_ratio?: string | null;
   discount_percentage?: string | null;
   is_on_sale: boolean;
   is_in_stock: boolean;
@@ -54,6 +55,8 @@ export type ProductListItem = {
   reviews_count?: number | null;
   views_count?: number | null;
   primary_image?: string | null;
+  primary_category_id?: string | null;
+  primary_category_path?: string | null;
   primary_category_name?: string | null;
   primary_category_slug_path?: string | null;
 };

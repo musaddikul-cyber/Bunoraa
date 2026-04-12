@@ -98,6 +98,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [, startTransition] = React.useTransition();
   const [locale, setLocaleState] = React.useState<LocaleState>({});
+  const [shouldFetchPreferences, setShouldFetchPreferences] = React.useState(false);
 
   React.useEffect(() => {
     const stored = getStoredLocale();
@@ -109,9 +110,37 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let idleId: number | null = null;
+
+    const markReady = () => setShouldFetchPreferences(true);
+    const idleApi = globalThis as typeof globalThis & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    if (typeof idleApi.requestIdleCallback === "function") {
+      idleId = idleApi.requestIdleCallback(markReady, { timeout: 2000 });
+      return () => {
+        if (idleId !== null && typeof idleApi.cancelIdleCallback === "function") {
+          idleApi.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    timeoutId = setTimeout(markReady, 1200);
+    return () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
   const prefsQuery = useQuery({
     queryKey: ["locale", "preferences"],
     queryFn: fetchPreferences,
+    enabled: shouldFetchPreferences,
     staleTime: 12 * 60 * 60 * 1000,
     gcTime: 12 * 60 * 60 * 1000,
     refetchOnWindowFocus: false,

@@ -32,6 +32,10 @@ type GiftOptionsInput = {
 
 const cartKey = ["cart"] as const;
 const cartSummaryKey = ["cart", "summary"] as const;
+type UseCartOptions = {
+  includeCart?: boolean;
+  includeSummary?: boolean;
+};
 
 function extractCartFromResponse(response: unknown): Cart | null {
   if (!response || typeof response !== "object") return null;
@@ -104,12 +108,15 @@ async function fetchCartSummary() {
   return response.data;
 }
 
-export function useCart() {
+export function useCart(options?: UseCartOptions) {
   const queryClient = useQueryClient();
+  const includeCart = options?.includeCart ?? true;
+  const includeSummary = options?.includeSummary ?? true;
 
   const cartQuery = useQuery({
     queryKey: cartKey,
     queryFn: fetchCart,
+    enabled: includeCart,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -124,6 +131,7 @@ export function useCart() {
   const cartSummaryQuery = useQuery({
     queryKey: cartSummaryKey,
     queryFn: fetchCartSummary,
+    enabled: includeSummary,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,

@@ -2,15 +2,20 @@
 
 import * as React from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { Handbag, Heart, UserRound } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
-import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCart } from "@/components/cart/useCart";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import { useWishlist } from "@/components/wishlist/useWishlist";
 import { useNotifications } from "@/components/notifications/useNotifications";
 import { useToast } from "@/components/ui/ToastProvider";
+
+const CartDrawer = dynamic(
+  () => import("@/components/cart/CartDrawer").then((mod) => mod.CartDrawer),
+  { ssr: false }
+);
 
 function resolveBackendAdminUrl() {
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
@@ -43,14 +48,21 @@ export function HeaderClient() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
   const { push } = useToast();
-  const { cartQuery } = useCart();
   const { hasToken, profileQuery, logout } = useAuthContext();
-  const { wishlistQuery } = useWishlist({ enabled: mounted });
+  const shouldLoadHeaderCounts = mounted && hasToken;
+  const { cartQuery, cartSummaryQuery } = useCart({
+    includeCart: open,
+    includeSummary: shouldLoadHeaderCounts,
+  });
+  const { wishlistQuery } = useWishlist({ enabled: shouldLoadHeaderCounts });
   const { unreadCountQuery } = useNotifications(undefined, {
     includeList: false,
     includeUnread: true,
   });
-  const count = cartQuery.data?.item_count ?? 0;
+  const count =
+    cartSummaryQuery.data?.item_count ??
+    cartQuery.data?.item_count ??
+    0;
   const wishlistCount =
     wishlistQuery.data?.meta?.pagination?.count ??
     wishlistQuery.data?.data?.length ??
@@ -113,6 +125,7 @@ export function HeaderClient() {
       </div>
       <Link
         href="/wishlist/"
+        prefetch={false}
         className={`group hidden sm:inline-flex ${iconButtonClass}`}
         aria-label="Wishlist"
       >
@@ -301,7 +314,7 @@ export function HeaderClient() {
           )
         ) : null}
       </div>
-      <CartDrawer isOpen={open} onClose={() => setOpen(false)} />
+      {open ? <CartDrawer isOpen={open} onClose={() => setOpen(false)} /> : null}
     </div>
   );
 }

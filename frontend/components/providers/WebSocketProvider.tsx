@@ -35,7 +35,7 @@ function buildWsUrl(path: string) {
 }
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
-  const { profileQuery } = useAuthContext();
+  const { hasToken, profileQuery } = useAuthContext();
   const queryClient = useQueryClient();
   const socketsRef = React.useRef<Record<string, WebSocket | null>>({});
   const reconnectTimers = React.useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
@@ -48,8 +48,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = Boolean(profileQuery.data?.is_staff || profileQuery.data?.is_superuser);
 
   const activeChannels = React.useMemo(() => {
+    if (!hasToken) return [];
     return Object.keys(CHANNELS).filter((channel) => channel !== "analytics" || isAdmin);
-  }, [isAdmin]);
+  }, [hasToken, isAdmin]);
 
   const connect = React.useCallback(
     (channel: string) => {

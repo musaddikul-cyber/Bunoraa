@@ -1047,18 +1047,42 @@ export function ProductDetailClient({
       : fullDescription;
   const sizeGroup = optionGroups.find((group) => group.name.toLowerCase().includes("size"));
   const otherGroups = optionGroups.filter((group) => group !== sizeGroup);
+  const categoryBreadcrumbs = (() => {
+    if (product.breadcrumbs?.length) {
+      const seen = new Set<string>();
+      const segments: string[] = [];
+      return product.breadcrumbs
+        .filter((crumb) => {
+          if (!crumb?.id || !crumb?.slug) return false;
+          if (seen.has(crumb.id)) return false;
+          seen.add(crumb.id);
+          return true;
+        })
+        .map((crumb) => {
+          segments.push(crumb.slug);
+          return {
+            label: crumb.name,
+            href: buildCategoryPath(segments.join("/")),
+          };
+        });
+    }
+
+    if (product.primary_category) {
+      return [
+        {
+          label: product.primary_category.name,
+          href: buildCategoryPath(
+            product.primary_category_slug_path || product.primary_category.slug
+          ),
+        },
+      ];
+    }
+
+    return [];
+  })();
   const breadcrumbLinks = [
     { label: "Home", href: "/" },
-    ...(product.primary_category
-      ? [
-          {
-            label: product.primary_category.name,
-            href: buildCategoryPath(
-              product.primary_category_slug_path || product.primary_category.slug
-            ),
-          },
-        ]
-      : []),
+    ...categoryBreadcrumbs,
     { label: product.name, href: buildProductPath(product) },
   ];
   const reviewCount = typeof product.reviews_count === "number" ? product.reviews_count : 0;

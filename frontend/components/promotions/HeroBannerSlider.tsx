@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 export type HeroBanner = {
@@ -63,6 +64,9 @@ export function HeroBannerSlider({
   intervalMs?: number;
 }) {
   const [activeIndex, setActiveIndex] = React.useState(0);
+  const [loadedSlides, setLoadedSlides] = React.useState<Set<number>>(
+    () => new Set([0])
+  );
   const total = banners.length;
   const defaultHeight = "calc(100dvh - var(--header-offset, 5.5rem))";
 
@@ -80,6 +84,15 @@ export function HeroBannerSlider({
     }
   }, [activeIndex, total]);
 
+  React.useEffect(() => {
+    setLoadedSlides((prev) => {
+      if (prev.has(activeIndex)) return prev;
+      const next = new Set(prev);
+      next.add(activeIndex);
+      return next;
+    });
+  }, [activeIndex]);
+
   if (!total) return null;
 
   const primary = banners[0];
@@ -94,6 +107,7 @@ export function HeroBannerSlider({
       <div className="relative h-full overflow-hidden">
         {banners.map((banner, index) => {
           const isActive = index === activeIndex;
+          const hasLoadedImage = loadedSlides.has(index) || index === 0;
           const borderWidth = toCssValue(banner.style_border_width);
           const borderColor = banner.style_border_color || undefined;
           const resolvedBorderWidth = borderWidth || (borderColor ? "1px" : undefined);
@@ -164,16 +178,19 @@ export function HeroBannerSlider({
               )}
               style={slideStyle}
             >
-              <picture>
-                {banner.image_mobile ? (
-                  <source media="(max-width: 640px)" srcSet={banner.image_mobile} />
-                ) : null}
-                <img
+              {hasLoadedImage ? (
+                <Image
                   src={banner.image}
                   alt={banner.title}
-                  className="h-full w-full object-cover"
+                  fill
+                  sizes="100vw"
+                  quality={72}
+                  priority={index === 0}
+                  className="object-cover"
                 />
-              </picture>
+              ) : (
+                <div className="h-full w-full bg-muted" />
+              )}
               <div
                 className={cn(
                   "absolute inset-0 flex flex-col p-4 transition-opacity sm:p-6",

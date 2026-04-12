@@ -1,16 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { unstable_noStore as noStore } from "next/cache";
-import { Suspense } from "react";
 import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChatWidget } from "@/components/chat/ChatWidget";
-import { CompareTray } from "@/components/products/CompareTray";
-import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { DEFAULT_OG_IMAGE_PATH, SITE_NAME, SITE_URL, absoluteUrl, cleanObject } from "@/lib/seo";
 import Script from "next/script";
+import { DeferredClientEnhancements } from "@/components/layout/DeferredClientEnhancements";
 
 const SITE_DESCRIPTION =
   "Discover curated products, bundles, and artisan-made collections at Bunoraa.";
@@ -100,7 +97,11 @@ export const viewport: Viewport = {
 const disablePrerender =
   process.env.NEXT_DISABLE_PRERENDER === "true" ||
   process.env.NEXT_DISABLE_PRERENDER === "1";
-const shouldLoadCloudflareBeacon = process.env.NODE_ENV === "production";
+const cloudflareBeaconToken = (
+  process.env.NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN || ""
+).trim();
+const shouldLoadCloudflareBeacon =
+  process.env.NODE_ENV === "production" && Boolean(cloudflareBeaconToken);
 
 const themeBootstrapScript = `
 (() => {
@@ -176,23 +177,19 @@ export default function RootLayout({
           Skip to main content
         </a>
         <Providers>
-          <Suspense fallback={null}>
-            <PageViewTracker />
-          </Suspense>
           <Header />
           <main id="main-content" className="min-h-[70vh]">
             {children}
           </main>
           <Footer />
-          <CompareTray />
-          <ChatWidget />
+          <DeferredClientEnhancements />
         </Providers>
         <JsonLd data={[organizationSchema, websiteSchema]} />
         {shouldLoadCloudflareBeacon ? (
           <Script
             src="https://static.cloudflareinsights.com/beacon.min.js"
             strategy="afterInteractive"
-            data-cf-beacon='{"token": "99cd4569fd314a31bb530d46e16f26c9"}'
+            data-cf-beacon={`{"token":"${cloudflareBeaconToken}"}`}
           />
         ) : null}
       </body>

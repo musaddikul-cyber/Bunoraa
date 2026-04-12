@@ -54,12 +54,15 @@ const shouldProxyMedia =
 const disableImageOptimization =
   process.env.NEXT_IMAGE_UNOPTIMIZED === "true" ||
   process.env.NEXT_IMAGE_UNOPTIMIZED === "1";
+const shouldDisableImageOptimization =
+  disableImageOptimization && process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
   images: {
     remotePatterns,
-    unoptimized: disableImageOptimization,
+    unoptimized: shouldDisableImageOptimization,
+    formats: ["image/avif", "image/webp"],
   },
   turbopack: {
     resolveAlias: {

@@ -1,6 +1,6 @@
-/* eslint-disable @next/next/no-img-element */
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { apiFetch } from "@/lib/api";
 import type {
   Collection,
@@ -10,10 +10,6 @@ import type {
 import { ProductGrid } from "@/components/products/ProductGrid";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { HomeProductTabs } from "@/components/products/HomeProductTabs";
-import {
-  HomeCategoryTabs,
-  type HomeCategoryTabBand,
-} from "@/components/products/HomeCategoryTabs";
 import { HeroBannerSlider, type HeroBanner } from "@/components/promotions/HeroBannerSlider";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
@@ -24,7 +20,7 @@ import { buildProductPath } from "@/lib/productPaths";
 
 export const revalidate = 300;
 export const metadata: Metadata = buildPageMetadata({
-  title: "Bunoraa | Curated Products and Artisan Collections",
+  title: "Curated Products and Artisan Collections",
   description:
     "Shop curated products, themed collections, bundles, and custom preorder programs at Bunoraa.",
   path: "/",
@@ -37,6 +33,7 @@ type FeaturedCategory = {
   image?: string | null;
   icon?: string | null;
   product_count?: number | null;
+  is_featured?: boolean | null;
 };
 
 type Spotlight = {
@@ -152,7 +149,12 @@ async function getCategoryProducts(headers: Record<string, string>, slug: string
       ProductListItem[] | { results?: ProductListItem[] }
     >("/catalog/products/by-category/", {
       headers,
-      params: { category: slug, page_size: 8 },
+      params: {
+        category: slug,
+        page_size: 8,
+        include_descendants: true,
+        primary_only: true,
+      },
       next: { revalidate },
     });
     const payload = response.data as ProductListItem[] | { results?: ProductListItem[] };
@@ -181,12 +183,39 @@ export default async function Home() {
   const onSale = asArray<ProductListItem>(homepageData.on_sale);
   const featuredCategories = asArray<FeaturedCategory>(homepageData.featured_categories);
   const spotlights = asArray<Spotlight>(homepageData.spotlights);
-  const showByCategories = asArray<FeaturedCategory>(homepageData.show_by_categories);
-  const featuredCategoriesWithProducts = featuredCategories.filter((category) => {
-    if (category.product_count === null || category.product_count === undefined) return true;
-    return Number(category.product_count) > 0;
-  });
-  const homepageCategories = featuredCategoriesWithProducts.slice(0, 3);
+  const showByCategoriesRaw = asArray<FeaturedCategory>(homepageData.show_by_categories);
+  const featuredCategorySlugs = new Set(
+    featuredCategories.map((category) => category.slug)
+  );
+  const featuredCategoryIds = new Set(
+    featuredCategories.map((category) => category.id)
+  );
+  const resolveHomepageFeaturedCategoryId = (product: ProductListItem) => {
+    if (!product.primary_category_id) return null;
+    if (featuredCategoryIds.has(product.primary_category_id)) {
+      return product.primary_category_id;
+    }
+    const rawPath = product.primary_category_path || "";
+    const pathIds = rawPath.split("/").map((part) => part.trim()).filter(Boolean);
+    if (!pathIds.length) return null;
+    for (let index = pathIds.length - 2; index >= 0; index -= 1) {
+      const ancestorId = pathIds[index];
+      if (featuredCategoryIds.has(ancestorId)) {
+        return ancestorId;
+      }
+    }
+    return null;
+  };
+  const filterFeaturedScopeProducts = (products: ProductListItem[]) =>
+    products.filter((product) => Boolean(resolveHomepageFeaturedCategoryId(product)));
+  const filteredFeaturedProducts = filterFeaturedScopeProducts(featuredProducts);
+  const filteredNewArrivals = filterFeaturedScopeProducts(newArrivals);
+  const filteredBestsellers = filterFeaturedScopeProducts(bestsellers);
+  const filteredOnSale = filterFeaturedScopeProducts(onSale);
+  const showByCategories = showByCategoriesRaw.filter(
+    (category) => Boolean(category.is_featured) || featuredCategorySlugs.has(category.slug)
+  );
+  const homepageCategories = featuredCategories.slice(0, 3);
   const categoryProducts = await Promise.all(
     homepageCategories.map((category) => getCategoryProducts(localeHeaders, category.slug))
   );
@@ -194,9 +223,19 @@ export default async function Home() {
     category,
     products: categoryProducts[index] || [],
   }));
-  const categoryBandsWithProducts = categoryBands.filter(
-    (band) => band.products.length > 0
-  );
+  const seenHomepageProductIds = new Set<string>();
+  const categoryBandsWithProducts = categoryBands
+    .map((band) => ({
+      ...band,
+      products: band.products.filter((product) => {
+        if (!product?.id) return false;
+        if (resolveHomepageFeaturedCategoryId(product) !== band.category.id) return false;
+        if (seenHomepageProductIds.has(product.id)) return false;
+        seenHomepageProductIds.add(product.id);
+        return true;
+      }),
+    }))
+    .filter((band) => band.products.length > 0);
   const collections = asArray<Collection>(homepageData.collections);
   const brandName = pickText(siteSettings?.site_name);
   const heroDescription = pickText(
@@ -205,7 +244,9 @@ export default async function Home() {
     siteSettings?.site_description
   );
 
-  const seasonalFavs = (onSale.length ? onSale : featuredProducts).slice(0, 8);
+  const seasonalFavs = (
+    filteredOnSale.length ? filteredOnSale : filteredFeaturedProducts
+  ).slice(0, 8);
 
   const homePageSchema = cleanObject({
     "@context": "https://schema.org",
@@ -219,7 +260,7 @@ export default async function Home() {
   });
 
   const featuredList = buildItemList(
-    featuredProducts.slice(0, 10).map((product) => ({
+    filteredFeaturedProducts.slice(0, 10).map((product) => ({
       name: product.name,
       url: buildProductPath(product),
       image: getImage(product) || undefined,
@@ -240,7 +281,7 @@ export default async function Home() {
 
   const jsonLd = [
     homePageSchema,
-    ...(featuredProducts.length ? [featuredList] : []),
+    ...(filteredFeaturedProducts.length ? [featuredList] : []),
     ...(collections.length ? [collectionsList] : []),
   ];
 
@@ -292,15 +333,19 @@ export default async function Home() {
                 <Link
                   key={spotlight.id}
                   href={href}
+                  prefetch={false}
                   className="group overflow-hidden rounded-2xl border border-border bg-card"
                   target={isProductSpotlight ? "_blank" : undefined}
                   rel={isProductSpotlight ? "noopener noreferrer" : undefined}
                 >
-                  <div className="aspect-[16/10] overflow-hidden bg-muted">
+                  <div className="relative aspect-[16/10] overflow-hidden bg-muted">
                     {spotlightImage ? (
-                      <img
+                      <Image
                         src={spotlightImage}
                         alt={spotlightTitle}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        quality={70}
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                       />
                     ) : null}
@@ -329,6 +374,7 @@ export default async function Home() {
             </h2>
             <Link
               href={buildCategoryPath(band.category.slug)}
+              prefetch={false}
               className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60 hover:text-foreground"
             >
               View All
@@ -352,7 +398,7 @@ export default async function Home() {
       ) : null}
 
       <section className={`${sectionWrapperClass} py-8`}>
-        <HomeProductTabs newDrops={newArrivals} trending={bestsellers} />
+        <HomeProductTabs newDrops={filteredNewArrivals} trending={filteredBestsellers} />
       </section>
 
       <section className={`${sectionWrapperClass} py-8`}>
@@ -374,13 +420,17 @@ export default async function Home() {
               <Link
                 key={category.id}
                 href={buildCategoryPath(category.slug)}
+                prefetch={false}
                 className="group"
               >
-                <div className="aspect-[4/3] overflow-hidden bg-muted">
+                <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                   {category.image ? (
-                    <img
+                    <Image
                       src={category.image}
                       alt={category.name}
+                      fill
+                      sizes="(max-width: 640px) 100vw, 33vw"
+                      quality={68}
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     />
                   ) : null}

@@ -60,6 +60,7 @@ export async function Header() {
               <Link
                 className="group relative inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary transition duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary hover:text-white hover:shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 href="/preorders/"
+                prefetch={false}
               >
                 Preorders
                 <span className="hidden text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/70 group-hover:text-white/80 xl:inline">
@@ -71,6 +72,7 @@ export async function Header() {
                   key={category.id}
                   className="text-foreground/70 hover:text-foreground"
                   href={buildCategoryPath(category.slug)}
+                  prefetch={false}
                 >
                   {category.name}
                 </Link>
@@ -80,6 +82,7 @@ export async function Header() {
                   key={page.id}
                   className="text-foreground/70 hover:text-foreground"
                   href={`/pages/${page.slug}/`}
+                  prefetch={false}
                 >
                   {page.title}
                 </Link>

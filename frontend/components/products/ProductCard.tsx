@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import type { ProductListItem } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +14,22 @@ import { ProductPrice } from "@/components/products/ProductPrice";
 import { cn } from "@/lib/utils";
 import { compareItemFromProduct, useCompareToggle } from "@/components/products/compareHelpers";
 import { buildProductPath } from "@/lib/productPaths";
+
+const DEFAULT_CARD_ASPECT_RATIO = 4 / 5;
+
+function parseAspectRatio(value?: string | null) {
+  if (!value) return DEFAULT_CARD_ASPECT_RATIO;
+  const normalized = String(value).trim();
+  if (!normalized) return DEFAULT_CARD_ASPECT_RATIO;
+
+  const parts = normalized.split(/[/:]/).map((part) => Number(part.trim()));
+  if (parts.length !== 2) return DEFAULT_CARD_ASPECT_RATIO;
+  const [width, height] = parts;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return DEFAULT_CARD_ASPECT_RATIO;
+  }
+  return width / height;
+}
 
 export function ProductCard({
   product,
@@ -33,20 +50,10 @@ export function ProductCard({
   const productHref = buildProductPath(product);
 
   const canQuickView = typeof onQuickView === "function";
-  const aspectRatio =
-    (product as any).aspect_ratio ||
-    (product as any).category?.aspect_ratio ||
-    "4/5";
-  
-  let aspectRatioValue = 4 / 5; // default
-  try {
-    const [width, height] = aspectRatio.split('/').map(Number);
-    if (width && height) {
-      aspectRatioValue = width / height;
-    }
-  } catch {
-    aspectRatioValue = 4 / 5;
-  }
+  const aspectRatioValue = parseAspectRatio(product.aspect_ratio);
+  const gridImageSizes =
+    "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw";
+  const listImageSizes = "(max-width: 640px) 100vw, 224px";
 
   if (variant === "minimal") {
     return (
@@ -74,17 +81,18 @@ export function ProductCard({
           ) : (
             <Link
               href={productHref}
+              prefetch={false}
               className="absolute inset-0 z-10"
               aria-label={`View ${product.name}`}
             />
           )}
           {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={image}
               alt={product.name}
-              loading="lazy"
-              decoding="async"
+              fill
+              sizes={gridImageSizes}
+              quality={72}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
             />
           ) : null}
@@ -97,6 +105,7 @@ export function ProductCard({
           ) : null}
           <Link
             href={productHref}
+            prefetch={false}
             className="block text-sm font-medium leading-snug text-foreground"
           >
             {product.name}
@@ -107,7 +116,7 @@ export function ProductCard({
             currentPrice={product.current_price}
             currency={product.currency}
             className="text-foreground"
-            priceClassName="text-[1.5rem] font-semibold"
+            priceClassName="text-[15px] font-semibold sm:text-xl"
           />
         </div>
       </div>
@@ -141,6 +150,7 @@ export function ProductCard({
         ) : (
           <Link
             href={productHref}
+            prefetch={false}
             className="absolute inset-0 z-0"
             aria-label={`View ${product.name}`}
             target="_blank"
@@ -155,12 +165,12 @@ export function ProductCard({
           className="absolute right-0 top-0 z-40 opacity-100 scale-75 transition sm:scale-100 sm:right-2 sm:top-2 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100"
         />
         {image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={image}
             alt={product.name}
-            loading="lazy"
-            decoding="async"
+            fill
+            sizes={variant === "list" ? listImageSizes : gridImageSizes}
+            quality={72}
             className="h-full w-full object-cover"
           />
         ) : null}
@@ -188,6 +198,7 @@ export function ProductCard({
           </p>
           <Link
             href={productHref}
+            prefetch={false}
             className="block text-base font-semibold leading-snug sm:text-lg"
             target="_blank"
             rel="noopener noreferrer"
@@ -201,6 +212,7 @@ export function ProductCard({
           salePrice={product.sale_price}
           currentPrice={product.current_price}
           currency={product.currency}
+          priceClassName="text-base font-semibold sm:text-lg"
         />
         <div className="mt-auto grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center">
           <AddToCartButton

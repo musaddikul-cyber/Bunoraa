@@ -152,12 +152,20 @@ class CategoryService:
     
     @classmethod
     def get_featured_categories(cls, limit=6):
-        """Get featured categories for homepage, with product-count fallback ordering."""
-        return Category.objects.filter(
+        """Get featured categories for homepage."""
+        qs = Category.objects.filter(
             is_active=True,
             is_visible=True,
-            is_deleted=False
-        ).order_by('-is_featured', '-product_count', 'sort_order', 'name')[:limit]
+            is_deleted=False,
+            is_featured=True,
+        ).order_by(
+            "-product_count",
+            "sort_order",
+            "name",
+        )
+        if limit:
+            return qs[:limit]
+        return qs
     
     @classmethod
     def get_category_by_slug(cls, slug: str) -> Optional[Category]:
@@ -193,25 +201,45 @@ class CategoryService:
         return current
     
     @classmethod
-    def get_category_products(cls, category: Category, include_descendants=True, limit=None):
-        """Get products in a category with optional descendant inclusion."""
+    def get_category_products(
+        cls,
+        category: Category,
+        include_descendants=True,
+        limit=None,
+        primary_only=False,
+    ):
+        """Get products in a category with optional descendant inclusion and primary-category filtering."""
         if include_descendants:
             categories = category.get_descendants(include_self=True).filter(
                 is_active=True,
                 is_visible=True,
                 is_deleted=False,
             )
-            qs = Product.objects.filter(
-                categories__in=categories,
-                is_active=True,
-                is_deleted=False
-            ).distinct()
+            if primary_only:
+                qs = Product.objects.filter(
+                    primary_category__in=categories,
+                    is_active=True,
+                    is_deleted=False,
+                )
+            else:
+                qs = Product.objects.filter(
+                    categories__in=categories,
+                    is_active=True,
+                    is_deleted=False
+                ).distinct()
         else:
-            qs = Product.objects.filter(
-                categories=category,
-                is_active=True,
-                is_deleted=False
-            )
+            if primary_only:
+                qs = Product.objects.filter(
+                    primary_category=category,
+                    is_active=True,
+                    is_deleted=False,
+                )
+            else:
+                qs = Product.objects.filter(
+                    categories=category,
+                    is_active=True,
+                    is_deleted=False
+                )
         
         qs = qs.select_related('primary_category').prefetch_related('images', 'categories', 'tags')
         if not qs.query.order_by:

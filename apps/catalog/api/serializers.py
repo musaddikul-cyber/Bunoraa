@@ -236,6 +236,12 @@ class ProductListSerializer(ContentTranslationMixin, PriceConversionMixin, seria
     discount_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
     is_on_sale = serializers.BooleanField(read_only=True)
     is_in_stock = serializers.SerializerMethodField()
+    primary_category_id = serializers.UUIDField(source='primary_category_id', read_only=True, allow_null=True)
+    primary_category_path = serializers.CharField(
+        source='primary_category.path',
+        read_only=True,
+        allow_null=True,
+    )
     primary_category_name = serializers.CharField(source='primary_category.name', read_only=True)
     primary_category_slug_path = serializers.SerializerMethodField()
 
@@ -247,10 +253,12 @@ class ProductListSerializer(ContentTranslationMixin, PriceConversionMixin, seria
         fields = (
             'id', 'name', 'slug', 'sku', 'short_description',
             'price', 'sale_price', 'current_price', 'currency',
+            'aspect_ratio',
             'discount_percentage', 'is_on_sale', 'is_in_stock',
             'is_featured', 'is_bestseller', 'is_new_arrival',
             'average_rating', 'reviews_count', 'views_count',
-            'primary_image', 'primary_category_name', 'primary_category_slug_path'
+            'primary_image', 'primary_category_id', 'primary_category_path',
+            'primary_category_name', 'primary_category_slug_path'
         )
     
     def get_primary_image(self, obj):

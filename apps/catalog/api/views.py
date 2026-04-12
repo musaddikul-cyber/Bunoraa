@@ -310,6 +310,17 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'description', 'short_description', 'sku']
     ordering_fields = ['price', 'name', 'created_at', 'sales_count', 'views_count', 'average_rating']
     ordering = ['-created_at']
+
+    @staticmethod
+    def _parse_bool_param(value):
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+        return None
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -638,6 +649,25 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         slug_or_id = request.query_params.get('category')
         if not slug_or_id:
             return Response({'detail': 'category parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        include_descendants_raw = request.query_params.get("include_descendants")
+        include_descendants = self._parse_bool_param(include_descendants_raw)
+        if include_descendants_raw is None:
+            include_descendants = True
+        elif include_descendants is None:
+            return Response(
+                {'detail': 'include_descendants must be a boolean value'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        primary_only_raw = request.query_params.get("primary_only")
+        primary_only = self._parse_bool_param(primary_only_raw)
+        if primary_only_raw is None:
+            primary_only = False
+        elif primary_only is None:
+            return Response(
+                {'detail': 'primary_only must be a boolean value'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         category = None
         try:
             UUID(str(slug_or_id))
@@ -655,7 +685,11 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         if not category:
             return Response({'detail': 'Category not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        products = CategoryService.get_category_products(category)
+        products = CategoryService.get_category_products(
+            category,
+            include_descendants=include_descendants,
+            primary_only=primary_only,
+        )
         page = self.paginate_queryset(products)
         
         if page is not None:
@@ -808,27 +842,88 @@ class SearchAPIView(APIView):
 class HomepageDataView(APIView):
     """Get all data needed for homepage in one request."""
     permission_classes = [AllowAny]
+
+    @staticmethod
+    def _resolve_home_featured_category_id(product, featured_category_ids):
+        if not featured_category_ids:
+            return None
+        featured_ids = {str(category_id) for category_id in featured_category_ids}
+        primary_category_id = getattr(product, "primary_category_id", None)
+        if not primary_category_id:
+            return None
+        primary_id = str(primary_category_id)
+        if primary_id in featured_ids:
+            return primary_id
+
+        primary_category = getattr(product, "primary_category", None)
+        category_path = str(getattr(primary_category, "path", "") or "")
+        if not category_path:
+            return None
+        path_ids = [part for part in category_path.split("/") if part]
+        if not path_ids:
+            return None
+
+        # If the primary category itself is not featured, attach the product to its
+        # nearest featured ancestor in the chain.
+        for ancestor_id in reversed(path_ids[:-1]):
+            if ancestor_id in featured_ids:
+                return ancestor_id
+        return None
+
+    @classmethod
+    def _filter_to_featured_scope(cls, products, featured_category_ids):
+        scoped = []
+        for product in products:
+            home_featured_category_id = cls._resolve_home_featured_category_id(
+                product,
+                featured_category_ids,
+            )
+            if not home_featured_category_id:
+                continue
+            product.homepage_featured_category_id = home_featured_category_id
+            scoped.append(product)
+        return scoped
     
     def get(self, request):
+        featured_categories = list(CategoryService.get_featured_categories(limit=6))
+        featured_category_ids = [category.id for category in featured_categories]
+
+        featured_products = self._filter_to_featured_scope(
+            ProductService.get_featured_products(limit=24),
+            featured_category_ids,
+        )[:8]
+        new_arrivals = self._filter_to_featured_scope(
+            ProductService.get_new_arrivals(limit=24),
+            featured_category_ids,
+        )[:8]
+        bestsellers = self._filter_to_featured_scope(
+            ProductService.get_bestsellers(limit=24),
+            featured_category_ids,
+        )[:8]
+        on_sale = self._filter_to_featured_scope(
+            ProductService.get_on_sale_products(limit=24),
+            featured_category_ids,
+        )[:8]
+
         return Response({
             'featured_products': ProductListSerializer(
-                ProductService.get_featured_products(limit=8),
+                featured_products,
                 many=True, context={'request': request}
             ).data,
             'new_arrivals': ProductListSerializer(
-                ProductService.get_new_arrivals(limit=8),
+                new_arrivals,
                 many=True, context={'request': request}
             ).data,
             'bestsellers': ProductListSerializer(
-                ProductService.get_bestsellers(limit=8),
+                bestsellers,
                 many=True, context={'request': request}
             ).data,
             'on_sale': ProductListSerializer(
-                ProductService.get_on_sale_products(limit=8),
+                on_sale,
                 many=True, context={'request': request}
             ).data,
             'featured_categories': CategoryListSerializer(
-                CategoryService.get_featured_categories(limit=6),
+                featured_categories,
                 many=True, context={'request': request}
             ).data,
             'spotlights': SpotlightSerializer(

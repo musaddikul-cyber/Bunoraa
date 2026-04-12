@@ -61,9 +61,8 @@ function getApiBaseUrl() {
 
   try {
     const apiOrigin = new URL(PUBLIC_API_BASE_URL).origin;
-    const isLocalDevHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-    if (isLocalDevHost && apiOrigin !== window.location.origin) {
-      // In local development, prefer the Next.js same-origin API rewrite to avoid CORS preflights.
+    if (apiOrigin !== window.location.origin) {
+      // Prefer the Next.js same-origin API rewrite to reduce CORS preflights on client-side requests.
       return toPathBase(PUBLIC_API_BASE_URL);
     }
   } catch {

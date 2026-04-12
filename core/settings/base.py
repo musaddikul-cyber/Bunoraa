@@ -355,11 +355,49 @@ CONN_MAX_AGE = int(os.environ.get('CONN_MAX_AGE', 600))
 ATOMIC_REQUESTS = False
 
 # Pre-render / warm-up settings
-PRERENDER_ENABLED = os.environ.get('PRERENDER_ENABLED', 'False').lower() in ('1', 'true', 'yes')
-PRERENDER_PATHS = ['/', '/products/', '/categories/']
+PRERENDER_ENABLED = _env_bool('PRERENDER_ENABLED', False)
+PRERENDER_PATHS = _env_csv(
+    'PRERENDER_PATHS',
+    '/,/products/,/categories/,/collections/,/bundles/,/artisans/,/about/,/contact/,/faq/',
+)
+PRERENDER_PATH_PATTERNS = _env_csv(
+    'PRERENDER_PATH_PATTERNS',
+    '/,/products/*,/categories/*,/collections/*,/bundles/*,/artisans/*,/about/,/contact/,/faq/',
+)
 PRERENDER_CACHE_DIR = os.environ.get('PRERENDER_CACHE_DIR', 'prerender_cache')
+PRERENDER_MIDDLEWARE_ENABLED = _env_bool('PRERENDER_MIDDLEWARE_ENABLED', PRERENDER_ENABLED)
+PRERENDER_ON_DEMAND_ENABLED = _env_bool('PRERENDER_ON_DEMAND_ENABLED', True)
+PRERENDER_ALLOWED_QUERY_KEYS = _env_csv(
+    'PRERENDER_ALLOWED_QUERY_KEYS',
+    'page,sort,ordering,q,query,category,collection,tag',
+)
+PRERENDER_TIMEOUT_SECONDS = _env_int('PRERENDER_TIMEOUT_SECONDS', 15)
+PRERENDER_CONNECT_TIMEOUT_SECONDS = _env_int('PRERENDER_CONNECT_TIMEOUT_SECONDS', 5)
+PRERENDER_READ_TIMEOUT_SECONDS = _env_int('PRERENDER_READ_TIMEOUT_SECONDS', 15)
+PRERENDER_FETCH_RETRIES = _env_int('PRERENDER_FETCH_RETRIES', 2)
+PRERENDER_FETCH_BACKOFF_SECONDS = _env_float('PRERENDER_FETCH_BACKOFF_SECONDS', 0.5)
+PRERENDER_FRESH_TTL_SECONDS = _env_int('PRERENDER_FRESH_TTL_SECONDS', 3600)
+PRERENDER_STALE_WHILE_REVALIDATE_SECONDS = _env_int('PRERENDER_STALE_WHILE_REVALIDATE_SECONDS', 3600)
+PRERENDER_STALE_IF_ERROR_SECONDS = _env_int('PRERENDER_STALE_IF_ERROR_SECONDS', 86400)
+PRERENDER_MAX_TTL_SECONDS = _env_int('PRERENDER_MAX_TTL_SECONDS', 604800)
+PRERENDER_MAX_CONTENT_BYTES = _env_int('PRERENDER_MAX_CONTENT_BYTES', 4 * 1024 * 1024)
+PRERENDER_VERIFY_GOOGLE_DNS = _env_bool('PRERENDER_VERIFY_GOOGLE_DNS', False)
+PRERENDER_BOT_TOKENS = _env_csv(
+    'PRERENDER_BOT_TOKENS',
+    'googlebot,bingbot,yandex,baiduspider,duckduckbot,applebot,facebot,facebookexternalhit,linkedinbot,slackbot,twitterbot',
+)
+PRERENDER_USER_AGENT = os.environ.get(
+    'PRERENDER_USER_AGENT',
+    'Mozilla/5.0 (compatible; BunoraaPrerender/2.0; +https://bunoraa.com/bot)',
+)
 SITE_URL = os.environ.get('SITE_URL', 'https://bunoraa.com')
 ASSET_HOST = os.environ.get('ASSET_HOST', '')
+if PRERENDER_MIDDLEWARE_ENABLED and 'core.middleware.bot_prerender.BotPreRenderMiddleware' not in MIDDLEWARE:
+    try:
+        insert_at = MIDDLEWARE.index('django.contrib.messages.middleware.MessageMiddleware')
+    except ValueError:
+        insert_at = len(MIDDLEWARE)
+    MIDDLEWARE.insert(insert_at, 'core.middleware.bot_prerender.BotPreRenderMiddleware')
 
 # Site ID
 SITE_ID = int(os.environ.get('SITE_ID', '1'))

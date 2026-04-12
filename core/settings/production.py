@@ -87,9 +87,20 @@ SITE_DOMAIN = os.environ.get('SITE_DOMAIN', 'api.bunoraa.com')
 DEBUG = False
 ENVIRONMENT = 'production'
 
-# Explicitly disable prerendering in production regardless of environment vars.
-PRERENDER_ENABLED = False
-PRERENDER_PATHS = []
+# Production prerender defaults (overridable via env).
+PRERENDER_ENABLED = _env_bool('PRERENDER_ENABLED', True)
+PRERENDER_MIDDLEWARE_ENABLED = _env_bool('PRERENDER_MIDDLEWARE_ENABLED', PRERENDER_ENABLED)
+PRERENDER_ON_DEMAND_ENABLED = _env_bool('PRERENDER_ON_DEMAND_ENABLED', True)
+PRERENDER_VERIFY_GOOGLE_DNS = _env_bool('PRERENDER_VERIFY_GOOGLE_DNS', PRERENDER_ENABLED)
+
+if PRERENDER_MIDDLEWARE_ENABLED and 'core.middleware.bot_prerender.BotPreRenderMiddleware' not in MIDDLEWARE:
+    try:
+        insert_at = MIDDLEWARE.index('django.contrib.messages.middleware.MessageMiddleware')
+    except ValueError:
+        insert_at = len(MIDDLEWARE)
+    MIDDLEWARE.insert(insert_at, 'core.middleware.bot_prerender.BotPreRenderMiddleware')
+elif not PRERENDER_MIDDLEWARE_ENABLED and 'core.middleware.bot_prerender.BotPreRenderMiddleware' in MIDDLEWARE:
+    MIDDLEWARE.remove('core.middleware.bot_prerender.BotPreRenderMiddleware')
 
 # =============================================================================
 # STARTUP PERFORMANCE OPTIMIZATION

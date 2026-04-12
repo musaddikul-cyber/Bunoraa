@@ -1,7 +1,7 @@
 from celery import shared_task
 from django.utils import timezone
 from .models import Keyword, SitemapSubmission, SitemapError
-from .services import snapshot_keyword_serp
+from .services import build_prerender_url, normalize_path, snapshot_keyword_serp
 import requests
 
 
@@ -32,16 +32,18 @@ def fetch_gsc_for_targets(self, start_date=None, end_date=None):
 def warmup_service(self):
     """Warm up critical endpoints (home, search, top categories) to prevent cold starts on Render."""
     from django.conf import settings
-    import requests
-    from urllib.parse import urljoin
 
-    site = getattr(settings, 'SITE_URL', 'https://bunoraa.com')
     paths = getattr(settings, 'PRERENDER_PATHS', ['/'])
     headers = {'User-Agent': 'BunoraaWarmup/1.0'}
     results = []
     for p in paths:
+        if '*' in str(p or ''):
+            # Wildcard path patterns are for middleware matching, not warmup fetches.
+            continue
+        url = ''
         try:
-            url = urljoin(site, p)
+            path = normalize_path(str(p))
+            url = build_prerender_url(path, site_url=getattr(settings, 'SITE_URL', 'https://bunoraa.com'))
             r = requests.get(url, headers=headers, timeout=10)
             results.append({'url': url, 'status': r.status_code})
         except Exception as exc:

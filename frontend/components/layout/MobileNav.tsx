@@ -14,9 +14,11 @@ type Category = { id: string; name: string; slug: string };
 export function MobileNav({
   categories,
   menuPages,
+  hasBundles,
 }: {
   categories: Category[];
   menuPages: MenuPage[];
+  hasBundles: boolean;
 }) {
   const pathname = usePathname();
   const { hasToken, profileQuery, accounts, activeAccountId, switchAccount } = useAuthContext();
@@ -184,13 +186,15 @@ export function MobileNav({
                 >
                   Collections
                 </Link>
-                <Link
-                  className={navLinkClass("/bundles/")}
-                  href="/bundles/"
-                  onClick={closeNav}
-                >
-                  Bundles
-                </Link>
+                {hasBundles ? (
+                  <Link
+                    className={navLinkClass("/bundles/")}
+                    href="/bundles/"
+                    onClick={closeNav}
+                  >
+                    Bundles
+                  </Link>
+                ) : null}
                 <Link
                   className={cn(
                     "block rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors",

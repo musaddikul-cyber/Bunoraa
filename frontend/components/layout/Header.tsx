@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { MobileHeaderVisibility } from "@/components/layout/MobileHeaderVisibility";
 import { asArray } from "@/lib/array";
 import { buildCategoryPath } from "@/lib/categoryPaths";
+import { hasPublishedBundles } from "@/lib/bundles";
 
 type Category = { id: string; name: string; slug: string };
 
@@ -35,19 +36,28 @@ async function getTopCategories() {
 }
 
 export async function Header() {
-  const [menuResult, categoryResult] = await Promise.allSettled([
+  const [menuResult, categoryResult, bundleAvailabilityResult] = await Promise.allSettled([
     getMenuPages(),
     getTopCategories(),
+    hasPublishedBundles(),
   ]);
   const menuPages = menuResult.status === "fulfilled" ? menuResult.value : [];
   const categories = categoryResult.status === "fulfilled" ? categoryResult.value : [];
+  const hasBundles =
+    bundleAvailabilityResult.status === "fulfilled"
+      ? bundleAvailabilityResult.value
+      : false;
 
   return (
     <MobileHeaderVisibility>
       <header className="border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/88">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-3 py-4 sm:px-5">
           <div className="flex min-w-0 items-center gap-6">
-            <MobileNav categories={categories} menuPages={menuPages} />
+            <MobileNav
+              categories={categories}
+              menuPages={menuPages}
+              hasBundles={hasBundles}
+            />
             <HeaderBrand
               defaultBrandName="Bunoraa"
               defaultFaviconUrl="/icon.png"

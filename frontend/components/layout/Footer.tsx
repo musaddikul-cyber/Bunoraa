@@ -12,6 +12,7 @@ import { FooterNewsletter } from "@/components/layout/FooterNewsletter";
 import { FooterPreferencesDialog } from "@/components/layout/FooterPreferencesDialog";
 import { asArray } from "@/lib/array";
 import { buildCategoryPath } from "@/lib/categoryPaths";
+import { hasPublishedBundles } from "@/lib/bundles";
 
 const FOOTER_CATEGORY_LIMIT = 5;
 
@@ -224,12 +225,14 @@ export async function Footer() {
     siteSettingsResult,
     contactSettingsResult,
     categoriesResult,
+    bundleAvailabilityResult,
   ] = await Promise.allSettled([
     getFooterPages(),
     getPublishedPages(),
     getSiteSettings(),
     getContactSettings(),
     getTopCategories(),
+    hasPublishedBundles(),
   ]);
 
   const pages = pagesResult.status === "fulfilled" ? pagesResult.value : [];
@@ -239,6 +242,10 @@ export async function Footer() {
   const contactSettings =
     contactSettingsResult.status === "fulfilled" ? contactSettingsResult.value : null;
   const categories = categoriesResult.status === "fulfilled" ? categoriesResult.value : [];
+  const hasBundles =
+    bundleAvailabilityResult.status === "fulfilled"
+      ? bundleAvailabilityResult.value
+      : false;
 
   const brandName = pickText(siteSettings?.site_name) || "Bunoraa";
   const brandDescription =
@@ -380,7 +387,9 @@ export async function Footer() {
   const collectionLinks = dedupeLinks([
     { key: "all-collections", label: "All collections", href: "/collections/" },
     { key: "collections-all-products", label: "All products", href: "/products/" },
-    { key: "collections-bundles", label: "Bundles", href: "/bundles/" },
+    ...(hasBundles
+      ? [{ key: "collections-bundles", label: "Bundles", href: "/bundles/" }]
+      : []),
     { key: "collections-artisans", label: "Artisans", href: "/artisans/" },
     { key: "collections-preorders", label: "Preorders", href: "/preorders/" },
   ]).filter((item) => !shopHrefSet.has(normalizeHref(item.href)));

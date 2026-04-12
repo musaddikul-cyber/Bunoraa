@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { notFound } from "next/navigation";
+import { apiFetch, ApiError } from "@/lib/api";
 import type { Bundle } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildItemList, buildPageMetadata } from "@/lib/seo";
+import { asArray } from "@/lib/array";
 
 export const revalidate = 600;
 export const metadata: Metadata = buildPageMetadata({
@@ -15,14 +17,27 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 async function getBundles() {
-  const response = await apiFetch<Bundle[]>("/catalog/bundles/", {
-    next: { revalidate },
-  });
-  return response.data;
+  try {
+    const response = await apiFetch<Bundle[] | { results?: Bundle[]; count?: number }>(
+      "/catalog/bundles/",
+      {
+        next: { revalidate },
+      }
+    );
+    return asArray<Bundle>(response.data);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return [];
+    }
+    throw error;
+  }
 }
 
 export default async function BundlesPage() {
   const bundles = await getBundles();
+  if (!bundles.length) {
+    notFound();
+  }
   const list = buildItemList(
     bundles.map((bundle) => ({
       name: bundle.name,
@@ -64,7 +79,7 @@ export default async function BundlesPage() {
           </Card>
         ))}
       </div>
-      {bundles.length ? <JsonLd data={list} /> : null}
+      <JsonLd data={list} />
     </div>
   );
 }

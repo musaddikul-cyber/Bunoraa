@@ -56,7 +56,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         from ..services import UserService
-        return UserService.create_user(**validated_data)
+        return UserService.create_user(
+            request=self.context.get('request'),
+            **validated_data,
+        )
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

@@ -19,7 +19,7 @@ export function MobileNav({
   menuPages: MenuPage[];
 }) {
   const pathname = usePathname();
-  const { hasToken, profileQuery } = useAuthContext();
+  const { hasToken, profileQuery, accounts, activeAccountId, switchAccount } = useAuthContext();
   const [open, setOpen] = React.useState(false);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
@@ -30,6 +30,10 @@ export function MobileNav({
     profileQuery.data?.first_name ||
     profileQuery.data?.email ||
     "";
+  const otherAccounts = React.useMemo(
+    () => accounts.filter((account) => account.id !== activeAccountId),
+    [accounts, activeAccountId]
+  );
 
   const normalizePath = React.useCallback((value: string) => {
     if (value.length > 1 && value.endsWith("/")) {
@@ -58,6 +62,9 @@ export function MobileNav({
       ),
     [isActiveLink]
   );
+
+  const accountItemClass =
+    "block w-full rounded-xl border border-transparent px-3 py-2.5 text-left text-sm text-foreground/90 transition-colors hover:border-border hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
   const closeNav = React.useCallback(() => {
     setOpen(false);
@@ -231,6 +238,29 @@ export function MobileNav({
                         Signed in as <span className="font-semibold text-foreground">{accountLabel}</span>
                       </p>
                     ) : null}
+                    {otherAccounts.length ? (
+                      <div className="space-y-1 rounded-xl border border-dashed border-border px-2 py-2">
+                        <p className="px-1 text-[11px] uppercase tracking-[0.16em] text-foreground/50">
+                          Switch account
+                        </p>
+                        {otherAccounts.map((account) => (
+                          <button
+                            key={account.id}
+                            type="button"
+                            className={accountItemClass}
+                            onClick={() => {
+                              switchAccount(account.id);
+                              closeNav();
+                            }}
+                          >
+                            {account.email ||
+                              account.full_name ||
+                              account.first_name ||
+                              `Account ${account.id.slice(0, 8)}`}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                     <Link
                       className={navLinkClass("/account/profile/")}
                       href="/account/profile/"
@@ -245,6 +275,19 @@ export function MobileNav({
                     >
                       Orders
                     </Link>
+                    {accounts.length < 5 ? (
+                      <Link
+                        className={navLinkClass("/account/login/")}
+                        href={`/account/login/?next=${encodeURIComponent(pathname || "/account/profile/")}&add_account=1`}
+                        onClick={closeNav}
+                      >
+                        Add account
+                      </Link>
+                    ) : (
+                      <p className="rounded-xl border border-dashed border-border px-3 py-2 text-xs text-foreground/60">
+                        Account limit reached (5)
+                      </p>
+                    )}
                   </>
                 ) : (
                   <>

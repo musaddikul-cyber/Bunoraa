@@ -1,6 +1,9 @@
 """
 Promotions API serializers
 """
+from urllib.parse import urlparse
+
+from django.conf import settings
 from rest_framework import serializers
 from ..models import Coupon, Banner, Sale
 
@@ -41,7 +44,8 @@ class CouponValidateResponseSerializer(serializers.Serializer):
 
 class BannerSerializer(serializers.ModelSerializer):
     """Serializer for banner."""
-    
+    link_url = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = Banner
         fields = [
@@ -56,6 +60,59 @@ class BannerSerializer(serializers.ModelSerializer):
             'title_font_size', 'subtitle_font_size',
             'button_font_size', 'button_padding', 'button_min_height'
         ]
+
+    def _normalize_origin(self, value: str) -> str:
+        raw = (value or "").strip()
+        if not raw:
+            return ""
+        parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+        if not parsed.scheme or not parsed.netloc:
+            return ""
+        return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    def _resolve_site_origin(self) -> str:
+        request = self.context.get("request")
+        if request is not None:
+            for header in ("HTTP_ORIGIN", "HTTP_REFERER"):
+                candidate = self._normalize_origin(request.META.get(header, ""))
+                if candidate:
+                    return candidate
+            try:
+                host = request.get_host()
+                if host:
+                    scheme = "https" if request.is_secure() else "http"
+                    return f"{scheme}://{host}"
+            except Exception:
+                pass
+
+        configured = (
+            getattr(settings, "NEXT_FRONTEND_ORIGIN", "")
+            or getattr(settings, "NEXT_PUBLIC_SITE_URL", "")
+            or getattr(settings, "SITE_URL", "")
+        )
+        normalized = self._normalize_origin(configured)
+        if normalized:
+            return normalized
+        return "http://localhost:3000"
+
+    def validate_link_url(self, value):
+        raw = (value or "").strip()
+        if not raw:
+            return ""
+
+        parsed = urlparse(raw)
+        if parsed.scheme and parsed.netloc:
+            if parsed.scheme not in {"http", "https"}:
+                raise serializers.ValidationError("Only http/https URLs are allowed.")
+            return raw
+
+        site_origin = self._resolve_site_origin()
+        path = raw if raw.startswith("/") else f"/{raw}"
+        normalized = f"{site_origin}{path}"
+        normalized_parsed = urlparse(normalized)
+        if normalized_parsed.scheme not in {"http", "https"} or not normalized_parsed.netloc:
+            raise serializers.ValidationError("Enter a valid URL or path.")
+        return normalized
 
 
 class SaleSerializer(serializers.ModelSerializer):

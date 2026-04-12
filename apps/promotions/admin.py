@@ -2,9 +2,11 @@
 Promotions admin configuration
 """
 from decimal import Decimal
+from urllib.parse import urlparse
 
 from django.contrib import admin
 from django import forms
+from django.conf import settings
 from .models import Coupon, CouponUsage, Banner, Sale
 from core.admin_mixins import ImportExportEnhancedModelAdmin
 
@@ -56,6 +58,10 @@ class CouponUsageAdmin(ImportExportEnhancedModelAdmin):
 
 
 class BannerAdminForm(forms.ModelForm):
+    link_url = forms.CharField(
+        required=False,
+        help_text="Use a full URL or a path like /products/. Relative paths auto-use this site's origin.",
+    )
     overlay_opacity_percent = forms.IntegerField(
         required=False,
         min_value=0,
@@ -68,12 +74,55 @@ class BannerAdminForm(forms.ModelForm):
         model = Banner
         fields = "__all__"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, request=None, **kwargs):
+        self.request = request
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.overlay_opacity is not None:
             self.fields["overlay_opacity_percent"].initial = int(
                 round(float(self.instance.overlay_opacity) * 100)
             )
+
+    def _normalize_origin(self, value: str) -> str:
+        raw = (value or "").strip()
+        if not raw:
+            return ""
+        parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+        if not parsed.scheme or not parsed.netloc:
+            return ""
+        return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    def _resolve_site_origin(self) -> str:
+        if self.request is not None:
+            try:
+                host = self.request.get_host()
+            except Exception:
+                host = ""
+            if host:
+                scheme = "https" if self.request.is_secure() else "http"
+                return f"{scheme}://{host}"
+
+        configured = (
+            getattr(settings, "NEXT_FRONTEND_ORIGIN", "")
+            or getattr(settings, "NEXT_PUBLIC_SITE_URL", "")
+            or getattr(settings, "SITE_URL", "")
+        )
+        normalized = self._normalize_origin(configured)
+        if normalized:
+            return normalized
+        return "http://localhost:3000"
+
+    def clean_link_url(self):
+        raw = (self.cleaned_data.get("link_url") or "").strip()
+        if not raw:
+            return ""
+
+        parsed = urlparse(raw)
+        if parsed.scheme and parsed.netloc:
+            return raw
+
+        base = self._resolve_site_origin()
+        path = raw if raw.startswith("/") else f"/{raw}"
+        return f"{base}{path}"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -126,6 +175,16 @@ class BannerAdmin(ImportExportEnhancedModelAdmin):
             'fields': ('start_date', 'end_date', 'is_active')
         }),
     )
+
+    def get_form(self, request, obj=None, **kwargs):
+        base_form = super().get_form(request, obj, **kwargs)
+
+        class RequestAwareBannerAdminForm(base_form):
+            def __init__(self, *args, **inner_kwargs):
+                inner_kwargs["request"] = request
+                super().__init__(*args, **inner_kwargs)
+
+        return RequestAwareBannerAdminForm
 
 
 @admin.register(Sale)

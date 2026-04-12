@@ -4,45 +4,125 @@ Account views - Frontend pages
 from django.shortcuts import redirect, get_object_or_404
 from django.views.generic import TemplateView, View
 from django.views.generic.edit import FormView
-from django.contrib.auth import login, logout, update_session_auth_hash
+from django.contrib.auth import REDIRECT_FIELD_NAME, login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.forms import PasswordChangeForm
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseBadRequest, HttpResponseForbidden
 from django.contrib import messages
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.conf import settings
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.core.exceptions import ValidationError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
+from social_core.actions import do_auth
+from social_core.exceptions import MissingBackend
+from social_django.utils import load_backend, load_strategy
 from .services import UserService, AddressService
 from .models import Address
 from apps.i18n.services import GeoService as CountryService
 from .forms import LoginForm, RegistrationForm
 
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}
+
+
+def _normalize_origin(value):
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+
+def _host_to_hostname(host_value):
+    raw = (host_value or "").strip()
+    if not raw:
+        return ""
+    parsed = urlparse(raw if "://" in raw else f"//{raw}", scheme="http")
+    return (parsed.hostname or "").lower().strip()
+
+
+def _is_local_host(host_value):
+    host = _host_to_hostname(host_value)
+    return host in _LOCAL_HOSTS or host.endswith(".local")
+
+
+def _infer_local_frontend_origin(request):
+    for header in ("HTTP_ORIGIN", "HTTP_REFERER"):
+        candidate = (request.META.get(header) or "").strip()
+        if not candidate:
+            continue
+        parsed = urlparse(candidate)
+        if parsed.scheme and parsed.netloc and _is_local_host(parsed.netloc):
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    if _is_local_host(request.get_host()):
+        return "http://localhost:3000"
+    return ""
+
+
+class OAuthBeginView(View):
+    """Start social login and reset any existing auth session for login flows."""
+
+    def _begin(self, request, backend):
+        process = (request.GET.get("process") or "").strip().lower()
+        if request.user.is_authenticated and process != "connect":
+            logout(request)
+
+        redirect_uri = reverse("social:complete", args=(backend,))
+        configured_google_redirect_uri = (
+            getattr(settings, "SOCIAL_AUTH_GOOGLE_OAUTH2_REDIRECT_URI", "").strip()
+        )
+        if backend == "google-oauth2" and configured_google_redirect_uri:
+            redirect_uri = configured_google_redirect_uri
+
+        try:
+            strategy = load_strategy(request)
+            social_backend = load_backend(
+                strategy,
+                backend,
+                redirect_uri=redirect_uri,
+            )
+        except MissingBackend:
+            return HttpResponseBadRequest("Unsupported social backend.")
+
+        return do_auth(social_backend, redirect_name=REDIRECT_FIELD_NAME)
+
+    def get(self, request, backend):
+        return self._begin(request, backend)
+
+    def post(self, request, backend):
+        return self._begin(request, backend)
+
+
 class OAuthCallbackRedirectView(View):
     """Redirect API-domain OAuth callback to the frontend callback page."""
 
     def get(self, request):
-        frontend_origin = (
-            getattr(settings, "NEXT_FRONTEND_ORIGIN", "").strip()
-            or getattr(settings, "SITE_URL", "").strip()
-        ).rstrip("/")
+        frontend_origin = _get_frontend_origin(request=request)
         if not frontend_origin:
             return redirect("/")
         target = f"{frontend_origin}{request.get_full_path()}"
         return redirect(target)
 
 
-def _get_frontend_origin():
-    origin = (
+def _get_frontend_origin(request=None):
+    configured_origin = _normalize_origin(
         getattr(settings, "NEXT_FRONTEND_ORIGIN", "").strip()
         or getattr(settings, "SITE_URL", "").strip()
-    ).rstrip("/")
-    return origin
+    )
+    if request and _is_local_host(request.get_host()):
+        if not configured_origin or not _is_local_host(configured_origin):
+            inferred_origin = _infer_local_frontend_origin(request)
+            if inferred_origin:
+                return inferred_origin
+    return configured_origin
 
 
-def _build_frontend_url(path, next_url=None):
-    origin = _get_frontend_origin()
+def _build_frontend_url(path, next_url=None, request=None):
+    origin = _get_frontend_origin(request=request)
     if not origin:
         return None
     if next_url:
@@ -237,7 +317,7 @@ class LoginView(FormView):
     def dispatch(self, request, *args, **kwargs):
         if request.method == "GET":
             safe_next = self._get_safe_next_url()
-            frontend_login = _build_frontend_url("/account/login/", safe_next)
+            frontend_login = _build_frontend_url("/account/login/", safe_next, request=request)
             if frontend_login:
                 return redirect(frontend_login)
         if request.user.is_authenticated:
@@ -290,7 +370,7 @@ class RegisterView(FormView):
     def dispatch(self, request, *args, **kwargs):
         if request.method == "GET":
             safe_next = _get_safe_next_url_for_request(request)
-            frontend_register = _build_frontend_url("/account/register/", safe_next)
+            frontend_register = _build_frontend_url("/account/register/", safe_next, request=request)
             if frontend_register:
                 return redirect(frontend_register)
         if request.user.is_authenticated:
@@ -301,6 +381,11 @@ class RegisterView(FormView):
         context = super().get_context_data(**kwargs)
         context['page_title'] = 'Create Account'
         return context
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
 
     def form_valid(self, form):
         user = form.save()
@@ -358,7 +443,7 @@ class ForgotPasswordView(TemplateView):
         
         try:
             # Request password reset
-            UserService.request_password_reset(email)
+            UserService.request_password_reset(email, request=request)
             messages.success(request, 'If an account exists with this email, a password reset link will be sent.')
             return redirect('accounts:login')
         except Exception as e:

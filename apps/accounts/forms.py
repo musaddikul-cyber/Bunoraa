@@ -58,6 +58,10 @@ class RegistrationForm(forms.Form):
         'required': _('You must agree to continue.'),
     })
 
+    def __init__(self, request=None, *args, **kwargs):
+        self.request = request
+        super().__init__(*args, **kwargs)
+
     def clean_email(self):
         email = self.cleaned_data['email'].lower()
         if User.objects.filter(email=email).exists():
@@ -81,6 +85,7 @@ class RegistrationForm(forms.Form):
         user = UserService.create_user(
             email=data['email'],
             password=data['password1'],
+            request=self.request,
             first_name=data.get('first_name', '').strip(),
             last_name=data.get('last_name', '').strip(),
             newsletter_subscribed=data.get('newsletter', False)

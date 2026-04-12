@@ -9,12 +9,14 @@ import secrets
 import logging
 from datetime import timedelta
 from typing import Optional, Dict, Any, Iterable, Tuple
+from urllib.parse import urlparse
 
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
 from django.core import signing
 from django.contrib.auth.hashers import make_password, check_password
+from django.http import HttpRequest
 
 from .models import (
     User,
@@ -58,7 +60,39 @@ class EmailServiceIntegration:
             return None
 
     @staticmethod
-    def _get_site_url() -> str:
+    def _is_local_host(hostname: str) -> bool:
+        host = (hostname or "").strip().lower()
+        return host in {"localhost", "127.0.0.1", "0.0.0.0", "::1"} or host.endswith(".local")
+
+    @staticmethod
+    def _get_request_local_origin(request: Optional[HttpRequest]) -> str:
+        if request is None:
+            return ""
+
+        for header in ("HTTP_ORIGIN", "HTTP_REFERER"):
+            raw = (request.META.get(header) or "").strip()
+            if not raw:
+                continue
+            parsed = urlparse(raw)
+            if parsed.scheme and parsed.netloc and EmailServiceIntegration._is_local_host(parsed.hostname or ""):
+                return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+        try:
+            request_host = request.get_host()
+        except Exception:
+            request_host = ""
+
+        parsed_host = urlparse(f"//{request_host}", scheme="http")
+        if EmailServiceIntegration._is_local_host(parsed_host.hostname or ""):
+            return "http://localhost:3000"
+        return ""
+
+    @staticmethod
+    def _get_site_url(request: Optional[HttpRequest] = None) -> str:
+        local_origin = EmailServiceIntegration._get_request_local_origin(request)
+        if local_origin:
+            return local_origin
+
         frontend = getattr(settings, "NEXT_FRONTEND_ORIGIN", "") or getattr(
             settings, "NEXT_PUBLIC_SITE_URL", ""
         )
@@ -123,8 +157,8 @@ class EmailServiceIntegration:
             return False
 
     @staticmethod
-    def send_verification_email(user: User, token: str) -> bool:
-        site_url = EmailServiceIntegration._get_site_url()
+    def send_verification_email(user: User, token: str, request: Optional[HttpRequest] = None) -> bool:
+        site_url = EmailServiceIntegration._get_site_url(request=request)
         verification_url = f"{site_url}/account/verify-email/{token}/"
         fallback_text = f"Verify your email: {verification_url}"
         html_content, text_content = EmailServiceIntegration._render_email_content(fallback_text)
@@ -150,8 +184,8 @@ class EmailServiceIntegration:
         )
 
     @staticmethod
-    def send_password_reset_email(user: User, token: str) -> bool:
-        site_url = EmailServiceIntegration._get_site_url()
+    def send_password_reset_email(user: User, token: str, request: Optional[HttpRequest] = None) -> bool:
+        site_url = EmailServiceIntegration._get_site_url(request=request)
         reset_url = f"{site_url}/account/reset-password/{token}/"
         fallback_text = f"Reset your password: {reset_url}"
         html_content, text_content = EmailServiceIntegration._render_email_content(fallback_text)
@@ -177,8 +211,8 @@ class EmailServiceIntegration:
         )
 
     @staticmethod
-    def send_welcome_email(user: User) -> bool:
-        site_url = EmailServiceIntegration._get_site_url()
+    def send_welcome_email(user: User, request: Optional[HttpRequest] = None) -> bool:
+        site_url = EmailServiceIntegration._get_site_url(request=request)
         fallback_text = (
             f"Welcome to Bunoraa, {user.get_short_name() or user.email}! "
             f"Visit {site_url}/account/ to get started."
@@ -229,8 +263,13 @@ class EmailServiceIntegration:
         )
 
     @staticmethod
-    def send_email_change_verification(user: User, new_email: str, token: str) -> bool:
-        site_url = EmailServiceIntegration._get_site_url()
+    def send_email_change_verification(
+        user: User,
+        new_email: str,
+        token: str,
+        request: Optional[HttpRequest] = None,
+    ) -> bool:
+        site_url = EmailServiceIntegration._get_site_url(request=request)
         verification_url = f"{site_url}/account/verify-new-email/{token}/"
         fallback_text = f"Verify your new email: {verification_url}"
         html_content, text_content = EmailServiceIntegration._render_email_content(fallback_text)
@@ -398,7 +437,7 @@ class UserService:
     """Service class for user operations."""
     
     @staticmethod
-    def create_user(email: str, password: str, **extra_fields) -> User:
+    def create_user(email: str, password: str, request: Optional[HttpRequest] = None, **extra_fields) -> User:
         """Create a new user with full tracking setup."""
         user = User.objects.create_user(
             email=email,
@@ -411,7 +450,7 @@ class UserService:
             UserService._store_credentials(user, password)
         
         # Send verification email
-        UserService.send_verification_email(user)
+        UserService.send_verification_email(user, request=request)
         
         logger.info(f"Created user {user.id}")
         return user
@@ -473,7 +512,7 @@ class UserService:
             return False
     
     @staticmethod
-    def send_verification_email(user: User) -> str:
+    def send_verification_email(user: User, request: Optional[HttpRequest] = None) -> str:
         """Send email verification link."""
         # Generate token
         token = secrets.token_urlsafe(32)
@@ -487,7 +526,7 @@ class UserService:
         
         # Send email via email service
         try:
-            success = EmailServiceIntegration.send_verification_email(user, token)
+            success = EmailServiceIntegration.send_verification_email(user, token, request=request)
             if success:
                 logger.info(f"Verification email queued for {user.email}")
             else:
@@ -519,7 +558,7 @@ class UserService:
             return None
     
     @staticmethod
-    def request_password_reset(email: str) -> bool:
+    def request_password_reset(email: str, request: Optional[HttpRequest] = None) -> bool:
         """Send password reset email."""
         try:
             user = User.objects.get(email=email, is_active=True, is_deleted=False)
@@ -541,7 +580,7 @@ class UserService:
         
         # Send email via email service
         try:
-            success = EmailServiceIntegration.send_password_reset_email(user, token)
+            success = EmailServiceIntegration.send_password_reset_email(user, token, request=request)
             if success:
                 logger.info(f"Password reset email queued for {user.email}")
             else:

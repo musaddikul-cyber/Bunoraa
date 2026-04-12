@@ -3,7 +3,18 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "@/lib/api";
-import { AUTH_EVENT_NAME, clearTokens, getAccessToken, setTokens } from "@/lib/auth";
+import {
+  AUTH_EVENT_NAME,
+  clearTokens,
+  getAccessToken,
+  getActiveAccountId,
+  getStoredAccounts,
+  removeStoredAccount,
+  setTokens,
+  switchAccount as switchStoredAccount,
+  upsertActiveAccountProfile,
+  type StoredAuthAccount,
+} from "@/lib/auth";
 import type { UserProfile } from "@/lib/types";
 
 type LoginInput = {
@@ -39,17 +50,23 @@ async function fetchProfile() {
 export function useAuth() {
   const queryClient = useQueryClient();
   const [hasToken, setHasToken] = React.useState(false);
-  const lastKnownTokenState = React.useRef(Boolean(getAccessToken()));
+  const [accounts, setAccounts] = React.useState<StoredAuthAccount[]>([]);
+  const [activeAccountId, setActiveAccountId] = React.useState<string | null>(null);
+  const lastKnownToken = React.useRef(getAccessToken() || "");
 
   const syncHasToken = React.useCallback(() => {
-    const nextHasToken = Boolean(getAccessToken());
+    const token = getAccessToken() || "";
+    const nextHasToken = Boolean(token);
     setHasToken(nextHasToken);
+    setAccounts(getStoredAccounts());
+    setActiveAccountId(getActiveAccountId());
 
-    if (lastKnownTokenState.current !== nextHasToken) {
-      lastKnownTokenState.current = nextHasToken;
+    if (lastKnownToken.current !== token) {
+      lastKnownToken.current = token;
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["cart"] });
       queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     }
   }, [queryClient]);
 
@@ -77,6 +94,15 @@ export function useAuth() {
       return count < 2;
     },
   });
+
+  React.useEffect(() => {
+    if (!profileQuery.data) return;
+    upsertActiveAccountProfile({
+      email: profileQuery.data.email,
+      first_name: profileQuery.data.first_name,
+      full_name: profileQuery.data.full_name,
+    });
+  }, [profileQuery.data]);
 
   const login = useMutation({
     mutationFn: async ({ email, password, remember }: LoginInput) => {
@@ -152,13 +178,46 @@ export function useAuth() {
     queryClient.removeQueries({ queryKey: ["profile"] });
   }, [queryClient, syncHasToken]);
 
+  const logoutAll = React.useCallback(() => {
+    clearTokens();
+    syncHasToken();
+    queryClient.removeQueries({ queryKey: ["profile"] });
+  }, [queryClient, syncHasToken]);
+
+  const switchAccount = React.useCallback(
+    (accountId: string) => {
+      const switched = switchStoredAccount(accountId);
+      if (switched) {
+        syncHasToken();
+      }
+      return switched;
+    },
+    [syncHasToken]
+  );
+
+  const removeAccount = React.useCallback(
+    (accountId: string) => {
+      const removed = removeStoredAccount(accountId);
+      if (removed) {
+        syncHasToken();
+      }
+      return removed;
+    },
+    [syncHasToken]
+  );
+
   return {
     hasToken,
+    accounts,
+    activeAccountId,
     profileQuery,
     login,
     verifyMfa,
     register,
     updateProfile,
+    switchAccount,
+    removeAccount,
     logout,
+    logoutAll,
   };
 }

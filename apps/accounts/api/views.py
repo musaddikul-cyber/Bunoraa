@@ -8,6 +8,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -261,7 +262,10 @@ class PasswordResetRequestView(APIView):
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         if serializer.is_valid():
-            UserService.request_password_reset(serializer.validated_data['email'])
+            UserService.request_password_reset(
+                serializer.validated_data['email'],
+                request=request,
+            )
             # Always return success to prevent email enumeration
             return Response({
                 'success': True,
@@ -352,7 +356,7 @@ class ResendVerificationView(APIView):
                 'meta': None
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        UserService.send_verification_email(request.user)
+        UserService.send_verification_email(request.user, request=request)
         return Response({
             'success': True,
             'message': 'Verification email sent.',
@@ -363,6 +367,7 @@ class ResendVerificationView(APIView):
 
 class SocialTokenView(APIView):
     """Exchange a social-authenticated session for JWT tokens."""
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def _issue_tokens(self, request):

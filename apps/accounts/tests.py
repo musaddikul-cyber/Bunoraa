@@ -1,14 +1,53 @@
 ﻿"""
 Account tests
 """
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 import pyotp
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from .models import User, Address
 from .services import UserService, AddressService, MfaService
 from .models import UserSession
+
+
+class OAuthCallbackRedirectViewTest(TestCase):
+    """Regression tests for frontend-origin redirects in OAuth callback flow."""
+
+    @override_settings(
+        NEXT_FRONTEND_ORIGIN="https://bunoraa.com",
+        SITE_URL="https://bunoraa.com",
+        ALLOWED_HOSTS=["localhost", "127.0.0.1", "api.bunoraa.com", "testserver"],
+    )
+    def test_localhost_request_uses_local_frontend_origin(self):
+        response = self.client.get(
+            "/account/oauth/callback/?next=%2Faccount%2Fprofile%2F",
+            HTTP_HOST="localhost:8000",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            "http://localhost:3000/account/oauth/callback/?next=%2Faccount%2Fprofile%2F",
+        )
+
+    @override_settings(
+        NEXT_FRONTEND_ORIGIN="https://bunoraa.com",
+        SITE_URL="https://bunoraa.com",
+        ALLOWED_HOSTS=["localhost", "127.0.0.1", "api.bunoraa.com", "testserver"],
+    )
+    def test_non_local_request_keeps_configured_frontend_origin(self):
+        response = self.client.get(
+            "/account/oauth/callback/?next=%2Faccount%2Fprofile%2F",
+            HTTP_HOST="api.bunoraa.com",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            "https://bunoraa.com/account/oauth/callback/?next=%2Faccount%2Fprofile%2F",
+        )
 
 
 class UserModelTest(TestCase):
@@ -166,6 +205,40 @@ class UserAPITest(APITestCase):
         }
         response = self.client.post('/api/v1/accounts/password/change/', data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_social_token_requires_session_auth(self):
+        """Social token exchange must reject bearer-only authentication."""
+        bearer_access = str(RefreshToken.for_user(self.user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {bearer_access}')
+
+        response = self.client.get('/api/v1/accounts/social/token/')
+
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
+
+    def test_social_token_uses_session_user_even_with_bearer_header(self):
+        """Session-authenticated user must win over stale bearer headers."""
+        session_user = User.objects.create_user(
+            email='session@example.com',
+            password='sessionpass123',
+        )
+        bearer_user = User.objects.create_user(
+            email='bearer@example.com',
+            password='bearerpass123',
+        )
+
+        self.client.force_login(session_user)
+        bearer_access = str(RefreshToken.for_user(bearer_user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {bearer_access}')
+
+        response = self.client.get('/api/v1/accounts/social/token/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        issued_access = response.data['data']['access']
+        issued_user_id = str(AccessToken(issued_access)['user_id'])
+        self.assertEqual(issued_user_id, str(session_user.id))
 
     def test_mfa_totp_setup_and_verify(self):
         """Test TOTP setup and verification flow."""

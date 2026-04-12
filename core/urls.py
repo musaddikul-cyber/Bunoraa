@@ -20,6 +20,7 @@ from django.views.decorators.cache import never_cache
 from django.views.static import serve
 from two_factor.admin import AdminSiteOTPRequired
 from two_factor.utils import default_device
+from apps.accounts.views import OAuthBeginView
 from .sitemaps import sitemap_view, sitemap_index_view
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from .two_factor_views import ADMIN_2FA_SETUP_SKIPPED_SESSION_KEY
@@ -173,6 +174,7 @@ urlpatterns = [
 
     path('notifications/', include('apps.notifications.urls')),
     path('account/', include('apps.accounts.urls')),
+    path('oauth/login/<str:backend>/', OAuthBeginView.as_view(), name='oauth_begin'),
     path('oauth/', include('social_django.urls', namespace='social')),
 
     # Email Service API

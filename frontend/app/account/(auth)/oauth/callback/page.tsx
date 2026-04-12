@@ -22,7 +22,7 @@ function OAuthCallbackContent() {
       try {
         const response = await apiFetch<{ access: string; refresh: string }>(
           "/accounts/social/token/",
-          { method: "GET" }
+          { method: "GET", skipAuth: true }
         );
         if (cancelled) return;
         setTokens(response.data.access, response.data.refresh, true);

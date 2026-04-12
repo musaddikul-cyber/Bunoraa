@@ -48,7 +48,14 @@ export function HeaderClient() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
   const { push } = useToast();
-  const { hasToken, profileQuery, logout } = useAuthContext();
+  const {
+    hasToken,
+    profileQuery,
+    accounts,
+    activeAccountId,
+    switchAccount,
+    logout,
+  } = useAuthContext();
   const shouldLoadHeaderCounts = mounted && hasToken;
   const { cartQuery, cartSummaryQuery } = useCart({
     includeCart: open,
@@ -71,6 +78,28 @@ export function HeaderClient() {
   const hasUnreadNotifications = unreadCount > 0;
   const hasProfileAvatar = Boolean(profileQuery.data?.avatar);
   const adminPanelHref = React.useMemo(() => resolveBackendAdminUrl(), []);
+  const otherAccounts = React.useMemo(
+    () => accounts.filter((account) => account.id !== activeAccountId),
+    [accounts, activeAccountId]
+  );
+  const addAccountHref = React.useMemo(() => {
+    const nextPath = pathname || "/account/profile/";
+    return `/account/login/?next=${encodeURIComponent(nextPath)}&add_account=1`;
+  }, [pathname]);
+
+  const getAccountLabel = React.useCallback(
+    (account: {
+      email?: string;
+      full_name?: string;
+      first_name?: string;
+      id: string;
+    }) =>
+      account.email ||
+      account.full_name ||
+      account.first_name ||
+      `Account ${account.id.slice(0, 8)}`,
+    []
+  );
 
   React.useEffect(() => {
     setMounted(true);
@@ -231,6 +260,38 @@ export function HeaderClient() {
               >
                 Orders
               </Link>
+              {otherAccounts.length ? (
+                <div className="mt-1 border-t border-border pt-1">
+                  <p className="px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-foreground/50">
+                    Switch Account
+                  </p>
+                  {otherAccounts.map((account) => (
+                    <button
+                      key={account.id}
+                      type="button"
+                      className="block w-full truncate rounded-lg px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      onClick={() => {
+                        switchAccount(account.id);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      {getAccountLabel(account)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {accounts.length < 5 ? (
+                <Link
+                  href={addAccountHref}
+                  className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Add account
+                </Link>
+              ) : (
+                <p className="px-3 py-2 text-xs text-foreground/60">Account limit reached (5)</p>
+              )}
               <Link
                 href="/notifications/"
                 className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:hidden"

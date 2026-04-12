@@ -46,7 +46,7 @@ export function ProductGrid({
 
   if (!products.length) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-card/40 px-4 sm:px-6 py-10 text-center">
+      <div className="rounded-2xl border border-dashed border-border bg-card/40 px-3 sm:px-5 py-10 text-center">
         <h3 className="text-lg font-semibold text-foreground">No products found</h3>
         <p className="mt-2 text-sm text-foreground/70">{emptyMessage}</p>
         <p className="mt-3 text-xs text-foreground/50">

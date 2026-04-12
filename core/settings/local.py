@@ -3,6 +3,7 @@ Local Development Settings for Bunoraa
 Uses SQLite database, console email backend, and local file storage.
 """
 import os
+from urllib.parse import urlparse, urlunparse
 from .base import *
 
 # =============================================================================
@@ -125,26 +126,49 @@ try:
 except ImportError:
     pass
 
+def _local_redis_db_url(redis_url: str, db: int) -> str:
+    parsed = urlparse(redis_url)
+    if not parsed.scheme:
+        return redis_url
+    return urlunparse(parsed._replace(path=f'/{db}'))
+
+
 # =============================================================================
-# CACHE - Local Memory for Development
+# REDIS - Force localhost defaults for local settings
+# =============================================================================
+LOCAL_REDIS_URL = os.environ.get('LOCAL_REDIS_URL', 'redis://127.0.0.1:6379/0').strip()
+if not LOCAL_REDIS_URL:
+    LOCAL_REDIS_URL = 'redis://127.0.0.1:6379/0'
+REDIS_URL = LOCAL_REDIS_URL
+
+# =============================================================================
+# CACHE - Redis for Development
 # =============================================================================
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'bunoraa-local-cache',
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': LOCAL_REDIS_URL,
         'TIMEOUT': 300,
         'OPTIONS': {
-            'MAX_ENTRIES': 1000,
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'IGNORE_EXCEPTIONS': True,
+            'SOCKET_CONNECT_TIMEOUT': 2,
+            'SOCKET_TIMEOUT': 2,
         },
     }
 }
+DJANGO_REDIS_IGNORE_EXCEPTIONS = True
 
 # =============================================================================
-# CHANNEL LAYERS - Prefer in-memory in local development
+# CHANNEL LAYERS - Redis by default in local development
 # =============================================================================
-CHANNEL_LAYERS_USE_REDIS = os.environ.get('CHANNEL_LAYERS_USE_REDIS', 'False').lower() in ('1', 'true', 'yes')
+CHANNEL_LAYERS_USE_REDIS = os.environ.get('CHANNEL_LAYERS_USE_REDIS', 'True').lower() in ('1', 'true', 'yes')
 if CHANNEL_LAYERS_USE_REDIS:
-    _channel_layer_redis_url = os.environ.get('CHANNEL_LAYERS_REDIS_URL') or os.environ.get('REDIS_URL', '')
+    _channel_layer_redis_url = (
+        os.environ.get('CHANNEL_LAYERS_REDIS_URL')
+        or os.environ.get('LOCAL_CHANNEL_LAYERS_REDIS_URL')
+        or _local_redis_db_url(LOCAL_REDIS_URL, 2)
+    )
     if _channel_layer_redis_url:
         CHANNEL_LAYERS = {
             'default': {
@@ -178,6 +202,12 @@ if CELERY_TASK_ALWAYS_EAGER:
     CELERY_RESULT_BACKEND = 'cache+memory://'
     CELERY_TASK_IGNORE_RESULT = True
     CELERY_TASK_STORE_EAGER_RESULT = False
+else:
+    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', _local_redis_db_url(LOCAL_REDIS_URL, 1))
+    CELERY_RESULT_BACKEND = os.environ.get(
+        'CELERY_RESULT_BACKEND',
+        _local_redis_db_url(LOCAL_REDIS_URL, 3),
+    )
 
 # =============================================================================
 # THROTTLING - Disabled for Development

@@ -85,7 +85,7 @@ export default async function ProductDetailPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-12">
+      <div className="mx-auto w-full max-w-6xl px-3 sm:px-5 py-12">
         <ProductDetailClient product={product} />
       </div>
       <JsonLd data={jsonLd} />

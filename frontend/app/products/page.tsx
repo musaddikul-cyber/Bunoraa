@@ -205,7 +205,7 @@ export default async function ProductsPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-10">
+      <div className="mx-auto w-full max-w-7xl px-3 sm:px-5 py-10">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold uppercase tracking-[0.12em] sm:text-3xl">
             Products

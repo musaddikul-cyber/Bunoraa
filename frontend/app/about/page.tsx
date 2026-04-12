@@ -3,8 +3,6 @@ import Link from "next/link";
 import { cache } from "react";
 import { apiFetch, ApiError } from "@/lib/api";
 import type {
-  Artisan,
-  Bundle,
   Collection,
   ContactSettings,
   PageDetail,
@@ -307,7 +305,7 @@ export default async function AboutPage() {
   });
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-12 space-y-10">
+    <div className="mx-auto w-full max-w-6xl px-3 sm:px-5 py-12 space-y-10">
       <section className="overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/15 via-background to-accent/10 px-5 sm:px-8 py-8 sm:py-10">
         <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">About</p>
         <h1 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-tight">{title}</h1>

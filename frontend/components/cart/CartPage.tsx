@@ -824,7 +824,7 @@ export function CartPage() {
   if (cartQuery.isLoading) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 py-12">
+        <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-5 py-12">
             <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
             <Card variant="bordered" className="h-32" />
             <Card variant="bordered" className="h-48" />
@@ -837,7 +837,7 @@ export function CartPage() {
   if (cartQuery.isError || !cart) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 py-12">
+        <div className="mx-auto w-full max-w-[1100px] px-3 sm:px-5 py-12">
           <Card variant="bordered" className="space-y-4 text-center">
             <h1 className="text-2xl font-semibold">Unable to load your bag</h1>
             <p className="text-sm text-foreground/70">
@@ -853,7 +853,7 @@ export function CartPage() {
   if (cart.items.length === 0) {
     return (
       <div className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 py-12">
+        <div className="mx-auto w-full max-w-[1100px] px-3 sm:px-5 py-12">
           <Card variant="bordered" className="space-y-5 text-center">
             <h1 className="text-2xl font-semibold">Your bag is empty</h1>
             <p className="text-sm text-foreground/70">

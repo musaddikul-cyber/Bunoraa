@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
+import { notFound } from "next/navigation";
+import { apiFetch, ApiError } from "@/lib/api";
 import type { Artisan } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildItemList, buildPageMetadata } from "@/lib/seo";
+import { asArray } from "@/lib/array";
 
 export const revalidate = 600;
 export const metadata: Metadata = buildPageMetadata({
@@ -13,19 +16,29 @@ export const metadata: Metadata = buildPageMetadata({
   path: "/artisans/",
 });
 
-async function tryGetArtisans() {
+async function getArtisans() {
   try {
-    const response = await apiFetch<Artisan[]>("/artisans/", {
-      next: { revalidate },
-    });
-    return response.data;
-  } catch {
-    return [] as Artisan[];
+    const response = await apiFetch<Artisan[] | { results?: Artisan[]; count?: number }>(
+      "/artisans/",
+      {
+        next: { revalidate },
+      }
+    );
+    return asArray<Artisan>(response.data);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return [];
+    }
+    throw error;
   }
 }
 
 export default async function ArtisansPage() {
-  const artisans = await tryGetArtisans();
+  const artisans = await getArtisans();
+  if (!artisans.length) {
+    notFound();
+  }
+
   const list = buildItemList(
     artisans.map((artisan) => ({
       name: artisan.name,
@@ -37,35 +50,35 @@ export default async function ArtisansPage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-12">
+    <div className="mx-auto w-full max-w-6xl px-3 sm:px-5 py-12">
       <div className="mb-8">
-        <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
-          Artisans
-        </p>
+        <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">Artisans</p>
         <h1 className="text-3xl font-semibold">Meet the makers</h1>
-        <p className="mt-2 text-foreground/70">
-          Artisan profiles will appear here once the API is enabled.
-        </p>
       </div>
-      {artisans.length === 0 ? (
-        <Card variant="bordered" className="p-6 text-sm text-foreground/70">
-          Artisan data is not available via the API yet. Enable an artisans API
-          endpoint in Django to populate this page.
-        </Card>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {artisans.map((artisan) => (
-            <Card key={artisan.id} variant="bordered" className="p-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {artisans.map((artisan) => (
+          <Card key={artisan.id} variant="bordered" className="flex flex-col gap-4">
+            <div className="aspect-[4/3] overflow-hidden rounded-xl bg-muted">
+              {artisan.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={artisan.avatar}
+                  alt={artisan.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : null}
+            </div>
+            <div className="flex flex-1 flex-col gap-2">
               <h2 className="text-lg font-semibold">{artisan.name}</h2>
               <p className="text-sm text-foreground/70">{artisan.bio}</p>
-              <Link className="text-sm text-primary" href={`/artisans/${artisan.slug}/`}>
-                View profile
-              </Link>
-            </Card>
-          ))}
-        </div>
-      )}
-      {artisans.length ? <JsonLd data={list} /> : null}
+            </div>
+            <Button asChild variant="primary-gradient">
+              <Link href={`/artisans/${artisan.slug}/`}>View artisan</Link>
+            </Button>
+          </Card>
+        ))}
+      </div>
+      <JsonLd data={list} />
     </div>
   );
 }

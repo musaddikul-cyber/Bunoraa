@@ -236,7 +236,7 @@ class ProductListSerializer(ContentTranslationMixin, PriceConversionMixin, seria
     discount_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
     is_on_sale = serializers.BooleanField(read_only=True)
     is_in_stock = serializers.SerializerMethodField()
-    primary_category_id = serializers.UUIDField(source='primary_category_id', read_only=True, allow_null=True)
+    primary_category_id = serializers.UUIDField(read_only=True, allow_null=True)
     primary_category_path = serializers.CharField(
         source='primary_category.path',
         read_only=True,

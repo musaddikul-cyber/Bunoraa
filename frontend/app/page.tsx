@@ -244,9 +244,7 @@ export default async function Home() {
     siteSettings?.site_description
   );
 
-  const seasonalFavs = (
-    filteredOnSale.length ? filteredOnSale : filteredFeaturedProducts
-  ).slice(0, 8);
+  const seasonalFavs = filteredOnSale.slice(0, 8);
 
   const homePageSchema = cleanObject({
     "@context": "https://schema.org",
@@ -285,7 +283,7 @@ export default async function Home() {
     ...(collections.length ? [collectionsList] : []),
   ];
 
-  const sectionWrapperClass = "mx-auto w-full max-w-7xl px-4 sm:px-6";
+  const sectionWrapperClass = "mx-auto w-full max-w-7xl px-3 sm:px-5";
 
   return (
     <div className="bg-background text-foreground">

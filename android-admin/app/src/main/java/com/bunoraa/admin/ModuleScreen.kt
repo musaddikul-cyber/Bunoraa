@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.bunoraa.admin.core.common.AdminDeepLink
 
 data class AdminModuleInfo(
     val id: String,

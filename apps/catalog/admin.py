@@ -924,8 +924,19 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
         max_images = int(getattr(settings, "PRODUCT_AI_MAX_IMAGES", 4))
         context = dict(context)
-        # Keep default inline rendering order to preserve admin-interface tab behavior.
-        context["top_inline_admin_formsets"] = []
+        inline_admin_formsets = list(context.get("inline_admin_formsets", []))
+        top_inline_admin_formsets = [
+            inline_admin_formset
+            for inline_admin_formset in inline_admin_formsets
+            if getattr(inline_admin_formset.opts, "model", None) is ProductImage
+        ]
+        if top_inline_admin_formsets:
+            context["inline_admin_formsets"] = [
+                inline_admin_formset
+                for inline_admin_formset in inline_admin_formsets
+                if inline_admin_formset not in top_inline_admin_formsets
+            ]
+        context["top_inline_admin_formsets"] = top_inline_admin_formsets
         context["product_ai_enabled"] = bool(getattr(settings, "PRODUCT_AI_ENABLED", False))
         context["product_ai_frontend_debug"] = bool(getattr(settings, "PRODUCT_AI_FRONTEND_DEBUG", False))
         context["product_ai_max_images"] = max_images

@@ -2,7 +2,7 @@ package com.bunoraa.admin.feature.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.bunoraa.admin.AdminDeepLink
+import com.bunoraa.admin.core.common.AdminDeepLink
 import com.bunoraa.admin.core.network.RealtimeEvent
 import com.bunoraa.admin.core.network.RealtimeStatus
 import kotlinx.coroutines.Job

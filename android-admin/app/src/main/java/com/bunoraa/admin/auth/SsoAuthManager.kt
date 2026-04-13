@@ -56,6 +56,11 @@ class SsoAuthManager(
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit,
     ) {
+        if (data == null) {
+            onError("SSO cancelled.")
+            return
+        }
+
         val response = AuthorizationResponse.fromIntent(data)
         val exception = AuthorizationException.fromIntent(data)
 

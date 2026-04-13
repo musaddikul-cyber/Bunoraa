@@ -18,7 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.bunoraa.admin.AdminDeepLink
+import com.bunoraa.admin.core.common.AdminDeepLink
 import com.bunoraa.admin.core.network.RealtimeStatus
 
 @Composable
@@ -47,16 +47,18 @@ fun DashboardRoute(
         Text("Last updated: ${snapshot?.generatedAt ?: "-"}")
         RealtimeBadge(state.realtimeStatus)
 
-        if (state.lastDeepLink != null) {
+        val lastDeepLink = state.lastDeepLink
+        if (lastDeepLink != null) {
             NotificationCard(
-                title = "${state.lastDeepLink.title} (${state.lastDeepLink.route})",
-                message = state.lastDeepLink.message,
+                title = "${lastDeepLink.title} (${lastDeepLink.route})",
+                message = lastDeepLink.message,
             )
         }
-        if (state.lastRealtimeEvent != null) {
+        val lastRealtimeEvent = state.lastRealtimeEvent
+        if (lastRealtimeEvent != null) {
             NotificationCard(
-                title = "Realtime event: ${state.lastRealtimeEvent.type}",
-                message = state.lastRealtimeEvent.payload.toString(),
+                title = "Realtime event: ${lastRealtimeEvent.type}",
+                message = lastRealtimeEvent.payload.toString(),
             )
         }
 

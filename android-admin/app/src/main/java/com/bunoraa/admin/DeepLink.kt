@@ -1,14 +1,7 @@
 package com.bunoraa.admin
 
 import android.content.Intent
-
-data class AdminDeepLink(
-    val route: String,
-    val title: String,
-    val message: String,
-    val type: String? = null,
-    val url: String? = null,
-)
+import com.bunoraa.admin.core.common.AdminDeepLink
 
 object AdminDeepLinkParser {
     private const val EXTRA_ROUTE = "admin_route"

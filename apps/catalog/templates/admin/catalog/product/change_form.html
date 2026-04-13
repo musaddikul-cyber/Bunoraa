@@ -2,7 +2,10 @@
 {% load i18n static %}
 
 {% block field_sets %}
-{{ block.super }}
+{% for inline_admin_formset in top_inline_admin_formsets %}
+{% include inline_admin_formset.opts.template %}
+{% endfor %}
+{% if product_ai_enabled %}
 <fieldset class="module aligned" id="product-ai-autofill-panel">
   <h2>{% trans "AI Product Autofill" %}</h2>
   <div class="form-row">
@@ -45,4 +48,6 @@
     <div id="product-ai-suggestions-container"></div>
   </div>
 </fieldset>
+{% endif %}
+{{ block.super }}
 {% endblock %}

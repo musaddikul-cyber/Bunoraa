@@ -16,7 +16,7 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(libs.kotlinx.coroutines)
-    implementation(libs.kotlinx.serialization.json)
+    api(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.retrofit)

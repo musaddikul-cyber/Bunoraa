@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.NavType
+import com.bunoraa.admin.core.common.AdminDeepLink
 import com.bunoraa.admin.feature.auth.AuthRoute
 import com.bunoraa.admin.feature.auth.AuthViewModel
 import com.bunoraa.admin.feature.dashboard.DashboardRoute

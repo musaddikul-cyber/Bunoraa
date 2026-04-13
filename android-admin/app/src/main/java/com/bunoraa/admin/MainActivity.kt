@@ -1,6 +1,7 @@
 package com.bunoraa.admin
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -20,6 +21,7 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.bunoraa.admin.auth.SsoAuthManager
 import com.bunoraa.admin.auth.SsoProvider
+import com.bunoraa.admin.core.common.AdminDeepLink
 import com.bunoraa.admin.core.common.Result
 import com.bunoraa.admin.core.designsystem.BunoraaAdminTheme
 import com.bunoraa.admin.feature.auth.AuthViewModel
@@ -105,7 +107,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: android.content.Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         deepLinkState.value = AdminDeepLinkParser.fromIntent(intent)
     }

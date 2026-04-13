@@ -17,8 +17,10 @@ class AuthRepository(
             val response = api.passwordLogin(PasswordLoginRequest(email, password))
             val payload = response.data
             if (response.success && payload != null) {
-                if (!payload.mfaRequired && !payload.access.isNullOrBlank() && !payload.refresh.isNullOrBlank()) {
-                    tokenStore.saveTokens(payload.access, payload.refresh)
+                val accessToken = payload.access
+                val refreshToken = payload.refresh
+                if (!payload.mfaRequired && !accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
+                    tokenStore.saveTokens(accessToken, refreshToken)
                 }
                 Result.Ok(payload)
             } else {
@@ -34,8 +36,10 @@ class AuthRepository(
             val response = api.socialLogin(SocialLoginRequest(provider, accessToken))
             val payload = response.data
             if (response.success && payload != null) {
-                if (!payload.mfaRequired && !payload.access.isNullOrBlank() && !payload.refresh.isNullOrBlank()) {
-                    tokenStore.saveTokens(payload.access, payload.refresh)
+                val accessTokenValue = payload.access
+                val refreshTokenValue = payload.refresh
+                if (!payload.mfaRequired && !accessTokenValue.isNullOrBlank() && !refreshTokenValue.isNullOrBlank()) {
+                    tokenStore.saveTokens(accessTokenValue, refreshTokenValue)
                 }
                 Result.Ok(payload)
             } else {
@@ -57,8 +61,10 @@ class AuthRepository(
             )
             val payload = response.data
             if (response.success && payload != null) {
-                if (!payload.access.isNullOrBlank() && !payload.refresh.isNullOrBlank()) {
-                    tokenStore.saveTokens(payload.access, payload.refresh)
+                val accessToken = payload.access
+                val refreshToken = payload.refresh
+                if (!accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
+                    tokenStore.saveTokens(accessToken, refreshToken)
                 }
                 Result.Ok(payload)
             } else {

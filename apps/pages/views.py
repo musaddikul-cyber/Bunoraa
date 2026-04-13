@@ -10,28 +10,16 @@ from .models import Page, FAQ, ContactMessage, SiteSettings, Subscriber
 
 
 class HomeView(TemplateView):
-    """Homepage view."""
-    template_name = 'pages/home.html'
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['page_title'] = 'Home'
-        
-        # Get featured products
-        from apps.products.services import ProductService
-        context['featured_products'] = ProductService.get_featured_products()[:8]
-        context['new_arrivals'] = ProductService.get_new_arrivals()[:8]
-        
-        # Get banners
-        from apps.promotions.services import BannerService
-        context['hero_banners'] = BannerService.get_hero_banners()
-        context['secondary_banners'] = BannerService.get_secondary_banners()
-        
-        # Get featured categories
-        from apps.categories.services import CategoryService
-        context['featured_categories'] = CategoryService.get_featured_categories()[:6]
-        
-        return context
+    """Backend root view without template dependency."""
+
+    def get(self, request, *args, **kwargs):
+        return JsonResponse(
+            {
+                'success': True,
+                'service': 'bunoraa-api',
+                'message': 'Backend is running. Open /api/v1/ for API endpoints.',
+            }
+        )
 
 
 class PageDetailView(DetailView):

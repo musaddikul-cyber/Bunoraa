@@ -216,11 +216,11 @@ MIDDLEWARE = [
     'core.middleware.otp.CompatibleOTPMiddleware',
     'axes.middleware.AxesMiddleware',
     'simple_history.middleware.HistoryRequestMiddleware',
-    # 'core.middleware.bot_prerender.BotPreRenderMiddleware',  # Disabled: Memory overhead
+    'core.middleware.bot_prerender.BotPreRenderMiddleware',  # Disable if Memory overhead
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.middleware.seo_headers.SEOHeadersMiddleware',
-    # 'core.middleware.request_logging.RequestLoggingMiddleware',  # Disabled: Memory overhead
+    'core.middleware.request_logging.RequestLoggingMiddleware',  # Disable if Memory overhead
     'core.middleware.cache_control_html.CacheControlHTMLMiddleware',
     'core.middleware.api_response.APIResponseMiddleware',
 ]

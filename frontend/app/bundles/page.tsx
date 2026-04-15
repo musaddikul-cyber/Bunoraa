@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildItemList, buildPageMetadata } from "@/lib/seo";
 import { asArray } from "@/lib/array";
+import { getLazyImageProps } from "@/components/common/LazyImage";
 
 export const revalidate = 600;
 export const metadata: Metadata = buildPageMetadata({

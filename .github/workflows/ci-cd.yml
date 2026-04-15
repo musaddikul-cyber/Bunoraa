@@ -38,7 +38,6 @@ jobs:
               - '.github/workflows/ci-cd.yml'
             frontend:
               - 'frontend/**'
-              - 'render.yaml'
               - '.github/workflows/ci-cd.yml'
 
   backend:

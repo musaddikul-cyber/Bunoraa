@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import type { ProductListItem } from "@/lib/types";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
+import { getLazyImageProps } from "@/components/common/LazyImage";
 
 function useDebouncedValue<T>(value: T, delay = 300) {
   const [debounced, setDebounced] = React.useState(value);
@@ -249,10 +250,8 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                       >
                         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
                           {image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={image}
-                              alt={item.name}
+                              {...getLazyImageProps(image, item.name)}
                               className="h-full w-full object-cover"
                             />
                           ) : null}

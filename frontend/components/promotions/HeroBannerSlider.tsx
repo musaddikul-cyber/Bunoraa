@@ -186,6 +186,8 @@ export function HeroBannerSlider({
                   sizes="100vw"
                   quality={72}
                   priority={index === 0}
+                  loading={index === 0 ? "eager" : "lazy"}
+                  decoding={index === 0 ? "sync" : "async"}
                   className="object-cover"
                 />
               ) : (

@@ -109,8 +109,7 @@ export default async function ArtisanDetailPage({
                 {product.primary_image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={product.primary_image}
-                    alt={product.name}
+                    {...getLazyImageProps(product.primary_image, product.name)}
                     className="h-full w-full object-cover"
                   />
                 ) : null}

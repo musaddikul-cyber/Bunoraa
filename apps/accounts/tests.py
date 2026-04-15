@@ -218,8 +218,20 @@ class UserAPITest(APITestCase):
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
 
+    def test_social_token_requires_social_flow(self):
+        """Social token exchange must reject authenticated sessions without an active social login flow."""
+        session_user = User.objects.create_user(
+            email='session@example.com',
+            password='sessionpass123',
+        )
+        self.client.force_login(session_user)
+
+        response = self.client.get('/api/v1/accounts/social/token/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data['message'], 'No active social login flow found.')
+
     def test_social_token_uses_session_user_even_with_bearer_header(self):
-        """Session-authenticated user must win over stale bearer headers."""
+        """Session-authenticated user must win over stale bearer headers during social login flow."""
         session_user = User.objects.create_user(
             email='session@example.com',
             password='sessionpass123',
@@ -230,6 +242,9 @@ class UserAPITest(APITestCase):
         )
 
         self.client.force_login(session_user)
+        session = self.client.session
+        session['social_login_flow'] = 'google-oauth2'
+        session.save()
         bearer_access = str(RefreshToken.for_user(bearer_user).access_token)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {bearer_access}')
 

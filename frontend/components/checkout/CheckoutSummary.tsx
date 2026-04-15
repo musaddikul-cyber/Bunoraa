@@ -145,6 +145,8 @@ export function CheckoutSummary({
                     alt={item.product_name}
                     fill
                     sizes="56px"
+                    loading="lazy"
+                    decoding="async"
                     className="object-cover"
                   />
                 ) : (

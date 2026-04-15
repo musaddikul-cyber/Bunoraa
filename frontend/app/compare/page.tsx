@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { ProductPrice } from "@/components/products/ProductPrice";
 import { RatingStars } from "@/components/products/RatingStars";
 import { buildProductPath } from "@/lib/productPaths";
+import { getLazyImageProps } from "@/components/common/LazyImage";
 
 export default function ComparePage() {
   const [items, setItems] = React.useState(getCompareItems());
@@ -93,8 +94,10 @@ export default function ComparePage() {
                 <Card key={item.id} variant="bordered" className="space-y-3 p-4">
                   <div className="aspect-[4/5] overflow-hidden rounded-xl bg-muted">
                     {item.primary_image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.primary_image} alt={item.name} className="h-full w-full object-cover" />
+                      <img
+                        {...getLazyImageProps(item.primary_image, item.name)}
+                        className="h-full w-full object-cover"
+                      />
                     ) : null}
                   </div>
                   <div>

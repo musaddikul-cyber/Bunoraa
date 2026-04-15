@@ -28,6 +28,7 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { buildProductPath } from "@/lib/productPaths";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X } from "lucide-react";
+import { getLazyImageProps } from "@/components/common/LazyImage";
 
 type Variant = NonNullable<ProductDetail["variants"]>[number];
 type VariantOptionMap = Record<string, string>;
@@ -229,8 +230,10 @@ function ProductGallery({
                 )}
                 aria-label={`Show image ${index + 1}`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.image} alt={image.alt} className="h-full w-full object-cover" />
+                <img
+                  {...getLazyImageProps(image.image, image.alt)}
+                  className="h-full w-full object-cover"
+                />
               </button>
             ))}
           </div>
@@ -260,10 +263,8 @@ function ProductGallery({
           onClick={() => setIsZoomed((prev) => !prev)}
         >
           {activeImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={activeImage.image}
-              alt={activeImage.alt}
+              {...getLazyImageProps(activeImage.image, activeImage.alt)}
               className={cn(
                 "h-full w-full object-cover transition-transform duration-300",
                 zoomActive ? "scale-110" : "scale-100",
@@ -315,8 +316,10 @@ function ProductGallery({
                   )}
                   aria-label={`Show image ${index + 1}`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image.image} alt={image.alt} className="h-full w-full object-cover" />
+                  <img
+                    {...getLazyImageProps(image.image, image.alt)}
+                    className="h-full w-full object-cover"
+                  />
                 </button>
               ))}
             </div>
@@ -339,8 +342,10 @@ function ProductGallery({
                 )}
                 aria-label={`Show image ${index + 1}`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image.image} alt={image.alt} className="h-full w-full object-cover" />
+                <img
+                  {...getLazyImageProps(image.image, image.alt)}
+                  className="h-full w-full object-cover"
+                />
               </button>
             ))}
           </div>
@@ -385,8 +390,7 @@ function ProductGallery({
             ) : null}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={activeImage.image}
-              alt={activeImage.alt}
+              {...getLazyImageProps(activeImage.image, activeImage.alt)}
               className="max-h-[88vh] max-w-[92vw] rounded-xl object-contain"
             />
             {hasMultipleImages ? (

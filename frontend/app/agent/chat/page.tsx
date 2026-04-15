@@ -96,6 +96,8 @@ function Avatar({ name, url }: { name?: string | null; url?: string | null }) {
           fill
           sizes="28px"
           unoptimized
+          loading="lazy"
+          decoding="async"
           className="object-cover"
         />
       ) : (

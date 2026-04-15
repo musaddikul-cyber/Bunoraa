@@ -373,6 +373,8 @@ export function ChatWidget() {
                       fill
                       sizes="28px"
                       unoptimized
+                      loading="lazy"
+                      decoding="async"
                       className="object-cover"
                     />
                   ) : (
@@ -437,6 +439,8 @@ export function ChatWidget() {
                                   fill
                                   sizes="28px"
                                   unoptimized
+                                  loading="lazy"
+                                  decoding="async"
                                   className="object-cover"
                                 />
                               ) : (

@@ -370,7 +370,18 @@ class SocialTokenView(APIView):
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
+    def _require_social_flow(self, request):
+        return bool(request.session.get("social_login_flow"))
+
     def _issue_tokens(self, request):
+        if not self._require_social_flow(request):
+            return Response({
+                'success': False,
+                'message': 'No active social login flow found.',
+                'data': None,
+                'meta': None
+            }, status=status.HTTP_403_FORBIDDEN)
+
         refresh = RefreshToken.for_user(request.user)
         access = refresh.access_token
         expires_at = datetime.fromtimestamp(refresh['exp'], tz=dt_timezone.utc)
@@ -387,6 +398,10 @@ class SocialTokenView(APIView):
             str(refresh['jti'])
         )
         merge_guest_commerce_state(request, request.user)
+
+        request.session.pop("social_login_flow", None)
+        request.session.modified = True
+
         return Response({
             'success': True,
             'message': 'Social login successful.',

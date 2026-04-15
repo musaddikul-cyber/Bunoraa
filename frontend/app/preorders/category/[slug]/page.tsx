@@ -80,6 +80,9 @@ export default async function PreorderCategoryPage({
                   src={category.image}
                   alt={category.name}
                   fill
+                  sizes="80px"
+                  loading="lazy"
+                  decoding="async"
                   className="object-cover"
                 />
               </div>

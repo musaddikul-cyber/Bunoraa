@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildItemList, buildPageMetadata } from "@/lib/seo";
 import { asArray } from "@/lib/array";
+import { getLazyImageProps } from "@/components/common/LazyImage";
 
 export const revalidate = 600;
 export const metadata: Metadata = buildPageMetadata({
@@ -62,8 +63,7 @@ export default async function ArtisansPage() {
               {artisan.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={artisan.avatar}
-                  alt={artisan.name}
+                  {...getLazyImageProps(artisan.avatar, artisan.name)}
                   className="h-full w-full object-cover"
                 />
               ) : null}

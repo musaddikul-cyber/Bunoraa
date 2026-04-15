@@ -49,6 +49,7 @@ export function FilterPanel({
   categories,
   productCount,
   className,
+  currentCategoryPath,
   filterParams,
   variant = "default",
 }: {
@@ -57,6 +58,7 @@ export function FilterPanel({
   categories?: CategoryFilterItem[];
   productCount?: number;
   className?: string;
+  currentCategoryPath?: string;
   filterParams?: Record<string, string>;
   variant?: "default" | "minimal";
 }) {
@@ -193,6 +195,16 @@ export function FilterPanel({
 
   const categoryQuery = searchParams.toString();
   const categorySuffix = categoryQuery ? `?${categoryQuery}` : "";
+  const getCategoryLink = (categorySlug: string) => {
+    const hasFullPath = categorySlug.includes("/");
+    const targetPath = hasFullPath
+      ? categorySlug
+      : currentCategoryPath
+      ? `${currentCategoryPath}/${categorySlug}`
+      : categorySlug;
+    return `${buildCategoryPath(targetPath)}${categorySuffix}`;
+  };
+
   const visibleCategories = React.useMemo(
     () =>
       (categories || []).filter((category) => {
@@ -398,7 +410,7 @@ export function FilterPanel({
               <Link
                 key={category.id}
                 className="inline-flex min-h-10 items-center rounded-full border border-border px-3.5 py-1.5 text-sm text-foreground/70 transition hover:border-primary/40 hover:text-foreground"
-                href={`${buildCategoryPath(category.slug)}${categorySuffix}`}
+                href={getCategoryLink(category.slug)}
               >
                 {category.name}
                 {typeof category.product_count === "number"

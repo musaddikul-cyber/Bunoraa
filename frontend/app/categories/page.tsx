@@ -67,8 +67,7 @@ export default async function CategoriesPage() {
                 {category.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={category.image}
-                    alt={category.name}
+                    {...getLazyImageProps(category.image, category.name)}
                     className="h-full w-full object-cover"
                   />
                 ) : null}

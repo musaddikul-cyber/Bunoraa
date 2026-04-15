@@ -344,6 +344,8 @@ export default async function Home() {
                         fill
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         quality={70}
+                        loading="lazy"
+                        decoding="async"
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                       />
                     ) : null}
@@ -429,6 +431,8 @@ export default async function Home() {
                       fill
                       sizes="(max-width: 640px) 100vw, 33vw"
                       quality={68}
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                     />
                   ) : null}

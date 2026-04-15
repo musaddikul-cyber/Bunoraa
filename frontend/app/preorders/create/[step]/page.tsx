@@ -715,6 +715,9 @@ export default function PreorderCreateStepPage() {
                                 src={category.image}
                                 alt={category.name}
                                 fill
+                                sizes="72px"
+                                loading="lazy"
+                                decoding="async"
                                 className="object-cover"
                               />
                             </div>

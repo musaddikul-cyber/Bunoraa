@@ -93,6 +93,8 @@ export function ProductCard({
               fill
               sizes={gridImageSizes}
               quality={72}
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
             />
           ) : null}
@@ -106,7 +108,7 @@ export function ProductCard({
           <Link
             href={productHref}
             prefetch={false}
-            className="block text-sm font-medium leading-snug text-foreground"
+            className="block text-sm font-normal leading-snug text-foreground"
           >
             {product.name}
           </Link>
@@ -116,7 +118,7 @@ export function ProductCard({
             currentPrice={product.current_price}
             currency={product.currency}
             className="text-foreground"
-            priceClassName="text-[15px] font-semibold sm:text-xl"
+            priceClassName="text-[14px] font-medium sm:text-[16px]"
           />
         </div>
       </div>
@@ -171,6 +173,8 @@ export function ProductCard({
             fill
             sizes={variant === "list" ? listImageSizes : gridImageSizes}
             quality={72}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : null}
@@ -199,7 +203,7 @@ export function ProductCard({
           <Link
             href={productHref}
             prefetch={false}
-            className="block text-base font-semibold leading-snug sm:text-lg"
+            className="block text-base font-normal leading-snug sm:text-lg"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -212,7 +216,7 @@ export function ProductCard({
           salePrice={product.sale_price}
           currentPrice={product.current_price}
           currency={product.currency}
-          priceClassName="text-base font-semibold sm:text-lg"
+          priceClassName="text-sm font-medium sm:text-base"
         />
         <div className="mt-auto grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center">
           <AddToCartButton

@@ -49,6 +49,32 @@ def _is_local_host(host_value):
     return host in _LOCAL_HOSTS or host.endswith(".local")
 
 
+def _build_absolute_redirect_uri(request, uri):
+    uri = (uri or "").strip()
+    if not uri:
+        return ""
+    if uri.startswith("//"):
+        uri = f"{request.scheme}:{uri}"
+    elif not uri.startswith("http://") and not uri.startswith("https://"):
+        uri = request.build_absolute_uri(uri)
+
+    if getattr(settings, "SOCIAL_AUTH_REDIRECT_IS_HTTPS", False):
+        parsed = urlparse(uri)
+        if parsed.scheme != "https":
+            uri = parsed._replace(scheme="https").geturl()
+    return uri
+
+
+def _has_local_redirect_port_mismatch(request, uri):
+    if not uri:
+        return False
+    parsed = urlparse(uri if "://" in uri else f"{request.scheme}://{request.get_host()}{uri}")
+    if not parsed.hostname or not _is_local_host(request.get_host()):
+        return False
+    request_host = urlparse(f"{request.scheme}://{request.get_host()}")
+    return _is_local_host(parsed.hostname) and parsed.port != request_host.port
+
+
 def _infer_local_frontend_origin(request):
     for header in ("HTTP_ORIGIN", "HTTP_REFERER"):
         candidate = (request.META.get(header) or "").strip()
@@ -76,7 +102,15 @@ class OAuthBeginView(View):
             getattr(settings, "SOCIAL_AUTH_GOOGLE_OAUTH2_REDIRECT_URI", "").strip()
         )
         if backend == "google-oauth2" and configured_google_redirect_uri:
-            redirect_uri = configured_google_redirect_uri
+            if _has_local_redirect_port_mismatch(request, configured_google_redirect_uri):
+                redirect_uri = _build_absolute_redirect_uri(request, redirect_uri)
+            else:
+                redirect_uri = _build_absolute_redirect_uri(request, configured_google_redirect_uri)
+        else:
+            redirect_uri = _build_absolute_redirect_uri(request, redirect_uri)
+
+        request.session["social_login_flow"] = backend
+        request.session.modified = True
 
         try:
             strategy = load_strategy(request)

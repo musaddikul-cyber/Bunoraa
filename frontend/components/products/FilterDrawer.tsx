@@ -16,6 +16,7 @@ export function FilterDrawer({
   categories,
   productCount,
   className,
+  currentCategoryPath,
   filterParams,
   variant = "default",
 }: {
@@ -24,6 +25,7 @@ export function FilterDrawer({
   categories?: CategoryFilterItem[];
   productCount?: number;
   className?: string;
+  currentCategoryPath?: string;
   filterParams?: Record<string, string>;
   variant?: "default" | "minimal";
 }) {
@@ -114,6 +116,7 @@ export function FilterDrawer({
                   facets={facets}
                   categories={categories}
                   productCount={productCount}
+                  currentCategoryPath={currentCategoryPath}
                   filterParams={filterParams}
                   variant={variant}
                 />

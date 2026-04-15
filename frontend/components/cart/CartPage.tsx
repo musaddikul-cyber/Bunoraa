@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/ToastProvider";
 import { cn } from "@/lib/utils";
 import { buildProductPath } from "@/lib/productPaths";
+import { getLazyImageProps } from "@/components/common/LazyImage";
 
 type ValidationIssue = {
   type?: string;
@@ -284,10 +285,8 @@ function CartItemRow({
       <div className="flex items-start gap-3 sm:items-center sm:gap-4">
         <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-muted sm:h-28 sm:w-28">
           {item.product_image ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={item.product_image}
-              alt={item.product_name}
+              {...getLazyImageProps(item.product_image, item.product_name)}
               className="h-full w-full object-cover"
             />
           ) : null}
@@ -1297,10 +1296,8 @@ export function CartPage() {
                 <Card key={product.id} variant="bordered" className="snap-start flex flex-col gap-3">
                   <div className="aspect-[4/5] overflow-hidden rounded-xl bg-muted">
                     {getProductImage(product) ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={getProductImage(product) || ""}
-                        alt={product.name}
+                        {...getLazyImageProps(getProductImage(product) || "", product.name)}
                         className="h-full w-full object-cover"
                       />
                     ) : null}

@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/components/auth/useAuth";
+import { getLazyImageProps } from "@/components/common/LazyImage";
 import { apiFetch } from "@/lib/api";
 
 export default function ProfilePage() {
@@ -106,8 +107,7 @@ export default function ProfilePage() {
               {profile?.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={profile.avatar}
-                  alt={profile.full_name || "Profile"}
+                  {...getLazyImageProps(profile.avatar, profile.full_name || "Profile")}
                   className="h-full w-full object-cover"
                 />
               ) : (

@@ -42,6 +42,9 @@ class _OTPVerificationAdapter:
             return bool(self) is other
         return NotImplemented
 
+    def __hash__(self) -> int:
+        return hash(bool(self))
+
     def __repr__(self) -> str:
         return f"<OTPVerificationAdapter field_value={self._field_value}>"
 

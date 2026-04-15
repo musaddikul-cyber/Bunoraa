@@ -14,7 +14,7 @@ import type { CategoryFacet } from "@/components/products/FilterPanel";
 import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { buildBreadcrumbList, buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
+import { buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
 
@@ -227,10 +227,6 @@ export async function renderCategoryPageForPath(
   };
 
   const categoryUrl = buildCategoryPath(slugPath);
-  const breadcrumbs = buildBreadcrumbList([
-    { name: "Home", url: "/" },
-    { name: category.name, url: categoryUrl },
-  ]);
   const itemListId = `${categoryUrl}#itemlist`;
   const productList = buildItemList(
     products.slice(0, 50).map((product) => ({
@@ -254,20 +250,12 @@ export async function renderCategoryPageForPath(
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-6 space-y-4 sm:mb-8">
           <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-foreground/60">
-              <Link href="/" className="hover:text-foreground">
-                Home
-              </Link>
-              <span aria-hidden="true">/</span>
-              <span className="text-foreground/80">{category.name}</span>
-            </div>
-            <p className="text-sm uppercase tracking-[0.2em] text-foreground/60">
-              Category
-            </p>
             <h1 className="text-2xl font-semibold sm:text-3xl">{category.name}</h1>
-            <p className="mt-2 max-w-3xl text-sm text-foreground/70 sm:text-base">
-              {category.meta_description || "Explore products in this category."}
-            </p>
+            {(category.meta_description || category.description) ? (
+              <p className="mt-2 max-w-3xl text-sm text-foreground/70 sm:text-base">
+                {category.meta_description || category.description}
+              </p>
+            ) : null}
             <p className="mt-2 text-sm text-foreground/60">
               {totalCount} product{totalCount === 1 ? "" : "s"} available
             </p>
@@ -282,6 +270,7 @@ export async function renderCategoryPageForPath(
                   productCount={totalCount}
                   className="lg:hidden"
                   filterParams={filterParams}
+                  currentCategoryPath={slugPath}
                 />
               ) : null}
               <SortMenu className="w-full sm:w-auto" />
@@ -298,6 +287,7 @@ export async function renderCategoryPageForPath(
                 facets={facets}
                 categories={childCategories}
                 productCount={totalCount}
+                currentCategoryPath={slugPath}
                 filterParams={filterParams}
               />
             </aside>
@@ -341,7 +331,7 @@ export async function renderCategoryPageForPath(
           </div>
         ) : null}
       </div>
-      <JsonLd data={[collectionPage, breadcrumbs, productList]} />
+      <JsonLd data={[collectionPage, productList]} />
     </div>
   );
 }

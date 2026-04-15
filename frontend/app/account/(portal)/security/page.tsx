@@ -336,6 +336,8 @@ export default function SecurityPage() {
                   width={176}
                   height={176}
                   unoptimized
+                  loading="lazy"
+                  decoding="async"
                   className="mx-auto h-44 w-44 rounded-lg border border-border bg-card p-1 sm:mx-0"
                 />
               ) : totpUri ? (

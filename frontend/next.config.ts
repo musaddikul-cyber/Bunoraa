@@ -63,6 +63,25 @@ const nextConfig: NextConfig = {
     remotePatterns,
     unoptimized: shouldDisableImageOptimization,
     formats: ["image/avif", "image/webp"],
+    // Optimize image loading with responsive device sizes
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    // Cache optimized images for longer period
+    minimumCacheTTL: 60,
+    qualities: [72, 75],
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
+  // Enable compression and optimize bundle size
+  compress: true,
+  // Enable experimental optimizations
+  experimental: {
+    // Optimize package imports
+    optimizePackageImports: [
+      "@/components",
+      "@/lib",
+      "@/app",
+    ],
   },
   turbopack: {
     resolveAlias: {

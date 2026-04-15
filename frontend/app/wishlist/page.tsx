@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useWishlist } from "@/components/wishlist/useWishlist";
 import { useAuthContext } from "@/components/providers/AuthProvider";
+import { getLazyImageProps } from "@/components/common/LazyImage";
 
 export default function WishlistPage() {
   const { wishlistQuery, removeItem, moveToCart } = useWishlist();
@@ -42,10 +43,8 @@ export default function WishlistPage() {
                 <Card key={item.id} variant="bordered" className="flex gap-4">
                   <div className="h-24 w-24 overflow-hidden rounded-xl bg-muted">
                     {item.product_image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={item.product_image}
-                        alt={item.product_name}
+                        {...getLazyImageProps(item.product_image, item.product_name)}
                         className="h-full w-full object-cover"
                       />
                     ) : null}

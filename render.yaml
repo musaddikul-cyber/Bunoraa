@@ -11,6 +11,10 @@ services:
         value: "production"
       - key: DJANGO_SETTINGS_MODULE
         value: "core.settings.production"
+      - key: GUNICORN_PRELOAD
+        value: "False"
+      - key: GUNICORN_TIMEOUT
+        value: "120"
       - key: DATABASE_URL
         sync: false
       - key: DB_CONN_MAX_AGE

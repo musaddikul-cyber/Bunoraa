@@ -35,9 +35,9 @@ jobs:
               - 'render.yaml'
               - 'render-worker.yaml'
               - 'scripts/**'
-              - '.github/workflows/ci-cd.yml'
             frontend:
               - 'frontend/**'
+            ci:
               - '.github/workflows/ci-cd.yml'
 
   backend:

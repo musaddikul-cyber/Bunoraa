@@ -22,15 +22,14 @@ bind = '0.0.0.0:' + os.environ.get('PORT', '8000')
 # ============================================
 # FAST STARTUP (CRITICAL)
 # ============================================
-# Preload app ONCE then fork for faster startup
-# Only safe if using sync worker, not threaded
-preload_app = os.environ.get('GUNICORN_PRELOAD', 'True').lower() in ('true', '1', 'yes')
+# Default to disabled unless explicitly enabled.
+preload_app = os.environ.get('GUNICORN_PRELOAD', 'False').lower() in ('true', '1', 'yes')
 
 # ============================================
 # TIMEOUT SETTINGS
 # ============================================
-timeout = int(os.environ.get('GUNICORN_TIMEOUT', '45'))  # Lower to avoid long hangs
-graceful_timeout = int(os.environ.get('GUNICORN_GRACEFUL_TIMEOUT', '20'))
+timeout = int(os.environ.get('GUNICORN_TIMEOUT', '60'))  # Longer timeout for slower initial requests
+graceful_timeout = int(os.environ.get('GUNICORN_GRACEFUL_TIMEOUT', '30'))
 keepalive = int(os.environ.get('GUNICORN_KEEPALIVE', '5'))
 
 # ============================================

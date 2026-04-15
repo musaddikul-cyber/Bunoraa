@@ -19,26 +19,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      - uses: dorny/paths-filter@v3
+          fetch-depth: 0
+      - name: Detect changed files
         id: filter
-        with:
-          filters: |
-            backend:
-              - 'apps/**'
-              - 'core/**'
-              - 'config/**'
-              - 'manage.py'
-              - 'requirements*.txt'
-              - 'build.sh'
-              - 'gunicorn_conf.py'
-              - 'render.yaml'
-              - 'render-worker.yaml'
-              - 'scripts/**'
-            frontend:
-              - 'frontend/**'
-            ci:
-              - '.github/workflows/ci-cd.yml'
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            changed_files=$(git ls-tree --name-only -r HEAD)
+          else
+            changed_files=$(git diff --name-only --diff-filter=ACMR "${{ github.event.before }}" "${{ github.sha }}")
+          fi
+
+          echo "changed_files<<EOF" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$changed_files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          backend=false
+          frontend=false
+          ci=false
+
+          printf '%s\n' "$changed_files" | while IFS= read -r file; do
+            if [ -z "$file" ]; then
+              continue
+            fi
+            echo "changed: $file"
+            case "$file" in
+              apps/*|core/*|config/*|manage.py|requirements*.txt|build.sh|gunicorn_conf.py|render.yaml|render-worker.yaml|scripts/*)
+                backend=true
+                ;;
+            esac
+            case "$file" in
+              frontend/*)
+                frontend=true
+                ;;
+            esac
+            case "$file" in
+              .github/workflows/ci-cd.yml)
+                ci=true
+                ;;
+            esac
+          done
+
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
+          echo "ci=$ci" >> "$GITHUB_OUTPUT"
 
   backend:
     needs: changes

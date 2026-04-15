@@ -1,3 +1,4 @@
+import logging
 import os
 
 # ============================================
@@ -57,5 +58,39 @@ worker_connections = int(os.environ.get('GUNICORN_WORKER_CONNECTIONS', '100'))  
 accesslog = '-'
 errorlog = '-'
 loglevel = os.environ.get('GUNICORN_LOG_LEVEL', 'warning')  # Changed from 'info' to reduce logging overhead
+
+
+def _count_open_database_connections() -> int:
+    try:
+        from django import setup as django_setup
+        from django.conf import settings
+        from django.db import connections
+    except Exception:
+        return -1
+
+    if not settings.configured:
+        try:
+            django_setup()
+        except Exception:
+            return -1
+
+    active_connections = 0
+    for alias in connections:
+        connection = connections[alias]
+        if getattr(connection, 'connection', None) is not None:
+            active_connections += 1
+    return active_connections
+
+
+def _log_database_connection_warning(context: str) -> None:
+    count = _count_open_database_connections()
+    if count < 0:
+        logging.warning('[%s] Unable to determine active DB connection count.', context)
+    else:
+        logging.warning('[%s] Active DB connections: %d', context, count)
+
+
+def post_worker_init(worker):
+    _log_database_connection_warning('post_worker_init')
 
 

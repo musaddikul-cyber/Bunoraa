@@ -92,7 +92,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 const disablePrerender =
   process.env.NEXT_DISABLE_PRERENDER === "true" ||

@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/ToastProvider";
 import { cn } from "@/lib/utils";
 import { buildProductPath } from "@/lib/productPaths";
-import { getLazyImageProps } from "@/components/common/LazyImage";
+import { getLazyImageProps } from "@/lib/lazyImage";
 
 type ValidationIssue = {
   type?: string;

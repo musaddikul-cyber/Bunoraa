@@ -1,6 +1,7 @@
 "use client";
 
 import Image, { ImageProps } from "next/image";
+import { getLazyImageProps } from "@/lib/lazyImage";
 
 interface LazyImageProps extends Omit<ImageProps, "loading" | "decoding"> {
   /**
@@ -71,23 +72,3 @@ export function LazyImage({
   );
 }
 
-/**
- * Utility function to add loading="lazy" attribute to regular img tags
- * Use for fallback scenarios where Image component cannot be used
- * 
- * Example:
- * <img {...getLazyImageProps(src, alt)} />
- */
-export function getLazyImageProps(
-  src: string,
-  alt: string,
-  additionalProps?: React.ImgHTMLAttributes<HTMLImageElement>
-) {
-  return {
-    src,
-    alt,
-    loading: "lazy" as const,
-    decoding: "async" as const,
-    ...additionalProps,
-  };
-}

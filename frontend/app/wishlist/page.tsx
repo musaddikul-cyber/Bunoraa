@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useWishlist } from "@/components/wishlist/useWishlist";
 import { useAuthContext } from "@/components/providers/AuthProvider";
-import { getLazyImageProps } from "@/components/common/LazyImage";
+import { getLazyImageProps } from "@/lib/lazyImage";
 
 export default function WishlistPage() {
   const { wishlistQuery, removeItem, moveToCart } = useWishlist();

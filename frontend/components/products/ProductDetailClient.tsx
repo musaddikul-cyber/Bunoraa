@@ -28,7 +28,7 @@ import { ProductGrid } from "@/components/products/ProductGrid";
 import { buildProductPath } from "@/lib/productPaths";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X } from "lucide-react";
-import { getLazyImageProps } from "@/components/common/LazyImage";
+import { getLazyImageProps } from "@/lib/lazyImage";
 
 type Variant = NonNullable<ProductDetail["variants"]>[number];
 type VariantOptionMap = Record<string, string>;

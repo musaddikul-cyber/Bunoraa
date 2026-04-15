@@ -2,7 +2,7 @@ import { apiFetch, ApiError } from "@/lib/api";
 import type { WishlistItem } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { getLazyImageProps } from "@/components/common/LazyImage";
+import { getLazyImageProps } from "@/lib/lazyImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 

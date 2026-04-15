@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/components/auth/useAuth";
-import { getLazyImageProps } from "@/components/common/LazyImage";
+import { getLazyImageProps } from "@/lib/lazyImage";
 import { apiFetch } from "@/lib/api";
 
 export default function ProfilePage() {

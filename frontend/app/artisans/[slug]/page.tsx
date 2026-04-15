@@ -8,7 +8,7 @@ import { WishlistIconButton } from "@/components/wishlist/WishlistIconButton";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { absoluteUrl, buildBreadcrumbList, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
 import { buildProductPath } from "@/lib/productPaths";
-import { getLazyImageProps } from "@/components/common/LazyImage";
+import { getLazyImageProps } from "@/lib/lazyImage";
 
 export const revalidate = 600;
 

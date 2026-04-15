@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { ProductPrice } from "@/components/products/ProductPrice";
 import { RatingStars } from "@/components/products/RatingStars";
 import { buildProductPath } from "@/lib/productPaths";
-import { getLazyImageProps } from "@/components/common/LazyImage";
+import { getLazyImageProps } from "@/lib/lazyImage";
 
 export default function ComparePage() {
   const [items, setItems] = React.useState(getCompareItems());

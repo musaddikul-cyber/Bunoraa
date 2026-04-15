@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 import type { OrderDetail } from "@/lib/types";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { Card } from "@/components/ui/Card";
-import { getLazyImageProps } from "@/components/common/LazyImage";
+import { getLazyImageProps } from "@/lib/lazyImage";
 import { useOrders } from "@/components/orders/useOrders";
 import { isUuid, resolveOrderId } from "@/lib/orders";
 import { formatMoney } from "@/lib/checkout";

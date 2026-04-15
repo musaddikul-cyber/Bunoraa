@@ -47,18 +47,6 @@
   <div class="admin-auth-shell">
     <header class="auth-topbar">
       <a class="brand-link" href="/" aria-label="{{ SITE_NAME|default:'Bunoraa' }}">
-        <span class="brand-logo-wrap" aria-hidden="true">
-          {% if SITE_LOGO %}
-            <img src="{{ SITE_LOGO }}" alt="" class="brand-logo brand-logo-light-bg">
-          {% else %}
-            <img src="{% static 'images/assets/logo_dark_bunoraa.png' %}" alt="" class="brand-logo brand-logo-light-bg">
-          {% endif %}
-          {% if SITE_LOGO_DARK %}
-            <img src="{{ SITE_LOGO_DARK }}" alt="" class="brand-logo brand-logo-dark-bg">
-          {% else %}
-            <img src="{% static 'images/assets/logo_light_bunoraa.png' %}" alt="" class="brand-logo brand-logo-dark-bg">
-          {% endif %}
-        </span>
         <span class="brand-meta">
           <strong>{{ SITE_NAME|default:"Bunoraa" }}</strong>
           <small>{% trans "Administration" %}</small>

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAccessToken } from "@/lib/auth";
+import { buildWsUrl as buildGlobalWsUrl } from "@/lib/ws";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 
 type WebSocketContextValue = {
@@ -25,13 +26,7 @@ const CHANNELS: Record<string, string> = {
 function buildWsUrl(path: string) {
   const enabled = (process.env.NEXT_PUBLIC_WS_ENABLED || "").toLowerCase() === "true";
   if (!enabled) return null;
-  const base = (process.env.NEXT_PUBLIC_WS_BASE_URL || "").replace(/\/$/, "");
-  if (!base) return null;
-  const normalizedPath = base.endsWith("/ws") ? path.replace(/^\/ws/, "") : path;
-  const token = getAccessToken();
-  const url = `${base}${normalizedPath}`;
-  if (!token) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
+  return buildGlobalWsUrl(path, getAccessToken());
 }
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { getAccessToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { buildWsUrl } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 
 const statusOptions = ["all", "open", "waiting", "active", "resolved", "closed"];
@@ -59,14 +60,7 @@ type AgentProfile = {
 type CannedResponse = { id: string; title: string; content: string; shortcut: string };
 
 function buildChatWsUrl(conversationId: string) {
-  const base = (process.env.NEXT_PUBLIC_WS_BASE_URL || "").replace(/\/$/, "");
-  if (!base) return null;
-  const path = `/ws/chat/${conversationId}/`;
-  const normalizedPath = base.endsWith("/ws") ? path.replace(/^\/ws/, "") : path;
-  const token = getAccessToken();
-  const url = `${base}${normalizedPath}`;
-  if (!token) return url;
-  return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
+  return buildWsUrl(`/ws/chat/${conversationId}/`, getAccessToken());
 }
 
 function initials(name?: string | null) {

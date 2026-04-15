@@ -8,6 +8,7 @@ import { Paperclip, SendHorizontal, X } from "lucide-react";
 import { useAuthContext } from "@/components/providers/AuthProvider";
 import { getAccessToken } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { buildWsUrl } from "@/lib/ws";
 import { cn } from "@/lib/utils";
 
 type ChatUser = {
@@ -66,14 +67,7 @@ function normalizeActiveConversation(payload: ActiveConversationPayload | null |
 }
 
 function buildChatWsUrl(conversationId: string, token?: string | null) {
-  const base = (process.env.NEXT_PUBLIC_WS_BASE_URL || "").replace(/\/$/, "");
-  if (!base) return null;
-  const path = `/ws/chat/${conversationId}/`;
-  const normalizedPath = base.endsWith("/ws") ? path.replace(/^\/ws/, "") : path;
-  const url = `${base}${normalizedPath}`;
-  if (!token) return url;
-  const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}token=${encodeURIComponent(token)}`;
+  return buildWsUrl(`/ws/chat/${conversationId}/`, token);
 }
 
 function initials(name?: string) {

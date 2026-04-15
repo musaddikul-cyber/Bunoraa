@@ -15,6 +15,7 @@ import { absoluteUrl, buildPageMetadata, cleanObject } from "@/lib/seo";
 import { asArray } from "@/lib/array";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 900;
 
 type CategoryPreview = {
@@ -96,7 +97,7 @@ const getAboutPage = cache(async (): Promise<PageDetail | null> => {
     if (error instanceof ApiError && error.status === 404) {
       return null;
     }
-    throw error;
+    return null;
   }
 });
 

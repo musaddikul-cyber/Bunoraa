@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/checkout";
 import { asArray } from "@/lib/array";
 import { buildPageMetadata } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 600;
 export const metadata: Metadata = buildPageMetadata({
   title: "Custom Preorders",
@@ -18,10 +19,14 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 async function getCategories() {
-  const response = await apiFetch<PreorderCategory[]>("/preorders/categories/", {
-    next: { revalidate },
-  });
-  return asArray<PreorderCategory>(response.data);
+  try {
+    const response = await apiFetch<PreorderCategory[]>("/preorders/categories/", {
+      next: { revalidate },
+    });
+    return asArray<PreorderCategory>(response.data);
+  } catch {
+    return [];
+  }
 }
 
 export default async function PreordersLandingPage() {

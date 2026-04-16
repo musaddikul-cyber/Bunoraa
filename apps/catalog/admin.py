@@ -537,17 +537,17 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
                     row_values.append(value)
                 dataset.append(row_values)
 
-        def after_import_instance(self, instance, new, row=None, dry_run=False, **kwargs):
-            if dry_run or row is None:
+        def after_save_instance(self, instance, row, **kwargs):
+            if kwargs.get("dry_run", False) or row is None:
                 return
 
-            image_urls = (row.get("image_urls") or "")
-            image_alt_texts = (row.get("image_alt_texts") or "")
+            image_urls = str(row.get("image_urls") or "").strip()
+            image_alt_texts = str(row.get("image_alt_texts") or "").strip()
             if not image_urls:
                 return
 
-            urls = [url.strip() for url in str(image_urls).split("|") if url.strip()]
-            alts = [alt.strip() for alt in str(image_alt_texts).split("|")] if image_alt_texts else []
+            urls = [url.strip() for url in image_urls.split("|") if url.strip()]
+            alts = [alt.strip() for alt in image_alt_texts.split("|")] if image_alt_texts else []
             if not urls:
                 return
 
@@ -566,7 +566,7 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
                     else:
                         local_path = url
                         if url.startswith(settings.MEDIA_URL):
-                            local_path = url[len(settings.MEDIA_URL):]
+                            local_path = url[len(settings.MEDIA_URL) :]
                         local_path = Path(settings.MEDIA_ROOT) / local_path.lstrip("/")
                         with open(local_path, "rb") as fh:
                             data = fh.read()

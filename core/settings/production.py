@@ -246,6 +246,9 @@ SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = os.environ.get('CSRF_COOKIE_HTTPONLY', 'False').lower() in ('1', 'true', 'yes')
 CSRF_COOKIE_SAMESITE = os.environ.get('CSRF_COOKIE_SAMESITE', 'Lax')
+# Share cookies across subdomains (.bunoraa.com)
+SESSION_COOKIE_DOMAIN = os.environ.get('SESSION_COOKIE_DOMAIN', '.bunoraa.com')
+CSRF_COOKIE_DOMAIN = os.environ.get('CSRF_COOKIE_DOMAIN', '.bunoraa.com')
 
 # HSTS
 SECURE_HSTS_SECONDS = 31536000  # 1 year
@@ -254,6 +257,33 @@ SECURE_HSTS_PRELOAD = True
 
 # Content Security Policy
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# =============================================================================
+# SOCIAL AUTH - Google OAuth2
+# =============================================================================
+# Override base settings for production with proper API domain redirect URI
+# The GOOGLE_REDIRECT_URI should point to the backend API domain where
+# python-social-auth processes the OAuth callback
+SOCIAL_AUTH_GOOGLE_OAUTH2_REDIRECT_URI = os.environ.get(
+    'GOOGLE_REDIRECT_URI',
+    'https://api.bunoraa.com/oauth/complete/google-oauth2/'
+)
+
+# Login redirect URL goes to frontend callback page
+SOCIAL_AUTH_LOGIN_REDIRECT_URL = os.environ.get(
+    'SOCIAL_AUTH_LOGIN_REDIRECT_URL',
+    'https://bunoraa.com/account/oauth/callback/'
+)
+
+# Allowed hosts for social auth redirects (split from env)
+_social_allowed_hosts_str = os.environ.get(
+    'SOCIAL_AUTH_ALLOWED_REDIRECT_HOSTS',
+    'bunoraa.com,www.bunoraa.com,api.bunoraa.com'
+)
+SOCIAL_AUTH_ALLOWED_REDIRECT_HOSTS = [h.strip() for h in _social_allowed_hosts_str.split(',') if h.strip()]
+
+# Ensure HTTPS is used for redirects
+SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
 
 # =============================================================================
 # CACHE - Redis

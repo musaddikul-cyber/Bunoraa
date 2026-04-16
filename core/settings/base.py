@@ -440,6 +440,12 @@ SOCIAL_AUTH_USER_FIELDS = ['email', 'first_name', 'last_name']
 SOCIAL_AUTH_USERNAME_IS_FULL_EMAIL = True
 SOCIAL_AUTH_ASSOCIATE_BY_EMAIL = True
 
+# Allowed hosts for social auth redirects (production hosts)
+SOCIAL_AUTH_ALLOWED_REDIRECT_HOSTS = os.environ.get(
+    'SOCIAL_AUTH_ALLOWED_REDIRECT_HOSTS',
+    'localhost:3000,127.0.0.1:3000'
+).split(',')
+
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

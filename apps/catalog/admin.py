@@ -537,6 +537,57 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
                     row_values.append(value)
                 dataset.append(row_values)
 
+        def after_import_instance(self, instance, new, row=None, dry_run=False, **kwargs):
+            if dry_run or row is None:
+                return
+
+            image_urls = (row.get("image_urls") or "")
+            image_alt_texts = (row.get("image_alt_texts") or "")
+            if not image_urls:
+                return
+
+            urls = [url.strip() for url in str(image_urls).split("|") if url.strip()]
+            alts = [alt.strip() for alt in str(image_alt_texts).split("|")] if image_alt_texts else []
+            if not urls:
+                return
+
+            from django.core.files.base import ContentFile
+            import urllib.request
+
+            instance.images.all().delete()
+
+            for index, url in enumerate(urls):
+                alt = alts[index] if index < len(alts) else ""
+                try:
+                    parsed = urlparse(url)
+                    if parsed.scheme in ("http", "https"):
+                        with urllib.request.urlopen(url) as response:
+                            data = response.read()
+                    else:
+                        local_path = url
+                        if url.startswith(settings.MEDIA_URL):
+                            local_path = url[len(settings.MEDIA_URL):]
+                        local_path = Path(settings.MEDIA_ROOT) / local_path.lstrip("/")
+                        with open(local_path, "rb") as fh:
+                            data = fh.read()
+                except Exception:
+                    continue
+
+                filename = Path(urlparse(url).path).name or f"image_{index + 1}.jpg"
+                filename = filename if Path(filename).suffix else f"{filename}.jpg"
+                save_path = f"catalog/product_images/{instance.slug}/{index + 1}_{filename}"
+                try:
+                    saved_name = default_storage.save(save_path, ContentFile(data))
+                    ProductImage.objects.create(
+                        product=instance,
+                        image=saved_name,
+                        alt_text=alt,
+                        ordering=index,
+                        is_primary=(index == 0),
+                    )
+                except Exception:
+                    continue
+
         def dehydrate_image_urls(self, obj):
             urls = [img.image.url for img in obj.images.all() if getattr(img, "image", None)]
             return "|".join(urls)

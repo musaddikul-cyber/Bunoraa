@@ -121,7 +121,10 @@ try:
     DEBUG_TOOLBAR_PANELS = [
         panel
         for panel in dt_settings.PANELS_DEFAULTS
-        if panel != "debug_toolbar.panels.redirects.RedirectsPanel"
+        if panel not in {
+            "debug_toolbar.panels.redirects.RedirectsPanel",
+            "debug_toolbar.panels.profiling.ProfilingPanel",
+        }
     ]
 except ImportError:
     pass

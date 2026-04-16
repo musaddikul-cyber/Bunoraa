@@ -34,6 +34,19 @@ def test_import_export_resource_excludes_sensitive_fields():
     assert "password" in excluded
 
 
+@pytest.mark.django_db
+def test_safe_model_resource_export_field_accepts_kwargs(django_user_model):
+    from core.admin_mixins import SafeModelResource
+
+    user = django_user_model.objects.create_user(email="=danger@example.com", password="secret123")
+    resource_cls = SafeModelResource.for_model(django_user_model)
+    resource = resource_cls()
+    field = next(iter(resource.fields.values()))
+
+    exported = resource.export_field(field, user, export_fields=[field.attribute])
+    assert str(exported).startswith("'=")
+
+
 def test_export_sanitizes_formula_injection():
     from core.admin_mixins import sanitize_export_value
 

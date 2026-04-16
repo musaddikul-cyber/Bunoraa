@@ -2,6 +2,9 @@ services:
   - type: web
     name: Bunoraa
     runtime: python
+    buildFilter:
+      ignoredPaths:
+        - frontend/**
     buildCommand: "./build.sh"
     startCommand: >-
       gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --config gunicorn_conf.py
@@ -232,6 +235,9 @@ services:
   - type: worker
     name: Bunoraa-Celery-Worker
     runtime: python
+    buildFilter:
+      ignoredPaths:
+        - frontend/**
     buildCommand: "./build.sh"
     startCommand: "bash scripts/start_celery_worker.sh"
     envVars:
@@ -302,6 +308,9 @@ services:
   - type: worker
     name: Bunoraa-Celery-Beat
     runtime: python
+    buildFilter:
+      ignoredPaths:
+        - frontend/**
     buildCommand: "./build.sh"
     startCommand: "bash scripts/start_celery_beat.sh"
     envVars:

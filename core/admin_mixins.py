@@ -142,7 +142,15 @@ class ExportJSONMixin:
             try:
                 resource = resource_class()
                 dataset = resource.export(queryset)
-                data = dataset.json
+                try:
+                    data = json.dumps(dataset.dict, cls=DjangoJSONEncoder, ensure_ascii=False, indent=2)
+                except Exception:
+                    data = dataset.json
+                    try:
+                        loaded = json.loads(data)
+                        data = json.dumps(loaded, cls=DjangoJSONEncoder, ensure_ascii=False, indent=2)
+                    except Exception:
+                        pass
             except Exception:
                 logger.exception(
                     "JSON export via resource class failed for %s; falling back to generic row export.",
@@ -1092,14 +1100,16 @@ class SafeModelResource(ModelResource):
             if _is_sensitive_field(name):
                 exclude.append(name)
 
-        class Meta:
-            model = model
-            exclude = tuple(sorted(set(exclude)))
+        meta_attrs = {
+            "model": model,
+            "exclude": tuple(sorted(set(exclude))),
+        }
+        Meta = type("Meta", (), meta_attrs)
 
         return type(f"{model.__name__}SafeResource", (cls,), {"Meta": Meta})
 
-    def export_field(self, field, obj):
-        value = super().export_field(field, obj)
+    def export_field(self, field, instance, **kwargs):
+        value = super().export_field(field, instance, **kwargs)
         return sanitize_export_value(value)
 
     def before_import(self, dataset, **kwargs):
@@ -1160,6 +1170,10 @@ class ImportExportEnhancedModelAdmin(ImportExportModelAdmin, EnhancedModelAdmin)
     """Enhanced admin with import/export support."""
 
     def get_resource_class(self):
+        # Prefer an explicitly defined resource_class on the admin.
+        if getattr(self, 'resource_class', None):
+            return self.resource_class
+
         try:
             return SafeModelResource.for_model(self.model)
         except Exception:

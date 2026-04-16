@@ -65,6 +65,26 @@ def _build_absolute_redirect_uri(request, uri):
     return uri
 
 
+def _normalize_social_complete_redirect_uri(backend, uri):
+    """Normalize OAuth callback path so begin/complete use the same redirect URI.
+
+    Social auth complete views resolve to `/oauth/complete/<backend>/`. If a
+    configured URI omits this trailing slash, auth can succeed but token
+    exchange fails with `redirect_uri_mismatch` because complete() uses the
+    canonical slash form.
+    """
+    uri = (uri or "").strip()
+    if not uri:
+        return ""
+
+    canonical_path = reverse("social:complete", args=(backend,))
+    canonical_without_slash = canonical_path[:-1] if canonical_path.endswith("/") else canonical_path
+    parsed = urlparse(uri)
+    if parsed.path != canonical_without_slash:
+        return uri
+    return parsed._replace(path=canonical_path).geturl()
+
+
 def _has_local_redirect_port_mismatch(request, uri):
     if not uri:
         return False
@@ -108,6 +128,7 @@ class OAuthBeginView(View):
                 redirect_uri = _build_absolute_redirect_uri(request, configured_google_redirect_uri)
         else:
             redirect_uri = _build_absolute_redirect_uri(request, redirect_uri)
+        redirect_uri = _normalize_social_complete_redirect_uri(backend, redirect_uri)
 
         request.session["social_login_flow"] = backend
         request.session.modified = True

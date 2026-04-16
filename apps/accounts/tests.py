@@ -1,7 +1,7 @@
 ﻿"""
 Account tests
 """
-from django.test import TestCase, override_settings
+from django.test import TestCase, SimpleTestCase, override_settings
 from django.urls import reverse
 import pyotp
 from rest_framework.test import APITestCase, APIClient
@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from .models import User, Address
 from .services import UserService, AddressService, MfaService
 from .models import UserSession
+from .views import _normalize_social_complete_redirect_uri
 
 
 class OAuthCallbackRedirectViewTest(TestCase):
@@ -47,6 +48,33 @@ class OAuthCallbackRedirectViewTest(TestCase):
         self.assertEqual(
             response["Location"],
             "https://bunoraa.com/account/oauth/callback/?next=%2Faccount%2Fprofile%2F",
+        )
+
+
+class OAuthRedirectUriNormalizationTest(SimpleTestCase):
+    def test_google_redirect_uri_without_trailing_slash_is_normalized(self):
+        normalized = _normalize_social_complete_redirect_uri(
+            "google-oauth2",
+            "https://bunoraa.com/oauth/complete/google-oauth2",
+        )
+        self.assertEqual(
+            normalized,
+            "https://bunoraa.com/oauth/complete/google-oauth2/",
+        )
+
+    def test_google_redirect_uri_with_trailing_slash_is_unchanged(self):
+        uri = "https://bunoraa.com/oauth/complete/google-oauth2/"
+        normalized = _normalize_social_complete_redirect_uri("google-oauth2", uri)
+        self.assertEqual(normalized, uri)
+
+    def test_query_string_is_preserved_when_normalizing(self):
+        normalized = _normalize_social_complete_redirect_uri(
+            "google-oauth2",
+            "/oauth/complete/google-oauth2?next=%2Faccount%2Fprofile%2F",
+        )
+        self.assertEqual(
+            normalized,
+            "/oauth/complete/google-oauth2/?next=%2Faccount%2Fprofile%2F",
         )
 
 

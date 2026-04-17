@@ -920,9 +920,10 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     skip_export_form_from_action = False
     change_form_template = "admin/catalog/product/change_form.html"
     list_display = (
-        "thumbnail_preview", "name", "sku", "primary_category_display", 
-        "price_display", "stock_status", "performance_stats", "is_active",
-        "is_active_badge", "is_featured_badge", "created_at"
+        "thumbnail_preview", "name", "sku", "primary_category_display",
+        "views_count", "sales_count", "price", "sale_price", "stock_status",
+        "performance_stats", "is_active", "is_active_badge", "is_featured_badge",
+        "created_at"
     )
     list_display_links = ("thumbnail_preview", "name")
     search_fields = ("name", "sku", "description")
@@ -934,7 +935,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     prepopulated_fields = {"slug": ("name",)}
     date_hierarchy = "created_at"
     list_per_page = 25
-    list_editable = ("is_active",)
+    list_editable = ("price", "sale_price", "is_active")
     save_on_top = False
     filter_horizontal = ()
     autocomplete_fields = ("primary_category", "categories", "tags")
@@ -2123,8 +2124,8 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     
     def is_active_badge(self, obj):
         if obj.is_active:
-            return format_html('<span style="color: #16a34a;">●</span>')
-        return format_html('<span style="color: #dc2626;">●</span>')
+            return format_html('<span style="color: #16a34a;">{}</span>', '●')
+        return format_html('<span style="color: #dc2626;">{}</span>', '●')
     is_active_badge.short_description = _("Active")
     is_active_badge.admin_order_field = "is_active"
     

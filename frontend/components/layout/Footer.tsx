@@ -101,6 +101,8 @@ const pickText = (...values: Array<string | null | undefined>) => {
 
 type FooterSocialLink = SocialLink & {
   platform: string;
+  icon?: string | null;
+  name?: string | null;
 };
 
 type FooterLinkItem = {
@@ -164,8 +166,11 @@ const dedupeSocialLinks = (items: FooterSocialLink[]) => {
   });
 };
 
-function SocialIcon({ platform }: { platform: string }) {
-  const iconClass = "h-4 w-4";
+function SocialIcon({ platform, iconUrl }: { platform: string; iconUrl?: string | null }) {
+  const iconClass = "h-4 w-4 object-contain";
+  if (iconUrl) {
+    return <img src={iconUrl} alt={`${platform} icon`} className={iconClass} />;
+  }
   switch (normalizeSocialPlatform(platform)) {
     case "facebook":
       return (
@@ -281,15 +286,32 @@ export async function Footer() {
     : [];
 
   const siteSocialLinks: FooterSocialLink[] = siteSettings
-    ? SOCIAL_SITE_FIELDS.map((field) => {
-        const platform = normalizeSocialPlatform(String(field.key).replace(/_url$/, ""));
-        return {
-          platform,
-          label: field.label,
-          url: pickText(siteSettings[field.key] as string | null | undefined),
-        };
-      })
-        .filter((item) => item.url)
+    ? [
+        ...(Array.isArray(siteSettings.social_links)
+          ? siteSettings.social_links
+              .filter((link) => link?.url && String(link.url).trim())
+              .map((link) => {
+                const platform = normalizeSocialPlatform(link.label || link.name || "");
+                return {
+                  platform,
+                  label:
+                    pickText(link.label, link.name) ||
+                    SOCIAL_LABELS[platform] ||
+                    "Social",
+                  url: String(link.url),
+                  icon: link.icon || undefined,
+                };
+              })
+          : []),
+        ...SOCIAL_SITE_FIELDS.map((field) => {
+          const platform = normalizeSocialPlatform(String(field.key).replace(/_url$/, ""));
+          return {
+            platform,
+            label: field.label,
+            url: pickText(siteSettings[field.key] as string | null | undefined),
+          };
+        }).filter((item) => item.url),
+      ]
     : [];
 
   const socialLinks = dedupeSocialLinks(
@@ -635,7 +657,7 @@ export async function Footer() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          <SocialIcon platform={link.platform} />
+                          <SocialIcon platform={link.platform} iconUrl={link.icon} />
                         </Link>
                       ))}
                     </div>
@@ -748,7 +770,7 @@ export async function Footer() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        <SocialIcon platform={link.platform} />
+                        <SocialIcon platform={link.platform} iconUrl={link.icon} />
                       </Link>
                     ))}
                   </div>

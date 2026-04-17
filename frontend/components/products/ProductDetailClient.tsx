@@ -210,7 +210,7 @@ function ProductGallery({
           <button
             type="button"
             onClick={() => scrollThumbs("up")}
-            className="rounded-full border border-border p-1 text-foreground/70 hover:text-foreground"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background/85 text-foreground/70 transition hover:border-foreground hover:text-foreground"
             aria-label="Scroll thumbnails up"
           >
             <ChevronUp aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
@@ -240,7 +240,7 @@ function ProductGallery({
           <button
             type="button"
             onClick={() => scrollThumbs("down")}
-            className="rounded-full border border-border p-1 text-foreground/70 hover:text-foreground"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background/85 text-foreground/70 transition hover:border-foreground hover:text-foreground"
             aria-label="Scroll thumbnails down"
           >
             <ChevronDown aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />

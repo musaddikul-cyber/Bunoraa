@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 from rest_framework import serializers
 
-from ..models import Page, FAQ, ContactMessage, SiteSettings, Subscriber
+from ..models import Page, FAQ, ContactMessage, SiteSettings, SocialLink, Subscriber
 
 
 def normalize_public_asset_url(value: str | None, request=None) -> str:
@@ -96,6 +96,22 @@ class ContactMessageCreateSerializer(serializers.Serializer):
         return ContactMessage.objects.create(**validated_data)
 
 
+class SocialLinkSerializer(serializers.ModelSerializer):
+    icon = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SocialLink
+        fields = ['name', 'url', 'icon']
+
+    def get_icon(self, obj):
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        icon_url = obj.get_icon_url()
+        if not icon_url:
+            return ''
+        if request and icon_url.startswith('/'):
+            return request.build_absolute_uri(icon_url)
+        return icon_url
+
 class SiteSettingsSerializer(serializers.ModelSerializer):
     """Serializer for site settings (public)."""
     
@@ -107,6 +123,7 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
     support_email = serializers.SerializerMethodField()
     currency = serializers.CharField(source='currency_id', read_only=True)
     currency_symbol = serializers.SerializerMethodField()
+    social_links = serializers.SerializerMethodField()
     
     class Meta:
         model = SiteSettings
@@ -132,6 +149,7 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
             'youtube_url',
             'linkedin_url',
             'tiktok_url',
+            'social_links',
             'footer_text',
             'copyright_text',
         ]
@@ -170,6 +188,10 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
         if not currency:
             return ''
         return getattr(currency, 'native_symbol', None) or getattr(currency, 'symbol', '') or ''
+
+    def get_social_links(self, obj):
+        social_links = obj.social_links.filter(is_active=True).order_by('order')
+        return SocialLinkSerializer(social_links, many=True, context=self.context).data
 
 
 class SubscriberCreateSerializer(serializers.Serializer):

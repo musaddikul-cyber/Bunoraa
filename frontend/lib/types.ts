@@ -357,6 +357,7 @@ export type SiteSettings = {
   linkedin_url?: string | null;
   youtube_url?: string | null;
   tiktok_url?: string | null;
+  social_links?: Array<{ name?: string | null; label?: string | null; url?: string | null; icon?: string | null }> | null;
 };
 
 export type ContactSettings = {

@@ -200,3 +200,5 @@ chardet
 charset-normalizer
 idna
 distro
+
+python-json-logger

@@ -3,6 +3,18 @@ Monitoring, Logging, and Health Check Configuration
 Production-ready monitoring with Sentry, structured logging, and health endpoints.
 """
 import os
+from pathlib import Path
+
+
+def _get_log_path(env_key: str, default: str) -> str:
+    path = Path(os.environ.get(env_key, default))
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return str(path)
+    except OSError:
+        fallback = Path('/tmp/bunoraa') / path.name
+        fallback.parent.mkdir(parents=True, exist_ok=True)
+        return str(fallback)
 
 # =============================================================================
 # LOGGING CONFIGURATION
@@ -53,7 +65,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.environ.get('LOG_FILE_PATH', '/var/log/bunoraa/app.log'),
+            'filename': _get_log_path('LOG_FILE_PATH', '/tmp/bunoraa/app.log'),
             'maxBytes': 10485760,  # 10 MB
             'backupCount': 10,
             'formatter': 'structured',
@@ -62,7 +74,7 @@ LOGGING = {
         'error_file': {
             'level': 'ERROR',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.environ.get('ERROR_LOG_FILE_PATH', '/var/log/bunoraa/error.log'),
+            'filename': _get_log_path('ERROR_LOG_FILE_PATH', '/tmp/bunoraa/error.log'),
             'maxBytes': 10485760,  # 10 MB
             'backupCount': 10,
             'formatter': 'structured',

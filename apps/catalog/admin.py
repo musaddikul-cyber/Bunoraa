@@ -108,9 +108,9 @@ class ProductVariantInline(EnhancedTabularInline):
     
     def stock_status_badge(self, obj):
         if obj.stock_quantity <= 0:
-            return format_html('<span style="color: #dc2626; font-weight: 600;">Out of Stock</span>')
+            return format_html('<span style="color: #dc2626; font-weight: 600;">Out of Stock</span>', '')
         elif obj.stock_quantity < 10:
-            return format_html('<span style="color: #d97706; font-weight: 600;">Low ({}))</span>', obj.stock_quantity)
+            return format_html('<span style="color: #d97706; font-weight: 600;">Low ({})</span>', obj.stock_quantity)
         return format_html('<span style="color: #16a34a; font-weight: 600;">In Stock ({})</span>', obj.stock_quantity)
     stock_status_badge.short_description = "Status"
 

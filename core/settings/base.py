@@ -459,7 +459,7 @@ SOCIAL_AUTH_PIPELINE = (
 # Allowed hosts for social auth redirects (production hosts)
 SOCIAL_AUTH_ALLOWED_REDIRECT_HOSTS = os.environ.get(
     'SOCIAL_AUTH_ALLOWED_REDIRECT_HOSTS',
-    'localhost:3000,127.0.0.1:3000'
+    'localhost:3000,127.0.0.1:3000,bunoraa.com,www.bunoraa.com'
 ).split(',')
 
 # REST Framework

@@ -613,6 +613,83 @@ class UserService:
             return None
 
 
+class SocialAuthService:
+    """Service class for social authentication operations."""
+    
+    @staticmethod
+    def get_or_create_social_user(email: str, first_name: str = '', last_name: str = '') -> tuple:
+        """
+        Get existing user or create new user from social auth data.
+        
+        Returns tuple of (user, is_new) where is_new indicates if user was created.
+        """
+        from .models import User
+        
+        email = email.lower().strip()
+        
+        # Try to get existing user
+        try:
+            user = User.objects.get(email=email)
+            return user, False
+        except User.DoesNotExist:
+            # Create new user without password (social auth)
+            user = User.objects.create_user(
+                email=email,
+                password=None,
+                first_name=first_name,
+                last_name=last_name,
+                is_verified=True,  # Social auth emails are considered verified
+            )
+            logger.info(f"Created new user via social auth: {email}")
+            return user, True
+    
+    @staticmethod
+    def update_user_from_social(user, first_name: str = '', last_name: str = '') -> None:
+        """Update user details from social provider if fields are empty."""
+        changed = False
+        
+        if not user.first_name and first_name:
+            user.first_name = first_name
+            changed = True
+            
+        if not user.last_name and last_name:
+            user.last_name = last_name
+            changed = True
+            
+        # Ensure social users are verified
+        if not user.is_verified:
+            user.is_verified = True
+            changed = True
+            
+        if changed:
+            user.save(update_fields=['first_name', 'last_name', 'is_verified', 'updated_at'])
+            logger.info(f"Updated user details from social auth: {user.email}")
+    
+    @staticmethod
+    def cleanup_admin_social_links() -> int:
+        """
+        Remove all social auth accounts wrongly linked to admin@bunoraa.com.
+        Returns number of associations deleted.
+        """
+        from social_django.models import UserSocialAuth
+        from .models import User
+        
+        try:
+            admin_user = User.objects.get(email='admin@bunoraa.com')
+        except User.DoesNotExist:
+            return 0
+            
+        linked_socials = UserSocialAuth.objects.filter(user=admin_user)
+        count = linked_socials.count()
+        
+        if count > 0:
+            for social in linked_socials:
+                logger.info(f"Removing social auth {social.uid} from admin")
+            linked_socials.delete()
+            
+        return count
+
+
 class AddressService:
     """Service class for address operations."""
     
@@ -992,5 +1069,103 @@ class ExportService:
         req.cancelled_at = timezone.now()
         req.save(update_fields=['status', 'cancelled_at'])
         return req
+
+
+# Social Auth Pipeline Functions
+# These functions are used by python-social-auth pipeline (settings.SOCIAL_AUTH_PIPELINE)
+# They are defined here in services.py to keep all auth logic centralized
+
+logger_social = logging.getLogger('bunoraa.accounts.social')
+
+
+def social_user(strategy, details, user=None, *args, **kwargs):
+    """
+    Get existing user based on social auth details (by email).
+    Used in SOCIAL_AUTH_PIPELINE.
+    """
+    if user:
+        return {'is_new': False, 'user': user}
+
+    email = details.get('email', '').lower().strip()
+    if not email:
+        return None
+
+    # Try to get existing user by email
+    try:
+        user = User.objects.get(email=email)
+        return {'is_new': False, 'user': user}
+    except User.DoesNotExist:
+        return None
+
+
+def create_social_user(strategy, details, backend, user=None, *args, **kwargs):
+    """
+    Create a new user if one doesn't exist using SocialAuthService.
+    Used in SOCIAL_AUTH_PIPELINE.
+    """
+    if user:
+        return {'is_new': False, 'user': user}
+
+    email = details.get('email', '').lower().strip()
+    if not email:
+        return None
+
+    # Get name details from Google
+    first_name = details.get('first_name', '')
+    last_name = details.get('last_name', '')
+
+    # Get from full_name if first/last not available
+    if not first_name and not last_name:
+        full_name = details.get('fullname', '') or details.get('username', '')
+        if full_name:
+            name_parts = full_name.split(' ', 1)
+            first_name = name_parts[0]
+            last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+    # Use SocialAuthService to create user
+    user, is_new = SocialAuthService.get_or_create_social_user(
+        email=email,
+        first_name=first_name,
+        last_name=last_name
+    )
+
+    return {'is_new': is_new, 'user': user}
+
+
+def update_user_details(strategy, details, user=None, *args, **kwargs):
+    """
+    Update user's details from social provider using SocialAuthService.
+    Used in SOCIAL_AUTH_PIPELINE.
+    """
+    if not user:
+        return
+
+    first_name = details.get('first_name', '')
+    last_name = details.get('last_name', '')
+
+    SocialAuthService.update_user_from_social(user, first_name, last_name)
+    return {'user': user}
+
+
+def persist_user_session(strategy, details, user=None, request=None, *args, **kwargs):
+    """
+    Ensure user is logged in after social auth completes.
+    Used in SOCIAL_AUTH_PIPELINE.
+    """
+    if user and request:
+        from django.contrib.auth import login
+        # Social auth users don't need backend authentication check
+        # since we just created/verified them via OAuth
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+
+def redirect_after_social_auth(strategy, details, user=None, request=None, backend=None, *args, **kwargs):
+    """
+    Handle redirect after successful social authentication.
+    Used in SOCIAL_AUTH_PIPELINE.
+    """
+    if user and request:
+        # Ensure user is verified (already done in update_user_details via SocialAuthService)
+        pass
 
 

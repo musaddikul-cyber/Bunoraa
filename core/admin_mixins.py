@@ -142,15 +142,21 @@ class ExportJSONMixin:
             try:
                 resource = resource_class()
                 dataset = resource.export(queryset)
-                try:
-                    data = json.dumps(dataset.dict, cls=DjangoJSONEncoder, ensure_ascii=False, indent=2)
-                except Exception:
-                    data = dataset.json
-                    try:
-                        loaded = json.loads(data)
-                        data = json.dumps(loaded, cls=DjangoJSONEncoder, ensure_ascii=False, indent=2)
-                    except Exception:
-                        pass
+                # Get headers to determine field order
+                headers = dataset.headers
+                rows = []
+                for row_idx, row in enumerate(dataset):
+                    row_dict = {}
+                    for header in headers:
+                        value = row.get(header)
+                        # Handle special types
+                        if hasattr(value, 'isoformat'):
+                            value = value.isoformat()
+                        elif hasattr(value, '__iter__') and not isinstance(value, str):
+                            value = list(value)
+                        row_dict[header] = value
+                    rows.append(row_dict)
+                data = json.dumps(rows, cls=DjangoJSONEncoder, ensure_ascii=False, indent=2)
             except Exception:
                 logger.exception(
                     "JSON export via resource class failed for %s; falling back to generic row export.",

@@ -440,6 +440,22 @@ SOCIAL_AUTH_USER_FIELDS = ['email', 'first_name', 'last_name']
 SOCIAL_AUTH_USERNAME_IS_FULL_EMAIL = True
 SOCIAL_AUTH_ASSOCIATE_BY_EMAIL = True
 
+# Custom social auth pipeline to handle user creation correctly
+SOCIAL_AUTH_PIPELINE = (
+    'social_core.pipeline.social_auth.social_details',
+    'social_core.pipeline.social_auth.social_uid',
+    'social_core.pipeline.social_auth.auth_allowed',
+    'social_core.pipeline.social_auth.social_user',
+    'apps.accounts.services.social_user',
+    'social_core.pipeline.user.get_username',
+    'apps.accounts.services.create_social_user',
+    'apps.accounts.services.update_user_details',
+    'social_core.pipeline.social_auth.associate_user',
+    'social_core.pipeline.social_auth.load_extra_data',
+    'apps.accounts.services.persist_user_session',
+    'apps.accounts.services.redirect_after_social_auth',
+)
+
 # Allowed hosts for social auth redirects (production hosts)
 SOCIAL_AUTH_ALLOWED_REDIRECT_HOSTS = os.environ.get(
     'SOCIAL_AUTH_ALLOWED_REDIRECT_HOSTS',
@@ -1285,4 +1301,17 @@ _default_agent_avatar = os.environ.get(
 if _default_agent_avatar and not _default_agent_avatar.startswith(('http://', 'https://', '/')):
     _default_agent_avatar = f"/{_default_agent_avatar.lstrip('/')}"
 DEFAULT_AGENT_AVATAR_URL = _default_agent_avatar or '/static/images/assets/favicon.ico'
+
+# =============================================================================
+# IMPORT CACHING AND MONITORING SETTINGS
+# =============================================================================
+try:
+    from .caching import *  # noqa: F401, F403
+except ImportError:
+    pass
+
+try:
+    from .monitoring import *  # noqa: F401, F403
+except ImportError:
+    pass
 

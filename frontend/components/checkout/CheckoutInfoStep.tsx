@@ -132,21 +132,27 @@ export function CheckoutInfoStep({
       : false;
     if (hasExistingSelection) return;
 
+    // Priority 1: Use explicit saved_address_id from session (returns UUID)
+    if (
+      defaultSelectedAddressId &&
+      savedAddresses.some((address) => address.id === defaultSelectedAddressId)
+    ) {
+      setSelectedAddress(defaultSelectedAddressId);
+      return;
+    }
+
+    // Priority 2: Try to match address fields to a saved address
+    const matchedSavedAddressId = findMatchedSavedAddress()?.id;
+    if (matchedSavedAddressId) {
+      setSelectedAddress(matchedSavedAddressId);
+      return;
+    }
+
+    // Priority 3: If there are address fields but no match, use new address
     const hasSessionAddress =
       Boolean(normalize(defaultValues.shipping_address_line_1)) ||
       Boolean(normalize(defaultValues.shipping_city)) ||
       Boolean(normalize(defaultValues.shipping_postal_code));
-
-    const selectedFromSession =
-      (defaultSelectedAddressId &&
-      savedAddresses.some((address) => address.id === defaultSelectedAddressId)
-        ? defaultSelectedAddressId
-        : null) || findMatchedSavedAddress()?.id;
-
-    if (selectedFromSession) {
-      setSelectedAddress(selectedFromSession);
-      return;
-    }
 
     if (hasSessionAddress) {
       setSelectedAddress(NEW_ADDRESS_ID);

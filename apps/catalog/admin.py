@@ -475,69 +475,94 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
             Accept legacy Django serializer JSON exports:
             [{"model": "catalog.product", "pk": "...", "fields": {...}}, ...]
             and flatten them into tabular rows expected by django-import-export.
+            
+            Also handles JSON exports with images and alt_texts formatted as:
+            [{"id": "...", "image_urls": "...", "image_alt_texts": "...", ...}, ...]
             """
             headers = set(dataset.headers or [])
-            if not {"model", "pk", "fields"}.issubset(headers):
-                return
-
-            flattened_rows = []
-            for row in dataset.dict:
-                model_label = str(row.get("model") or "").strip()
-                if model_label and model_label != "catalog.product":
-                    continue
-                fields = row.get("fields")
-                if isinstance(fields, str):
-                    try:
-                        fields = json.loads(fields)
-                    except (TypeError, json.JSONDecodeError):
-                        fields = {}
-                if not isinstance(fields, dict):
-                    fields = {}
-
-                flat = dict(fields)
-                if row.get("pk"):
-                    flat.setdefault("id", row.get("pk"))
-
-                # Convert legacy M2M arrays to import-export separator format.
-                for m2m_field in ("categories", "tags", "eco_certifications"):
-                    value = flat.get(m2m_field)
-                    if isinstance(value, (list, tuple, set)):
-                        flat[m2m_field] = "|".join(str(v) for v in value if v)
-
-                flattened_rows.append(flat)
-
-            if not flattened_rows:
-                return
-
-            allowed_headers = list(self._meta.fields)
-            dataset.wipe()
-            dataset.headers = allowed_headers
-            for flat in flattened_rows:
-                row_values = []
-                for col in allowed_headers:
-                    value = flat.get(col)
-                    if value is None:
+            
+            # Check if this is a Django fixture format
+            if {"model", "pk", "fields"}.issubset(headers):
+                flattened_rows = []
+                for row in dataset.dict:
+                    model_label = str(row.get("model") or "").strip()
+                    if model_label and model_label != "catalog.product":
+                        continue
+                    fields = row.get("fields")
+                    if isinstance(fields, str):
                         try:
-                            model_field = Product._meta.get_field(col)
-                        except Exception:
-                            model_field = None
+                            fields = json.loads(fields)
+                        except (TypeError, json.JSONDecodeError):
+                            fields = {}
+                    if not isinstance(fields, dict):
+                        fields = {}
 
-                        if model_field is not None:
-                            if model_field.has_default():
-                                default = model_field.default
-                                value = default() if callable(default) else default
-                            elif not getattr(model_field, "null", False):
-                                if isinstance(
-                                    model_field,
-                                    (dj_models.CharField, dj_models.TextField, dj_models.SlugField),
-                                ):
-                                    value = ""
-                                elif isinstance(model_field, dj_models.BooleanField):
-                                    value = False
-                    row_values.append(value)
-                dataset.append(row_values)
+                    flat = dict(fields)
+                    if row.get("pk"):
+                        flat.setdefault("id", row.get("pk"))
+
+                    # Convert legacy M2M arrays to import-export separator format.
+                    for m2m_field in ("categories", "tags", "eco_certifications"):
+                        value = flat.get(m2m_field)
+                        if isinstance(value, (list, tuple, set)):
+                            flat[m2m_field] = "|".join(str(v) for v in value if v)
+
+                    flattened_rows.append(flat)
+
+                if flattened_rows:
+                    allowed_headers = list(self._meta.fields)
+                    dataset.wipe()
+                    dataset.headers = allowed_headers
+                    for flat in flattened_rows:
+                        row_values = [flat.get(col) for col in allowed_headers]
+                        dataset.append(row_values)
+                return
+            
+            # Handle JSON export format with images data that may not have image_urls/image_alt_texts
+            # but has an "images" field
+            if "images" in headers and ("image_urls" not in headers or "image_alt_texts" not in headers):
+                # Need to add image_urls and image_alt_texts columns
+                new_headers = list(headers)
+                if "image_urls" not in new_headers:
+                    new_headers.append("image_urls")
+                if "image_alt_texts" not in new_headers:
+                    new_headers.append("image_alt_texts")
+                
+                new_data = []
+                for row in dataset.dict:
+                    new_row = dict(row)
+                    images = row.get("images")
+                    if images:
+                        if isinstance(images, str):
+                            try:
+                                images = json.loads(images)
+                            except json.JSONDecodeError:
+                                images = None
+                        if isinstance(images, list):
+                            urls = []
+                            alts = []
+                            for img in images:
+                                if isinstance(img, dict):
+                                    url = img.get("image") or img.get("url") or img.get("image_url")
+                                    alt = img.get("alt_text") or img.get("alt") or ""
+                                    if url:
+                                        urls.append(str(url))
+                                        alts.append(str(alt))
+                            if urls:
+                                new_row["image_urls"] = "|".join(urls)
+                                new_row["image_alt_texts"] = "|".join(alts)
+                    new_data.append([new_row.get(h) for h in new_headers])
+                
+                dataset.wipe()
+                dataset.headers = new_headers
+                for row in new_data:
+                    dataset.append(row)
 
         def after_save_instance(self, instance, row, **kwargs):
+            """
+            Import product images after the product instance is saved.
+            Handles both URLs (http/https) and local media paths.
+            """
             if kwargs.get("dry_run", False) or row is None:
                 return
 
@@ -554,27 +579,68 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
             from django.core.files.base import ContentFile
             import urllib.request
 
-            instance.images.all().delete()
+            # Don't delete existing images - let the user manage this manually
+            # instance.images.all().delete()
+            
+            # Get existing image URLs to avoid duplicates
+            existing_urls = set()
+            for img in instance.images.all():
+                if getattr(img, 'image', None):
+                    try:
+                        existing_urls.add(img.image.url)
+                    except Exception:
+                        pass
 
             for index, url in enumerate(urls):
+                # Skip if this image URL is already attached to the product
+                if url in existing_urls:
+                    continue
+                    
                 alt = alts[index] if index < len(alts) else ""
                 try:
                     parsed = urlparse(url)
                     if parsed.scheme in ("http", "https"):
-                        with urllib.request.urlopen(url) as response:
+                        # Download from external URL
+                        req = urllib.request.Request(url, headers={
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        })
+                        with urllib.request.urlopen(req, timeout=30) as response:
                             data = response.read()
-                    else:
+                    elif parsed.scheme == "":
+                        # Local media path - handle relative URLs
                         local_path = url
                         if url.startswith(settings.MEDIA_URL):
-                            local_path = url[len(settings.MEDIA_URL) :]
-                        local_path = Path(settings.MEDIA_ROOT) / local_path.lstrip("/")
-                        with open(local_path, "rb") as fh:
-                            data = fh.read()
-                except Exception:
+                            local_path = url[len(settings.MEDIA_URL):]
+                        elif url.startswith('/'):
+                            local_path = url[1:]
+                        
+                        full_path = Path(settings.MEDIA_ROOT) / local_path.lstrip("/")
+                        if full_path.exists():
+                            with open(full_path, "rb") as fh:
+                                data = fh.read()
+                        else:
+                            # Try to find in default storage
+                            if default_storage.exists(local_path):
+                                with default_storage.open(local_path, "rb") as fh:
+                                    data = fh.read()
+                            else:
+                                logger.warning(f"Image file not found: {full_path}")
+                                continue
+                    else:
+                        continue
+                except Exception as e:
+                    logger.warning(f"Failed to fetch image {url}: {e}")
                     continue
 
-                filename = Path(urlparse(url).path).name or f"image_{index + 1}.jpg"
-                filename = filename if Path(filename).suffix else f"{filename}.jpg"
+                # Generate filename
+                filename = Path(parsed.path).name or f"image_{index + 1}.jpg"
+                if not Path(filename).suffix:
+                    filename = f"{filename}.jpg"
+                # Sanitize filename
+                filename = "".join(c for c in filename if c.isalnum() or c in "._-").rstrip()
+                if not filename:
+                    filename = f"image_{index + 1}.jpg"
+                
                 save_path = f"catalog/product_images/{instance.slug}/{index + 1}_{filename}"
                 try:
                     saved_name = default_storage.save(save_path, ContentFile(data))
@@ -585,15 +651,41 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
                         ordering=index,
                         is_primary=(index == 0),
                     )
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"Failed to save image {url}: {e}")
                     continue
 
         def dehydrate_image_urls(self, obj):
-            urls = [img.image.url for img in obj.images.all() if getattr(img, "image", None)]
+            """
+            Export image URLs as pipe-separated string.
+            Uses absolute URLs for better portability during import.
+            """
+            from django.contrib.sites.models import Site
+            try:
+                site = Site.objects.get_current()
+                base_url = f"https://{site.domain}"
+            except Exception:
+                base_url = ""
+            
+            urls = []
+            for img in obj.images.all().order_by('ordering', 'id'):
+                if getattr(img, "image", None):
+                    try:
+                        url = img.image.url
+                        # Ensure absolute URL by adding domain if missing
+                        if url.startswith('/'):
+                            if base_url:
+                                url = f"{base_url}{url}"
+                        urls.append(url)
+                    except Exception:
+                        pass
             return "|".join(urls)
 
         def dehydrate_image_alt_texts(self, obj):
-            alts = [str(img.alt_text or "") for img in obj.images.all()]
+            """
+            Export image alt texts as pipe-separated string (same order as URLs).
+            """
+            alts = [str(img.alt_text or "") for img in obj.images.all().order_by('ordering', 'id')]
             return "|".join(alts)
 
 else:  # pragma: no cover - import-export optional
@@ -871,6 +963,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         "is_bestseller",
         "is_new_arrival",
         "export_image_urls",
+        "export_image_alt_texts",
         "views_count",
         "sales_count",
     ]
@@ -1948,12 +2041,23 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     export_tag_ids.short_description = "Tag IDs"
 
     def export_image_urls(self, obj):
-        return "|".join(
-            img.image.url
-            for img in obj.images.all()
-            if getattr(img, "image", None)
-        )
+        """Export image URLs with absolute URLs for import portability."""
+        urls = []
+        for img in obj.images.all().order_by('ordering', 'id'):
+            if getattr(img, "image", None):
+                url = img.image.url
+                # Convert relative URLs to absolute for export portability
+                if url.startswith('/'):
+                    url = f"https://media.bunoraa.com{url}"
+                urls.append(url)
+        return "|".join(urls)
     export_image_urls.short_description = "Image URLs"
+    
+    def export_image_alt_texts(self, obj):
+        """Export image alt texts in same order as URLs."""
+        alts = [str(img.alt_text or "") for img in obj.images.all().order_by('ordering', 'id')]
+        return "|".join(alts)
+    export_image_alt_texts.short_description = "Image Alt Texts"
     
     def thumbnail_preview(self, obj):
         # Try to get primary image or first image

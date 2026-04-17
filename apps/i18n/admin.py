@@ -4,7 +4,7 @@ Internationalization Admin
 Admin configuration for i18n models.
 """
 from django.contrib import admin
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count
 
@@ -106,7 +106,7 @@ class CurrencyAdmin(ImportExportEnhancedModelAdmin):
     
     def rate_display(self, obj):
         if obj.is_default:
-            return format_html('<span style="color: green;">1.00 (Base)</span>')
+            return mark_safe('<span style="color: green;">1.00 (Base)</span>')
         return '1.00'  # All currencies have rate display here  
     rate_display.short_description = _('Rate')
 
@@ -385,7 +385,7 @@ class TranslationKeyAdmin(ImportExportEnhancedModelAdmin):
         total = obj.translations.count()
         approved = obj.translations.filter(status='approved').count()
         if total == 0:
-            return format_html('<span style="color: red;">0</span>')
+            return mark_safe('<span style="color: red;">0</span>')
         color = 'green' if approved == total else 'orange'
         return format_html('<span style="color: {};">{}/{}</span>', color, approved, total)
     translation_count.short_description = _('Translations')

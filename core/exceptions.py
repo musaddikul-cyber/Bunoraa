@@ -45,13 +45,14 @@ def custom_exception_handler(exc, context):
         }
         response.data = custom_response_data
         
-        # Log expected auth failures at lower severity without stack traces.
+        # Log expected client errors at lower severity without stack traces.
         request = context.get('request')
         request_method = getattr(request, 'method', 'UNKNOWN')
         request_path = getattr(request, 'path', 'UNKNOWN')
-        if isinstance(exc, (NotAuthenticated, AuthenticationFailed)):
+        # Client errors (auth failures, 404s) should be warnings, not errors
+        if isinstance(exc, (NotAuthenticated, AuthenticationFailed, NotFound)) or response.status_code == 404:
             logger.warning(
-                "API Auth Error: %s - %s [%s %s]",
+                "API Client Error: %s - %s [%s %s]",
                 exc.__class__.__name__,
                 str(exc),
                 request_method,

@@ -1,5 +1,5 @@
 from django.contrib import admin, messages
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Sum, Count, F, Q
 from django.db import OperationalError, transaction, models as dj_models
@@ -108,7 +108,7 @@ class ProductVariantInline(EnhancedTabularInline):
     
     def stock_status_badge(self, obj):
         if obj.stock_quantity <= 0:
-            return format_html('<span style="color: #dc2626; font-weight: 600;">Out of Stock</span>', '')
+            return mark_safe('<span style="color: #dc2626; font-weight: 600;">Out of Stock</span>')
         elif obj.stock_quantity < 10:
             return format_html('<span style="color: #d97706; font-weight: 600;">Low ({})</span>', obj.stock_quantity)
         return format_html('<span style="color: #16a34a; font-weight: 600;">In Stock ({})</span>', obj.stock_quantity)
@@ -2068,7 +2068,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 '<img src="{}" style="max-height: 40px; max-width: 60px; object-fit: cover; border-radius: 4px;" />',
                 primary_image.image.url
             )
-        return format_html('<span style="color: #9ca3af;">No image</span>')
+        return mark_safe('<span style="color: #9ca3af;">No image</span>')
     thumbnail_preview.short_description = ""
     
     def price_display(self, obj):
@@ -2087,7 +2087,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         threshold = getattr(obj, 'low_stock_threshold', 10) or 10
         
         if qty <= 0:
-            return format_html(
+            return mark_safe(
                 '<span style="display: inline-flex; align-items: center; padding: 2px 8px; '
                 'background-color: #fee2e2; color: #991b1b; border-radius: 4px; font-size: 11px; font-weight: 600;">'
                 'Out of Stock</span>'
@@ -2131,7 +2131,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     
     def is_featured_badge(self, obj):
         if obj.is_featured:
-            return format_html('<span style="color: #eab308;">⭐</span>')
+            return mark_safe('<span style="color: #eab308;">⭐</span>')
         return ""
     is_featured_badge.short_description = _("Featured")
     is_featured_badge.admin_order_field = "is_featured"

@@ -3,7 +3,7 @@ Pre-orders admin configuration - Comprehensive admin panel for custom pre-order 
 """
 from decimal import Decimal
 from django.contrib import admin
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 from django.utils import timezone
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
@@ -551,11 +551,11 @@ class PreOrderMessageAdmin(ImportExportEnhancedModelAdmin):
     
     def sender_info(self, obj):
         if obj.is_from_system:
-            return format_html('<em>System</em>')
+            return mark_safe('<em>System</em>')
         elif obj.is_from_customer:
-            return format_html('<span style="color: #3b82f6;">Customer</span>')
+            return mark_safe('<span style="color: #3b82f6;">Customer</span>')
         else:
-            return format_html('<span style="color: #10b981;">Admin</span>')
+            return mark_safe('<span style="color: #10b981;">Admin</span>')
     sender_info.short_description = 'From'
 
 

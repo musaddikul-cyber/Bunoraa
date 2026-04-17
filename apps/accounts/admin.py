@@ -4,7 +4,7 @@ Account admin configuration
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 from django.db.models import Count, Sum
 from django.urls import reverse
 from .models import (
@@ -103,8 +103,8 @@ class UserAdmin(ImportExportEnhancedModelAdmin, BaseUserAdmin):
     
     def verification_badge(self, obj):
         if obj.is_verified:
-            return format_html('<span style="color: #16a34a;" title="Verified">âœ“</span>')
-        return format_html('<span style="color: #dc2626;" title="Not verified">âœ—</span>')
+            return mark_safe('<span style="color: #16a34a;" title="Verified">✓</span>')
+        return mark_safe('<span style="color: #dc2626;" title="Not verified">✗</span>')
     verification_badge.short_description = _('Verified')
     verification_badge.admin_order_field = 'is_verified'
     
@@ -117,7 +117,7 @@ class UserAdmin(ImportExportEnhancedModelAdmin, BaseUserAdmin):
                 order_count, format_currency(total_spent),
                 order_count, format_currency(total_spent)
             )
-        return format_html('<span style="color: #9ca3af;">No orders</span>')
+        return mark_safe('<span style="color: #9ca3af;">No orders</span>')
     orders_stats.short_description = _('Orders')
     orders_stats.admin_order_field = 'order_count'
     
@@ -128,14 +128,14 @@ class UserAdmin(ImportExportEnhancedModelAdmin, BaseUserAdmin):
         if obj.last_login:
             days_ago = (timezone.now() - obj.last_login).days
             if days_ago == 0:
-                return format_html('<span style="color: #16a34a;">Today</span>')
+                return mark_safe('<span style="color: #16a34a;">Today</span>')
             elif days_ago <= 7:
                 return format_html('<span style="color: #16a34a;">{}d ago</span>', days_ago)
             elif days_ago <= 30:
                 return format_html('<span style="color: #d97706;">{}d ago</span>', days_ago)
             else:
                 return format_html('<span style="color: #9ca3af;">{}d ago</span>', days_ago)
-        return format_html('<span style="color: #9ca3af;">Never</span>')
+        return mark_safe('<span style="color: #9ca3af;">Never</span>')
     activity_status.short_description = _('Last Active')
     activity_status.admin_order_field = 'last_login'
     

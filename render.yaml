@@ -411,7 +411,7 @@ services:
     startCommand: "python scripts/warmup.py"
     envVars:
       - key: WARMUP_URLS
-        value: "https://bunoraa-django.onrender.com/health/,https://bunoraa-pl26.onrender.com/,https://api.bunoraa.com/"
+        value: "https://bunoraa-django.onrender.com/health/,https://bunoraa-pl26.onrender.com/,https://api.bunoraa.com/health/"
       - key: WARMUP_TIMEOUT
         value: "45"
       - key: WARMUP_RETRIES

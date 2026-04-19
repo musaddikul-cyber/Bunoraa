@@ -100,9 +100,15 @@ class ReorderableInlineMixin:
             readonly.append('drag_handle')
         return readonly
     
-    def drag_handle(self, obj):
+    def drag_handle(self, obj=None):
+        if obj is None:
+            return format_html(
+                '<span class="drag-handle" title="Drag to reorder">{}</span>',
+                '☰'
+            )
         return format_html(
-            '<span class="drag-handle" title="Drag to reorder">☰</span>'
+            '<span class="drag-handle" title="Drag to reorder">{}</span>',
+            '☰'
         )
     drag_handle.short_description = ''
 

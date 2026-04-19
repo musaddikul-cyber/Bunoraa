@@ -97,7 +97,7 @@ services:
       - key: SECRET_KEY
         sync: false
       - key: ALLOWED_HOSTS
-        value: bunoraa.com,www.bunoraa.com,api.bunoraa.com,.onrender.com
+        value: "*,.bunoraa.com,www.bunoraa.com,api.bunoraa.com,.onrender.com"
       - key: CORS_ALLOWED_ORIGINS
         value: "https://bunoraa.com,https://www.bunoraa.com"
       - key: CSRF_TRUSTED_ORIGINS
@@ -105,15 +105,15 @@ services:
       - key: NEXT_FRONTEND_ORIGIN
         value: "https://bunoraa.com"
       - key: ML_ENABLED
-        value: "false"
+        value: "true"
       - key: ML_API_ENABLED
-        value: "false"
+        value: "true"
       - key: ML_CELERY_BEAT_ENABLED
-        value: "false"
+        value: "true"
       - key: ML_CHAT_ASSISTANT
-        value: "false"
+        value: "true"
       - key: CHAT_AI_LOCAL_MODEL_ENABLED
-        value: "false"
+        value: "true"
       - key: CHAT_AI_DEFAULT_MODEL
         value: "Qwen/Qwen2.5-1.5B-Instruct"
       - key: CHAT_AI_ALLOWED_MODELS
@@ -132,9 +132,7 @@ services:
         sync: false
       - key: CELERY_REDIS_URL
         sync: false
-      - key: UPSTASH_REDIS_REST_URL
-        sync: false
-      - key: UPSTASH_REDIS_REST_TOKEN
+        - key: ML_REDIS_URL
         sync: false
       - key: REDIS_MAX_CONNECTIONS
         value: "50"
@@ -467,7 +465,7 @@ services:
       - key: WARMUP_TIMEOUT
         value: "45"
       - key: WARMUP_RETRIES
-        value: "2"
+        value: "3"
       - key: WARMUP_RETRY_DELAY_MS
         value: "1200"
     plan: free

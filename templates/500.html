@@ -1,236 +1,484 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="system">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Server Error - Bunoraa</title>
-    <style>
-        :root {
-            --primary: #dc2626;
-            --primary-light: #ef4444;
-            --text: #1f2937;
-            --text-light: #6b7280;
-            --bg: #f9fafb;
-            --white: #ffffff;
-            --success: #059669;
+    <meta name="theme-color" content="#f7f4ee">
+    <meta name="color-scheme" content="light dark">
+    <title>Server Error | Bunoraa</title>
+    <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+    <script>
+        (function () {
+            var themeKey = "bunoraa-theme";
+            var allowedThemes = ["light", "dark", "moonlight", "gray", "modern", "system"];
+            var darkThemes = { dark: true, moonlight: true };
+            var themeColors = {
+                light: "#f7f4ee",
+                dark: "#15110d",
+                moonlight: "#111827",
+                gray: "#f3f3f3",
+                modern: "#eef3fb",
+                system: "#f7f4ee"
+            };
+            var root = document.documentElement;
+
+            function getStoredTheme() {
+                try {
+                    var stored = window.localStorage.getItem(themeKey);
+                    return allowedThemes.indexOf(String(stored)) >= 0 ? String(stored) : "system";
+                } catch (error) {
+                    return "system";
+                }
+            }
+
+            function updateThemeColor(theme, prefersDark) {
+                var meta = document.querySelector('meta[name="theme-color"]');
+                if (!meta) {
+                    return;
+                }
+                var resolved = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
+                meta.setAttribute("content", themeColors[resolved] || themeColors.light);
+            }
+
+            function applyTheme(theme) {
+                var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+                for (var i = 0; i < allowedThemes.length; i += 1) {
+                    root.classList.remove(allowedThemes[i]);
+                }
+                root.classList.remove("dark");
+
+                if (theme === "system") {
+                    root.classList.add("system");
+                    if (prefersDark) {
+                        root.classList.add("dark");
+                    }
+                    root.style.colorScheme = "light dark";
+                    updateThemeColor(theme, prefersDark);
+                    return theme;
+                }
+
+                root.classList.add(theme);
+                if (darkThemes[theme]) {
+                    root.classList.add("dark");
+                }
+                root.style.colorScheme = darkThemes[theme] ? "dark" : "light";
+                updateThemeColor(theme, prefersDark);
+                return theme;
+            }
+
+            var currentTheme = applyTheme(getStoredTheme());
+            window.BunoraaStandaloneTheme = {
+                labels: {
+                    system: "System",
+                    light: "Light",
+                    dark: "Dark",
+                    moonlight: "Moonlight",
+                    gray: "Gray",
+                    modern: "Modern"
+                },
+                getTheme: function () {
+                    return currentTheme;
+                },
+                cycleTheme: function () {
+                    var index = allowedThemes.indexOf(currentTheme);
+                    var nextTheme = allowedThemes[(index + 1) % allowedThemes.length];
+                    try {
+                        window.localStorage.setItem(themeKey, nextTheme);
+                    } catch (error) {
+                        // Ignore storage failures for standalone error pages.
+                    }
+                    currentTheme = applyTheme(nextTheme);
+                    return currentTheme;
+                }
+            };
+        })();
+    </script>
+</head>
+
+        .card,
+        .side-card {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid hsl(var(--border) / 0.82);
+            border-radius: 1.75rem;
+            background: linear-gradient(180deg, hsl(var(--card) / 0.96), hsl(var(--card) / 0.88));
+            box-shadow: 0 30px 80px -48px hsl(var(--foreground) / 0.52);
+            backdrop-filter: blur(18px);
         }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+
+        .card::before,
+        .side-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.16), transparent);
         }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
+
+        .card {
+            padding: clamp(1.5rem, 3vw, 2.75rem);
+        }
+
+        .side-card {
             display: flex;
-            align-items: center;
-            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+            padding: clamp(1.25rem, 2.5vw, 2rem);
         }
-        
-        .container {
-            text-align: center;
-            padding: 2rem;
-            max-width: 600px;
-        }
-        
-        .error-icon {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 1.5rem;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-            border-radius: 50%;
+
+        .hero-top {
             display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1.4rem;
+        }
+
+        .eyebrow {
+            display: inline-flex;
             align-items: center;
-            justify-content: center;
-        }
-        
-        .error-icon svg {
-            width: 60px;
-            height: 60px;
-            color: var(--white);
-        }
-        
-        .error-code {
-            font-size: 5rem;
+            gap: 0.55rem;
+            padding: 0.55rem 0.85rem;
+            border-radius: 999px;
+            background: rgba(217, 119, 6, 0.12);
+            color: #b45309;
+            font-size: 0.82rem;
             font-weight: 700;
-            color: var(--primary);
-            line-height: 1;
-            opacity: 0.15;
-            margin-top: -1rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
-        
-        .error-title {
-            font-size: 2rem;
-            font-weight: 600;
-            margin: 0.5rem 0;
-            color: var(--text);
+
+        .eyebrow::before {
+            content: "";
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 999px;
+            background: currentColor;
+            box-shadow: 0 0 0 0.25rem rgba(217, 119, 6, 0.12);
         }
-        
-        .error-message {
-            font-size: 1.125rem;
-            color: var(--text-light);
-            margin-bottom: 2rem;
-            line-height: 1.6;
+
+        .theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.72rem 0.95rem;
+            border-radius: 999px;
+            border: 1px solid hsl(var(--border));
+            background: hsl(var(--card) / 0.78);
+            color: hsl(var(--foreground));
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
         }
-        
+
+        .theme-toggle:hover {
+            transform: translateY(-1px);
+            border-color: hsl(var(--primary) / 0.45);
+            background: hsl(var(--muted));
+        }
+
+        .theme-toggle-label {
+            font-size: 0.82rem;
+            color: hsl(var(--secondary));
+        }
+
+        .theme-toggle-name {
+            font-size: 0.92rem;
+            font-weight: 700;
+        }
+
+        .icon-badge {
+            width: 4.75rem;
+            height: 4.75rem;
+            border-radius: 1.35rem;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, hsl(var(--primary) / 0.22), hsl(var(--accent) / 0.24));
+            color: hsl(var(--foreground));
+            border: 1px solid hsl(var(--border));
+            box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.15);
+        }
+
+        .icon-badge svg {
+            width: 2rem;
+            height: 2rem;
+        }
+
+        .error-code {
+            margin: 1.35rem 0 0;
+            font-size: clamp(4.5rem, 14vw, 8rem);
+            line-height: 0.88;
+            letter-spacing: -0.08em;
+            font-weight: 800;
+            color: hsl(var(--primary) / 0.17);
+        }
+
+        .title {
+            margin: 0.5rem 0 0;
+            font-size: clamp(2rem, 4vw, 3.3rem);
+            line-height: 1.04;
+            letter-spacing: -0.04em;
+        }
+
+        .copy {
+            margin: 1rem 0 0;
+            max-width: 46rem;
+            color: hsl(var(--secondary));
+            font-size: 1.05rem;
+            line-height: 1.75;
+        }
+
         .reference {
-            font-size: 0.875rem;
-            color: var(--text-light);
-            margin-bottom: 1.5rem;
-            padding: 0.5rem 1rem;
-            background: var(--white);
-            border-radius: 0.5rem;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            margin-top: 1.4rem;
+            padding: 0.7rem 0.95rem;
+            border-radius: 999px;
+            background: hsl(var(--muted));
+            color: hsl(var(--secondary));
+            font-size: 0.9rem;
         }
-        
+
         .reference code {
-            font-family: 'Monaco', 'Menlo', monospace;
-            color: var(--primary);
+            font-family: Consolas, Monaco, "Courier New", monospace;
+            color: hsl(var(--primary));
             font-weight: 600;
         }
-        
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.85rem;
+            margin-top: 2rem;
+        }
+
         .btn {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            background: var(--success);
-            color: var(--white);
-            text-decoration: none;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: none;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(5, 150, 105, 0.3);
-        }
-        
-        .btn-secondary {
-            background: var(--white);
-            color: var(--text);
-            border: 2px solid #e5e7eb;
-            margin-left: 0.5rem;
-        }
-        
-        .btn-secondary:hover {
-            background: var(--bg);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        
-        .actions {
-            display: flex;
-            gap: 1rem;
             justify-content: center;
-            flex-wrap: wrap;
+            gap: 0.5rem;
+            min-height: 3.25rem;
+            padding: 0.95rem 1.25rem;
+            border-radius: 1rem;
+            border: 1px solid transparent;
+            text-decoration: none;
+            font-weight: 700;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+            cursor: pointer;
         }
-        
-        .status-indicator {
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+            color: hsl(var(--button-foreground));
+            box-shadow: 0 22px 44px -28px hsl(var(--primary) / 0.72);
+        }
+
+        .btn-secondary {
+            background: hsl(var(--card));
+            border-color: hsl(var(--border));
+            color: hsl(var(--foreground));
+        }
+
+        .status-pill {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background: #fef3c7;
-            color: #92400e;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            margin-top: 2rem;
+            gap: 0.65rem;
+            align-self: flex-start;
+            padding: 0.65rem 0.9rem;
+            border-radius: 999px;
+            background: rgba(217, 119, 6, 0.12);
+            color: #b45309;
+            font-size: 0.84rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
         }
-        
+
         .status-dot {
-            width: 8px;
-            height: 8px;
-            background: #f59e0b;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
+            width: 0.68rem;
+            height: 0.68rem;
+            border-radius: 999px;
+            background: currentColor;
+            box-shadow: 0 0 0 0.35rem rgba(217, 119, 6, 0.12);
+            animation: pulse 1.9s ease-in-out infinite;
         }
-        
+
+        .side-title {
+            margin: 0;
+            font-size: 1.16rem;
+            line-height: 1.35;
+        }
+
+        .side-copy {
+            margin: 0;
+            color: hsl(var(--secondary));
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 0.8rem;
+        }
+
+        .list-item {
+            padding: 0.95rem 1rem;
+            border-radius: 1rem;
+            background: hsl(var(--muted) / 0.82);
+            border: 1px solid hsl(var(--border));
+            color: hsl(var(--foreground));
+            line-height: 1.65;
+            font-size: 0.93rem;
+        }
+
+        .status-note {
+            padding: 1rem 1.05rem;
+            border-radius: 1rem;
+            background: hsl(var(--primary) / 0.09);
+            color: hsl(var(--foreground));
+            font-size: 0.92rem;
+            line-height: 1.65;
+        }
+
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.55;
+                transform: scale(0.9);
+            }
         }
-        
-        @media (max-width: 480px) {
-            .error-code {
-                font-size: 4rem;
+
+        @media (max-width: 860px) {
+            .frame {
+                grid-template-columns: 1fr;
             }
-            .error-title {
-                font-size: 1.5rem;
+        }
+
+        @media (max-width: 520px) {
+            .hero-top {
+                flex-direction: column;
+                align-items: stretch;
             }
+
             .actions {
                 flex-direction: column;
             }
-            .btn-secondary {
-                margin-left: 0;
+
+            .btn,
+            .theme-toggle {
+                width: 100%;
+            }
+
+            .error-code {
+                font-size: clamp(4rem, 24vw, 6rem);
             }
         }
     </style>
 </head>
-<body>
-    <main class="container" role="main" aria-label="Server error page">
-        <div class="error-icon" role="img" aria-label="Error icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-        </div>
-        
-        <div class="error-code" aria-hidden="true">500</div>
-        <h1 class="error-title">Something Went Wrong</h1>
-        
-        <p class="error-message">
-            We're experiencing some technical difficulties. 
-            Our team has been automatically notified and is working to resolve the issue.
-        </p>
-        
-        {% if error_reference %}
-        <div class="reference">
-            Error Reference: <code>{{ error_reference }}</code>
-        </div>
-        {% endif %}
-        
-        <div class="actions">
-            <button class="btn" onclick="window.location.reload()" aria-label="Refresh the page">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-                Try Again
-            </button>
-            <a href="/" class="btn btn-secondary" aria-label="Return to homepage">
-                Go Home
-            </a>
-        </div>
-        
-        <div class="status-indicator" role="status" aria-live="polite">
-            <span class="status-dot"></span>
-            <span>Our engineers have been notified</span>
-        </div>
+<body class="error-page error-500">
+    <main class="page-shell">
+        <section class="frame" role="main" aria-label="Server error page">
+            <article class="card">
+                <div class="hero-top">
+                    <span class="eyebrow">Service Issue</span>
+                    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cycle Bunoraa theme">
+                        <span class="theme-toggle-label">Theme</span>
+                        <span class="theme-toggle-name" data-theme-name>System</span>
+                    </button>
+                </div>
+
+                <div class="icon-badge" role="img" aria-label="Server alert">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+
+                <p class="error-code" aria-hidden="true">500</p>
+                <h1 class="title">We hit a server-side problem.</h1>
+                <p class="copy">
+                    The request reached Bunoraa, but this page could not finish loading. A refresh usually works once the service settles,
+                    and your saved theme preference still carries across while you wait.
+                </p>
+
+                {% if error_reference %}
+                <div class="reference">
+                    Reference
+                    <code>{{ error_reference }}</code>
+                </div>
+                {% endif %}
+
+                <div class="actions">
+                    <button class="btn btn-primary" type="button" onclick="window.location.reload()" aria-label="Refresh the page">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Try Again
+                    </button>
+                    <a href="/" class="btn btn-secondary" aria-label="Return to homepage">
+                        Home
+                    </a>
+                    <a href="/contact/" class="btn btn-secondary" aria-label="Contact support">
+                        Contact Support
+                    </a>
+                </div>
+            </article>
+
+            <aside class="side-card">
+                <span class="status-pill" role="status" aria-live="polite">
+                    <span class="status-dot" aria-hidden="true"></span>
+                    Recovery In Progress
+                </span>
+                <h2 class="side-title">What to do next</h2>
+                <p class="side-copy">Use the safest next step depending on what you were doing before this page failed.</p>
+
+                <ul class="list">
+                    <li class="list-item">Refresh in a few seconds. Temporary upstream failures often clear without any further action.</li>
+                    <li class="list-item">If you were placing an order, check your account or inbox before submitting payment again.</li>
+                    <li class="list-item">If the issue keeps repeating, send the reference code to support so the failure can be traced quickly.</li>
+                </ul>
+
+                <div class="status-note">
+                    This page stays aligned with the active Bunoraa theme, so the error state does not fall back to a mismatched color scheme.
+                </div>
+            </aside>
+        </section>
     </main>
-    
+
     <script>
-        // Auto-retry on network recovery
-        if ('ononline' in window) {
-            window.addEventListener('online', function() {
-                setTimeout(function() {
-                    window.location.reload();
-                }, 1000);
-            });
-        }
-        
-        // Report error to monitoring (if configured)
-        if ('{{ error_reference }}' && typeof gtag !== 'undefined') {
-            gtag('event', 'exception', {
-                'description': '500 Error: {{ error_reference }}',
-                'fatal': true
-            });
-        }
+        document.addEventListener("DOMContentLoaded", function () {
+            var toggle = document.querySelector("[data-theme-toggle]");
+            var label = document.querySelector("[data-theme-name]");
+            var themeApi = window.BunoraaStandaloneTheme;
+
+            function syncThemeLabel() {
+                if (!label || !themeApi) {
+                    return;
+                }
+                var theme = themeApi.getTheme();
+                label.textContent = themeApi.labels[theme] || "System";
+            }
+
+            syncThemeLabel();
+
+            if (toggle && themeApi) {
+                toggle.addEventListener("click", function () {
+                    themeApi.cycleTheme();
+                    syncThemeLabel();
+                });
+            }
+        });
     </script>
 </body>
 </html>

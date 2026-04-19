@@ -1,154 +1,480 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="system">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Page Not Found - Bunoraa</title>
-    <style>
-        :root {
-            --primary: #0f766e;
-            --primary-light: #14b8a6;
-            --text: #1f2937;
-            --text-light: #6b7280;
-            --bg: #f9fafb;
-            --white: #ffffff;
+    <meta name="theme-color" content="#f7f4ee">
+    <meta name="color-scheme" content="light dark">
+    <title>Page Not Found | Bunoraa</title>
+    <link rel="stylesheet" href="{% static 'css/theme.css' %}">
+    <script>
+        (function () {
+            var themeKey = "bunoraa-theme";
+            var allowedThemes = ["light", "dark", "moonlight", "gray", "modern", "system"];
+            var darkThemes = { dark: true, moonlight: true };
+            var themeColors = {
+                light: "#f7f4ee",
+                dark: "#15110d",
+                moonlight: "#111827",
+                gray: "#f3f3f3",
+                modern: "#eef3fb",
+                system: "#f7f4ee"
+            };
+            var root = document.documentElement;
+
+            function getStoredTheme() {
+                try {
+                    var stored = window.localStorage.getItem(themeKey);
+                    return allowedThemes.indexOf(String(stored)) >= 0 ? String(stored) : "system";
+                } catch (error) {
+                    return "system";
+                }
+            }
+
+            function updateThemeColor(theme, prefersDark) {
+                var meta = document.querySelector('meta[name="theme-color"]');
+                if (!meta) {
+                    return;
+                }
+                var resolved = theme === "system" ? (prefersDark ? "dark" : "light") : theme;
+                meta.setAttribute("content", themeColors[resolved] || themeColors.light);
+            }
+
+            function applyTheme(theme) {
+                var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+                for (var i = 0; i < allowedThemes.length; i += 1) {
+                    root.classList.remove(allowedThemes[i]);
+                }
+                root.classList.remove("dark");
+
+                if (theme === "system") {
+                    root.classList.add("system");
+                    if (prefersDark) {
+                        root.classList.add("dark");
+                    }
+                    root.style.colorScheme = "light dark";
+                    updateThemeColor(theme, prefersDark);
+                    return theme;
+                }
+
+                root.classList.add(theme);
+                if (darkThemes[theme]) {
+                    root.classList.add("dark");
+                }
+                root.style.colorScheme = darkThemes[theme] ? "dark" : "light";
+                updateThemeColor(theme, prefersDark);
+                return theme;
+            }
+
+            var currentTheme = applyTheme(getStoredTheme());
+            window.BunoraaStandaloneTheme = {
+                labels: {
+                    system: "System",
+                    light: "Light",
+                    dark: "Dark",
+                    moonlight: "Moonlight",
+                    gray: "Gray",
+                    modern: "Modern"
+                },
+                getTheme: function () {
+                    return currentTheme;
+                },
+                cycleTheme: function () {
+                    var index = allowedThemes.indexOf(currentTheme);
+                    var nextTheme = allowedThemes[(index + 1) % allowedThemes.length];
+                    try {
+                        window.localStorage.setItem(themeKey, nextTheme);
+                    } catch (error) {
+                        // Ignore storage failures for standalone error pages.
+                    }
+                    currentTheme = applyTheme(nextTheme);
+                    return currentTheme;
+                }
+            };
+        })();
+    </script>
+</head>
+
+        .card,
+        .side-card {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid hsl(var(--border) / 0.82);
+            border-radius: 1.75rem;
+            background: linear-gradient(180deg, hsl(var(--card) / 0.96), hsl(var(--card) / 0.88));
+            box-shadow: 0 30px 80px -48px hsl(var(--foreground) / 0.52);
+            backdrop-filter: blur(18px);
         }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+
+        .card::before,
+        .side-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.16), transparent);
         }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
+
+        .card {
+            padding: clamp(1.5rem, 3vw, 2.75rem);
+        }
+
+        .side-card {
             display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: clamp(1.25rem, 2.5vw, 2rem);
+        }
+
+        .hero-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1.4rem;
+        }
+
+        .eyebrow {
+            display: inline-flex;
             align-items: center;
-            justify-content: center;
-        }
-        
-        .container {
-            text-align: center;
-            padding: 2rem;
-            max-width: 600px;
-        }
-        
-        .error-code {
-            font-size: 8rem;
+            gap: 0.55rem;
+            padding: 0.55rem 0.85rem;
+            border-radius: 999px;
+            background: hsl(var(--primary) / 0.11);
+            color: hsl(var(--primary));
+            font-size: 0.82rem;
             font-weight: 700;
-            color: var(--primary);
-            line-height: 1;
-            opacity: 0.2;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
-        
-        .error-title {
-            font-size: 2rem;
-            font-weight: 600;
-            margin: 1rem 0;
-            color: var(--text);
+
+        .eyebrow::before {
+            content: "";
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 999px;
+            background: currentColor;
+            box-shadow: 0 0 0 0.25rem hsl(var(--primary) / 0.12);
         }
-        
-        .error-message {
-            font-size: 1.125rem;
-            color: var(--text-light);
-            margin-bottom: 2rem;
+
+        .theme-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.72rem 0.95rem;
+            border-radius: 999px;
+            border: 1px solid hsl(var(--border));
+            background: hsl(var(--card) / 0.78);
+            color: hsl(var(--foreground));
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
         }
-        
+
+        .theme-toggle:hover {
+            transform: translateY(-1px);
+            border-color: hsl(var(--primary) / 0.45);
+            background: hsl(var(--muted));
+        }
+
+        .theme-toggle-label {
+            font-size: 0.82rem;
+            color: hsl(var(--secondary));
+        }
+
+        .theme-toggle-name {
+            font-size: 0.92rem;
+            font-weight: 700;
+        }
+
+        .error-code {
+            margin: 0;
+            font-size: clamp(5rem, 18vw, 10rem);
+            line-height: 0.85;
+            letter-spacing: -0.08em;
+            font-weight: 800;
+            color: hsl(var(--primary) / 0.17);
+        }
+
+        .title {
+            margin: 0.5rem 0 0;
+            font-size: clamp(2rem, 4vw, 3.5rem);
+            line-height: 1.02;
+            letter-spacing: -0.04em;
+        }
+
+        .copy {
+            margin: 1rem 0 0;
+            max-width: 46rem;
+            color: hsl(var(--secondary));
+            font-size: 1.05rem;
+            line-height: 1.75;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.85rem;
+            margin-top: 2rem;
+        }
+
         .btn {
             display: inline-flex;
             align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-            color: var(--white);
-            text-decoration: none;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(15, 118, 110, 0.3);
-        }
-        
-        .search-box {
-            margin-top: 2.5rem;
-            padding: 1.5rem;
-            background: var(--white);
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        }
-        
-        .search-title {
-            font-size: 0.875rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--text-light);
-            margin-bottom: 1rem;
-        }
-        
-        .search-links {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
             justify-content: center;
-        }
-        
-        .search-link {
-            padding: 0.5rem 1rem;
-            background: var(--bg);
-            color: var(--text);
+            gap: 0.5rem;
+            min-height: 3.25rem;
+            padding: 0.95rem 1.25rem;
+            border-radius: 1rem;
+            border: 1px solid transparent;
             text-decoration: none;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            transition: background 0.2s;
+            font-weight: 700;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
         }
-        
-        .search-link:hover {
-            background: var(--primary);
-            color: var(--white);
+
+        .btn:hover {
+            transform: translateY(-1px);
         }
-        
-        @media (max-width: 480px) {
-            .error-code {
-                font-size: 5rem;
+
+        .btn-primary {
+            background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+            color: hsl(var(--button-foreground));
+            box-shadow: 0 22px 44px -28px hsl(var(--primary) / 0.72);
+        }
+
+        .btn-secondary {
+            background: hsl(var(--card));
+            border-color: hsl(var(--border));
+            color: hsl(var(--foreground));
+        }
+
+        .hint {
+            margin: 1.2rem 0 0;
+            color: hsl(var(--secondary));
+            font-size: 0.92rem;
+        }
+
+        .inline-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.65rem;
+            margin-top: 1rem;
+            color: hsl(var(--secondary));
+            font-size: 0.92rem;
+        }
+
+        .status-dot {
+            width: 0.68rem;
+            height: 0.68rem;
+            border-radius: 999px;
+            background: hsl(var(--accent));
+            box-shadow: 0 0 0 0.35rem hsl(var(--accent) / 0.12);
+            animation: pulse 1.9s ease-in-out infinite;
+        }
+
+        .side-title {
+            margin: 0;
+            font-size: 1.12rem;
+            line-height: 1.3;
+        }
+
+        .side-copy {
+            margin: 0;
+            color: hsl(var(--secondary));
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .link-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+
+        .link-chip {
+            display: block;
+            padding: 1rem;
+            border-radius: 1rem;
+            border: 1px solid hsl(var(--border));
+            background: hsl(var(--muted) / 0.82);
+            color: hsl(var(--foreground));
+            text-decoration: none;
+            transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+
+        .link-chip:hover {
+            transform: translateY(-1px);
+            border-color: hsl(var(--primary) / 0.45);
+            background: hsl(var(--card));
+        }
+
+        .link-chip strong {
+            display: block;
+            font-size: 0.98rem;
+        }
+
+        .link-chip span {
+            display: block;
+            margin-top: 0.35rem;
+            color: hsl(var(--secondary));
+            font-size: 0.82rem;
+        }
+
+        .note {
+            padding: 1rem 1.05rem;
+            border-radius: 1rem;
+            background: hsl(var(--primary) / 0.09);
+            color: hsl(var(--foreground));
+            font-size: 0.92rem;
+            line-height: 1.65;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
             }
-            .error-title {
-                font-size: 1.5rem;
+            50% {
+                opacity: 0.55;
+                transform: scale(0.9);
+            }
+        }
+
+        @media (max-width: 860px) {
+            .frame {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .hero-top {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .btn,
+            .theme-toggle {
+                width: 100%;
+            }
+
+            .link-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .error-code {
+                font-size: clamp(4.5rem, 26vw, 6.5rem);
             }
         }
     </style>
 </head>
-<body>
-    <main class="container" role="main" aria-label="Page not found">
-        <div class="error-code" aria-hidden="true">404</div>
-        <h1 class="error-title">Page Not Found</h1>
-        <p class="error-message">
-            Oops! The page you're looking for seems to have wandered off. 
-            It might have been moved or deleted.
-        </p>
-        <a href="/" class="btn" aria-label="Return to homepage">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-            </svg>
-            Go Home
-        </a>
-        
-        <div class="search-box">
-            <p class="search-title">Popular Destinations</p>
-            <nav class="search-links" aria-label="Popular pages">
-                <a href="/products/" class="search-link">Shop</a>
-                <a href="/categories/" class="search-link">Categories</a>
-                <a href="/collections/" class="search-link">Collections</a>
-                <a href="/bundles/" class="search-link">Bundles</a>
-                <a href="/artisans/" class="search-link">Artisans</a>
-            </nav>
-        </div>
+<body class="error-page error-404">
+    <main class="page-shell">
+        <section class="frame" role="main" aria-label="Page not found">
+            <article class="card">
+                <div class="hero-top">
+                    <span class="eyebrow">Lost Route</span>
+                    <button class="theme-toggle" type="button" data-theme-toggle aria-label="Cycle Bunoraa theme">
+                        <span class="theme-toggle-label">Theme</span>
+                        <span class="theme-toggle-name" data-theme-name>System</span>
+                    </button>
+                </div>
+
+                <p class="error-code" aria-hidden="true">404</p>
+                <h1 class="title">This page is no longer on the Bunoraa map.</h1>
+                <p class="copy">
+                    The address may have changed, the page may have been removed, or the link you followed is out of date.
+                    You can jump back to the storefront or head straight into search from here.
+                </p>
+
+                <div class="actions">
+                    <a href="/" class="btn btn-primary" aria-label="Return to homepage">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                        </svg>
+                        Back Home
+                    </a>
+                    <a href="/search/" class="btn btn-secondary" aria-label="Search the catalog">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        Search Catalog
+                    </a>
+                </div>
+
+                <p class="hint">If you typed the URL manually, check the spelling and try again.</p>
+                <div class="inline-status" aria-live="polite">
+                    <span class="status-dot" aria-hidden="true"></span>
+                    <span>Your saved theme still applies here.</span>
+                </div>
+            </article>
+
+            <aside class="side-card">
+                <h2 class="side-title">Popular destinations</h2>
+                <p class="side-copy">These routes are live in the storefront and usually get you back on track fastest.</p>
+
+                <nav class="link-grid" aria-label="Popular pages">
+                    <a href="/products/" class="link-chip">
+                        <strong>Shop</strong>
+                        <span>Browse all products</span>
+                    </a>
+                    <a href="/categories/" class="link-chip">
+                        <strong>Categories</strong>
+                        <span>Jump by department</span>
+                    </a>
+                    <a href="/collections/" class="link-chip">
+                        <strong>Collections</strong>
+                        <span>Curated drops and edits</span>
+                    </a>
+                    <a href="/bundles/" class="link-chip">
+                        <strong>Bundles</strong>
+                        <span>Grouped offers and sets</span>
+                    </a>
+                    <a href="/artisans/" class="link-chip">
+                        <strong>Artisans</strong>
+                        <span>Meet the makers</span>
+                    </a>
+                    <a href="/contact/" class="link-chip">
+                        <strong>Contact</strong>
+                        <span>Reach the Bunoraa team</span>
+                    </a>
+                </nav>
+
+                <div class="note">
+                    Need a clean restart? Open the homepage and navigate from the main menu instead of reusing the broken URL.
+                </div>
+            </aside>
+        </section>
     </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var toggle = document.querySelector("[data-theme-toggle]");
+            var label = document.querySelector("[data-theme-name]");
+            var themeApi = window.BunoraaStandaloneTheme;
+
+            function syncThemeLabel() {
+                if (!label || !themeApi) {
+                    return;
+                }
+                var theme = themeApi.getTheme();
+                label.textContent = themeApi.labels[theme] || "System";
+            }
+
+            syncThemeLabel();
+
+            if (toggle && themeApi) {
+                toggle.addEventListener("click", function () {
+                    themeApi.cycleTheme();
+                    syncThemeLabel();
+                });
+            }
+        });
+    </script>
 </body>
 </html>

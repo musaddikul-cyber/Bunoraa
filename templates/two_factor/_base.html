@@ -15,30 +15,54 @@
     (function () {
       var themes = ["system", "light", "dark", "moonlight", "gray", "modern"];
       var darkThemes = { dark: true, moonlight: true };
-      var theme = "system";
-      var legacy = null;
+      var root = document.documentElement;
+
+      function normalizeTheme(theme) {
+        return themes.indexOf(theme) >= 0 ? theme : "system";
+      }
+
+      function mapLegacyTheme(theme) {
+        if (theme === "dark") {
+          return "dark";
+        }
+        if (theme === "light") {
+          return "light";
+        }
+        return "system";
+      }
+
+      function applyTheme(theme) {
+        var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var djangoTheme = theme === "system" ? "auto" : (darkThemes[theme] ? "dark" : "light");
+        var i;
+
+        for (i = 0; i < themes.length; i += 1) {
+          root.classList.remove(themes[i]);
+        }
+        root.classList.remove("dark");
+        root.classList.add(theme);
+
+        if (theme === "dark" || (theme === "system" && prefersDark)) {
+          root.classList.add("dark");
+        }
+
+        root.dataset.adminTheme = theme;
+        root.dataset.theme = djangoTheme;
+        root.style.colorScheme = theme === "system" ? "light dark" : (darkThemes[theme] ? "dark" : "light");
+      }
 
       try {
-        theme = localStorage.getItem("admin-theme");
-        legacy = localStorage.getItem("theme");
+        applyTheme(normalizeTheme(
+          localStorage.getItem("bunoraa-theme")
+          || localStorage.getItem("admin-theme")
+          || mapLegacyTheme(localStorage.getItem("theme"))
+        ));
       } catch (error) {
-        theme = "system";
+        applyTheme("system");
       }
-
-      if (!themes.includes(theme)) {
-        if (legacy === "dark") {
-          theme = "dark";
-        } else if (legacy === "light") {
-          theme = "light";
-        } else {
-          theme = "system";
-        }
-      }
-
-      document.documentElement.dataset.adminTheme = theme;
-      document.documentElement.dataset.theme = theme === "system" ? "auto" : (darkThemes[theme] ? "dark" : "light");
     })();
   </script>
+  <link rel="stylesheet" href="{% static 'css/theme.css' %}">
   <link rel="stylesheet" href="{% static 'admin/css/two-factor-login.css' %}">
   <script defer src="{% static 'admin/js/theme.js' %}"></script>
   {% block extra_media %}{% endblock %}
@@ -93,7 +117,7 @@
           return;
         }
         try {
-          storedTheme = localStorage.getItem("admin-theme") || "system";
+          storedTheme = localStorage.getItem("bunoraa-theme") || localStorage.getItem("admin-theme") || "system";
         } catch (error) {
           storedTheme = "system";
         }

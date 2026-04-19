@@ -5,6 +5,7 @@ Uses SQLite database, console email backend, and local file storage.
 import os
 from urllib.parse import urlparse, urlunparse
 from .base import *
+from .base import _normalize_rediss_url
 
 # =============================================================================
 # DEVELOPMENT CONFIGURATION

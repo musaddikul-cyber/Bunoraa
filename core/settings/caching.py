@@ -1,16 +1,25 @@
 """
-Django Caching Configuration - Production-Ready
-Includes Redis caching, session caching, and cache middleware setup.
+Django Caching Configuration - Multi-Redis Setup
+CELERY_REDIS_URL (1GB)  -> Default cache, API cache, channels, Celery
+ML_REDIS_URL (200MB)    -> ML cache, heavy computation, analytics  
+REDIS_URL (25MB)        -> Sessions, real-time features, templates
 """
 import os
 from urllib.parse import urlparse
 
 # =============================================================================
-# REDIS CACHE CONFIGURATION
+# MULTI-REDIS URL CONFIGURATION
+# Derived from .env variables
 # =============================================================================
 
-# Parse Redis URL from environment
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+# Celery Redis (1GB Aiven) - General caching, Celery, Channels
+CELERY_REDIS_URL = os.environ.get('CELERY_REDIS_URL', 'redis://localhost:6379/0')
+
+# ML Redis (200MB Upstash) - ML workloads, heavy computation
+ML_REDIS_URL = os.environ.get('ML_REDIS_URL', CELERY_REDIS_URL)
+
+# Render Redis (25MB) - Sessions, real-time, templates
+REDIS_URL = os.environ.get('REDIS_URL', CELERY_REDIS_URL)
 
 # Cache timeouts (in seconds)
 CACHE_TIMEOUTS = {
@@ -22,17 +31,21 @@ CACHE_TIMEOUTS = {
     'session': 86400 * 7,     # 7 days
 }
 
-# Primary cache configuration using Redis
+# =============================================================================
+# CACHE CONFIGURATION - MULTI-REDIS SETUP
+# =============================================================================
+
 CACHES = {
+    # Default cache: Celery Redis (1GB Aiven) - General purpose
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,
+        'LOCATION': CELERY_REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
             'SERIALIZER': 'django_redis.serializers.json.JSONSerializer',
             'CONNECTION_POOL_KWARGS': {
-                'max_connections': 100,
+                'max_connections': 50,  # Reduced for Redis cloud limits
                 'retry_on_timeout': True,
             },
             'SOCKET_CONNECT_TIMEOUT': 5,
@@ -42,36 +55,82 @@ CACHES = {
         'VERSION': 1,
         'TIMEOUT': CACHE_TIMEOUTS['default'],
     },
-    # Cache for template fragments
+    
+    # Template fragments: Render Redis (25MB) - Fast, simple caching
     'template_fragments': {
         'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 20,  # Small for Render
+            },
         },
         'KEY_PREFIX': 'bunoraa:template',
         'TIMEOUT': CACHE_TIMEOUTS['medium'],
     },
-    # Cache for API responses
+    
+    # API cache: Celery Redis (1GB Aiven) - API response caching
     'api_cache': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,
+        'LOCATION': CELERY_REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 30,
+            },
         },
         'KEY_PREFIX': 'bunoraa:api',
         'TIMEOUT': CACHE_TIMEOUTS['short'],
     },
-    # Cache for heavy computations (ML, analytics)
+    
+    # Computation/ML cache: ML Redis (1GB) - Heavy ML and analytics workloads
     'computation': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': ML_REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 100,  # Higher for ML workloads
+                'retry_on_timeout': True,
+            },
+            'SOCKET_CONNECT_TIMEOUT': 10,
+            'SOCKET_TIMEOUT': 30,  # Longer for ML operations
+        },
+        'KEY_PREFIX': 'bunoraa:compute',
+        'TIMEOUT': CACHE_TIMEOUTS['long'],
+    },
+    
+    # ML model cache: ML Redis (1GB) - Large model storage
+    'ml_models': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': ML_REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 50,
+            },
+            'SOCKET_TIMEOUT': 60,  # Long timeout for model loading
+        },
+        'KEY_PREFIX': 'bunoraa:ml',
+        'TIMEOUT': 86400 * 30,  # 30 days for models
+    },
+    
+    # Real-time/Render cache: Render Redis (25MB) - Quick lookups, sessions
+    'realtime': {
         'BACKEND': 'django_redis.cache.RedisCache',
         'LOCATION': REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_KWARGS': {
+                'max_connections': 20,
+            },
         },
-        'KEY_PREFIX': 'bunoraa:compute',
-        'TIMEOUT': CACHE_TIMEOUTS['long'],
+        'KEY_PREFIX': 'bunoraa:rt',
+        'TIMEOUT': CACHE_TIMEOUTS['short'],
     },
 }
 
@@ -79,14 +138,29 @@ CACHES = {
 # SESSION CONFIGURATION
 # =============================================================================
 
-# Use Redis for session storage
+# Use Simple Redis (25MB) for session storage - efficient for simple key-value
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+SESSION_CACHE_ALIAS = 'realtime'
 SESSION_COOKIE_AGE = 86400 * 7  # 7 days
 SESSION_COOKIE_SECURE = True  # Only send over HTTPS
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_SAVE_EVERY_REQUEST = True
+
+# =============================================================================
+# CHANNEL LAYERS (WebSockets) - Use Celery Redis for pub/sub
+# =============================================================================
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [CELERY_REDIS_URL],
+            'capacity': 1500,
+            'expiry': 10,
+        },
+    },
+}
 
 # =============================================================================
 # CACHE MIDDLEWARE CONFIGURATION

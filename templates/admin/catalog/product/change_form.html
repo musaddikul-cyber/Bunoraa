@@ -1,0 +1,624 @@
+{% extends "admin/change_form.html" %}
+{% load i18n static admin_urls admin_modify %}
+
+{% block extrahead %}
+{{ block.super }}
+<!-- Enhanced Product Admin Styles -->
+<link rel="stylesheet" type="text/css" href="{% static 'css/admin/variant_manager.css' %}">
+<link rel="stylesheet" type="text/css" href="{% static 'css/admin/attribute_manager.css' %}">
+<link rel="stylesheet" type="text/css" href="{% static 'css/admin/image_manager.css' %}">
+
+<!-- Sortable.js for Drag-Drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<style>
+  /* Quick inline styles for immediate enhancement */
+  .product-admin-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--border-color, #e5e7eb);
+    padding: 4px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+  }
+
+  .product-admin-tab {
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--body-fg, #4b5563);
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+
+  .product-admin-tab:hover {
+    background: var(--primary-bg-light, rgba(255,255,255,0.5));
+  }
+
+  .product-admin-tab.active {
+    background: var(--body-bg, #ffffff);
+    color: var(--body-fg, #1e293b);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  /* Dark mode support */
+  :root[data-admin-theme="dark"] .product-admin-tabs,
+  [data-theme="dark"] .product-admin-tabs {
+    background: var(--border-color, #374151);
+  }
+
+  :root[data-admin-theme="dark"] .product-admin-tab,
+  [data-theme="dark"] .product-admin-tab {
+    color: var(--body-fg, #e5e7eb);
+  }
+
+  :root[data-admin-theme="dark"] .product-admin-tab:hover,
+  [data-theme="dark"] .product-admin-tab:hover {
+    background: var(--primary-bg-light, rgba(255,255,255,0.1));
+  }
+
+  :root[data-admin-theme="dark"] .product-admin-tab.active,
+  [data-theme="dark"] .product-admin-tab.active {
+    background: var(--body-bg, #1f2937);
+    color: var(--body-fg, #ffffff);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  .inline-section {
+    margin-top: 20px;
+  }
+
+  .inline-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  /* Help box for variant generation */
+  .variant-help-box {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .variant-help-box h4 {
+    margin: 0 0 8px 0;
+    color: #0369a1;
+    font-size: 14px;
+  }
+
+  .variant-help-box p {
+    margin: 0;
+    color: #0c4a6e;
+    font-size: 13px;
+  }
+
+  .variant-help-box ul {
+    margin: 8px 0 0 0;
+    padding-left: 20px;
+    color: #0c4a6e;
+    font-size: 13px;
+  }
+
+  /* Tab content sections */
+  .tab-content-section {
+    display: none;
+  }
+
+  .tab-content-section.active {
+    display: block;
+  }
+
+  /* Image upload zone */
+  .image-upload-zone {
+    border: 2px dashed var(--border-color, #d1d5db);
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    background: var(--body-bg, #f9fafb);
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+
+  .image-upload-zone:hover {
+    border-color: var(--primary, #3b82f6);
+    background: var(--primary-bg-light, #eff6ff);
+  }
+
+  .image-upload-zone.dragover {
+    border-color: var(--primary, #3b82f6);
+    background: var(--primary-bg-light, #dbeafe);
+  }
+
+  .image-upload-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .image-upload-text {
+    font-size: 16px;
+    color: var(--body-fg, #374151);
+    margin-bottom: 8px;
+  }
+
+  .image-upload-hint {
+    font-size: 13px;
+    color: var(--body-quiet-color, #6b7280);
+  }
+
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .image-card {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    background: var(--body-bg, white);
+  }
+
+  .image-card img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+  }
+
+  .image-card-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    padding: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .image-card-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .image-card-btn {
+    background: rgba(255,255,255,0.9);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .image-card-btn:hover {
+    background: white;
+  }
+
+  /* Media section styles */
+  .media-section {
+    padding: 20px;
+  }
+
+  .media-type-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    padding-bottom: 12px;
+  }
+
+  .media-type-tab {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .media-type-tab.active {
+    background: var(--primary, #3b82f6);
+    color: white;
+    border-color: var(--primary, #3b82f6);
+  }
+
+  .media-upload-area {
+    border: 2px dashed var(--border-color, #d1d5db);
+    border-radius: 8px;
+    padding: 60px 40px;
+    text-align: center;
+    background: var(--body-bg, #f9fafb);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  <!-- Help Box for Admins -->
+  {% if original and original.variants.count == 0 %}
+  <div class="variant-help-box">
+    <h4>🚀 Quick Start: Adding Product Variants</h4>
+    <p>
+      This product currently has no variants. Variants let you create different
+      versions of this product (e.g., Size: Small/Medium/Large, Color: Red/Blue).
+    </p>
+    <ul>
+      <li>Add variants manually using the Variants section below</li>
+      <li>Or use the <strong>Auto-Generate</strong> button to create all combinations at once</li>
+      <li>Set one variant as "default" to be the primary option shown to customers</li>
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if ADMIN_FIELDSETS_AS_TABS %}
+  <!-- Tab Navigation - Images First -->
+  <div class="product-admin-tabs" id="product-tabs">
+    <button type="button" class="product-admin-tab active" data-tab="images">
+      🖼️ Images ({{ original.images.count|default:0 }})
+    </button>
+    <button type="button" class="product-admin-tab" data-tab="basic">
+      📋 Basic Info
+    </button>
+    <button type="button" class="product-admin-tab" data-tab="variants">
+      📦 Variants ({{ original.variants.count|default:0 }})
+    </button>
+    <button type="button" class="product-admin-tab" data-tab="attributes">
+      🏷️ Attributes
+    </button>
+    <button type="button" class="product-admin-tab" data-tab="media">
+      🎬 Media
+    </button>
+    <button type="button" class="product-admin-tab" data-tab="seo">
+      🔍 SEO
+    </button>
+  </div>
+  {% endif %}
+
+  {{ block.super }}
+
+</div>
+
+{% if ADMIN_FIELDSETS_AS_TABS %}
+<script>
+(function($) {
+  'use strict';
+
+  // Tab Navigation
+  $(document).ready(function() {
+    var tabs = $('.product-admin-tab');
+    var fieldsets = $('fieldset');
+
+    // Hide all inline groups initially for tab control
+    function hideAllInlines() {
+      // Hide all inline-related elements
+      $('.inline-related').hide();
+      // Hide fieldsets except AI panel
+      fieldsets.not('#product-ai-autofill-panel').hide();
+    }
+
+    function showTabContent(tabName) {
+      hideAllInlines();
+
+      if (tabName === 'basic') {
+        // Show main fieldsets (basic info fields)
+        fieldsets.not('#product-ai-autofill-panel').not('.inline-related').show();
+        // Show fieldsets that contain basic product info
+        $('fieldset:not(.module):not(.aligned)').show();
+      } else if (tabName === 'images') {
+        // Show only image-related inlines
+        $('.inline-related:has(.image-group, [id*="image"])').show();
+        $('fieldset:contains("Image"), fieldset:has(.image-group)').show();
+        // Show image upload section
+        showImagesTabContent();
+      } else if (tabName === 'variants') {
+        // Show variant-related inlines
+        $('.inline-related:has(.variant-group, [id*="variant"])').show();
+        $('fieldset:contains("Variant"), fieldset:has(.variant-group)').show();
+      } else if (tabName === 'attributes') {
+        // Show attribute-related inlines
+        $('.inline-related:has(.attribute-values-inline, [id*="attribute"])').show();
+        $('fieldset:contains("Attribute"), fieldset:has(.attribute-values-inline)').show();
+      } else if (tabName === 'media') {
+        // Show media-related inlines (3D, making-of, video)
+        $('.inline-related:has([id*="media"], [id*="video"], [id*="3d"])').show();
+        $('fieldset:contains("Media"), fieldset:contains("Video"), fieldset:contains("3D")').show();
+        showMediaTabContent();
+      } else if (tabName === 'seo') {
+        // Show SEO fieldset
+        $('fieldset:contains("SEO"), fieldset:contains("Meta")').show();
+      }
+    }
+
+    // Images Tab Content
+    function showImagesTabContent() {
+      var imagesSection = $('#images-tab-content');
+      if (imagesSection.length === 0) {
+        // Create images section if it doesn't exist
+        imagesSection = $('<div id="images-tab-content" class="tab-content-section"></div>');
+
+        var uploadHtml = `
+          <div class="image-upload-zone" id="image-drop-zone">
+            <div class="image-upload-icon">📷</div>
+            <div class="image-upload-text">Drag and drop images here</div>
+            <div class="image-upload-hint">or click to browse (JPG, PNG, WebP up to 10MB)</div>
+            <input type="file" id="image-upload-input" multiple accept="image/*" style="display: none;">
+          </div>
+          <div class="image-grid" id="image-grid"></div>
+        `;
+        imagesSection.html(uploadHtml);
+        $('#content-main').append(imagesSection);
+
+        // Initialize image upload handlers
+        initImageUploadHandlers();
+      }
+      $('.tab-content-section').removeClass('active');
+      imagesSection.addClass('active');
+    }
+
+    function initImageUploadHandlers() {
+      var dropZone = $('#image-drop-zone');
+      var fileInput = $('#image-upload-input');
+
+      dropZone.on('click', function() {
+        fileInput.click();
+      });
+
+      dropZone.on('dragover', function(e) {
+        e.preventDefault();
+        $(this).addClass('dragover');
+      });
+
+      dropZone.on('dragleave', function() {
+        $(this).removeClass('dragover');
+      });
+
+      dropZone.on('drop', function(e) {
+        e.preventDefault();
+        $(this).removeClass('dragover');
+        handleFiles(e.originalEvent.dataTransfer.files);
+      });
+
+      fileInput.on('change', function() {
+        handleFiles(this.files);
+      });
+    }
+
+    function handleFiles(files) {
+      var inlineTable = $('.image-table tbody');
+      var prefix = $('.image-group').attr('id').replace('-group', '');
+      var totalForms = $('#' + prefix + '-TOTAL_FORMS');
+      var formCount = parseInt(totalForms.val()) || 0;
+
+      $.each(files, function(index, file) {
+        if (file.type.startsWith('image/')) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            // Get the empty form template
+            var emptyForm = $('#' + prefix + '-empty');
+            var newForm = emptyForm.clone(true);
+
+            // Update the form index
+            var newIndex = formCount;
+            newForm.attr('id', prefix + '-' + newIndex);
+            newForm.removeClass('empty-form').addClass('row' + (newIndex % 2 === 0 ? '1' : '2'));
+
+            // Update all input IDs and names
+            newForm.find('input, select, textarea').each(function() {
+              var $input = $(this);
+              var id = $input.attr('id');
+              var name = $input.attr('name');
+              if (id) $input.attr('id', id.replace('__prefix__', newIndex));
+              if (name) $input.attr('name', name.replace('__prefix__', newIndex));
+            });
+
+            // Update the preview image
+            newForm.find('.inline-thumb').attr('src', e.target.result);
+            newForm.find('.inline-preview-large').attr('src', e.target.result);
+            newForm.find('.field-thumbnail').html(
+              '<img src="' + e.target.result + '" class="inline-thumb" style="max-height: 50px; max-width: 70px; object-fit: cover; border-radius: 4px;" alt="Preview" />'
+            );
+            newForm.find('.field-preview').html(
+              '<a href="' + e.target.result + '" target="_blank" class="image-preview-link">' +
+              '<img src="' + e.target.result + '" class="inline-preview-large" style="max-height: 120px; max-width: 150px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;" alt="Preview" /></a>'
+            );
+
+            // Set the alt text
+            newForm.find('input[name$="-alt_text"]').val(file.name.split('.')[0]);
+
+            // Insert before the empty form
+            newForm.insertBefore(emptyForm);
+
+            // Increment form count
+            formCount++;
+            totalForms.val(formCount);
+
+            // Trigger formset:added event
+            $(document).trigger('formset:added', [newForm, prefix]);
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    // Media Tab Content
+    function showMediaTabContent() {
+      var mediaSection = $('#media-tab-content');
+      if (mediaSection.length === 0) {
+        mediaSection = $('<div id="media-tab-content" class="tab-content-section"></div>');
+
+        var mediaHtml = `
+          <div class="media-section">
+            <div class="media-type-tabs">
+              <button type="button" class="media-type-tab active" data-media-type="3d">🎲 3D Model</button>
+              <button type="button" class="media-type-tab" data-media-type="video">🎥 Making Video</button>
+              <button type="button" class="media-type-tab" data-media-type="ar">👁️ AR View</button>
+            </div>
+            <div class="media-upload-area" id="media-upload-area">
+              <div style="font-size: 48px; margin-bottom: 16px;">📁</div>
+              <div style="font-size: 16px; color: var(--body-fg); margin-bottom: 8px;">Drop media files here</div>
+              <div style="font-size: 13px; color: var(--body-quiet-color);">
+                <strong>3D Models:</strong> GLB, GLTF, USDZ files<br>
+                <strong>Videos:</strong> MP4, WebM (max 100MB)<br>
+                <strong>AR:</strong> USDZ for iOS AR Quick Look
+              </div>
+            </div>
+          </div>
+        `;
+        mediaSection.html(mediaHtml);
+        $('#content-main').append(mediaSection);
+
+        // Media type tab handlers
+        mediaSection.find('.media-type-tab').on('click', function() {
+          mediaSection.find('.media-type-tab').removeClass('active');
+          $(this).addClass('active');
+          var mediaType = $(this).data('media-type');
+          updateMediaUploadText(mediaType);
+        });
+      }
+      $('.tab-content-section').removeClass('active');
+      mediaSection.addClass('active');
+    }
+
+    function updateMediaUploadText(type) {
+      var area = $('#media-upload-area');
+      var texts = {
+        '3d': {
+          icon: '🎲',
+          title: 'Drop 3D model files here',
+          hint: 'Supported formats: GLB, GLTF, OBJ, FBX'
+        },
+        'video': {
+          icon: '🎥',
+          title: 'Drop video files here',
+          hint: 'Supported formats: MP4, WebM, MOV (max 100MB)'
+        },
+        'ar': {
+          icon: '👁️',
+          title: 'Drop AR files here',
+          hint: 'For iOS AR Quick Look: USDZ files'
+        }
+      };
+      var text = texts[type] || texts['3d'];
+      area.html(`
+        <div style="font-size: 48px; margin-bottom: 16px;">${text.icon}</div>
+        <div style="font-size: 16px; color: var(--body-fg); margin-bottom: 8px;">${text.title}</div>
+        <div style="font-size: 13px; color: var(--body-quiet-color);">${text.hint}</div>
+      `);
+    }
+
+    tabs.on('click', function() {
+      var tabName = $(this).data('tab');
+
+      // Update active tab
+      tabs.removeClass('active');
+      $(this).addClass('active');
+
+      // Show/hide relevant content
+      $('.tab-content-section').removeClass('active');
+      showTabContent(tabName);
+    });
+
+    // Initialize - show first tab (Images)
+    if (tabs.length > 0) {
+      var firstTab = tabs.first().data('tab');
+      showTabContent(firstTab);
+    }
+  });
+})(django.jQuery);
+</script>
+{% endif %}
+{% endblock %}
+
+{% block field_sets %}
+{% for inline_admin_formset in top_inline_admin_formsets %}
+{% include inline_admin_formset.opts.template %}
+{% endfor %}
+{% if product_ai_enabled %}
+<fieldset class="module aligned" id="product-ai-autofill-panel">
+  <h2>{% trans "AI Product Autofill" %}</h2>
+  <div class="form-row">
+    <div>
+      <p class="help">
+        {% blocktrans with max_images=product_ai_max_images %}
+        Analyze up to {{ max_images }} images and generate confidence-scored field suggestions with citations.
+        {% endblocktrans %}
+      </p>
+      {% if not product_ai_enabled %}
+      <p class="help" style="color: #92400e;">
+        {% trans "AI autofill is disabled. Set PRODUCT_AI_ENABLED=true to enable it." %}
+      </p>
+      {% endif %}
+      <button type="button" class="button" id="product-ai-analyze-btn"{% if not product_ai_enabled %} disabled{% endif %}>{% trans "Analyze Images" %}</button>
+      <label style="margin-left: 12px;">
+        <input type="checkbox" id="product-ai-force-overwrite" checked />
+        {% trans "Overwrite existing values" %}
+      </label>
+      <button type="button" class="button" id="product-ai-apply-btn" disabled style="margin-left: 8px;">
+        {% trans "Apply Suggestions" %}
+      </button>
+      <span id="product-ai-status-text" style="margin-left: 12px; color: #374151;"></span>
+      <div id="product-ai-source-activity" style="margin-top: 10px;"></div>
+    </div>
+  </div>
+  <div class="form-row" style="margin-top: 10px;">
+    <div
+      id="product-ai-config"
+      data-product-id="{% if original %}{{ original.id }}{% endif %}"
+      data-start-url="{{ product_ai_endpoints.start }}"
+      data-status-template="{{ product_ai_endpoints.status_template }}"
+      data-apply-template="{{ product_ai_endpoints.apply_template }}"
+      data-feedback-template="{{ product_ai_endpoints.feedback_template }}"
+      data-max-images="{{ product_ai_max_images }}"
+      data-debug="{{ product_ai_frontend_debug|yesno:'true,false' }}"
+      data-enabled="{{ product_ai_enabled|yesno:'true,false' }}"
+      data-disabled-reason="{% if not product_ai_enabled %}{% trans 'AI autofill is disabled in settings.' %}{% endif %}"
+    ></div>
+    <div id="product-ai-suggestions-container"></div>
+  </div>
+</fieldset>
+{% endif %}
+{{ block.super }}
+{% endblock %}
+
+{% block inline_field_sets %}
+{{ block.super }}
+
+<!-- Additional Tools Section -->
+{% if change and original %}
+<div class="module aligned" style="margin-top: 30px;">
+  <h2>🛠️ Product Tools</h2>
+  <div class="form-row">
+    <div class="field-box">
+      <label>Variant Management:</label>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="{% url 'admin:catalog_product_variant_generator' original.pk %}"
+           class="button"
+           target="_blank"
+           style="background: #3b82f6; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none;">
+          ✨ Generate Variants
+        </a>
+        <a href="{% url 'admin:catalog_product_bulk_pricing' original.pk %}"
+           class="button"
+           target="_blank"
+           style="background: #10b981; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none;">
+          💰 Bulk Pricing
+        </a>
+      </div>
+      <p class="help">Use these tools to quickly create and manage product variants.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

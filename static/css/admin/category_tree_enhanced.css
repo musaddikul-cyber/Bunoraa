@@ -1,0 +1,305 @@
+/**
+ * Enhanced Category Tree Widget Styles
+ * GitHub-style file tree with modern aesthetics
+ */
+
+/* Container */
+.category-tree-widget-container {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 16px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.category-tree-widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.category-tree-widget-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #374151;
+}
+
+.category-tree-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.category-tree-controls button {
+    padding: 4px 12px;
+    font-size: 12px;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.category-tree-controls button:hover {
+    background: #e5e7eb;
+}
+
+/* Search input */
+.category-tree-search-wrapper {
+    margin-bottom: 12px;
+}
+
+.category-tree-search {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.category-tree-search:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Selected display */
+.category-tree-selected-display {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.selected-category-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #dbeafe;
+    color: #1e40af;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.selected-category-badge .category-icon {
+    font-size: 14px;
+}
+
+.clear-category {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    margin-left: 4px;
+    transition: background 0.2s;
+}
+
+.clear-category:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.no-category-selected {
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 13px;
+}
+
+/* Tree structure */
+.category-tree-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.category-tree-item {
+    margin: 0;
+    padding: 0;
+}
+
+.category-tree-content {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 6px;
+}
+
+.category-tree-content:hover {
+    background: #f3f4f6;
+}
+
+.category-tree-content.selected {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.category-tree-content.selected .category-tree-name {
+    font-weight: 600;
+}
+
+/* Toggle button */
+.category-tree-toggle {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    color: #6b7280;
+    transition: transform 0.2s, color 0.2s;
+    user-select: none;
+}
+
+.category-tree-toggle:hover {
+    color: #374151;
+}
+
+/* Spacer for leaf nodes */
+.category-tree-spacer {
+    width: 16px;
+    flex-shrink: 0;
+}
+
+/* Icons */
+.category-tree-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+/* Name */
+.category-tree-name {
+    font-size: 13px;
+    color: #374151;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.category-tree-content:hover .category-tree-name {
+    color: #111827;
+}
+
+/* Children container */
+.category-tree-children {
+    overflow: hidden;
+}
+
+.category-tree-children .category-tree-list {
+    position: relative;
+}
+
+/* Tree indentation lines (GitHub-style) */
+.category-tree-children::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #e5e7eb;
+    margin-left: 7px;
+}
+
+/* Category count badge */
+.category-tree-count {
+    font-size: 11px;
+    color: #9ca3af;
+    margin-left: 4px;
+}
+
+/* Primary category specific */
+#primary_category_tree_widget {
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Categories (multi-select) container */
+#categories_tree_widget {
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Help text */
+.category-tree-help {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .category-tree-widget-container {
+        max-height: 350px;
+        padding: 12px;
+    }
+
+    .category-tree-controls {
+        flex-wrap: wrap;
+    }
+
+    .category-tree-controls button {
+        font-size: 11px;
+        padding: 3px 8px;
+    }
+}
+
+/* Dark mode support (Django admin dark theme) */
+[data-theme="dark"] .category-tree-widget-container,
+[data-admin-theme="dark"] .category-tree-widget-container {
+    background: #1f2937;
+    border-color: #4b5563;
+}
+
+[data-theme="dark"] .category-tree-content:hover,
+[data-admin-theme="dark"] .category-tree-content:hover {
+    background: #374151;
+}
+
+[data-theme="dark"] .category-tree-content.selected,
+[data-admin-theme="dark"] .category-tree-content.selected {
+    background: #1e3a8a;
+    color: #93c5fd;
+}
+
+[data-theme="dark"] .category-tree-name,
+[data-admin-theme="dark"] .category-tree-name {
+    color: #e5e7eb;
+}
+
+[data-theme="dark"] .category-tree-toggle,
+[data-admin-theme="dark"] .category-tree-toggle {
+    color: #9ca3af;
+}
+
+[data-theme="dark"] .selected-category-badge,
+[data-admin-theme="dark"] .selected-category-badge {
+    background: #1e3a8a;
+    color: #93c5fd;
+}

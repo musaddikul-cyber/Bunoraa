@@ -6,6 +6,37 @@ from django.core.cache import cache
 from decimal import Decimal
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
+def admin_interface_settings(request):
+    """Add admin interface theme settings to template context for admin pages."""
+    if not request.path.startswith('/admin/'):
+        return {}
+    
+    # Cache for performance
+    cache_key = 'admin_interface_active_theme'
+    theme_settings = cache.get(cache_key)
+    
+    if theme_settings is None:
+        try:
+            from admin_interface.models import Theme
+            theme = Theme.objects.filter(active=True).first()
+            if theme:
+                theme_settings = {
+                    'ADMIN_FIELDSETS_AS_TABS': getattr(theme, 'show_fieldsets_as_tabs', False),
+                    'ADMIN_INLINES_AS_TABS': getattr(theme, 'show_inlines_as_tabs', False),
+                }
+            else:
+                theme_settings = {
+                    'ADMIN_FIELDSETS_AS_TABS': False,
+                    'ADMIN_INLINES_AS_TABS': False,
+                }
+        except Exception:
+            theme_settings = {
+                'ADMIN_FIELDSETS_AS_TABS': False,
+                'ADMIN_INLINES_AS_TABS': False,
+            }
+        cache.set(cache_key, theme_settings, 300)  # Cache for 5 minutes
+    
+    return theme_settings
 
 def site_settings(request):
     """Add site settings to template context. Optimized for memory-constrained environments."""

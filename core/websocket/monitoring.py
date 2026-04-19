@@ -10,11 +10,13 @@ Provides:
 import logging
 import time
 from typing import Dict, Set, Optional
-from django.core.cache import cache
+from django.conf import settings
+from django.core.cache import caches
 from django.utils import timezone
 from datetime import timedelta
 
 logger = logging.getLogger('bunoraa.websocket')
+realtime_cache = caches[getattr(settings, 'REALTIME_CACHE_ALIAS', 'default')]
 
 
 class WebSocketMetrics:
@@ -32,25 +34,25 @@ class WebSocketMetrics:
         """Increment active connection counter."""
         try:
             # Global counter
-            current = cache.get(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, 0)
-            cache.set(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, current + 1, 3600)
+            current = realtime_cache.get(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, 0)
+            realtime_cache.set(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, current + 1, 3600)
             
             # Total counter
-            total = cache.get(WebSocketMetrics.TOTAL_CONNECTIONS_KEY, 0)
-            cache.set(WebSocketMetrics.TOTAL_CONNECTIONS_KEY, total + 1, None)  # Permanent
+            total = realtime_cache.get(WebSocketMetrics.TOTAL_CONNECTIONS_KEY, 0)
+            realtime_cache.set(WebSocketMetrics.TOTAL_CONNECTIONS_KEY, total + 1, None)  # Permanent
             
             # Per-consumer stats
             stats_key = WebSocketMetrics.CONSUMER_STATS_KEY.format(consumer_name=consumer_name)
-            stats = cache.get(stats_key, {'connections': 0})
+            stats = realtime_cache.get(stats_key, {'connections': 0})
             stats['connections'] = stats.get('connections', 0) + 1
             stats['last_update'] = time.time()
-            cache.set(stats_key, stats, 3600)
+            realtime_cache.set(stats_key, stats, 3600)
             
             # Track active users
             if user_id:
-                active_users = cache.get(WebSocketMetrics.ACTIVE_USERS_KEY, {})
+                active_users = realtime_cache.get(WebSocketMetrics.ACTIVE_USERS_KEY, {})
                 active_users[str(user_id)] = time.time()
-                cache.set(WebSocketMetrics.ACTIVE_USERS_KEY, active_users, 3600)
+                realtime_cache.set(WebSocketMetrics.ACTIVE_USERS_KEY, active_users, 3600)
             
             logger.debug(
                 f"[Metrics] Connection + | Consumer: {consumer_name} | "
@@ -63,16 +65,16 @@ class WebSocketMetrics:
     def decrement_active_connections(consumer_name: str, user_id: Optional[str] = None):
         """Decrement active connection counter."""
         try:
-            current = cache.get(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, 1)
+            current = realtime_cache.get(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, 1)
             new_count = max(0, current - 1)
-            cache.set(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, new_count, 3600)
+            realtime_cache.set(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, new_count, 3600)
             
             # Update per-consumer stats
             stats_key = WebSocketMetrics.CONSUMER_STATS_KEY.format(consumer_name=consumer_name)
-            stats = cache.get(stats_key, {'connections': 0})
+            stats = realtime_cache.get(stats_key, {'connections': 0})
             stats['connections'] = max(0, stats.get('connections', 1) - 1)
             stats['last_update'] = time.time()
-            cache.set(stats_key, stats, 3600)
+            realtime_cache.set(stats_key, stats, 3600)
             
             logger.debug(
                 f"[Metrics] Connection - | Consumer: {consumer_name} | "
@@ -85,9 +87,9 @@ class WebSocketMetrics:
     def get_metrics() -> Dict:
         """Get current WebSocket metrics."""
         try:
-            active = cache.get(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, 0)
-            total = cache.get(WebSocketMetrics.TOTAL_CONNECTIONS_KEY, 0)
-            active_users = cache.get(WebSocketMetrics.ACTIVE_USERS_KEY, {})
+            active = realtime_cache.get(WebSocketMetrics.ACTIVE_CONNECTIONS_KEY, 0)
+            total = realtime_cache.get(WebSocketMetrics.TOTAL_CONNECTIONS_KEY, 0)
+            active_users = realtime_cache.get(WebSocketMetrics.ACTIVE_USERS_KEY, {})
             
             return {
                 'active_connections': active,
@@ -107,7 +109,7 @@ class WebSocketMetrics:
         """Get metrics for a specific consumer."""
         try:
             stats_key = WebSocketMetrics.CONSUMER_STATS_KEY.format(consumer_name=consumer_name)
-            stats = cache.get(stats_key, {
+            stats = realtime_cache.get(stats_key, {
                 'connections': 0,
                 'last_update': time.time(),
             })
@@ -187,7 +189,7 @@ class ConnectionRecovery:
         """Store connection state for recovery."""
         try:
             key = ConnectionRecovery.RECOVERY_CACHE_KEY.format(connection_id=connection_id)
-            cache.set(key, state, ttl)
+            realtime_cache.set(key, state, ttl)
             logger.debug(f"[Recovery] Stored state for {connection_id}")
         except Exception as e:
             logger.error(f"[Recovery] Error storing state: {e}")
@@ -197,7 +199,7 @@ class ConnectionRecovery:
         """Retrieve stored connection state."""
         try:
             key = ConnectionRecovery.RECOVERY_CACHE_KEY.format(connection_id=connection_id)
-            state = cache.get(key)
+            state = realtime_cache.get(key)
             if state:
                 logger.debug(f"[Recovery] Retrieved state for {connection_id}")
             return state
@@ -210,7 +212,7 @@ class ConnectionRecovery:
         """Clear stored connection state."""
         try:
             key = ConnectionRecovery.RECOVERY_CACHE_KEY.format(connection_id=connection_id)
-            cache.delete(key)
+            realtime_cache.delete(key)
         except Exception as e:
             logger.error(f"[Recovery] Error clearing state: {e}")
 

@@ -5,6 +5,7 @@ from django.db.models import Sum, Count, F, Q
 from django.db import OperationalError, transaction, models as dj_models
 from django.urls import reverse, path
 from django.http import HttpResponse, JsonResponse, HttpResponseNotAllowed, Http404
+from django.shortcuts import redirect
 from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.utils import timezone, translation
@@ -58,8 +59,8 @@ from .models import (
     ProductMakingOf,
     Product3DAsset,
     CustomerPhoto,
-    ProductQuestion, 
-    ProductAnswer,   
+    ProductQuestion,
+    ProductAnswer,
     Attribute,
     AttributeValue,
     Facet,
@@ -71,6 +72,8 @@ from .models import (
     ProductFieldSuggestion,
     ProductAutofillFeedback,
     CategoryPricingProfile,
+    Option,
+    OptionValue,
 )
 from .ai.validators import apply_suggestions_to_product
 from .tasks import run_product_autofill_job
@@ -163,6 +166,13 @@ class ProductQuestionInline(EnhancedTabularInline):
 
 
 from .forms import CategoryAdminForm, ProductAdminForm
+from .admin_inlines import (
+    ProductImageEnhancedInline,
+    ProductVariantEnhancedInline,
+    ProductAttributeValueInline,
+    Product3DAssetEnhancedInline,
+    ProductMakingOfInline,
+)
 
 
 if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
@@ -430,6 +440,12 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
                 "slug",
                 "short_description",
                 "description",
+                "meta_title",
+                "meta_description",
+                "meta_keywords",
+                "primary_category",
+                "categories",
+                "tags",
                 "price",
                 "sale_price",
                 "cost",
@@ -437,25 +453,17 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
                 "stock_quantity",
                 "low_stock_threshold",
                 "allow_backorder",
-                "primary_category",
-                "categories",
-                "tags",
-                "shipping_material",
-                "weight",
-                "length",
-                "width",
-                "height",
                 "aspect_ratio",
-                "meta_title",
-                "meta_description",
-                "meta_keywords",
-                "publish_from",
-                "publish_until",
                 "is_active",
                 "is_featured",
                 "is_bestseller",
                 "is_new_arrival",
                 "can_be_customized",
+                "shipping_material",
+                "weight",
+                "length",
+                "width",
+                "height",
                 "is_mobile_optimized",
                 "voice_keywords",
                 "eco_certifications",
@@ -463,6 +471,8 @@ if ie_fields and ForeignKeyWidget and ManyToManyWidget and DateTimeWidget:
                 "recycled_content_percentage",
                 "sustainability_score",
                 "ethical_sourcing_notes",
+                "publish_from",
+                "publish_until",
                 "image_urls",
                 "image_alt_texts",
             )
@@ -931,7 +941,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         "is_active", "is_featured", "is_bestseller", "is_new_arrival",
         StockFilter, PriceRangeFilter, "aspect_ratio", "primary_category"
     )
-    inlines = [ProductImageInline, ProductVariantInline, Product3DAssetInline, ProductMakingOfInline]
+    inlines = [ProductImageEnhancedInline, ProductVariantEnhancedInline, ProductAttributeValueInline, Product3DAssetEnhancedInline, ProductMakingOfInline]
     prepopulated_fields = {"slug": ("name",)}
     date_hierarchy = "created_at"
     list_per_page = 25
@@ -1003,15 +1013,13 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "fields": ("stock_quantity", "low_stock_threshold", "allow_backorder"),
             "description": "Manage inventory levels and tracking."
         }),
-        (_('Publishing'), {
-            "fields": ("publish_from", "publish_until"),
-            "classes": ("collapse",),
-        }),
         (_('Display'), {
             "fields": ("aspect_ratio",),
+            "classes": ("collapse",),
         }),
         (_('Shipping'), {
             "fields": ("weight", "length", "width", "height", "shipping_material"),
+            "classes": ("collapse",),
         }),
         (_('Sustainability'), {
             "fields": (
@@ -1027,15 +1035,29 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             "fields": ("is_mobile_optimized", "voice_keywords"),
             "classes": ("collapse",),
         }),
+        (_('Publishing'), {
+            "fields": ("publish_from", "publish_until"),
+            "classes": ("collapse",),
+        }),
     )
 
     class Media:
         css = {
-            "all": ("css/admin/category_tree_widget.css",),
+            "all": (
+                "css/admin/category_tree_widget.css",
+                "css/admin/variant_manager.css",
+                "css/admin/attribute_manager.css",
+                "css/admin/image_manager.css",
+            ),
         }
         js = (
             "admin/js/vendor/jquery/jquery.min.js",
             "admin/js/jquery.init.js",
+            "https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js",
+            "js/admin/sortable_inlines.js",
+            "js/admin/variant_manager.js",
+            "js/admin/attribute_manager.js",
+            "js/admin/image_manager.js",
             "js/admin/category_tree_widget.js",
             "js/admin/product_image_live_preview.js",
             "js/admin/product_ai_autofill.js",
@@ -1062,6 +1084,22 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
                 "ai/autofill/<uuid:job_id>/feedback/",
                 self.admin_site.admin_view(self.ai_autofill_feedback_view),
                 name="catalog_product_ai_autofill_feedback",
+            ),
+            # Variant management tools
+            path(
+                "<uuid:pk>/variant-generator/",
+                self.admin_site.admin_view(self.variant_generator_view),
+                name="catalog_product_variant_generator",
+            ),
+            path(
+                "<uuid:pk>/bulk-pricing/",
+                self.admin_site.admin_view(self.bulk_pricing_view),
+                name="catalog_product_bulk_pricing",
+            ),
+            path(
+                "api/options/",
+                self.admin_site.admin_view(self.available_options_api),
+                name="catalog_product_options_api",
             ),
         ]
         return custom_urls + super().get_urls()
@@ -1997,6 +2035,197 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
             created += 1
 
         return JsonResponse({"ok": True, "created": created})
+
+    # =========================================================================
+    # Variant Generation and Management Tools
+    # =========================================================================
+
+    def variant_generator_view(self, request, pk):
+        """Tool for generating product variants from option combinations."""
+        from django.db import transaction
+        import itertools
+        
+        product = self.get_object(request, pk)
+        if not product:
+            messages.error(request, "Product not found.")
+            return redirect('admin:catalog_product_change', pk)
+        
+        if request.method == 'POST':
+            try:
+                import json
+                options_data = request.POST.getlist('options')
+                selected_values = request.POST.getlist('option_values')
+                generate_skus = request.POST.get('generate_skus') == 'on'
+                base_price = request.POST.get('base_price')
+                base_stock = request.POST.get('base_stock', 0)
+                
+                # Get selected option values
+                selected_options = {}
+                for ov_id in selected_values:
+                    try:
+                        ov = OptionValue.objects.select_related('option').get(id=ov_id)
+                        if str(ov.option.id) in options_data:
+                            if ov.option.id not in selected_options:
+                                selected_options[ov.option.id] = {'option': ov.option, 'values': []}
+                            selected_options[ov.option.id]['values'].append(ov)
+                    except OptionValue.DoesNotExist:
+                        continue
+                
+                # Generate cartesian product
+                option_lists = [data['values'] for data in selected_options.values()]
+                if not option_lists:
+                    messages.warning(request, "No options selected.")
+                    return redirect('admin:catalog_product_variant_generator', pk=pk)
+                
+                combinations = list(itertools.product(*option_lists))
+                created_count = 0
+                
+                with transaction.atomic():
+                    for combo in combinations:
+                        # Generate SKU
+                        if generate_skus:
+                            parts = [ov.value.replace(' ', '-') for ov in combo]
+                            sku_parts = f"{product.sku or 'PROD'}-{'-'.join(parts)}"
+                            sku = sku_parts[:80].upper()
+                        else:
+                            sku = None
+                        
+                        # Check for existing variant with same options
+                        existing_ids = [ov.id for ov in combo]
+                        existing = ProductVariant.objects.filter(
+                            product=product,
+                            option_values__in=existing_ids
+                        ).distinct()
+                        
+                        skip = False
+                        for ev in existing:
+                            ev_option_ids = set(ev.option_values.values_list('id', flat=True))
+                            if ev_option_ids == set(existing_ids):
+                                skip = True
+                                break
+                        
+                        if skip:
+                            continue
+                        
+                        # Create variant
+                        variant = ProductVariant.objects.create(
+                            product=product,
+                            sku=sku,
+                            price=Decimal(base_price) if base_price else None,
+                            stock_quantity=int(base_stock) if base_stock else 0,
+                            is_default=False
+                        )
+                        
+                        # Assign option values
+                        for ov in combo:
+                            variant.option_values.add(ov)
+                        
+                        created_count += 1
+                
+                messages.success(request, f"Successfully created {created_count} variant(s).")
+                return redirect('admin:catalog_product_change', pk=pk)
+                
+            except Exception as e:
+                logger.error(f"Error generating variants: {e}")
+                messages.error(request, f"Error generating variants: {str(e)}")
+        
+        # Get available options
+        options = Option.objects.prefetch_related('values').all()
+        
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Generate Variants: {product.name}',
+            'product': product,
+            'available_options': options,
+            'opts': self.opts,
+        }
+        
+        return TemplateResponse(
+            request,
+            'admin/catalog/product/tools/variant_generator.html',
+            context
+        )
+
+    def bulk_pricing_view(self, request, pk):
+        """Tool for bulk updating variant pricing."""
+        from decimal import Decimal
+        
+        product = self.get_object(request, pk)
+        if not product:
+            messages.error(request, "Product not found.")
+            return redirect('admin:catalog_product_change', pk)
+        
+        variants = product.variants.all()
+        
+        if request.method == 'POST':
+            try:
+                action = request.POST.get('action')
+                value = Decimal(request.POST.get('value', 0))
+                apply_to_empty_only = request.POST.get('apply_to_empty_only') == 'on'
+                
+                updated = 0
+                
+                for variant in variants:
+                    current_price = variant.price if variant.price is not None else product.price
+                    
+                    if apply_to_empty_only and variant.price is not None:
+                        continue
+                    
+                    if action == 'set_fixed':
+                        new_price = value
+                    elif action == 'increase_percent':
+                        new_price = current_price * (1 + value / 100)
+                    elif action == 'decrease_percent':
+                        new_price = current_price * (1 - value / 100)
+                    elif action == 'increase_fixed':
+                        new_price = current_price + value
+                    elif action == 'decrease_fixed':
+                        new_price = max(Decimal('0'), current_price - value)
+                    else:
+                        continue
+                    
+                    variant.price = round(new_price, 2)
+                    variant.save(update_fields=['price'])
+                    updated += 1
+                
+                messages.success(request, f"Updated pricing for {updated} variant(s).")
+                return redirect('admin:catalog_product_change', pk=pk)
+                
+            except Exception as e:
+                logger.error(f"Error updating pricing: {e}")
+                messages.error(request, f"Error updating pricing: {str(e)}")
+        
+        context = {
+            **self.admin_site.each_context(request),
+            'title': f'Bulk Pricing: {product.name}',
+            'product': product,
+            'variants': variants,
+            'opts': self.opts,
+        }
+        
+        return TemplateResponse(
+            request,
+            'admin/catalog/product/tools/bulk_pricing.html',
+            context
+        )
+
+    def available_options_api(self, request):
+        """API endpoint to get available options for variant generation."""
+        options = Option.objects.prefetch_related('values').all()
+        
+        data = []
+        for option in options:
+            option_data = {
+                'id': str(option.id),
+                'name': option.name,
+                'values': [
+                    {'id': str(val.id), 'value': val.value}
+                    for val in option.values.all()
+                ]
+            }
+            data.append(option_data)
+        
+        return JsonResponse({'options': data})
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(

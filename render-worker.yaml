@@ -6,7 +6,7 @@ services:
     name: Bunoraa-Celery-Worker
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "celery -A core worker -n worker@%h --pool=solo -Q celery,payments,notifications,chat,analytics -l warning --max-tasks-per-child=100"
+    startCommand: "celery -A core worker -n worker@%h --pool=solo -Q celery,payments,notifications,chat,analytics,simple -l warning --max-tasks-per-child=100"
     envVars:
       - key: ENVIRONMENT
         value: "production"
@@ -68,6 +68,8 @@ services:
         value: "https://media.bunoraa.com/"
       - key: REDIS_URL
         sync: false
+      - key: CELERY_REDIS_URL
+        sync: false
       - key: UPSTASH_REDIS_REST_URL
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
@@ -98,12 +100,6 @@ services:
         value: "django.contrib.sessions.backends.cache"
       - key: WS_SESSION_AUTH_ENABLED
         value: "false"
-      - key: CHANNEL_LAYERS_REDIS_URL
-        sync: false
-      - key: CELERY_BROKER_URL
-        sync: false
-      - key: CELERY_RESULT_BACKEND
-        sync: false
       - key: CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP
         value: "true"
       - key: CELERY_BROKER_CONNECTION_MAX_RETRIES
@@ -222,6 +218,8 @@ services:
         value: "https://media.bunoraa.com/"
       - key: REDIS_URL
         sync: false
+      - key: CELERY_REDIS_URL
+        sync: false
       - key: UPSTASH_REDIS_REST_URL
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
@@ -252,12 +250,6 @@ services:
         value: "django.contrib.sessions.backends.cache"
       - key: WS_SESSION_AUTH_ENABLED
         value: "false"
-      - key: CHANNEL_LAYERS_REDIS_URL
-        sync: false
-      - key: CELERY_BROKER_URL
-        sync: false
-      - key: CELERY_RESULT_BACKEND
-        sync: false
       - key: CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP
         value: "true"
       - key: CELERY_BROKER_CONNECTION_MAX_RETRIES

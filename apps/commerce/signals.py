@@ -141,6 +141,43 @@ def on_checkout_session_pre_save(sender, instance, **kwargs):
 # Signal Receivers for External Events
 # =============================================================================
 
+# Signal to merge session cart and wishlist on user login
+merge_session_cart_and_wishlist = Signal()  # sender: User, kwargs: request, session_key
+
+
+@receiver(merge_session_cart_and_wishlist)
+def handle_merge_on_login(sender, user, request, **kwargs):
+    """Merge session cart and wishlist when user logs in."""
+    from .services import CartService, WishlistService
+    
+    session_key = request.session.session_key
+    if not session_key or not user or not user.is_authenticated:
+        return
+    
+    logger.info(f"Merging session data on login for user {user.pk}")
+    
+    # Merge session cart
+    try:
+        cart = CartService.get_or_create_cart(user=user)
+        cart_result = CartService.merge_session_cart(cart, session_key)
+        logger.info(f"Cart merge result: {cart_result}")
+    except Exception as e:
+        logger.exception(f"Failed to merge session cart: {e}")
+    
+    # Merge session wishlist
+    try:
+        wishlist = WishlistService.get_or_create_wishlist(user=user)
+        wishlist_result = WishlistService.merge_session_wishlist(wishlist, session_key)
+        logger.info(f"Wishlist merge result: {wishlist_result}")
+    except Exception as e:
+        logger.exception(f"Failed to merge session wishlist: {e}")
+    
+    # Store merge results in request for access in views
+    request._session_merged = {
+        'cart_merged': cart_result if 'cart_result' in dir() else None,
+        'wishlist_merged': wishlist_result if 'wishlist_result' in dir() else None,
+    }
+
 @receiver(checkout_abandoned)
 def handle_abandoned_checkout(sender, instance, **kwargs):
     """Handle abandoned checkout."""

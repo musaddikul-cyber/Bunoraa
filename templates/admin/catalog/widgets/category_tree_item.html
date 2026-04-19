@@ -1,0 +1,40 @@
+{# Recursive Category Tree Item Template #}
+
+{% load catalog_tags %}
+
+<li class="category-tree-item" data-id="{{ category.id }}" data-parent="{{ category.parent_id|default:'' }}">
+    {% comment %} category is a dict with keys: id, name, parent_id, depth, sort_order, has_children {% endcomment %}
+    <div class="category-tree-content {% if selected == category.id %}selected{% endif %}" style="padding-left: calc({{ level }} * 20px)">
+        {% with children=category|get_children:categories %}
+            {% if children %}
+                <button type="button" class="category-tree-toggle" data-id="{{ category.id }}" aria-label="Toggle">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="transition: transform 0.2s; {% if selected == category.id or forloop.first %}transform: rotate(90deg);{% endif %}">
+                        <path d="M3 1.5L7 5L3 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            {% else %}
+                <span class="category-tree-spacer"></span>
+            {% endif %}
+        {% endwith %}
+        
+        <span class="category-tree-icon">
+            {% if category.has_children %}
+                📁
+            {% else %}
+                📄
+            {% endif %}
+        </span>
+        
+        <span class="category-tree-name" data-id="{{ category.id }}">{{ category.name }}</span>
+    </div>
+    
+    {% with children=category|get_children:categories %}
+        {% if children %}
+            <ul class="category-tree-children" data-parent="{{ category.id }}" style="display: {% if selected == category.id or selected|is_descendant:category %}block{% else %}none{% endif %};">
+                {% for child in children %}
+                    {% include "admin/catalog/widgets/category_tree_item.html" with category=child categories=categories selected=selected level=level|add:1 only %}
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+</li>

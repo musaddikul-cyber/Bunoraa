@@ -60,7 +60,7 @@ if not USE_S3:
 # =============================================================================
 EMAIL_BACKEND = os.environ.get(
     'EMAIL_BACKEND',
-    'django.core.mail.backends.console.EmailBackend',
+    'django.core.mail.backends.smtp.EmailBackend',
 )
 
 # =============================================================================
@@ -142,7 +142,25 @@ def _local_redis_db_url(redis_url: str, db: int) -> str:
 LOCAL_REDIS_URL = os.environ.get('LOCAL_REDIS_URL', 'redis://127.0.0.1:6379/0').strip()
 if not LOCAL_REDIS_URL:
     LOCAL_REDIS_URL = 'redis://127.0.0.1:6379/0'
-REDIS_URL = LOCAL_REDIS_URL
+REDIS_URL = _normalize_rediss_url(
+    (os.environ.get('REDIS_URL') or os.environ.get('LOCAL_SESSION_REDIS_URL') or LOCAL_REDIS_URL).strip()
+)
+SESSION_REDIS_URL = REDIS_URL
+CELERY_REDIS_URL = _normalize_rediss_url(
+    (
+    os.environ.get('CELERY_REDIS_URL')
+    or os.environ.get('LOCAL_CELERY_REDIS_URL')
+    or _local_redis_db_url(LOCAL_REDIS_URL, 1)
+).strip()
+)
+ML_REDIS_URL = _normalize_rediss_url(
+    (
+    os.environ.get('ML_REDIS_URL')
+    or os.environ.get('LOCAL_ML_REDIS_URL')
+    or _local_redis_db_url(LOCAL_REDIS_URL, 2)
+).strip()
+)
+REALTIME_CACHE_ALIAS = os.environ.get('REALTIME_CACHE_ALIAS', 'default')
 
 # =============================================================================
 # CACHE - Redis for Development
@@ -150,7 +168,7 @@ REDIS_URL = LOCAL_REDIS_URL
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': LOCAL_REDIS_URL,
+        'LOCATION': CELERY_REDIS_URL,
         'TIMEOUT': 300,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
@@ -167,17 +185,17 @@ DJANGO_REDIS_IGNORE_EXCEPTIONS = True
 # =============================================================================
 CHANNEL_LAYERS_USE_REDIS = os.environ.get('CHANNEL_LAYERS_USE_REDIS', 'True').lower() in ('1', 'true', 'yes')
 if CHANNEL_LAYERS_USE_REDIS:
-    _channel_layer_redis_url = (
+    CHANNEL_LAYERS_REDIS_URL = (
         os.environ.get('CHANNEL_LAYERS_REDIS_URL')
         or os.environ.get('LOCAL_CHANNEL_LAYERS_REDIS_URL')
-        or _local_redis_db_url(LOCAL_REDIS_URL, 2)
+        or CELERY_REDIS_URL
     )
-    if _channel_layer_redis_url:
+    if CHANNEL_LAYERS_REDIS_URL:
         CHANNEL_LAYERS = {
             'default': {
                 'BACKEND': 'channels_redis.core.RedisChannelLayer',
                 'CONFIG': {
-                    'hosts': [_channel_layer_redis_url],
+                    'hosts': [CHANNEL_LAYERS_REDIS_URL],
                 },
             },
         }
@@ -206,10 +224,10 @@ if CELERY_TASK_ALWAYS_EAGER:
     CELERY_TASK_IGNORE_RESULT = True
     CELERY_TASK_STORE_EAGER_RESULT = False
 else:
-    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', _local_redis_db_url(LOCAL_REDIS_URL, 1))
+    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', CELERY_REDIS_URL)
     CELERY_RESULT_BACKEND = os.environ.get(
         'CELERY_RESULT_BACKEND',
-        _local_redis_db_url(LOCAL_REDIS_URL, 3),
+        CELERY_REDIS_URL,
     )
 
 # =============================================================================

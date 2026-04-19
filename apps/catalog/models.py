@@ -666,6 +666,17 @@ class Product(TimeStampedMixin):
             models.Index(fields=["sales_count"]),
             models.Index(fields=["is_ar_compatible"]),
             models.Index(fields=["sustainability_score"]),
+            # Composite indexes for common query patterns
+            models.Index(fields=["is_active", "is_deleted", "-created_at"], name="catalog_prod_active_created"),
+            models.Index(fields=["is_active", "is_featured", "-created_at"], name="catalog_prod_featured"),
+            models.Index(fields=["is_active", "is_bestseller", "-sales_count"], name="catalog_prod_bestseller"),
+            models.Index(fields=["is_active", "is_new_arrival", "-created_at"], name="catalog_prod_new_arrival"),
+            models.Index(fields=["primary_category", "is_active", "is_deleted", "-created_at"], name="catalog_prod_category"),
+            models.Index(fields=["sku"]),
+            models.Index(fields=["name"]),
+            models.Index(fields=["-views_count"], name="catalog_prod_popular"),
+            models.Index(fields=["-sales_count"], name="catalog_prod_top_selling"),
+            models.Index(fields=["average_rating", "reviews_count"], name="catalog_prod_rating"),
         ]
 
     def __str__(self):

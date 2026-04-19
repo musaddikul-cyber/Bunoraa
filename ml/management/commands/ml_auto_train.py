@@ -18,6 +18,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 from django.utils import timezone
 
+from ml.redis import get_ml_redis_url
+
 logger = logging.getLogger("bunoraa.ml.commands")
 
 
@@ -206,7 +208,7 @@ class Command(BaseCommand):
         try:
             import redis
             
-            redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+            redis_url = get_ml_redis_url()
             r = redis.from_url(redis_url)
             
             entries = r.lrange('ml:training_log', 0, limit - 1)
@@ -245,7 +247,7 @@ class Command(BaseCommand):
         import redis
         
         try:
-            redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+            redis_url = get_ml_redis_url()
             r = redis.from_url(redis_url)
             
             if enable:

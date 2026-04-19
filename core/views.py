@@ -118,10 +118,26 @@ def check_cache():
 
 
 def check_redis():
-    """Check Redis connectivity (for Celery/Channels)."""
-    redis_url = getattr(settings, 'CELERY_BROKER_URL', None)
+    """Check all configured Redis backends."""
+    redis_targets = {
+        'cache_celery': getattr(settings, 'CELERY_REDIS_URL', None) or getattr(settings, 'CELERY_BROKER_URL', None),
+        'sessions': getattr(settings, 'SESSION_REDIS_URL', None) or getattr(settings, 'REDIS_URL', None),
+    }
 
-    if not redis_url:
+    channel_backend = (
+        getattr(settings, 'CHANNEL_LAYERS', {})
+        .get('default', {})
+        .get('BACKEND', '')
+    )
+    if channel_backend == 'channels_redis.core.RedisChannelLayer':
+        redis_targets['channels'] = getattr(settings, 'CHANNEL_LAYERS_REDIS_URL', None)
+
+    if getattr(settings, 'ML_ENABLED', False):
+        redis_targets['ml'] = getattr(settings, 'ML_REDIS_URL', None)
+
+    redis_targets = {name: url for name, url in redis_targets.items() if url}
+
+    if not redis_targets:
         return {'status': 'skipped', 'reason': 'Redis not configured'}
 
     try:
@@ -129,25 +145,44 @@ def check_redis():
     except Exception:
         return {'status': 'skipped', 'reason': 'Redis library not installed'}
 
-    try:
-        start = time.time()
-        r = redis.from_url(redis_url)
-        r.ping()
-        latency = round((time.time() - start) * 1000, 2)
+    results = {}
+    overall_status = 'ok'
 
-        info = r.info()
-        return {
-            'status': 'ok',
-            'latency_ms': latency,
-            'version': info.get('redis_version'),
-            'connected_clients': info.get('connected_clients'),
-            'used_memory_human': info.get('used_memory_human')
-        }
-    except Exception as e:
-        return {
-            'status': 'error',
-            'error': str(e)
-        }
+    for name, redis_url in redis_targets.items():
+        try:
+            start = time.time()
+            r = redis.from_url(redis_url)
+            r.ping()
+            latency = round((time.time() - start) * 1000, 2)
+
+            details = {
+                'status': 'ok',
+                'latency_ms': latency,
+            }
+
+            try:
+                info = r.info()
+                details.update({
+                    'version': info.get('redis_version'),
+                    'connected_clients': info.get('connected_clients'),
+                    'used_memory_human': info.get('used_memory_human'),
+                })
+            except Exception:
+                # Some managed Redis providers restrict INFO; ping success is enough for health.
+                pass
+
+            results[name] = details
+        except Exception as e:
+            overall_status = 'error'
+            results[name] = {
+                'status': 'error',
+                'error': str(e),
+            }
+
+    return {
+        'status': overall_status,
+        'targets': results,
+    }
 
 
 def check_upstash_rest():
@@ -223,3 +258,64 @@ def liveness_check(request):
         'alive': True,
         'timestamp': time.time()
     })
+
+
+# =============================================================================
+# CUSTOM ERROR HANDLERS
+# =============================================================================
+
+def custom_404_view(request, exception=None):
+    """
+    Custom 404 error handler.
+    Returns JSON for API requests, HTML for browser requests.
+    """
+    accept_header = request.headers.get('Accept', '')
+    is_json_request = 'application/json' in accept_header or request.path.startswith('/api/')
+    
+    if is_json_request:
+        return JsonResponse({
+            'error': 'Not Found',
+            'message': 'The requested resource was not found.',
+            'path': request.path,
+            'status_code': 404
+        }, status=404)
+    
+    # For browser requests, render custom 404 template
+    from django.shortcuts import render
+    return render(request, '404.html', {
+        'request_path': request.path,
+        'page_title': 'Page Not Found - Bunoraa'
+    }, status=404)
+
+
+def custom_500_view(request):
+    """
+    Custom 500 error handler.
+    Returns JSON for API requests, HTML for browser requests.
+    """
+    import logging
+    logger = logging.getLogger('bunoraa.errors')
+    
+    # Log the error with request details
+    logger.error(
+        f"500 Error - Path: {request.path}, Method: {request.method}, "
+        f"User: {request.user if hasattr(request, 'user') else 'Anonymous'}"
+    )
+    
+    accept_header = request.headers.get('Accept', '')
+    is_json_request = 'application/json' in accept_header or request.path.startswith('/api/')
+    
+    if is_json_request:
+        return JsonResponse({
+            'error': 'Internal Server Error',
+            'message': 'An unexpected error occurred. Our team has been notified.',
+            'status_code': 500,
+            'reference': f"ERR-{int(time.time())}"
+        }, status=500)
+    
+    # For browser requests, render custom 500 template
+    from django.shortcuts import render
+    return render(request, '500.html', {
+        'page_title': 'Server Error - Bunoraa',
+        'error_reference': f"ERR-{int(time.time())}"
+    }, status=500)

@@ -319,22 +319,39 @@ class CartSettings(models.Model):
 # =============================================================================
 
 class Wishlist(models.Model):
-    """User's wishlist container."""
+    """User's or session's wishlist container."""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='commerce_wishlist'
     )
+    session_key = models.CharField(max_length=40, blank=True, null=True, db_index=True)
+    
+    # Anonymous user info for display
+    anonymous_name = models.CharField(max_length=100, blank=True, help_text="Name for anonymous wishlist owner")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    expires_at = models.DateTimeField(null=True, blank=True, help_text="Session wishlist expiry")
     
     class Meta:
         ordering = ['-updated_at']
+        constraints = [
+            models.CheckConstraint(
+                check=(models.Q(user__isnull=False, session_key__exact='') | 
+                       models.Q(user__isnull=True, session_key__isnull=False)),
+                name='wishlist_user_or_session'
+            ),
+        ]
     
     def __str__(self):
-        return f"Wishlist for {self.user.email}"
+        if self.user:
+            return f"Wishlist for {self.user.email}"
+        return f"Guest Wishlist {self.session_key}"
     
     @property
     def item_count(self):
@@ -347,6 +364,29 @@ class Wishlist(models.Model):
             item.product.current_price
             for item in self.items.filter(product__is_active=True)
         )
+    
+    def merge_from_session(self, session_wishlist):
+        """Merge items from a session wishlist into this user wishlist."""
+        for item in session_wishlist.items.all():
+            existing_item = self.items.filter(
+                product=item.product,
+                variant=item.variant
+            ).first()
+            
+            if existing_item:
+                # Update priority if incoming is higher
+                if item.priority > existing_item.priority:
+                    existing_item.priority = item.priority
+                # Add notes if exists
+                if item.notes and not existing_item.notes:
+                    existing_item.notes = item.notes
+                existing_item.save()
+            else:
+                # Move item to user wishlist
+                item.wishlist = self
+                item.save()
+        
+        session_wishlist.delete()
 
 
 class WishlistItem(models.Model):

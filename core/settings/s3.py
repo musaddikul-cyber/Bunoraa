@@ -134,7 +134,7 @@ if not os.environ.get('MEDIA_URL') and not globals().get('MEDIA_URL'):
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Optionally set email backend for local
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
 # Ensure registration/verification emails are delivered in debug even when
 # background workers are not running.
 if DEBUG:
@@ -211,24 +211,39 @@ if _pg_options:
 # Enforce env-driven ORM read/write access in s3 settings.
 DATABASE_ROUTERS = ['core.db_router.EnvDatabaseAccessRouter']
 
-# Redis-backed services always use REDIS_URL in core.settings.s3.
+# Redis-backed services in s3 settings:
+# - CELERY_REDIS_URL: Celery broker/results, default cache, channels
+# - REDIS_URL: sessions and lightweight realtime state
 REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL', '').strip())
-if not REDIS_URL:
-    raise ValueError("REDIS_URL must be set in core.settings.s3")
+CELERY_REDIS_URL = _normalize_rediss_url(
+    (
+        os.environ.get('CELERY_REDIS_URL')
+        or os.environ.get('CELERY_BROKER_URL')
+        or REDIS_URL
+        or ''
+    ).strip()
+)
+SESSION_REDIS_URL = REDIS_URL or CELERY_REDIS_URL
+if not SESSION_REDIS_URL:
+    raise ValueError("REDIS_URL or CELERY_REDIS_URL must be set in core.settings.s3")
 
-# Upstash REST (optional)
-UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip()
-UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
 
 CHANNEL_LAYERS_USE_REDIS = _env_bool('CHANNEL_LAYERS_USE_REDIS', not DEBUG)
-channel_layers_redis_url = None
+CHANNEL_LAYERS_REDIS_URL = None
 if CHANNEL_LAYERS_USE_REDIS:
-    channel_layers_redis_url = _normalize_rediss_url(
-        os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2)).strip()
+    CHANNEL_LAYERS_REDIS_URL = _normalize_rediss_url(
+        (os.environ.get('CHANNEL_LAYERS_REDIS_URL') or CELERY_REDIS_URL or '').strip()
     )
+ML_REDIS_URL = _normalize_rediss_url(
+    (globals().get('ML_REDIS_URL') or os.environ.get('ML_REDIS_URL') or '').strip()
+)
 
-CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', _redis_db_url(REDIS_URL, 1)).strip())
-CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', _redis_db_url(REDIS_URL, 3)).strip())
+CELERY_BROKER_URL = _normalize_rediss_url(
+    (os.environ.get('CELERY_BROKER_URL') or CELERY_REDIS_URL or SESSION_REDIS_URL).strip()
+)
+CELERY_RESULT_BACKEND = _normalize_rediss_url(
+    (os.environ.get('CELERY_RESULT_BACKEND') or CELERY_REDIS_URL or SESSION_REDIS_URL).strip()
+)
 
 _session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKIE_AGE)
 REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 10)
@@ -280,12 +295,14 @@ def _socket_keepalive_options() -> dict[int, int] | None:
 
 
 _redis_keepalive_options = _socket_keepalive_options()
+_default_cache_url = CELERY_REDIS_URL or SESSION_REDIS_URL
+_session_cache_url = SESSION_REDIS_URL or _default_cache_url
 
 
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': REDIS_URL,
+        'LOCATION': _default_cache_url,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_CLASS': _redis_pool_class,
@@ -302,7 +319,7 @@ CACHES = {
     },
     'sessions': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': _redis_db_url(REDIS_URL, 1),
+        'LOCATION': _session_cache_url,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_CLASS': _redis_pool_class,
@@ -319,14 +336,14 @@ CACHES = {
     }
 }
 
-if CHANNEL_LAYERS_USE_REDIS and channel_layers_redis_url:
+if CHANNEL_LAYERS_USE_REDIS and CHANNEL_LAYERS_REDIS_URL:
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
                 'hosts': [
                     {
-                        'address': channel_layers_redis_url,
+                        'address': CHANNEL_LAYERS_REDIS_URL,
                         'socket_connect_timeout': REDIS_SOCKET_CONNECT_TIMEOUT,
                         'socket_timeout': REDIS_SOCKET_TIMEOUT,
                         'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
@@ -350,11 +367,12 @@ SESSION_ENGINE = os.environ.get('SESSION_ENGINE')
 if not SESSION_ENGINE:
     SESSION_ENGINE = (
         'django.contrib.sessions.backends.cache'
-        if REDIS_URL
+        if _session_cache_url
         else 'django.contrib.sessions.backends.cached_db'
     )
 SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
 SESSION_CACHE_ALIAS = 'sessions'
+REALTIME_CACHE_ALIAS = os.environ.get('REALTIME_CACHE_ALIAS', 'sessions')
 
 # =============================================================================
 # CELERY - Tuned defaults for local S3 settings

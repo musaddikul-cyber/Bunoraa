@@ -22,6 +22,8 @@ import json
 from django.conf import settings
 from django.utils import timezone
 
+from ml.redis import get_ml_redis_url
+
 logger = logging.getLogger("bunoraa.ml.auto_training")
 
 
@@ -138,7 +140,7 @@ class AutoTrainingManager:
         """Lazy load Redis connection."""
         if self._redis is None:
             import redis
-            redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+            redis_url = get_ml_redis_url()
             self._redis = redis.from_url(redis_url)
         return self._redis
     

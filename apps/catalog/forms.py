@@ -1,7 +1,7 @@
 from django import forms
 from django.conf import settings
 from django.contrib import admin
-from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
+from django.contrib.admin.widgets import RelatedFieldWidgetWrapper, FilteredSelectMultiple
 from django.db import models
 from django.db.models import Q
 from django.forms.utils import flatatt
@@ -15,6 +15,89 @@ from .models import (
     Product,
     get_active_aspect_ratio_choices,
 )
+
+
+# =============================================================================
+# ENHANCED CATEGORY TREE WIDGET
+# =============================================================================
+
+class PrimaryCategoryTreeWidget(forms.Select):
+    """
+    Enhanced tree widget for primary category selection.
+    Shows GitHub-style expandable tree with search and filtering.
+    """
+    
+    template_name = 'admin/catalog/widgets/primary_category_tree.html'
+    
+    def __init__(self, attrs=None, choices=()):
+        super().__init__(attrs)
+        self.choices = list(choices)
+    
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        
+        # Get all categories for tree building
+        categories = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
+        
+        categories_list = [
+            {
+                'id': str(cat.id),
+                'name': cat.name,
+                'parent_id': str(cat.parent_id) if cat.parent_id else None,
+                'depth': cat.depth,
+                'sort_order': getattr(cat, 'sort_order', 0),
+                'has_children': bool(cat.get_children_count() if hasattr(cat, 'get_children_count') else True),
+            }
+            for cat in categories
+        ]
+        
+        # Add reference to categories list for is_descendant filter
+        for cat in categories_list:
+            cat['_categories'] = categories_list
+        
+        context['widget']['categories'] = categories_list
+        context['widget']['selected_value'] = str(value) if value else None
+        
+        return context
+
+
+class CategoriesFilteredWidget(forms.SelectMultiple):
+    """
+    Multi-select widget for categories that filters based on primary category.
+    Shows tree structure with checkboxes.
+    """
+    
+    template_name = 'admin/catalog/widgets/categories_filtered.html'
+    
+    def __init__(self, attrs=None, choices=()):
+        super().__init__(attrs)
+        self.choices = list(choices)
+    
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        
+        # Get all categories for tree building
+        categories = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
+        
+        categories_list = [
+            {
+                'id': str(cat.id),
+                'name': cat.name,
+                'parent_id': str(cat.parent_id) if cat.parent_id else None,
+                'depth': cat.depth,
+                'sort_order': getattr(cat, 'sort_order', 0),
+            }
+            for cat in categories
+        ]
+        
+        # Add reference to categories list for is_descendant filter
+        for cat in categories_list:
+            cat['_categories'] = categories_list
+        
+        context['widget']['categories'] = categories_list
+        context['widget']['selected_values'] = [str(v) for v in value] if value else []
+        
+        return context
 
 
 def _dynamic_aspect_choices(current_code: str | None = None):
@@ -31,53 +114,87 @@ _ASPECT_RATIO_REL = models.ForeignKey(
     related_name="+",
 ).remote_field
 
-class CategoryTreeWidget(forms.Widget):
-    def render(self, name, value, attrs=None, renderer=None):
-        """
-        Renders the widget as HTML, bypassing the template system.
-        """
-        # Get all categories to build the tree
-        categories = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
-        
-        # Build the source list for the JS to consume
-        source_lis = ""
-        for category in categories:
-            parent_id = category.parent_id if category.parent_id else ''
-            source_lis += (
-                f'<li data-id="{category.id}" data-parent-id="{parent_id}" '
-                f'data-depth="{category.depth}">{conditional_escape(category.name)}</li>'
-            )
 
-        # The main HTML structure for the widget
-        attrs_str = flatatt(self.build_attrs(attrs))
-        html = f"""
-        <div class="category-tree-widget-container">
-            <input type="hidden" name="{name}" id="id_{name}" value="{value if value is not None else ''}"{attrs_str}>
-            <div class="category-tree-wrapper">
-                <ul class="category-tree-source" hidden>
-                    {source_lis}
-                </ul>
-                <div class="category-tree-display"></div>
-            </div>
-        </div>
-        """
-        return mark_safe(html)
+class CategoryDropdownWidget(forms.Select):
+    """
+    Modern category dropdown with drill-down navigation.
+    Features: Search, breadcrumbs, hierarchical browsing, dark mode support.
+    """
+    template_name = 'admin/catalog/widgets/category_dropdown.html'
 
-def _should_use_category_tree_widget() -> bool:
-    enabled = getattr(settings, "ADMIN_CATEGORY_TREE_WIDGET_ENABLED", False)
-    if not enabled:
-        return False
+    def __init__(self, attrs=None, choices=()):
+        super().__init__(attrs)
+        self.choices = list(choices)
 
-    max_count = int(getattr(settings, "ADMIN_CATEGORY_TREE_WIDGET_MAX", 0) or 0)
-    if max_count <= 0:
-        return True
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
 
-    try:
-        count = Category.objects.all_with_deleted().filter(is_deleted=False).count()
-    except Exception:
-        return False
+        # Normalize value - handle various invalid inputs
+        if isinstance(value, list):
+            value = value[0] if value else None
+        # Handle string representations of lists
+        if isinstance(value, str):
+            if value.startswith('[') and value.endswith(']'):
+                # Try to parse as list
+                try:
+                    import ast
+                    parsed = ast.literal_eval(value)
+                    if isinstance(parsed, list) and parsed:
+                        value = parsed[0]
+                    else:
+                        value = None
+                except (ValueError, SyntaxError):
+                    value = None
+            # Handle empty or invalid strings
+            if value in ('', "''", '""', 'None', 'null', '[]'):
+                value = None
 
-    return count <= max_count
+        # Get all categories for the tree
+        try:
+            categories = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
+        except Exception:
+            categories = Category.objects.filter(is_deleted=False).order_by('path')
+
+        # Build hierarchical data structure for JavaScript
+        categories_list = []
+        root_categories = []
+
+        for cat in categories:
+            try:
+                has_children = categories.filter(parent_id=cat.id).exists()
+                cat_data = {
+                    'id': str(cat.id),
+                    'name': cat.name,
+                    'parent_id': str(cat.parent_id) if cat.parent_id else None,
+                    'depth': getattr(cat, 'depth', 0),
+                    'has_children': has_children,
+                    'path': getattr(cat, 'path', '') or str(cat.id),
+                }
+                categories_list.append(cat_data)
+
+                if not cat.parent_id:
+                    root_categories.append(cat_data)
+            except Exception:
+                # Skip problematic categories
+                continue
+
+        import json
+
+        # Ensure context has widget dict
+        if 'widget' not in context:
+            context['widget'] = {}
+
+        context['widget']['categories_json'] = json.dumps(categories_list)
+        context['widget']['root_categories'] = root_categories
+        context['widget']['selected_value'] = str(value) if value else None
+
+        # Get selected category name
+        if value:
+            selected_cat = categories.filter(id=value).first()
+            if selected_cat:
+                context['widget']['selected_name'] = selected_cat.name
+
+        return context
 
 
 class ProductAdminForm(forms.ModelForm):
@@ -101,13 +218,36 @@ class ProductAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         request = kwargs.pop("request", None)
         super().__init__(*args, **kwargs)
+
+        # Get categories for queryset
         categories_qs = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
-        if "categories" in self.fields:
-            self.fields['categories'].queryset = categories_qs
-            self.fields['categories'].required = False
+
+        # Configure Facebook-style primary category dropdown
         if "primary_category" in self.fields:
             self.fields["primary_category"].queryset = categories_qs
             self.fields["primary_category"].required = True
+            # Use modern dropdown widget
+            self.fields["primary_category"].widget = CategoryDropdownWidget()
+        
+        # Configure enhanced categories widget
+        if "categories" in self.fields:
+            self.fields['categories'].queryset = categories_qs
+            self.fields['categories'].required = False
+            # Use custom widget with tree structure  
+            self.fields['categories'].widget = CategoriesFilteredWidget()
+
+        # Configure tags widget
+        if "tags" in self.fields:
+            from .models import Tag
+            self.fields['tags'].queryset = Tag.objects.all()
+            self.fields['tags'].required = False
+            # Use select2-style widget or simple select multiple
+            self.fields['tags'].widget.attrs.update({
+                'class': 'select2-tags',
+                'style': 'min-width: 300px;',
+                'data-placeholder': 'Select tags...'
+            })
+
         currencies = I18nCurrency.objects.order_by('sort_order', 'code')
         self.fields['currency'].queryset = currencies
         current_aspect = (

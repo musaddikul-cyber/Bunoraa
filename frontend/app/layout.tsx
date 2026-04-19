@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers/Providers";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { SkipToContent } from "@/components/layout/SkipToContent";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { DEFAULT_OG_IMAGE_PATH, SITE_NAME, SITE_URL, absoluteUrl, cleanObject } from "@/lib/seo";
 import Script from "next/script";
@@ -173,12 +174,10 @@ export default function RootLayout({
         <Script id="theme-bootstrap" strategy="beforeInteractive">
           {themeBootstrapScript}
         </Script>
-        <a href="#main-content" className="skip-link">
-          Skip to main content
-        </a>
+        <SkipToContent />
         <Providers>
           <Header />
-          <main id="main-content" className="min-h-[70vh]">
+          <main id="main-content" className="min-h-[70vh]" role="main" aria-label="Main content">
             {children}
           </main>
           <Footer />

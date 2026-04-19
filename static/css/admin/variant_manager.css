@@ -1,0 +1,635 @@
+/**
+ * Variant Manager Styles
+ * Enhanced styling for product variant management
+ */
+
+/* ==========================================================================
+   Section Header
+   ========================================================================== */
+
+.variant-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #e2e8f0;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.variant-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.variant-icon {
+    font-size: 20px;
+}
+
+/* Tools Bar */
+.variant-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.variant-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.variant-tool-btn:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.variant-tool-btn span {
+    font-size: 14px;
+}
+
+.variant-count {
+    font-size: 12px;
+    color: #6b7280;
+    padding: 4px 10px;
+    background: #e5e7eb;
+    border-radius: 12px;
+    margin-left: 8px;
+}
+
+/* ==========================================================================
+   Generator Panel
+   ========================================================================== */
+
+.variant-generator-panel,
+.bulk-pricing-panel {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    padding: 20px;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.panel-header h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.panel-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    line-height: 1;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.panel-close:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.panel-description {
+    color: #64748b;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+/* Option Selector */
+.option-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.option-group {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.option-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.option-group-title input[type="checkbox"] {
+    margin: 0;
+}
+
+.option-values {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 24px;
+}
+
+.option-value-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #4b5563;
+    cursor: pointer;
+}
+
+.option-value-label:hover {
+    color: #1e293b;
+}
+
+.option-value-label input[type="checkbox"] {
+    margin: 0;
+}
+
+.no-options {
+    color: #6b7280;
+    font-style: italic;
+    padding: 20px;
+    text-align: center;
+    background: #f9fafb;
+    border-radius: 6px;
+}
+
+/* Generator Actions */
+.generator-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.generate-btn {
+    background: #3b82f6 !important;
+    color: white !important;
+    padding: 8px 20px !important;
+    font-weight: 500 !important;
+}
+
+.generate-btn:hover {
+    background: #2563eb !important;
+}
+
+.generate-btn:disabled {
+    background: #9ca3af !important;
+    cursor: not-allowed;
+}
+
+.generator-status {
+    color: #6b7280;
+    font-size: 13px;
+    font-style: italic;
+}
+
+/* ==========================================================================
+   Bulk Pricing Panel
+   ========================================================================== */
+
+.pricing-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.pricing-row:last-child {
+    border-bottom: none;
+}
+
+.pricing-row label {
+    min-width: 160px;
+    font-size: 13px;
+    color: #374151;
+}
+
+.pricing-row input[type="number"] {
+    width: 120px;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.pricing-row .button {
+    padding: 6px 14px;
+    font-size: 12px;
+}
+
+/* ==========================================================================
+   Variant Table
+   ========================================================================== */
+
+.variant-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+}
+
+.variant-table thead th {
+    background: #f8fafc;
+    padding: 10px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.variant-table tbody td {
+    padding: 10px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+.variant-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.variant-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Drag Handle Column */
+.drag-col {
+    width: 32px;
+    text-align: center;
+}
+
+.drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    cursor: grab;
+    color: #9ca3af;
+    font-size: 14px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.drag-handle:hover {
+    background: #e5e7eb;
+    color: #4b5563;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.sortable-enabled tr.ui-sortable-helper,
+.sortable-enabled tr.sortable-drag {
+    background: #fff !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    opacity: 0.9;
+}
+
+.sortable-ghost {
+    opacity: 0.4;
+    background: #f0f9ff !important;
+}
+
+/* ==========================================================================
+   Field Columns
+   ========================================================================== */
+
+/* SKU Field */
+.field-sku input {
+    width: 100px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+/* Price Fields */
+.field-price input,
+.field-sale_price input {
+    width: 80px;
+    text-align: right;
+}
+
+/* Stock Field */
+.field-stock_quantity input {
+    width: 70px;
+    text-align: center;
+}
+
+/* Option Values Select */
+.field-option_values_field select {
+    min-width: 160px;
+    min-height: 60px;
+}
+
+/* ==========================================================================
+   Status Badges
+   ========================================================================== */
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-badge .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-badge.in-stock {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.in-stock .status-dot {
+    background: #22c55e;
+}
+
+.status-badge.low-stock {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-badge.low-stock .status-dot {
+    background: #f59e0b;
+}
+
+.status-badge.out-of-stock {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-badge.out-of-stock .status-dot {
+    background: #ef4444;
+}
+
+/* ==========================================================================
+   Variant Preview
+   ========================================================================== */
+
+.field-variant_preview .variant-options {
+    display: inline-block;
+    padding: 4px 8px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #475569;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.field-variant_preview .variant-no-options {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+/* ==========================================================================
+   Add Variant Button
+   ========================================================================== */
+
+.add-variant-row {
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+}
+
+.add-variant-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #3b82f6;
+    color: white !important;
+    text-decoration: none !important;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.add-variant-link:hover {
+    background: #2563eb;
+}
+
+.add-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* ==========================================================================
+   Delete Column
+   ========================================================================== */
+
+.column-delete,
+.field-delete {
+    width: 60px;
+    text-align: center;
+}
+
+.column-delete input[type="checkbox"] {
+    margin: 0;
+}
+
+/* ==========================================================================
+   Is Default Checkbox
+   ========================================================================== */
+
+.field-is_default {
+    text-align: center;
+}
+
+.field-is_default input[type="checkbox"] {
+    margin: 0;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* ==========================================================================
+   Row Errors
+   ========================================================================== */
+
+.row-errors td {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+.row-errors ul.errorlist {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* ==========================================================================
+   Field Errors
+   ========================================================================== */
+
+td.errors {
+    background: #fef2f2;
+}
+
+td.errors input,
+td.errors select {
+    border-color: #ef4444;
+}
+
+td.errors .errorlist {
+    color: #dc2626;
+    font-size: 11px;
+    margin: 4px 0 0 0;
+}
+
+/* ==========================================================================
+   Notifications
+   ========================================================================== */
+
+.variant-notification {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    padding: 12px 20px;
+    background: #333;
+    color: white;
+    border-radius: 6px;
+    z-index: 9999;
+    animation: slideInRight 0.3s ease;
+    font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.variant-notification.success {
+    background: #16a34a;
+}
+
+.variant-notification.error {
+    background: #dc2626;
+}
+
+.variant-notification.info {
+    background: #3b82f6;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ==========================================================================
+   Responsive Adjustments
+   ========================================================================== */
+
+@media (max-width: 1200px) {
+    .variant-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .variant-tools {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    
+    .option-selector {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   Django Admin Compatibility
+   ========================================================================== */
+
+.inline-group .tabular {
+    background: transparent;
+    border: none;
+}
+
+.inline-related {
+    margin-bottom: 30px;
+}
+
+.inline-related h3 {
+    margin: 0;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px 8px 0 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+}
+
+/* Empty form hidden by default */
+tr.empty-form {
+    display: none;
+}
+
+/* Hide default Django add button when using custom */
+.variant-group + .add-row {
+    display: none;
+}

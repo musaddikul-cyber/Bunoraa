@@ -1,6 +1,9 @@
 """
 Celery Configuration for Bunoraa
-Production-ready task queue with scheduled backups and maintenance.
+Redis mapping:
+- CELERY_REDIS_URL: Celery broker/results, default cache, channels
+- ML_REDIS_URL: ML feature store and training state
+- REDIS_URL: sessions and lightweight realtime state
 """
 import os
 import logging
@@ -14,6 +17,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 
 
 def _normalize_rediss_url(url: str) -> str:
+    """Normalize rediss URLs for Celery/Socket library compatibility."""
     if not url:
         return url
     parsed = urlparse(url)
@@ -26,27 +30,90 @@ def _normalize_rediss_url(url: str) -> str:
     return url
 
 
+# =============================================================================
+# MULTI-REDIS CONFIGURATION
+# Aiven (1GB)      -> Celery broker/results, default cache, channels
+# Upstash (200MB)  -> ML workloads and feature/state storage
+# Render (25MB)    -> Sessions and lightweight realtime state
+# =============================================================================
+
 _settings_module = os.environ.get('DJANGO_SETTINGS_MODULE', '')
 if _settings_module.endswith('.local'):
-    # Local eager mode should not depend on external Redis availability.
+    # Local eager mode - no external Redis needed
     os.environ['CELERY_BROKER_URL'] = 'memory://'
     os.environ['CELERY_RESULT_BACKEND'] = 'cache+memory://'
+    os.environ['ML_BROKER_URL'] = 'memory://'
+    os.environ['ML_RESULT_BACKEND'] = 'cache+memory://'
 else:
-    for _env_key in ('CELERY_BROKER_URL', 'CELERY_RESULT_BACKEND', 'BROKER_URL', 'RESULT_BACKEND'):
+    # Normalize all Redis URLs for SSL compatibility
+    redis_env_keys = [
+        'CELERY_REDIS_URL', 'ML_REDIS_URL', 'REDIS_URL'
+    ]
+    for _env_key in redis_env_keys:
         _env_value = os.environ.get(_env_key)
         if _env_value:
             os.environ[_env_key] = _normalize_rediss_url(_env_value)
+
+    # Derive Celery broker/result from the primary Celery Redis when no explicit override exists.
+    _celery_redis_url = os.environ.get('CELERY_REDIS_URL', '')
+    if _celery_redis_url:
+        os.environ.setdefault('CELERY_BROKER_URL', _celery_redis_url)
+        os.environ.setdefault('CELERY_RESULT_BACKEND', _celery_redis_url)
 
 app = Celery('bunoraa')
 logger = logging.getLogger('bunoraa.celery')
 
 # Load config from Django settings
 app.config_from_object('django.conf:settings', namespace='CELERY')
-_broker_url = getattr(settings, 'CELERY_BROKER_URL', app.conf.broker_url)
-_result_backend = getattr(settings, 'CELERY_RESULT_BACKEND', app.conf.result_backend)
+
+# Determine broker URLs, preferring explicit env overrides but falling back to Django settings.
+_broker_url = (
+    os.environ.get('CELERY_BROKER_URL')
+    or os.environ.get('CELERY_REDIS_URL')
+    or getattr(settings, 'CELERY_BROKER_URL', '')
+)
+_result_backend = (
+    os.environ.get('CELERY_RESULT_BACKEND')
+    or os.environ.get('CELERY_REDIS_URL')
+    or getattr(settings, 'CELERY_RESULT_BACKEND', '')
+)
+
 app.conf.update(
-    broker_url=_normalize_rediss_url(_broker_url) if _broker_url else _broker_url,
-    result_backend=_normalize_rediss_url(_result_backend) if _result_backend else _result_backend,
+    broker_url=_normalize_rediss_url(_broker_url) if _broker_url else app.conf.broker_url,
+    result_backend=_normalize_rediss_url(_result_backend) if _result_backend else app.conf.result_backend,
+    
+    # Transport tuning for Redis-backed queues
+    broker_transport_options={
+        'visibility_timeout': 43200,  # 12 hours
+        'queue_order_strategy': 'priority',
+    },
+    
+    # Task routing for workload-specific queues on the primary broker.
+    task_routes={
+        # ML tasks -> ML queues
+        'ml.tasks.*': {'queue': 'ml', 'exchange': 'ml'},
+        'ml.services.*': {'queue': 'ml', 'exchange': 'ml'},
+        'core.tasks.recommend_*': {'queue': 'ml', 'exchange': 'ml'},
+        
+        # Simple/quick tasks -> simple queues
+        'core.tasks.send_*': {'queue': 'simple', 'exchange': 'simple'},
+        'notifications.tasks.*': {'queue': 'simple', 'exchange': 'simple'},
+        'chat.tasks.*': {'queue': 'simple', 'exchange': 'simple'},
+        
+        # Heavy computation -> compute queues
+        'core.tasks.aggregate_*': {'queue': 'compute', 'exchange': 'compute'},
+        'analytics.tasks.*': {'queue': 'compute', 'exchange': 'compute'},
+        'ml.tasks.train_*': {'queue': 'compute', 'exchange': 'compute'},
+        
+        # Default -> primary Celery queue
+        '*': {'queue': 'celery', 'exchange': 'celery'},
+    },
+    
+    # Worker configurations per queue
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    
     task_always_eager=getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', app.conf.task_always_eager),
     task_eager_propagates=getattr(settings, 'CELERY_TASK_EAGER_PROPAGATES', app.conf.task_eager_propagates),
     task_ignore_result=getattr(settings, 'CELERY_TASK_IGNORE_RESULT', app.conf.task_ignore_result),

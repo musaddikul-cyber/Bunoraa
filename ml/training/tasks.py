@@ -11,6 +11,8 @@ from pathlib import Path
 
 from django.utils import timezone
 
+from ml.redis import get_ml_redis_url
+
 try:
     from celery import shared_task
     CELERY_AVAILABLE = True
@@ -875,7 +877,7 @@ def process_training_queues():
         from django.conf import settings
         import json
         
-        redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+        redis_url = get_ml_redis_url()
         r = redis.from_url(redis_url)
         
         # Check for pending training jobs
@@ -920,7 +922,7 @@ def cleanup_old_data():
         from django.conf import settings
         from datetime import timedelta
         
-        redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+        redis_url = get_ml_redis_url()
         r = redis.from_url(redis_url)
         
         # Clean old interactions (older than 90 days)

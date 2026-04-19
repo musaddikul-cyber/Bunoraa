@@ -27,7 +27,7 @@ jobs:
           - target_name: bunoraa-web
             target_url: https://bunoraa.com
           - target_name: bunoraa-api
-            target_url: https://api.bunoraa.com/health/
+            target_url: https://api.bunoraa.com/api/docs/
     steps:
       - name: Send warmup request
         shell: bash

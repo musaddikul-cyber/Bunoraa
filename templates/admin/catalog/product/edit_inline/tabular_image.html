@@ -1,0 +1,201 @@
+{% load i18n admin_urls static admin_modify %}
+
+{# Enhanced Tabular Image Inline with Drag-Drop Reordering #}
+<div class="js-inline-admin-formset inline-group image-group"
+     id="{{ inline_admin_formset.formset.prefix }}-group"
+     data-inline-type="tabular"
+     data-inline-formset="{{ inline_admin_formset.inline_formset_data }}"
+     data-sortable="true"
+     data-sortable-field="ordering">
+
+  <fieldset class="module aligned image-fieldset">
+    <h3 class="fieldset-title">
+      <span class="image-icon">🖼️</span>
+      {{ inline_admin_formset.opts.verbose_name_plural|capfirst }}
+      <span class="image-help-text">Drag handles (☰) to reorder. First image is primary.</span>
+    </h3>
+
+    {{ inline_admin_formset.formset.management_form }}
+    {{ inline_admin_formset.formset.non_form_errors }}
+
+    <table class="image-table">
+      <thead>
+        <tr>
+          <th class="drag-col"></th>
+          <th class="column-thumb">Thumb</th>
+          <th class="column-preview">Preview</th>
+          <th class="column-image required">Image</th>
+          <th class="column-alt">Alt Text</th>
+          <th class="column-primary">Primary?</th>
+          <th class="column-delete">Delete?</th>
+        </tr>
+      </thead>
+
+      <tbody class="image-tbody sortable-tbody">
+        {% for inline_admin_form in inline_admin_formset %}
+          {% if inline_admin_form.form.non_field_errors %}
+            <tr class="row-errors">
+              <td colspan="7">{{ inline_admin_form.form.non_field_errors }}</td>
+            </tr>
+          {% endif %}
+          
+          <tr class="form-row {% cycle "row1" "row2" %} {% if inline_admin_form.original or inline_admin_form.show_url %}has_original{% endif %}{% if forloop.last and inline_admin_formset.has_add_permission %} empty-form{% endif %}{% if inline_admin_form.form.is_primary.value %} is-primary-row{% endif %}"
+              id="{{ inline_admin_formset.formset.prefix }}-{% if not forloop.last %}{{ forloop.counter0 }}{% else %}empty{% endif %}">
+            
+            {# Drag Handle #}
+            <td class="drag-handle-cell">
+              <span class="drag-handle" title="Drag to reorder">☰</span>
+              {% for field in inline_admin_form.hidden_fields %}
+                {{ field }}
+              {% endfor %}
+            </td>
+
+            {# Thumbnail #}
+            <td class="field-thumbnail">
+              {% if inline_admin_form.form.instance.image %}
+                <img src="{{ inline_admin_form.form.instance.image.url }}" 
+                     class="inline-thumb" 
+                     style="max-height: 50px; max-width: 70px; object-fit: cover; border-radius: 4px;"
+                     alt="Thumbnail" />
+              {% else %}
+                <span class="no-image">-</span>
+              {% endif %}
+            </td>
+
+            {# Large Preview #}
+            <td class="field-preview">
+              {% if inline_admin_form.form.instance.image %}
+                <a href="{{ inline_admin_form.form.instance.image.url }}" target="_blank" class="image-preview-link">
+                  <img src="{{ inline_admin_form.form.instance.image.url }}" 
+                       class="inline-preview-large"
+                       style="max-height: 120px; max-width: 150px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;"
+                       alt="Preview" />
+                </a>
+              {% else %}
+                <span class="no-preview">No image</span>
+              {% endif %}
+            </td>
+
+            {# Image Upload #}
+            <td class="field-image {% if inline_admin_form.form.image.errors %}errors{% endif %}">
+              {{ inline_admin_form.form.image }}
+              {{ inline_admin_form.form.image.errors.as_ul }}
+              {% if inline_admin_form.form.image.help_text %}
+                <span class="help">{{ inline_admin_form.form.image.help_text }}</span>
+              {% endif %}
+            </td>
+
+            {# Alt Text #}
+            <td class="field-alt_text {% if inline_admin_form.form.alt_text.errors %}errors{% endif %}">
+              {{ inline_admin_form.form.alt_text }}
+              {{ inline_admin_form.form.alt_text.errors.as_ul }}
+            </td>
+
+            {# Primary Checkbox - with visual indicator #}
+            <td class="field-is_primary {% if inline_admin_form.form.is_primary.errors %}errors{% endif %}">
+              <label class="primary-checkbox-label">
+                {{ inline_admin_form.form.is_primary }}
+                <span class="primary-badge">★ Primary</span>
+              </label>
+            </td>
+
+            {# Delete #}
+            <td class="delete">
+              {% if inline_admin_form.original %}
+                {{ inline_admin_form.deletion_field.field }}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {# Actions Bar #}
+    <div class="image-actions-bar">
+      <a href="#" class="add-image-link">
+        <span class="add-icon">📷</span>
+        Add another image
+      </a>
+      <div class="image-tools">
+        <button type="button" class="tool-btn auto-set-primary" title="Set first as primary">
+          ✨ Auto Primary
+        </button>
+        <button type="button" class="tool-btn clear-all-alt" title="Clear all alt texts">
+          📝 Clear Alt
+        </button>
+      </div>
+    </div>
+
+  </fieldset>
+</div>
+
+<style>
+  /* Inline styles for immediate visual feedback */
+  .image-group .is-primary-row {
+    background-color: #f0f9ff !important;
+    border-left: 3px solid #3b82f6;
+  }
+  .image-group .primary-badge {
+    display: none;
+    font-size: 11px;
+    color: #3b82f6;
+    font-weight: 600;
+  }
+  .image-group .is-primary-row .primary-badge {
+    display: inline;
+  }
+  .image-group .drag-handle {
+    cursor: grab;
+    padding: 4px 8px;
+    color: #666;
+    font-size: 16px;
+  }
+  .image-group .drag-handle:active {
+    cursor: grabbing;
+  }
+  .image-group .drag-handle-cell {
+    width: 30px;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .image-group .field-image input[type="file"] {
+    max-width: 200px;
+  }
+  .image-group .add-image-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 16px;
+    background: #417690;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    margin-top: 10px;
+  }
+  .image-group .add-image-link:hover {
+    background: #205067;
+  }
+  .image-group .image-actions-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+  }
+  .image-group .image-tools {
+    display: flex;
+    gap: 8px;
+  }
+  .image-group .tool-btn {
+    padding: 6px 12px;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .image-group .tool-btn:hover {
+    background: #e5e7eb;
+  }
+</style>

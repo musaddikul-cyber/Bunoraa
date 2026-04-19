@@ -521,6 +521,139 @@ class Banner(models.Model):
         help_text="CSS min-height for button (e.g. 40px)."
     )
 
+    # Text colors
+    title_color = ColorField(blank=True, null=True, verbose_name='title color')
+    subtitle_color = ColorField(blank=True, null=True, verbose_name='subtitle color')
+
+    # Font families
+    FONT_FAMILY_CHOICES = [
+        ('', 'Default'),
+        ('system-ui, -apple-system, sans-serif', 'System'),
+        ('Georgia, serif', 'Georgia (Serif)'),
+        ('Times New Roman, serif', 'Times (Serif)'),
+        ('Helvetica, Arial, sans-serif', 'Helvetica (Sans)'),
+        ('Roboto, sans-serif', 'Roboto'),
+        ('Open Sans, sans-serif', 'Open Sans'),
+        ('Lato, sans-serif', 'Lato'),
+        ('Montserrat, sans-serif', 'Montserrat'),
+        ('Poppins, sans-serif', 'Poppins'),
+        ('Playfair Display, serif', 'Playfair (Elegant)'),
+    ]
+    title_font_family = models.CharField(
+        max_length=100, blank=True,
+        choices=FONT_FAMILY_CHOICES,
+        default='',
+        verbose_name='title font family'
+    )
+    subtitle_font_family = models.CharField(
+        max_length=100, blank=True,
+        choices=FONT_FAMILY_CHOICES,
+        default='',
+        verbose_name='subtitle font family'
+    )
+
+    # Button colors
+    button_background_color = ColorField(blank=True, null=True, verbose_name='button background color')
+    button_text_color = ColorField(blank=True, null=True, verbose_name='button text color')
+    button_hover_background_color = ColorField(blank=True, null=True, verbose_name='button hover background color')
+    button_hover_text_color = ColorField(blank=True, null=True, verbose_name='button hover text color')
+
+    # Animations and transitions
+    ANIMATION_TYPE_CHOICES = [
+        ('', 'None'),
+        ('fade', 'Fade In'),
+        ('slide-up', 'Slide Up'),
+        ('slide-down', 'Slide Down'),
+        ('slide-left', 'Slide Left'),
+        ('slide-right', 'Slide Right'),
+        ('zoom', 'Zoom In'),
+        ('bounce', 'Bounce'),
+        ('flip', 'Flip'),
+    ]
+    animation_type = models.CharField(
+        max_length=50, blank=True,
+        choices=ANIMATION_TYPE_CHOICES,
+        default='fade',
+        verbose_name='animation type'
+    )
+    transition_duration = models.DecimalField(
+        max_digits=4, decimal_places=2, blank=True, null=True,
+        verbose_name='transition duration (seconds)',
+        help_text='Duration of the transition animation (e.g., 0.5)'
+    )
+
+    # Banner timing for carousel
+    autoplay_delay = models.PositiveIntegerField(
+        blank=True, null=True,
+        verbose_name='autoplay delay (seconds)',
+        help_text='Time before auto-rotating to next banner (leave empty to use default)'
+    )
+
+    # Banner size presets
+    SIZE_PRESET_CHOICES = [
+        ('', 'Default'),
+        ('compact', 'Compact (280px)'),
+        ('small', 'Small (350px)'),
+        ('medium', 'Medium (420px)'),
+        ('large', 'Large (520px)'),
+        ('hero', 'Hero (600px)'),
+        ('fullscreen', 'Fullscreen (100vh)'),
+        ('custom', 'Custom (use height field)'),
+    ]
+    size_preset = models.CharField(
+        max_length=30, blank=True,
+        choices=SIZE_PRESET_CHOICES,
+        default='medium',
+        verbose_name='size preset'
+    )
+
+    # Opacity/Transparency
+    container_opacity = models.DecimalField(
+        max_digits=3, decimal_places=2, blank=True, null=True,
+        verbose_name='container opacity',
+        help_text='Overall banner opacity from 0 (transparent) to 1 (opaque)'
+    )
+
+    # Background image settings
+    BACKGROUND_SIZE_CHOICES = [
+        ('cover', 'Cover (default)'),
+        ('contain', 'Contain'),
+        ('auto', 'Auto'),
+        ('100% 100%', 'Stretch'),
+    ]
+    background_size = models.CharField(
+        max_length=30, blank=True,
+        choices=BACKGROUND_SIZE_CHOICES,
+        default='cover',
+        verbose_name='background size'
+    )
+    BACKGROUND_POSITION_CHOICES = [
+        ('center', 'Center'),
+        ('top', 'Top'),
+        ('bottom', 'Bottom'),
+        ('left', 'Left'),
+        ('right', 'Right'),
+        ('top left', 'Top Left'),
+        ('top right', 'Top Right'),
+        ('bottom left', 'Bottom Left'),
+        ('bottom right', 'Bottom Right'),
+    ]
+    background_position = models.CharField(
+        max_length=30, blank=True,
+        choices=BACKGROUND_POSITION_CHOICES,
+        default='center',
+        verbose_name='background position'
+    )
+
+    # Mobile-specific settings
+    mobile_height = models.CharField(
+        max_length=20, blank=True,
+        verbose_name='mobile height',
+        help_text='CSS height for mobile devices (e.g., 280px, 50vh)'
+    )
+    hide_on_mobile = models.BooleanField(default=False, verbose_name='hide on mobile')
+    hide_on_desktop = models.BooleanField(default=False, verbose_name='hide on desktop')
+
     # Positioning
     POSITION_HOME_HERO = 'home_hero'
     POSITION_HOME_SECONDARY = 'home_secondary'

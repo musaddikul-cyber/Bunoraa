@@ -1,0 +1,517 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block title %}Generate Variants | {{ product.name }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .tool-container {
+    max-width: 900px;
+    margin: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  
+  .tool-header {
+    padding: 24px 30px;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .tool-header h1 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    color: #1e293b;
+  }
+  
+  .tool-header .subtitle {
+    color: #64748b;
+    font-size: 14px;
+  }
+  
+  .tool-body {
+    padding: 30px;
+  }
+  
+  .options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  
+  .option-card {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 16px;
+    transition: all 0.2s;
+  }
+  
+  .option-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+  }
+  
+  .option-card.selected {
+    border-color: #3b82f6;
+    background: #eff6ff;
+  }
+  
+  .option-card h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .option-card h4 input {
+    margin: 0;
+  }
+  
+  .option-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .value-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #4b5563;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .value-chip:hover {
+    background: #f3f4f6;
+  }
+  
+  .value-chip.selected {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+  
+  .value-chip.selected::before {
+    content: "✓";
+    font-weight: bold;
+  }
+  
+  .preview-section {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 24px;
+  }
+  
+  .preview-section h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: #1e293b;
+  }
+  
+  .combination-count {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #dbeafe;
+    color: #1e40af;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  
+  .combinations-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 12px;
+  }
+  
+  .combination-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    font-family: monospace;
+    font-size: 13px;
+    color: #374151;
+  }
+  
+  .combination-item:last-child {
+    border-bottom: none;
+  }
+  
+  .combination-item .sku-preview {
+    color: #6b7280;
+    font-size: 11px;
+  }
+  
+  .form-section {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 24px;
+  }
+  
+  .form-section h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: #1e293b;
+  }
+  
+  .form-row {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .form-row .field {
+    flex: 1;
+    min-width: 200px;
+  }
+  
+  .form-row label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+  }
+  
+  .form-row input[type="number"],
+  .form-row input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .checkbox-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  .btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .btn-primary {
+    background: #3b82f6;
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background: #2563eb;
+  }
+  
+  .btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+  }
+  
+  .btn-secondary:hover {
+    background: #e5e7eb;
+  }
+  
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .help-text {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 4px;
+  }
+  
+  .no-options-message {
+    text-align: center;
+    padding: 40px;
+    color: #6b7280;
+  }
+  
+  .no-options-message a {
+    color: #3b82f6;
+    text-decoration: none;
+  }
+  
+  .existing-variants-warning {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    color: #92400e;
+    font-size: 13px;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:catalog_product_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:catalog_product_change' product.pk %}">{{ product.name }}</a>
+  &rsaquo; Generate Variants
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="tool-container">
+  <div class="tool-header">
+    <h1>✨ Variant Generator</h1>
+    <p class="subtitle">Generate all variant combinations for <strong>{{ product.name }}</strong></p>
+  </div>
+  
+  <div class="tool-body">
+    
+    {% if product.variants.count > 0 %}
+    <div class="existing-variants-warning">
+      <strong>⚠️ Note:</strong> This product already has {{ product.variants.count }} variant(s). 
+      Generated variants will be added to the existing ones.
+    </div>
+    {% endif %}
+    
+    <form method="post" id="variant-generator-form">
+      {% csrf_token %}
+      
+      <!-- Options Selection -->
+      <div class="options-section">
+        <h3>Select Options to Combine</h3>
+        <p class="help-text">Choose the options (like Size, Color) and their values to generate variants.</p>
+        
+        {% if available_options %}
+        <div class="options-grid" id="options-grid">
+          {% for option in available_options %}
+          <div class="option-card" data-option="{{ option.id }}">
+            <h4>
+              <input type="checkbox" name="options" value="{{ option.id }}" class="option-checkbox">
+              {{ option.name }}
+            </h4>
+            <div class="option-values">
+              {% for value in option.values.all %}
+              <label class="value-chip" data-value="{{ value.id }}">
+                <input type="checkbox" name="option_values" value="{{ value.id }}" style="display: none;">
+                {{ value.value }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-options-message">
+          <p>No options configured in the system.</p>
+          <p><a href="{% url 'admin:catalog_option_add' %}">Create options</a> first to generate variants.</p>
+        </div>
+        {% endif %}
+      </div>
+      
+      {% if available_options %}
+      <!-- Preview Section -->
+      <div class="preview-section" id="preview-section" style="display: none;">
+        <h3>Preview</h3>
+        <div class="combination-count" id="combination-count">0 combinations</div>
+        <div class="combinations-list" id="combinations-list">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+      
+      <!-- Configuration -->
+      <div class="form-section">
+        <h3>Variant Configuration</h3>
+        
+        <div class="checkbox-row">
+          <input type="checkbox" name="generate_skus" id="generate_skus" checked>
+          <label for="generate_skus">Auto-generate SKUs from option combinations</label>
+        </div>
+        <p class="help-text">Example: {{ product.sku|default:"PROD" }}-RED-SMALL</p>
+        
+        <div class="form-row">
+          <div class="field">
+            <label for="base_price">Base Price (optional)</label>
+            <input type="number" name="base_price" id="base_price" step="0.01" min="0" placeholder="Leave empty for no change">
+            <p class="help-text">Leave blank to use product's base price</p>
+          </div>
+          
+          <div class="field">
+            <label for="base_stock">Initial Stock (optional)</label>
+            <input type="number" name="base_stock" id="base_stock" min="0" value="0">
+            <p class="help-text">Starting quantity for all new variants</p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Actions -->
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="generate-btn" disabled>
+          Generate <span id="generate-count">0</span> Variant(s)
+        </button>
+        <a href="{% url 'admin:catalog_product_change' product.pk %}" class="btn btn-secondary">
+          Cancel
+        </a>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<script>
+(function() {
+  const form = document.getElementById('variant-generator-form');
+  const optionsGrid = document.getElementById('options-grid');
+  const previewSection = document.getElementById('preview-section');
+  const combinationCount = document.getElementById('combination-count');
+  const combinationsList = document.getElementById('combinations-list');
+  const generateBtn = document.getElementById('generate-btn');
+  const generateCount = document.getElementById('generate-count');
+  
+  let selectedOptions = new Map();
+  
+  // Handle option card selection
+  optionsGrid?.addEventListener('change', function(e) {
+    if (e.target.classList.contains('option-checkbox')) {
+      const card = e.target.closest('.option-card');
+      const optionId = card.dataset.option;
+      
+      if (e.target.checked) {
+        card.classList.add('selected');
+        selectedOptions.set(optionId, []);
+      } else {
+        card.classList.remove('selected');
+        selectedOptions.delete(optionId);
+        // Uncheck all values
+        card.querySelectorAll('.value-chip.selected').forEach(chip => {
+          chip.classList.remove('selected');
+          chip.querySelector('input').checked = false;
+        });
+      }
+      
+      updatePreview();
+    }
+  });
+  
+  // Handle value chip selection
+  optionsGrid?.addEventListener('click', function(e) {
+    const chip = e.target.closest('.value-chip');
+    if (!chip) return;
+    
+    e.preventDefault();
+    
+    const card = chip.closest('.option-card');
+    const optionCheckbox = card.querySelector('.option-checkbox');
+    
+    if (!optionCheckbox.checked) {
+      // Auto-select the option
+      optionCheckbox.checked = true;
+      card.classList.add('selected');
+      selectedOptions.set(card.dataset.option, []);
+    }
+    
+    chip.classList.toggle('selected');
+    chip.querySelector('input').checked = chip.classList.contains('selected');
+    
+    const optionId = card.dataset.option;
+    const valueId = chip.dataset.value;
+    
+    const values = selectedOptions.get(optionId) || [];
+    if (chip.classList.contains('selected')) {
+      values.push({ id: valueId, name: chip.innerText.trim() });
+    } else {
+      const idx = values.findIndex(v => v.id === valueId);
+      if (idx > -1) values.splice(idx, 1);
+    }
+    selectedOptions.set(optionId, values);
+    
+    updatePreview();
+  });
+  
+  function updatePreview() {
+    // Generate all combinations
+    const options = Array.from(selectedOptions.entries()).filter(([_, values]) => values.length > 0);
+    
+    if (options.length === 0) {
+      previewSection.style.display = 'none';
+      generateBtn.disabled = true;
+      return;
+    }
+    
+    // Calculate combinations using cartesian product
+    let combinations = [[]];
+    
+    options.forEach(([optionId, values]) => {
+      const newCombos = [];
+      combinations.forEach(combo => {
+        values.forEach(value => {
+          newCombos.push([...combo, value]);
+        });
+      });
+      combinations = newCombos;
+    });
+    
+    // Update UI
+    previewSection.style.display = 'block';
+    combinationCount.textContent = `${combinations.length} combination${combinations.length !== 1 ? 's' : ''}`;
+    generateCount.textContent = combinations.length;
+    generateBtn.disabled = combinations.length === 0;
+    
+    // Render combinations
+    const baseSku = '{{ product.sku|default:"PROD" }}';
+    combinationsList.innerHTML = combinations.map((combo, idx) => {
+      const comboName = combo.map(v => v.name).join(' / ');
+      const comboSku = baseSku + '-' + combo.map(v => v.name.replace(/\s+/g, '-')).join('-').toUpperCase();
+      return `
+        <div class="combination-item">
+          ${idx + 1}. ${comboName}
+          <span class="sku-preview">→ SKU: ${comboSku.substring(0, 50)}${comboSku.length > 50 ? '...' : ''}</span>
+        </div>
+      `;
+    }).join('');
+  }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,773 @@
+{# Modern Category Dropdown Widget #}
+{# Drill-down category selector with search and breadcrumbs #}
+
+{% load static %}
+
+<div class="cat-dropdown" id="cat-dropdown-widget-{{ widget.name }}">
+    {# Dropdown Trigger #}
+    <div class="cat-dropdown-trigger" role="button" tabindex="0" aria-expanded="false">
+        <div class="cat-dropdown-trigger-content">
+            {% if widget.selected_value %}
+                <span class="cat-dropdown-selected-text" id="cat-dropdown-selected-text-{{ widget.name }}">
+                    {{ widget.selected_name|default:"Select a category" }}
+                </span>
+            {% else %}
+                <span class="cat-dropdown-placeholder" id="cat-dropdown-selected-text-{{ widget.name }}">
+                    🔍 Search or browse categories...
+                </span>
+            {% endif %}
+        </div>
+        <svg class="cat-dropdown-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    </div>
+
+    {# Dropdown Panel #}
+    <div class="cat-dropdown-panel" id="cat-dropdown-panel-{{ widget.name }}" style="display: none;">
+        {# Header with Search #}
+        <div class="cat-dropdown-panel-header">
+            <div class="cat-dropdown-search-wrapper">
+                <svg class="cat-dropdown-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="2"/>
+                    <path d="M11 11L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <input type="text"
+                       class="cat-dropdown-search"
+                       placeholder="Search categories..."
+                       autocomplete="off"
+                       id="cat-dropdown-search-{{ widget.name }}">
+            </div>
+            <button type="button" class="cat-dropdown-close" aria-label="Close">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+
+        {# Breadcrumb Navigation #}
+        <div class="cat-dropdown-breadcrumb" id="cat-dropdown-breadcrumb-{{ widget.name }}">
+            <span class="cat-dropdown-breadcrumb-item cat-dropdown-breadcrumb-root active" data-category-id="">
+                All Categories
+            </span>
+        </div>
+
+        {# Category List Container #}
+        <div class="cat-dropdown-list-container">
+            {# Level 0: Root Categories #}
+            <div class="cat-dropdown-level active" data-level="0" id="cat-dropdown-level-0-{{ widget.name }}">
+                {% for category in widget.root_categories %}
+                <div class="cat-dropdown-item"
+                     data-category-id="{{ category.id }}"
+                     data-name="{{ category.name }}"
+                     data-has-children="{{ category.has_children|yesno:'true,false' }}">
+                    <div class="cat-dropdown-item-content">
+                        <span class="cat-dropdown-icon">
+                            {% if category.has_children %}
+                                📁
+                            {% else %}
+                                📄
+                            {% endif %}
+                        </span>
+                        <span class="cat-dropdown-name">{{ category.name }}</span>
+                    </div>
+                    {% if category.has_children %}
+                    <svg class="cat-dropdown-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    {% else %}
+                    <span class="cat-dropdown-select-hint">Click to select</span>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="cat-dropdown-empty">
+                    <span>No categories found</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            {# Search Results View #}
+            <div class="cat-dropdown-search-results" id="cat-dropdown-search-results-{{ widget.name }}" style="display: none;">
+                <div class="cat-dropdown-search-empty">
+                    <span>Type to search categories...</span>
+                </div>
+            </div>
+        </div>
+
+        {# Footer with selection info #}
+        <div class="cat-dropdown-panel-footer">
+            <span class="cat-dropdown-hint">Select a category to continue</span>
+        </div>
+    </div>
+
+    {# Hidden Input for Form Submission #}
+    <input type="hidden"
+           name="{{ widget.name }}"
+           id="id_{{ widget.name }}"
+           {% if widget.selected_value and widget.selected_value != '' and widget.selected_value != '[\'\']' and widget.selected_value != '""' %}
+           value="{{ widget.selected_value }}"
+           {% else %}
+           value=""
+           {% endif %}
+           {% include "django/forms/widgets/attrs.html" %}>
+</div>
+
+<style>
+/* Modern Category Dropdown */
+.cat-dropdown {
+    position: relative;
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    isolation: isolate;
+}
+
+/* Dropdown Trigger */
+.cat-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--body-bg, #fff);
+    border: 1px solid var(--border-color, #e4e6eb);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-height: 44px;
+}
+
+.cat-dropdown-trigger:hover {
+    border-color: var(--primary, #1877f2);
+    background: var(--body-bg, #fff);
+}
+
+.cat-dropdown-trigger:focus {
+    outline: none;
+    border-color: var(--primary, #1877f2);
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
+}
+
+.cat-dropdown-trigger[aria-expanded="true"] {
+    border-color: var(--primary, #1877f2);
+}
+
+.cat-dropdown-trigger-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.cat-dropdown-selected-text {
+    color: var(--body-fg, #1c1e21);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.cat-dropdown-placeholder {
+    color: var(--body-quiet-color, #8c939d);
+    font-size: 14px;
+}
+
+.cat-dropdown-chevron {
+    color: var(--body-quiet-color, #65676b);
+    margin-left: 8px;
+    transition: transform 0.2s ease;
+}
+
+.cat-dropdown-trigger[aria-expanded="true"] .cat-dropdown-chevron {
+    transform: rotate(180deg);
+}
+
+/* Dropdown Panel */
+.cat-dropdown-panel {
+    position: fixed;
+    width: 400px;
+    max-width: 90vw;
+    background: var(--body-bg, #fff);
+    border: 1px solid var(--border-color, #e4e6eb);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    max-height: 480px;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+/* Panel Header with Search */
+.cat-dropdown-panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color, #e4e6eb);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cat-dropdown-search-wrapper {
+    flex: 1;
+    position: relative;
+}
+
+.cat-dropdown-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--body-quiet-color, #8c939d);
+}
+
+.cat-dropdown-search {
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    border: 1px solid var(--border-color, #e4e6eb);
+    border-radius: 8px;
+    font-size: 14px;
+    background: var(--body-bg, #fff);
+    color: var(--body-fg, #1c1e21);
+    transition: all 0.15s ease;
+}
+
+.cat-dropdown-search:focus {
+    outline: none;
+    border-color: var(--primary, #1877f2);
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
+}
+
+.cat-dropdown-search::placeholder {
+    color: var(--body-quiet-color, #8c939d);
+}
+
+.cat-dropdown-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--body-quiet-color, #65676b);
+    transition: all 0.15s ease;
+}
+
+.cat-dropdown-close:hover {
+    background: var(--primary-bg-light, #f0f2f5);
+    color: var(--body-fg, #1c1e21);
+}
+
+/* Breadcrumb Navigation */
+.cat-dropdown-breadcrumb {
+    padding: 10px 16px;
+    background: var(--primary-bg-light, #f0f2f5);
+    border-bottom: 1px solid var(--border-color, #e4e6eb);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    font-size: 13px;
+}
+
+.cat-dropdown-breadcrumb-item {
+    color: var(--primary, #1877f2);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.cat-dropdown-breadcrumb-item:hover {
+    background: rgba(24, 119, 242, 0.1);
+}
+
+.cat-dropdown-breadcrumb-item.active {
+    color: var(--body-fg, #1c1e21);
+    font-weight: 600;
+    cursor: default;
+}
+
+.cat-dropdown-breadcrumb-item.active:hover {
+    background: transparent;
+}
+
+.cat-dropdown-breadcrumb-separator {
+    color: var(--body-quiet-color, #8c939d);
+    padding: 0 2px;
+}
+
+/* Category List Container */
+.cat-dropdown-list-container {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+}
+
+/* Category Level */
+.cat-dropdown-level {
+    display: none;
+    animation: catSlideIn 0.2s ease;
+}
+
+.cat-dropdown-level.active {
+    display: block;
+}
+
+@keyframes catSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Category Item */
+.cat-dropdown-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-bottom: 1px solid var(--border-color, #f0f2f5);
+}
+
+.cat-dropdown-item:last-child {
+    border-bottom: none;
+}
+
+.cat-dropdown-item:hover {
+    background: var(--primary-bg-light, #f0f2f5);
+}
+
+.cat-dropdown-item.selected {
+    background: rgba(24, 119, 242, 0.1);
+}
+
+.cat-dropdown-item-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.cat-dropdown-icon {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.cat-dropdown-name {
+    font-size: 14px;
+    color: var(--body-fg, #1c1e21);
+    font-weight: 500;
+}
+
+.cat-dropdown-arrow {
+    color: var(--body-quiet-color, #65676b);
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+
+.cat-dropdown-item:hover .cat-dropdown-arrow {
+    transform: translateX(3px);
+    color: var(--primary, #1877f2);
+}
+
+.cat-dropdown-select-hint {
+    font-size: 12px;
+    color: var(--body-quiet-color, #8c939d);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.cat-dropdown-item:hover .cat-dropdown-select-hint {
+    opacity: 1;
+}
+
+/* Empty State */
+.cat-dropdown-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--body-quiet-color, #8c939d);
+    font-size: 14px;
+}
+
+/* Search Results */
+.cat-dropdown-search-results {
+    padding: 8px 0;
+}
+
+.cat-dropdown-search-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cat-dropdown-search-item:hover {
+    background: var(--primary-bg-light, #f0f2f5);
+}
+
+.cat-dropdown-search-item-path {
+    font-size: 12px;
+    color: var(--body-quiet-color, #65676b);
+    margin-left: 32px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cat-dropdown-search-highlight {
+    background: rgba(24, 119, 242, 0.2);
+    color: var(--primary, #1877f2);
+    font-weight: 600;
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+.cat-dropdown-search-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--body-quiet-color, #8c939d);
+}
+
+/* Panel Footer */
+.cat-dropdown-panel-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color, #e4e6eb);
+    background: var(--primary-bg-light, #f7f8fa);
+}
+
+.cat-dropdown-hint {
+    font-size: 12px;
+    color: var(--body-quiet-color, #65676b);
+}
+
+/* Selected State in Panel */
+.cat-dropdown-item.is-selected .cat-dropdown-name::after {
+    content: '✓';
+    margin-left: 8px;
+    color: #00a400;
+    font-weight: 700;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-admin-theme="light"]) .cat-dropdown-panel {
+        background: #242526;
+        border-color: #3e4042;
+    }
+
+    :root:not([data-admin-theme="light"]) .cat-dropdown-trigger:hover {
+        border-color: #4b4d4f;
+    }
+
+    :root:not([data-admin-theme="light"]) .cat-dropdown-breadcrumb {
+        background: #3a3b3c;
+        border-color: #3e4042;
+    }
+
+    :root:not([data-admin-theme="light"]) .cat-dropdown-panel-footer {
+        background: #3a3b3c;
+        border-color: #3e4042;
+    }
+
+    :root:not([data-admin-theme="light"]) .cat-dropdown-item:hover,
+    :root:not([data-admin-theme="light"]) .cat-dropdown-search-item:hover {
+        background: #3a3b3c;
+    }
+
+    :root:not([data-admin-theme="light"]) .cat-dropdown-search-highlight {
+        background: rgba(24, 119, 242, 0.4);
+    }
+}
+
+[data-admin-theme="dark"] .cat-dropdown-panel {
+    background: #242526;
+    border-color: #3e4042;
+}
+
+[data-admin-theme="dark"] .cat-dropdown-breadcrumb {
+    background: #3a3b3c;
+    border-color: #3e4042;
+}
+</style>
+
+<script>
+(function() {
+    'use strict';
+
+    // Category tree data
+    const categoryData = {{ widget.categories_json|safe }};
+    const widgetName = '{{ widget.name }}';
+
+    // Get elements
+    const widget = document.getElementById('cat-dropdown-widget-' + widgetName);
+    const trigger = widget.querySelector('.cat-dropdown-trigger');
+    const panel = document.getElementById('cat-dropdown-panel-' + widgetName);
+    const closeBtn = widget.querySelector('.cat-dropdown-close');
+    const searchInput = document.getElementById('cat-dropdown-search-' + widgetName);
+    const breadcrumb = document.getElementById('cat-dropdown-breadcrumb-' + widgetName);
+    const searchResults = document.getElementById('cat-dropdown-search-results-' + widgetName);
+    const hiddenInput = document.getElementById('id_' + widgetName);
+
+    let selectedCategoryId = hiddenInput.value;
+    let breadcrumbPath = [];
+
+    // Position and open panel
+    function positionPanel() {
+        const rect = trigger.getBoundingClientRect();
+        panel.style.left = rect.left + 'px';
+        panel.style.top = (rect.bottom + window.scrollY) + 'px';
+    }
+
+    // Open panel
+    trigger.addEventListener('click', function() {
+        const isExpanded = this.getAttribute('aria-expanded') === 'true';
+        this.setAttribute('aria-expanded', !isExpanded);
+        if (!isExpanded) {
+            positionPanel();
+            panel.style.display = 'flex';
+            searchInput.focus();
+            renderLevel(0, null);
+        } else {
+            panel.style.display = 'none';
+        }
+    });
+
+    // Close panel
+    closeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        trigger.setAttribute('aria-expanded', 'false');
+        panel.style.display = 'none';
+    });
+
+    // Close on click outside
+    document.addEventListener('click', function(e) {
+        if (!widget.contains(e.target)) {
+            trigger.setAttribute('aria-expanded', 'false');
+            panel.style.display = 'none';
+        }
+    });
+
+    // Keyboard navigation
+    trigger.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            trigger.click();
+        }
+    });
+
+    // Render category level
+    function renderLevel(level, parentId) {
+        // Hide all levels
+        widget.querySelectorAll('.cat-dropdown-level').forEach(el => el.classList.remove('active'));
+
+        // Get categories for this level
+        const categories = parentId
+            ? categoryData.filter(c => c.parent_id === parentId)
+            : categoryData.filter(c => !c.parent_id);
+
+        // Create or get level container
+        let levelContainer = document.getElementById('cat-dropdown-level-' + level + '-' + widgetName);
+        if (!levelContainer) {
+            levelContainer = document.createElement('div');
+            levelContainer.className = 'cat-dropdown-level';
+            levelContainer.id = 'cat-dropdown-level-' + level + '-' + widgetName;
+            levelContainer.dataset.level = level;
+            widget.querySelector('.cat-dropdown-list-container').appendChild(levelContainer);
+        }
+
+        // Build HTML
+        if (categories.length === 0) {
+            levelContainer.innerHTML = '<div class="cat-dropdown-empty"><span>No subcategories</span></div>';
+        } else {
+            levelContainer.innerHTML = categories.map(cat => `
+                <div class="cat-dropdown-item ${selectedCategoryId === cat.id ? 'is-selected' : ''}"
+                     data-category-id="${cat.id}"
+                     data-name="${cat.name}"
+                     data-has-children="${cat.has_children}"
+                     data-level="${level}">
+                    <div class="cat-dropdown-item-content">
+                        <span class="cat-dropdown-icon">${cat.has_children ? '📁' : '📄'}</span>
+                        <span class="cat-dropdown-name">${cat.name}</span>
+                    </div>
+                    ${cat.has_children
+                        ? '<svg class="cat-dropdown-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                        : '<span class="cat-dropdown-select-hint">Click to select</span>'
+                    }
+                </div>
+            `).join('');
+        }
+
+        levelContainer.classList.add('active');
+
+        // Remove deeper levels
+        widget.querySelectorAll('.cat-dropdown-level').forEach(el => {
+            if (parseInt(el.dataset.level) > level) {
+                el.remove();
+            }
+        });
+
+        // Update breadcrumb
+        updateBreadcrumb();
+
+        // Add click handlers
+        levelContainer.querySelectorAll('.cat-dropdown-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const catId = this.dataset.categoryId;
+                const catName = this.dataset.name;
+                const hasChildren = this.dataset.hasChildren === 'true';
+                const itemLevel = parseInt(this.dataset.level);
+
+                if (hasChildren) {
+                    // Save to breadcrumb path
+                    breadcrumbPath = breadcrumbPath.slice(0, itemLevel);
+                    breadcrumbPath.push({ id: catId, name: catName });
+                    renderLevel(itemLevel + 1, catId);
+                } else {
+                    // Select this category
+                    selectCategory(catId, catName);
+                }
+            });
+        });
+    }
+
+    // Update breadcrumb
+    function updateBreadcrumb() {
+        let html = '<span class="cat-dropdown-breadcrumb-item cat-dropdown-breadcrumb-root" data-category-id="">All Categories</span>';
+
+        breadcrumbPath.forEach((item, index) => {
+            html += '<span class="cat-dropdown-breadcrumb-separator">›</span>';
+            if (index === breadcrumbPath.length - 1) {
+                html += `<span class="cat-dropdown-breadcrumb-item active" data-category-id="${item.id}">${item.name}</span>`;
+            } else {
+                html += `<span class="cat-dropdown-breadcrumb-item" data-category-id="${item.id}">${item.name}</span>`;
+            }
+        });
+
+        breadcrumb.innerHTML = html;
+
+        // Add click handlers
+        breadcrumb.querySelectorAll('.cat-dropdown-breadcrumb-item:not(.active)').forEach(item => {
+            item.addEventListener('click', function() {
+                const catId = this.dataset.categoryId;
+                if (!catId) {
+                    breadcrumbPath = [];
+                    renderLevel(0, null);
+                } else {
+                    const index = breadcrumbPath.findIndex(p => p.id === catId);
+                    breadcrumbPath = breadcrumbPath.slice(0, index + 1);
+                    renderLevel(index + 1, catId);
+                }
+            });
+        });
+    }
+
+    // Select category
+    function selectCategory(catId, catName) {
+        selectedCategoryId = catId;
+        hiddenInput.value = catId;
+
+        // Update trigger text
+        const selectedText = document.getElementById('cat-dropdown-selected-text-' + widgetName);
+        selectedText.textContent = catName;
+        selectedText.classList.remove('cat-dropdown-placeholder');
+        selectedText.classList.add('cat-dropdown-selected-text');
+
+        // Update visual selection
+        widget.querySelectorAll('.cat-dropdown-item').forEach(el => el.classList.remove('is-selected'));
+        const selectedItem = widget.querySelector('.cat-dropdown-item[data-category-id="' + catId + '"]');
+        if (selectedItem) {
+            selectedItem.classList.add('is-selected');
+        }
+
+        // Close panel
+        trigger.setAttribute('aria-expanded', 'false');
+        panel.style.display = 'none';
+
+        // Trigger change event
+        hiddenInput.dispatchEvent(new Event('change'));
+    }
+
+    // Search functionality
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+
+        if (!query) {
+            searchResults.style.display = 'none';
+            widget.querySelectorAll('.cat-dropdown-level').forEach(el => {
+                el.style.display = el.classList.contains('active') ? 'block' : 'none';
+            });
+            return;
+        }
+
+        // Search in all categories
+        const matches = categoryData.filter(cat =>
+            cat.name.toLowerCase().includes(query)
+        );
+
+        // Build search results HTML
+        if (matches.length === 0) {
+            searchResults.innerHTML = '<div class="cat-dropdown-search-empty"><span>No categories found</span></div>';
+        } else {
+            searchResults.innerHTML = matches.map(cat => {
+                const path = getCategoryPath(cat);
+                const highlightedName = highlightMatch(cat.name, query);
+                return `
+                    <div class="cat-dropdown-search-item" data-category-id="${cat.id}" data-name="${cat.name}">
+                        <div class="cat-dropdown-item-content">
+                            <span class="cat-dropdown-icon">${cat.has_children ? '📁' : '📄'}</span>
+                            <span class="cat-dropdown-name">${highlightedName}</span>
+                        </div>
+                        <div class="cat-dropdown-search-item-path">${path}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // Add click handlers
+            searchResults.querySelectorAll('.cat-dropdown-search-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    selectCategory(this.dataset.categoryId, this.dataset.name);
+                });
+            });
+        }
+
+        searchResults.style.display = 'block';
+        widget.querySelectorAll('.cat-dropdown-level').forEach(el => el.style.display = 'none');
+    });
+
+    // Get category full path
+    function getCategoryPath(category) {
+        const parts = [];
+        let current = category;
+
+        while (current) {
+            parts.unshift(current.name);
+            current = current.parent_id
+                ? categoryData.find(c => c.id === current.parent_id)
+                : null;
+        }
+
+        return parts.join(' › ');
+    }
+
+    // Highlight search match
+    function highlightMatch(text, query) {
+        const regex = new RegExp('(' + escapeRegex(query) + ')', 'gi');
+        return text.replace(regex, '<span class="cat-dropdown-search-highlight">$1</span>');
+    }
+
+    // Escape regex special characters
+    function escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Initialize
+    renderLevel(0, null);
+})();
+</script>

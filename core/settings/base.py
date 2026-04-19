@@ -129,6 +129,7 @@ DJANGO_APPS = [
     'django.contrib.sites',
     'django.contrib.sitemaps',
     'django.contrib.humanize',
+    'django.forms',
 ]
 
 # Daphne is optional for management/runtime compatibility in environments
@@ -240,20 +241,28 @@ TEMPLATES = [
         # Project-level templates take precedence over app templates.
         # This is required for overriding third-party auth/admin templates.
         'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
+        'APP_DIRS': False,
         'OPTIONS': {
+            'loaders': [
+                'django.template.loaders.filesystem.Loader',
+                'django.template.loaders.app_directories.Loader',
+            ],
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.site_settings',
+                'core.context_processors.admin_interface_settings',
                 'social_django.context_processors.backends',
                 'social_django.context_processors.login_redirect',
             ],
         },
     },
 ]
+
+# Use Django's template engine for forms (so it respects TEMPLATES DIRS)
+FORM_RENDERER = 'django.forms.renderers.TemplatesSetting'
 
 # Crispy Forms Configuration
 CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
@@ -849,8 +858,19 @@ EMAIL_SERVICE_SETTINGS = {
 }
 
 # Celery Configuration
-CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0'))
-CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0'))
+CELERY_REDIS_URL = _normalize_rediss_url(
+    (
+        os.environ.get('CELERY_REDIS_URL')
+        or os.environ.get('CELERY_BROKER_URL')
+        or 'redis://localhost:6379/0'
+    ).strip()
+)
+CELERY_BROKER_URL = _normalize_rediss_url(
+    (os.environ.get('CELERY_BROKER_URL') or CELERY_REDIS_URL).strip()
+)
+CELERY_RESULT_BACKEND = _normalize_rediss_url(
+    (os.environ.get('CELERY_RESULT_BACKEND') or CELERY_REDIS_URL).strip()
+)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -865,17 +885,16 @@ CACHES = {
 }
 
 # Channel Layers Configuration (for WebSockets)
-# Uses in-memory channel layer for local development (no Redis required)
-# Production should set CHANNEL_LAYERS_REDIS_URL environment variable
-_channel_layer_redis_url = _normalize_rediss_url(
-    os.environ.get('CHANNEL_LAYERS_REDIS_URL', '').strip()
+# Prefer the primary Celery/cache Redis and allow an explicit override when needed.
+CHANNEL_LAYERS_REDIS_URL = _normalize_rediss_url(
+    (os.environ.get('CHANNEL_LAYERS_REDIS_URL') or CELERY_REDIS_URL or '').strip()
 )
-if _channel_layer_redis_url:
+if CHANNEL_LAYERS_REDIS_URL:
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                'hosts': [_channel_layer_redis_url],
+                'hosts': [CHANNEL_LAYERS_REDIS_URL],
             },
         },
     }
@@ -895,6 +914,7 @@ SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', True)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = _env_bool('SESSION_EXPIRE_AT_BROWSER_CLOSE', False)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+REALTIME_CACHE_ALIAS = os.environ.get('REALTIME_CACHE_ALIAS', 'default')
 
 # Stripe Configuration
 STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', '')
@@ -1125,8 +1145,12 @@ ML_FEATURES = {
 # ML Cache & Feature Store
 _ml_redis_url = os.environ.get('ML_REDIS_URL', '').strip()
 if not _ml_redis_url:
-    _ml_redis_base = os.environ.get('REDIS_URL', '').strip() or os.environ.get('AIVEN_REDIS_URL', '').strip()
-    _ml_redis_url = _redis_db_url(_ml_redis_base, 1) if _ml_redis_base else 'redis://localhost:6379/1'
+    _ml_redis_base = (
+        os.environ.get('CELERY_REDIS_URL', '').strip()
+        or os.environ.get('REDIS_URL', '').strip()
+        or os.environ.get('AIVEN_REDIS_URL', '').strip()
+    )
+    _ml_redis_url = _ml_redis_base or 'redis://localhost:6379/1'
 ML_REDIS_URL = _normalize_rediss_url(_ml_redis_url)
 ML_CACHE_BACKEND = os.environ.get('ML_CACHE_BACKEND', 'redis')  # redis, memory
 

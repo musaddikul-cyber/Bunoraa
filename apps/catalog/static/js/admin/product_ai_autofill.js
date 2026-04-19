@@ -828,10 +828,7 @@
             var foundSources = Number(data.validated_source_count || 0);
             var strictGateFailed = Boolean(data.strict_gate_failed);
             var strictGateEnforced = Boolean(data.strict_gate_enforced);
-            if (!strictGateFailed && strictMode && minRequired > 0 && foundSources < minRequired) {
-              strictGateFailed = true;
-              strictGateEnforced = true;
-            }
+            // trust server's strict_gate_failed and strict_gate_enforced values to support soft-fail mode"
             applyBtn.disabled = strictGateFailed && strictGateEnforced;
             if (strictGateFailed) {
               var gateErrorCode = data.strict_gate_error_code || data.error_code || "";

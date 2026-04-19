@@ -405,3 +405,226 @@ class PublicAnalyticsViewSet(viewsets.ViewSet):
                 'data': {'error': str(e)},
                 'meta': {}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PerformanceAnalyticsViewSet(viewsets.ViewSet):
+    """
+    ViewSet for performance metrics tracking from frontend.
+    
+    POST /api/v1/analytics/performance/ - Submit web vitals and performance metrics
+    GET /api/v1/analytics/performance/stats/ - Get aggregated performance stats (admin)
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = [OptionalJWTAuthentication, CsrfExemptSessionAuthentication]
+    
+    def create(self, request):
+        """
+        Receive performance metrics from frontend web-vitals library.
+        
+        Expected payload:
+        {
+            'metrics': [
+                {'name': 'LCP', 'value': 1200, 'rating': 'good'},
+                {'name': 'FID', 'value': 16, 'rating': 'good'},
+                {'name': 'CLS', 'value': 0.1, 'rating': 'needs-improvement'},
+                ...
+            ],
+            'page': '/products/123',
+            'userAgent': '...',
+            'url': 'https://...'
+        }
+        """
+        try:
+            metrics_data = request.data.get('metrics', [])
+            page = request.data.get('page', 'unknown')
+            user_agent = request.data.get('userAgent', '')
+            
+            if not metrics_data:
+                return Response({
+                    'success': False,
+                    'message': 'No metrics provided',
+                    'data': {},
+                    'meta': {}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Store metrics in Redis for aggregation
+            from django.core.cache import cache
+            from django.utils import timezone
+            import json
+            
+            timestamp = timezone.now().isoformat()
+            session_key = request.session.session_key or 'anonymous'
+            
+            # Create metric entry
+            metric_entry = {
+                'timestamp': timestamp,
+                'page': page,
+                'session_key': session_key,
+                'user_agent': user_agent[:200] if user_agent else '',
+                'metrics': metrics_data
+            }
+            
+            # Store in Redis list (keep last 10000 entries)
+            cache_key = 'performance_metrics'
+            existing = cache.get(cache_key, [])
+            if existing:
+                existing = json.loads(existing) if isinstance(existing, str) else existing
+            
+            existing.append(metric_entry)
+            # Keep only last 10000 entries
+            existing = existing[-10000:]
+            
+            cache.set(cache_key, json.dumps(existing), timeout=86400 * 7)  # 7 days
+            
+            # Also update daily aggregates
+            today = timezone.now().strftime('%Y-%m-%d')
+            daily_key = f'performance_metrics:{today}'
+            daily_data = cache.get(daily_key, {})
+            if daily_data:
+                daily_data = json.loads(daily_data) if isinstance(daily_data, str) else daily_data
+            
+            for metric in metrics_data:
+                metric_name = metric.get('name')
+                value = metric.get('value')
+                rating = metric.get('rating')
+                
+                if metric_name and value is not None:
+                    if metric_name not in daily_data:
+                        daily_data[metric_name] = {'values': [], 'good': 0, 'poor': 0, 'needs_improvement': 0}
+                    
+                    daily_data[metric_name]['values'].append(float(value))
+                    if rating:
+                        daily_data[metric_name][rating.replace('-', '_')] = daily_data[metric_name].get(rating.replace('-', '_'), 0) + 1
+            
+            cache.set(daily_key, json.dumps(daily_data), timeout=86400 * 30)  # 30 days
+            
+            return Response({
+                'success': True,
+                'message': 'Performance metrics recorded',
+                'data': {'metrics_received': len(metrics_data)},
+                'meta': {
+                    'page': page,
+                    'timestamp': timestamp
+                }
+            })
+        
+        except Exception as e:
+            logger.exception("Error saving performance metrics")
+            return Response({
+                'success': False,
+                'message': 'Failed to record metrics',
+                'data': {'error': str(e)},
+                'meta': {}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def stats(self, request):
+        """
+        Get aggregated performance statistics (admin only).
+        
+        GET /api/v1/analytics/performance/stats/
+        """
+        from django.core.cache import cache
+        from django.utils import timezone
+        import json
+        import statistics
+        
+        try:
+            days = int(request.query_params.get('days', 7))
+            
+            # Aggregate metrics from last N days
+            all_metrics = {}
+            
+            for i in range(days):
+                date = (timezone.now() - timezone.timedelta(days=i)).strftime('%Y-%m-%d')
+                daily_key = f'performance_metrics:{date}'
+                daily_data = cache.get(daily_key)
+                
+                if daily_data:
+                    daily_data = json.loads(daily_data) if isinstance(daily_data, str) else daily_data
+                    
+                    for metric_name, data in daily_data.items():
+                        if metric_name not in all_metrics:
+                            all_metrics[metric_name] = {'values': [], 'good': 0, 'poor': 0, 'needs_improvement': 0}
+                        
+                        all_metrics[metric_name]['values'].extend(data.get('values', []))
+                        all_metrics[metric_name]['good'] += data.get('good', 0)
+                        all_metrics[metric_name]['poor'] += data.get('poor', 0)
+                        all_metrics[metric_name]['needs_improvement'] += data.get('needs_improvement', 0)
+            
+            # Calculate statistics
+            result = {}
+            for metric_name, data in all_metrics.items():
+                values = data.get('values', [])
+                if values:
+                    result[metric_name] = {
+                        'count': len(values),
+                        'avg': round(statistics.mean(values), 2),
+                        'median': round(statistics.median(values), 2),
+                        'p75': round(sorted(values)[int(len(values) * 0.75)], 2) if len(values) > 1 else values[0],
+                        'p95': round(sorted(values)[int(len(values) * 0.95)], 2) if len(values) > 1 else values[0],
+                        'min': round(min(values), 2),
+                        'max': round(max(values), 2),
+                        'good': data.get('good', 0),
+                        'needs_improvement': data.get('needs_improvement', 0),
+                        'poor': data.get('poor', 0),
+                    }
+            
+            return Response({
+                'success': True,
+                'message': 'Performance statistics retrieved',
+                'data': result,
+                'meta': {
+                    'days': days,
+                    'metrics_tracked': list(result.keys())
+                }
+            })
+        
+        except Exception as e:
+            logger.exception("Error retrieving performance stats")
+            return Response({
+                'success': False,
+                'message': 'Failed to retrieve stats',
+                'data': {'error': str(e)},
+                'meta': {}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'], url_path='current', permission_classes=[IsAdminUser])
+    def current_metrics(self, request):
+        """
+        Get current/recent performance metrics (last hour).
+        
+        GET /api/v1/analytics/performance/current/
+        """
+        from django.core.cache import cache
+        import json
+        
+        try:
+            cache_key = 'performance_metrics'
+            data = cache.get(cache_key)
+            
+            if not data:
+                return Response({
+                    'success': True,
+                    'message': 'No recent metrics available',
+                    'data': [],
+                    'meta': {}
+                })
+            
+            metrics = json.loads(data) if isinstance(data, str) else data
+            
+            # Return last 100 entries
+            return Response({
+                'success': True,
+                'message': 'Recent metrics retrieved',
+                'data': metrics[-100:] if len(metrics) > 100 else metrics,
+                'meta': {'count': min(len(metrics), 100)}
+            })
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'Failed to retrieve current metrics',
+                'data': {'error': str(e)},
+                'meta': {}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

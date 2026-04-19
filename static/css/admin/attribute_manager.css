@@ -1,0 +1,171 @@
+/**
+ * Attribute Manager Styles
+ * Enhanced attribute value selection and management
+ */
+
+/* ==========================================================================
+   Attribute Values Inline
+   ========================================================================== */
+
+.attribute-values-inline {
+    background: #f9fafb;
+}
+
+.attribute-values-inline table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.attribute-values-inline thead th {
+    background: #f3f4f6;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.attribute-values-inline tbody td {
+    padding: 12px;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: middle;
+}
+
+/* Attribute Select Field */
+.attribute-values-inline .field-value select {
+    min-width: 250px;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    background: white;
+}
+
+.attribute-values-inline .field-value select:focus {
+    border-color: #3b82f6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Attribute Badge Display */
+.attribute-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: #e0e7ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 20px;
+    font-size: 12px;
+}
+
+.attribute-badge .attr-name {
+    font-weight: 600;
+    color: #3730a3;
+}
+
+.attribute-badge .attr-value {
+    color: #4338ca;
+}
+
+/* ==========================================================================
+   Attribute Groups in Select
+   ========================================================================== */
+
+.attribute-values-inline optgroup {
+    font-weight: 600;
+    color: #374151;
+    background: #f9fafb;
+}
+
+.attribute-values-inline optgroup option {
+    font-weight: normal;
+    padding: 4px 8px;
+}
+
+.attribute-values-inline optgroup option:hover {
+    background: #eff6ff;
+}
+
+/* ==========================================================================
+   Category Filter Notice
+   ========================================================================== */
+
+.attribute-filter-notice {
+    padding: 12px 16px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #9a3412;
+}
+
+.attribute-filter-notice strong {
+    color: #c2410c;
+}
+
+/* ==========================================================================
+   Empty State
+   ========================================================================== */
+
+.attribute-empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #6b7280;
+}
+
+.attribute-empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.attribute-empty-state h4 {
+    margin: 0 0 8px 0;
+    color: #374151;
+}
+
+.attribute-empty-state p {
+    margin: 0;
+}
+
+/* ==========================================================================
+   Add Attribute Button
+   ========================================================================== */
+
+.add-attribute-row {
+    padding: 16px;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+}
+
+.add-attribute-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #6366f1;
+    color: white !important;
+    text-decoration: none !important;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.add-attribute-link:hover {
+    background: #4f46e5;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .attribute-values-inline .field-value select {
+        min-width: 200px;
+    }
+}

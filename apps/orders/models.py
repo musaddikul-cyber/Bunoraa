@@ -193,6 +193,9 @@ class Order(models.Model):
             models.Index(fields=['status', '-created_at']),
             models.Index(fields=['order_number']),
             models.Index(fields=['email']),
+            models.Index(fields=['status', 'created_at'], name="orders_status_created"),
+            models.Index(fields=['is_deleted', '-created_at'], name="orders_deleted_at"),
+            models.Index(fields=['user', 'status'], name="orders_user_status"),
         ]
     
     def __str__(self):
@@ -326,6 +329,10 @@ class OrderItem(models.Model):
         ordering = ['created_at']
         verbose_name = 'Order Item'
         verbose_name_plural = 'Order Items'
+        indexes = [
+            models.Index(fields=['order', 'product_id']),
+            models.Index(fields=['order']),
+        ]
     
     def __str__(self):
         return f"{self.product_name} x {self.quantity}"
@@ -370,6 +377,9 @@ class OrderStatusHistory(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Order Status History'
         verbose_name_plural = 'Order Status Histories'
+        indexes = [
+            models.Index(fields=['order', '-created_at']),
+        ]
     
     def __str__(self):
         return f"{self.order.order_number}: {self.old_status} → {self.new_status}"

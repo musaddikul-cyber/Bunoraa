@@ -1,0 +1,432 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block title %}Bulk Pricing | {{ product.name }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  .tool-container {
+    max-width: 800px;
+    margin: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  
+  .tool-header {
+    padding: 24px 30px;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-radius: 8px 8px 0 0;
+  }
+  
+  .tool-header h1 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    color: #14532d;
+  }
+  
+  .tool-header .subtitle {
+    color: #166534;
+    font-size: 14px;
+  }
+  
+  .tool-body {
+    padding: 30px;
+  }
+  
+  .pricing-methods {
+    display: grid;
+    gap: 12px;
+    margin: 20px 0;
+  }
+  
+  .pricing-method {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: #f9fafb;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .pricing-method:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+  }
+  
+  .pricing-method.active {
+    background: #ecfdf5;
+    border-color: #10b981;
+  }
+  
+  .pricing-method input[type="radio"] {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+  }
+  
+  .pricing-method label {
+    flex: 1;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+  }
+  
+  .pricing-method.active label {
+    color: #065f46;
+  }
+  
+  .pricing-method .method-desc {
+    font-size: 12px;
+    color: #6b7280;
+    margin-left: 32px;
+  }
+  
+  .value-section {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 24px;
+  }
+  
+  .value-section label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+  }
+  
+  .value-section input[type="number"] {
+    width: 200px;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 16px;
+  }
+  
+  .value-section input[type="number"]:focus {
+    border-color: #10b981;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+  }
+  
+  .options-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  .checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .checkbox-option input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .checkbox-option label {
+    font-size: 13px;
+    color: #4b5563;
+    margin: 0;
+  }
+  
+  .preview-section {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 24px;
+  }
+  
+  .preview-section h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    color: #0369a1;
+  }
+  
+  .variant-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    background: white;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  
+  .variant-preview-table th,
+  .variant-preview-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e0f2fe;
+  }
+  
+  .variant-preview-table th {
+    background: #e0f2fe;
+    font-size: 12px;
+    font-weight: 600;
+    color: #0c4a6e;
+    text-transform: uppercase;
+  }
+  
+  .variant-preview-table td {
+    font-size: 13px;
+  }
+  
+  .current-price {
+    color: #6b7280;
+  }
+  
+  .new-price {
+    color: #059669;
+    font-weight: 600;
+  }
+  
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e7eb;
+  }
+  
+  .btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .btn-primary {
+    background: #10b981;
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background: #059669;
+  }
+  
+  .btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+  }
+  
+  .btn-secondary:hover {
+    background: #e5e7eb;
+  }
+  
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:catalog_product_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:catalog_product_change' product.pk %}">{{ product.name }}</a>
+  &rsaquo; Bulk Pricing
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="tool-container">
+  <div class="tool-header">
+    <h1>💰 Bulk Pricing</h1>
+    <p class="subtitle">Update pricing for all variants of <strong>{{ product.name }}</strong></p>
+  </div>
+  
+  <div class="tool-body">
+    <form method="post" id="bulk-pricing-form">
+      {% csrf_token %}
+      
+      <!-- Pricing Methods -->
+      <div class="pricing-methods">
+        <div class="pricing-method" data-method="set_fixed">
+          <input type="radio" name="action" id="action_set_fixed" value="set_fixed" checked>
+          <label for="action_set_fixed">Set to Fixed Price</label>
+          <span class="method-desc">Set all variants to the same price</span>
+        </div>
+        
+        <div class="pricing-method" data-method="increase_percent">
+          <input type="radio" name="action" id="action_increase_percent" value="increase_percent">
+          <label for="action_increase_percent">Increase by Percentage</label>
+          <span class="method-desc">Increase all prices by a percentage (e.g., 10 for 10%)</span>
+        </div>
+        
+        <div class="pricing-method" data-method="decrease_percent">
+          <input type="radio" name="action" id="action_decrease_percent" value="decrease_percent">
+          <label for="action_decrease_percent">Decrease by Percentage</label>
+          <span class="method-desc">Reduce all prices by a percentage (e.g., 10 for 10%)</span>
+        </div>
+        
+        <div class="pricing-method" data-method="increase_fixed">
+          <input type="radio" name="action" id="action_increase_fixed" value="increase_fixed">
+          <label for="action_increase_fixed">Increase by Fixed Amount</label>
+          <span class="method-desc">Add a fixed amount to all prices</span>
+        </div>
+        
+        <div class="pricing-method" data-method="decrease_fixed">
+          <input type="radio" name="action" id="action_decrease_fixed" value="decrease_fixed">
+          <label for="action_decrease_fixed">Decrease by Fixed Amount</label>
+          <span class="method-desc">Subtract a fixed amount from all prices</span>
+        </div>
+      </div>
+      
+      <!-- Value Input -->
+      <div class="value-section">
+        <label for="value">Value</label>
+        <input type="number" name="value" id="value" step="0.01" min="0" required>
+      </div>
+      
+      <!-- Options -->
+      <div class="options-section">
+        <div class="checkbox-option">
+          <input type="checkbox" name="apply_to_empty_only" id="apply_to_empty_only">
+          <label for="apply_to_empty_only">Only apply to variants without a custom price</label>
+        </div>
+      </div>
+      
+      <!-- Preview -->
+      <div class="preview-section">
+        <h3>Preview ({{ variants|length }} variants)</h3>
+        <table class="variant-preview-table">
+          <thead>
+            <tr>
+              <th>Variant</th>
+              <th>Current Price</th>
+              <th>New Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for variant in variants|slice:":10" %}
+            <tr data-variant-id="{{ variant.id }}"
+                data-current-price="{{ variant.price|default:product.price }}"
+                data-variant-sku="{{ variant.sku|default:"No SKU" }}">
+              <td>{{ variant.sku|default:"No SKU" }}</td>
+              <td class="current-price">${{ variant.price|default:product.price }}</td>
+              <td class="new-price">-</td>
+            </tr>
+            {% endfor %}
+            {% if variants|length > 10 %}
+            <tr>
+              <td colspan="3" style="text-align: center; color: #6b7280;">
+                ... and {{ variants|length|add:"-10" }} more variants
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Actions -->
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">
+          Apply Changes
+        </button>
+        <a href="{% url 'admin:catalog_product_change' product.pk %}" class="btn btn-secondary">
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function() {
+  const form = document.getElementById('bulk-pricing-form');
+  const methods = document.querySelectorAll('.pricing-method');
+  const valueInput = document.getElementById('value');
+  const emptyOnlyCheckbox = document.getElementById('apply_to_empty_only');
+  const rows = document.querySelectorAll('.variant-preview-table tbody tr[data-variant-id]');
+  
+  // Method selection
+  methods.forEach(method => {
+    method.addEventListener('click', function() {
+      methods.forEach(m => m.classList.remove('active'));
+      this.classList.add('active');
+      this.querySelector('input[type="radio"]').checked = true;
+      updatePreview();
+    });
+  });
+  
+  // Set initial active state
+  document.querySelector('.pricing-method input:checked').closest('.pricing-method').classList.add('active');
+  
+  // Update preview on value change
+  valueInput.addEventListener('input', updatePreview);
+  emptyOnlyCheckbox.addEventListener('change', updatePreview);
+  
+  function updatePreview() {
+    const action = document.querySelector('input[name="action"]:checked').value;
+    const value = parseFloat(valueInput.value) || 0;
+    const applyToEmptyOnly = emptyOnlyCheckbox.checked;
+    const productPrice = parseFloat('{{ product.price }}');
+    
+    rows.forEach(row => {
+      const currentPrice = parseFloat(row.dataset.currentPrice) || productPrice;
+      let newPrice;
+      
+      if (applyToEmptyOnly && currentPrice !== productPrice) {
+        newPrice = currentPrice; // Skip this one
+      } else {
+        switch(action) {
+          case 'set_fixed':
+            newPrice = value;
+            break;
+          case 'increase_percent':
+            newPrice = currentPrice * (1 + value / 100);
+            break;
+          case 'decrease_percent':
+            newPrice = currentPrice * (1 - value / 100);
+            break;
+          case 'increase_fixed':
+            newPrice = currentPrice + value;
+            break;
+          case 'decrease_fixed':
+            newPrice = Math.max(0, currentPrice - value);
+            break;
+          default:
+            newPrice = currentPrice;
+        }
+      }
+      
+      const newPriceCell = row.querySelector('.new-price');
+      if (newPrice === currentPrice) {
+        newPriceCell.textContent = '-';
+        newPriceCell.style.color = '#9ca3af';
+      } else {
+        newPriceCell.textContent = '$' + newPrice.toFixed(2);
+        if (newPrice > currentPrice) {
+          newPriceCell.style.color = '#16a34a';
+        } else {
+          newPriceCell.style.color = '#dc2626';
+        }
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

@@ -35,6 +35,13 @@ from .sitemaps import (
     PreOrderCategorySitemap,
 )
 from .views import health_check, health_check_detailed, readiness_check, liveness_check
+from core.api.performance import (
+    health_check as api_health_check,
+    metrics_overview,
+    warm_cache,
+    clear_cache,
+    reset_db_log,
+)
 
 class BunoraaAdminSite(AdminSiteOTPRequired):
     """Admin site that redirects login to the OTP-enabled login view."""
@@ -138,6 +145,13 @@ urlpatterns = [
     path('health/ready/', readiness_check, name='readiness_check'),
     path('health/live/', liveness_check, name='liveness_check'),
 
+    # Performance & Monitoring API
+    path('api/admin/performance/health/', api_health_check, name='api_health_check'),
+    path('api/admin/performance/metrics/', metrics_overview, name='api_metrics_overview'),
+    path('api/admin/performance/cache/warm/', warm_cache, name='api_cache_warm'),
+    path('api/admin/performance/cache/clear/', clear_cache, name='api_cache_clear'),
+    path('api/admin/performance/db/reset-log/', reset_db_log, name='api_db_reset_log'),
+
     # SEO helpers
     path(
         'favicon.ico',
@@ -207,3 +221,11 @@ if settings.DEBUG:
 admin.site.site_header = 'Bunoraa Administration'
 admin.site.site_title = 'Bunoraa Admin'
 admin.site.index_title = 'Dashboard'
+
+# Custom error handlers
+handler404 = 'core.views.custom_404_view'
+handler500 = 'core.views.custom_500_view'
+
+# Custom error handlers
+handler404 = 'core.views.custom_404_view'
+handler500 = 'core.views.custom_500_view'

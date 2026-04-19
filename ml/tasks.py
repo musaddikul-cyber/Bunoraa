@@ -15,6 +15,8 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 
+from ml.redis import get_ml_redis_url
+
 logger = logging.getLogger("bunoraa.ml.tasks")
 
 
@@ -47,7 +49,7 @@ def train_model_task(self, model_type: str, config: Dict = None, trigger: str = 
     logger.info(f"Starting training for model: {model_type}, trigger: {trigger}")
     
     task_id = self.request.id
-    redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+    redis_url = get_ml_redis_url()
     r = redis.from_url(redis_url)
     
     try:
@@ -165,7 +167,7 @@ def process_training_data_task():
         # Update active user profiles
         try:
             import redis
-            redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+            redis_url = get_ml_redis_url()
             r = redis.from_url(redis_url)
             
             # Get recently active users
@@ -442,7 +444,7 @@ def cleanup_old_data_task(days: int = 90):
     logger.info(f"Cleaning up data older than {days} days...")
     
     try:
-        redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+        redis_url = get_ml_redis_url()
         r = redis.from_url(redis_url)
         
         cutoff = timezone.now() - timedelta(days=days)
@@ -497,7 +499,7 @@ def generate_report_task():
         import redis
         import json
         
-        redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+        redis_url = get_ml_redis_url()
         r = redis.from_url(redis_url)
         
         report = {

@@ -1,0 +1,174 @@
+{% load i18n admin_urls static admin_modify %}
+
+{# Enhanced Tabular Variant Inline Template #}
+<div class="js-inline-admin-formset inline-group variant-group"
+     id="{{ inline_admin_formset.formset.prefix }}-group"
+     data-inline-type="tabular"
+     data-inline-formset="{{ inline_admin_formset.inline_formset_data }}"
+     data-sortable="true"
+     data-sortable-field="ordering">
+
+  <div class="tabular inline-related {% if forloop.last %}last-related{% endif %}">
+    
+    {# Section Header with Tools #}
+    <div class="variant-section-header">
+      <h3 class="variant-title">
+        <span class="variant-icon">📦</span>
+        {{ inline_admin_formset.opts.verbose_name_plural|capfirst }}
+      </h3>
+      
+      {# Variant Generator Button #}
+      <div class="variant-tools">
+        <button type="button" class="variant-tool-btn variant-generator-trigger" 
+                title="Generate variants from options">
+          <span>✨</span> Auto-Generate Variants
+        </button>
+        <button type="button" class="variant-tool-btn variant-bulk-pricing"
+                title="Bulk edit pricing">
+          <span>💰</span> Bulk Pricing
+        </button>
+        <span class="variant-count">
+          {{ inline_admin_formset.formset|length }} variant(s)
+        </span>
+      </div>
+    </div>
+    
+    {# Variant Generator Panel (hidden by default) #}
+    <div class="variant-generator-panel" id="variant-generator-panel" style="display: none;">
+      <div class="panel-header">
+        <h4>Variant Generator</h4>
+        <button type="button" class="panel-close">&times;</button>
+      </div>
+      <div class="panel-body">
+        <p class="panel-description">
+          Select the options to combine and generate all possible variant combinations.
+        </p>
+        <div class="option-selector">
+          {# Options will be populated by JavaScript #}
+        </div>
+        <div class="generator-actions">
+          <button type="button" class="button generate-btn" disabled>Generate Variants</button>
+          <span class="generator-status"></span>
+        </div>
+      </div>
+    </div>
+    
+    {# Bulk Pricing Panel (hidden by default) #}
+    <div class="bulk-pricing-panel" id="bulk-pricing-panel" style="display: none;">
+      <div class="panel-header">
+        <h4>Bulk Pricing</h4>
+        <button type="button" class="panel-close">&times;</button>
+      </div>
+      <div class="panel-body">
+        <div class="pricing-row">
+          <label>Set all variant prices to:</label>
+          <input type="number" step="0.01" class="bulk-price-input" placeholder="Price">
+          <button type="button" class="button apply-bulk-price">Apply</button>
+        </div>
+        <div class="pricing-row">
+          <label>Adjust all prices by (%):</label>
+          <input type="number" step="0.01" class="bulk-percent-input" placeholder="Percentage">
+          <button type="button" class="button apply-bulk-percent">Apply</button>
+        </div>
+        <div class="pricing-row">
+          <label>Set all stock to:</label>
+          <input type="number" class="bulk-stock-input" placeholder="Quantity">
+          <button type="button" class="button apply-bulk-stock">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    {{ inline_admin_formset.formset.management_form }}
+    {{ inline_admin_formset.formset.non_form_errors }}
+
+    <table class="variant-table">
+      <thead>
+        <tr>
+          <th class="drag-col">{# Drag handle column #}</th>
+          {% for field in inline_admin_formset.fields %}
+            {% if not field.widget.is_hidden %}
+              <th class="column-{{ field.name }}{% if field.required %} required{% endif %}">
+                {{ field.label|capfirst }}
+                {% if field.help_text %}
+                  <span class="help" title="{{ field.help_text|striptags }}">?</span>
+                {% endif %}
+              </th>
+            {% endif %}
+          {% endfor %}
+          {% if inline_admin_formset.formset.can_delete %}
+            <th class="column-delete">{% trans "Delete?" %}</th>
+          {% endif %}
+        </tr>
+      </thead>
+
+      <tbody class="variant-tbody sortable-tbody">
+        {% for inline_admin_form in inline_admin_formset %}
+          {% if inline_admin_form.form.non_field_errors %}
+            <tr class="row-errors">
+              <td colspan="{{ inline_admin_form|cell_count }}">
+                {{ inline_admin_form.form.non_field_errors }}
+              </td>
+            </tr>
+          {% endif %}
+          <tr class="form-row {% cycle "row1" "row2" %} {% if inline_admin_form.original or inline_admin_form.show_url %}has_original{% endif %}{% if forloop.last and inline_admin_formset.has_add_permission %} empty-form{% endif %}"
+              id="{{ inline_admin_formset.formset.prefix }}-{% if not forloop.last %}{{ forloop.counter0 }}{% else %}empty{% endif %}">
+            
+            <td class="drag-handle-cell">
+              <span class="drag-handle" title="Drag to reorder">☰</span>
+              {% for field in inline_admin_form.hidden_fields %}
+                {{ field }}
+              {% endfor %}
+            </td>
+
+            {% for fieldset in inline_admin_form %}
+              {% for line in fieldset %}
+                {% for field in line %}
+                  <td class="{% if field.field.name %}field-{{ field.field.name }}{% endif %}{% if field.field.errors %} errors{% endif %}">
+                    {% if field.is_readonly %}
+                      <p>{{ field.contents }}</p>
+                    {% else %}
+                      {{ field.field }}
+                      {{ field.field.errors.as_ul }}
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              {% endfor %}
+            {% endfor %}
+
+            {% if inline_admin_formset.formset.can_delete %}
+              <td class="delete">
+                {% if inline_admin_form.original %}
+                  {{ inline_admin_form.deletion_field.field }}
+                {% endif %}
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {# Add Variant Row #}
+    <div class="add-variant-row">
+      <a href="#" class="add-variant-link">
+        <span class="add-icon">+</span>
+        Add another {{ inline_admin_formset.opts.verbose_name|lower }}
+      </a>
+    </div>
+  </div>
+</div>
+
+{# Hidden template for new variants #}
+<script type="text/template" id="variant-empty-form-template">
+  <tr class="form-row empty-form" id="{{ inline_admin_formset.formset.prefix }}-__prefix__">
+    <td class="drag-handle-cell">
+      <span class="drag-handle" title="Drag to reorder">☰</span>
+      {{ inline_admin_formset.formset.empty_form.hidden_fields|join:"" }}
+    </td>
+    {% for field in inline_admin_formset.formset.empty_form.visible_fields %}
+      <td class="field-{{ field.name }}">{{ field }}</td>
+    {% endfor %}
+    {% if inline_admin_formset.formset.can_delete %}
+      <td class="delete"></td>
+    {% endif %}
+  </tr>
+</script>

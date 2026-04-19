@@ -50,6 +50,14 @@ def product_post_save(sender, instance, created, **kwargs):
         if not getattr(instance, "_prev_is_deleted", False) and instance.is_deleted:
             if category_ids:
                 _update_category_product_counts(category_ids, -1)
+        
+        # Invalidate product cache on any save (lazy import to avoid circular import)
+        try:
+            from .services_cache import CachedProductService
+            CachedProductService.invalidate_product(instance.pk)
+        except ImportError:
+            pass  # cache service not available yet
+        
     except Exception as e:
         logger.exception("Error in product_post_save signal: %s", e)
 

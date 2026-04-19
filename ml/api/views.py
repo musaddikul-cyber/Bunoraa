@@ -16,6 +16,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.conf import settings
 
+from ml.redis import get_ml_redis_url
+
 try:
     from rest_framework.views import APIView
     from rest_framework.response import Response
@@ -157,7 +159,7 @@ class MLTrackingAPIView(View):
         """Store raw events to Redis when collectors are not available."""
         try:
             import redis
-            redis_url = getattr(settings, 'REDIS_URL', 'redis://localhost:6379/0')
+            redis_url = get_ml_redis_url()
             r = redis.from_url(redis_url)
             
             for event in events:

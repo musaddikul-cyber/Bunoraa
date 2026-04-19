@@ -17,12 +17,13 @@ import time
 from typing import Any, Dict, Optional, Set, Callable
 from channels.generic.websocket import AsyncWebsocketConsumer, AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
-from django.core.cache import cache
+from django.core.cache import caches
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from pydantic import BaseModel, ValidationError as PydanticValidationError
 
 logger = logging.getLogger('bunoraa.websocket')
+realtime_cache = caches[getattr(settings, 'REALTIME_CACHE_ALIAS', 'default')]
 
 
 # Message schemas for validation
@@ -187,7 +188,7 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
             return False
         
         try:
-            current = cache.get(self._rate_limit_key, 0)
+            current = realtime_cache.get(self._rate_limit_key, 0)
             if current >= self.RATE_LIMIT_MESSAGES:
                 logger.warning(
                     f"[{self.CONSUMER_NAME}] Rate limit exceeded",
@@ -198,7 +199,7 @@ class ProducerWebSocketConsumer(AsyncWebsocketConsumer):
                 )
                 return True
             
-            cache.set(
+            realtime_cache.set(
                 self._rate_limit_key,
                 current + 1,
                 self.RATE_LIMIT_WINDOW
@@ -447,11 +448,11 @@ class ProducerJsonWebSocketConsumer(AsyncJsonWebsocketConsumer):
             return False
         
         try:
-            current = cache.get(self._rate_limit_key, 0)
+            current = realtime_cache.get(self._rate_limit_key, 0)
             if current >= self.RATE_LIMIT_MESSAGES:
                 logger.warning(f"[{self.CONSUMER_NAME}] Rate limited")
                 return True
-            cache.set(self._rate_limit_key, current + 1, self.RATE_LIMIT_WINDOW)
+            realtime_cache.set(self._rate_limit_key, current + 1, self.RATE_LIMIT_WINDOW)
             return False
         except Exception as e:
             logger.error(f"[{self.CONSUMER_NAME}] Rate check error: {e}", exc_info=True)

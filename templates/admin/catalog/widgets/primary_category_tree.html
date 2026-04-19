@@ -1,0 +1,179 @@
+{# Primary Category Tree Widget Template #}
+{# GitHub-style expandable tree for selecting primary category #}
+
+{% load static %}
+
+<div class="category-tree-widget-container" id="primary-category-widget">
+    <div class="category-tree-widget-header">
+        <span class="category-tree-widget-title">Select Primary Category</span>
+        <div class="category-tree-controls">
+            <button type="button" class="expand-all-categories" title="Expand All">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Expand All</span>
+            </button>
+            <button type="button" class="collapse-all-categories" title="Collapse All">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9.5 7.5L6 4L2.5 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Collapse All</span>
+            </button>
+        </div>
+    </div>
+    
+    <div class="category-tree-search-wrapper">
+        <input type="text" class="category-tree-search" placeholder="Search categories..." autocomplete="off">
+    </div>
+    
+    <div class="category-tree-selected-display" id="primary_category-selected">
+        {% if widget.selected_value %}
+            {% for cat in widget.categories %}
+                {% if cat.id == widget.selected_value %}
+                    <span class="selected-category-badge">
+                        <span class="category-icon">📁</span>
+                        {{ cat.name }}
+                        <button type="button" class="clear-category" data-field="primary_category">×</button>
+                    </span>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            <span class="no-category-selected">No category selected</span>
+        {% endif %}
+    </div>
+    
+    {# Hidden input for form submission #}
+    <input type="hidden"
+           name="{{ widget.name }}"
+           id="id_{{ widget.name }}"
+           value="{{ widget.value|default:'' }}"
+           {% include "django/forms/widgets/attrs.html" %}>
+    
+    <div class="category-tree-wrapper" id="primary_category_tree_widget">
+        <ul class="category-tree-list category-tree-root">
+            {% for category in widget.categories %}
+                {% if not category.parent_id %}
+                    {% include "admin/catalog/widgets/category_tree_item.html" with category=category categories=widget.categories selected=widget.selected_value level=0 only %}
+                {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+    
+    <p class="category-tree-help">
+        This category will be the main category for the product. Selecting a parent category 
+        will filter the "Categories" field below to show only its subcategories.
+    </p>
+</div>
+
+<script>
+(function() {
+    'use strict';
+    
+    // Initialize tree behavior
+    document.addEventListener('DOMContentLoaded', function() {
+        const treeWidget = document.getElementById('primary-category-widget');
+        if (!treeWidget) return;
+        
+        // Toggle expand/collapse
+        treeWidget.querySelectorAll('.category-tree-toggle').forEach(toggle => {
+            toggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const categoryId = this.dataset.id;
+                const children = document.querySelector('.category-tree-children[data-parent="' + categoryId + '"]');
+                const icon = this.querySelector('svg');
+                
+                if (children) {
+                    const isExpanded = children.style.display !== 'none';
+                    children.style.display = isExpanded ? 'none' : 'block';
+                    
+                    // Update icon rotation
+                    if (isExpanded) {
+                        icon.style.transform = 'rotate(0deg)';
+                    } else {
+                        icon.style.transform = 'rotate(90deg)';
+                    }
+                }
+            });
+        });
+        
+        // Category selection
+        treeWidget.querySelectorAll('.category-tree-name').forEach(name => {
+            name.addEventListener('click', function(e) {
+                e.preventDefault();
+                const categoryId = this.dataset.id;
+                const categoryName = this.textContent.trim();
+                
+                // Update hidden input
+                document.getElementById('id_primary_category').value = categoryId;
+                
+                // Update visual selection
+                treeWidget.querySelectorAll('.category-tree-content').forEach(el => el.classList.remove('selected'));
+                this.closest('.category-tree-content').classList.add('selected');
+                
+                // Update display
+                const display = document.getElementById('primary_category-selected');
+                display.innerHTML = '<span class="selected-category-badge">' +
+                    '<span class="category-icon">📁</span>' +
+                    categoryName +
+                    '<button type="button" class="clear-category" data-field="primary_category">×</button>' +
+                    '</span>';
+                
+                // Trigger change event for categories filtering
+                document.getElementById('id_primary_category').dispatchEvent(new Event('change'));
+            });
+        });
+        
+        // Clear selection
+        treeWidget.addEventListener('click', function(e) {
+            if (e.target.classList.contains('clear-category')) {
+                document.getElementById('id_primary_category').value = '';
+                treeWidget.querySelectorAll('.category-tree-content').forEach(el => el.classList.remove('selected'));
+                document.getElementById('primary_category-selected').innerHTML = '<span class="no-category-selected">No category selected</span>';
+                document.getElementById('id_primary_category').dispatchEvent(new Event('change'));
+            }
+        });
+        
+        // Expand all
+        treeWidget.querySelector('.expand-all-categories').addEventListener('click', function() {
+            treeWidget.querySelectorAll('.category-tree-children').forEach(child => child.style.display = 'block');
+            treeWidget.querySelectorAll('.category-tree-toggle svg').forEach(icon => icon.style.transform = 'rotate(90deg)');
+        });
+        
+        // Collapse all
+        treeWidget.querySelector('.collapse-all-categories').addEventListener('click', function() {
+            treeWidget.querySelectorAll('.category-tree-children').forEach(child => child.style.display = 'none');
+            treeWidget.querySelectorAll('.category-tree-toggle svg').forEach(icon => icon.style.transform = 'rotate(0deg)');
+        });
+        
+        // Search/filter
+        const searchInput = treeWidget.querySelector('.category-tree-search');
+        searchInput.addEventListener('input', function() {
+            const term = this.value.toLowerCase();
+            if (!term) {
+                treeWidget.querySelectorAll('.category-tree-item').forEach(item => item.style.display = 'block');
+                return;
+            }
+            
+            treeWidget.querySelectorAll('.category-tree-item').forEach(item => {
+                const name = item.querySelector('.category-tree-name').textContent.toLowerCase();
+                if (name.includes(term)) {
+                    item.style.display = 'block';
+                    // Expand parents
+                    let parentId = item.dataset.parent;
+                    while (parentId) {
+                        const parent = document.querySelector('.category-tree-item[data-id="' + parentId + '"]');
+                        if (parent) {
+                            parent.style.display = 'block';
+                            const children = document.querySelector('.category-tree-children[data-parent="' + parentId + '"]');
+                            if (children) children.style.display = 'block';
+                        }
+                        parentId = parent ? parent.dataset.parent : null;
+                    }
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    });
+})();
+</script>

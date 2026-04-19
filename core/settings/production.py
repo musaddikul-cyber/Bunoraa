@@ -170,6 +170,27 @@ for raw_origin in _frontend_origins_raw:
         CSRF_TRUSTED_ORIGINS.append(frontend_origin)
 
 # =============================================================================
+# PERFORMANCE MONITORING - NEW
+# =============================================================================
+# Enable detailed monitoring and profiling (enabled by default in production)
+ENABLE_PERFORMANCE_MONITORING = _env_bool('ENABLE_PERFORMANCE_MONITORING', True)
+PERFORMANCE_MONITORING_LOG_THRESHOLD_MS = _env_int('PERFORMANCE_MONITORING_THRESHOLD_MS', 100)
+
+# Query profiling
+ENABLE_QUERY_PROFILING = _env_bool('ENABLE_QUERY_PROFILING', DEBUG)
+QUERY_PROFILING_SLOW_THRESHOLD_MS = _env_int('QUERY_PROFILING_SLOW_THRESHOLD_MS', 100)
+
+# =============================================================================
+# CACHE CONFIGURATION - ENHANCED PERFORMANCE
+# =============================================================================
+# Multi-tier caching strategy for optimal performance
+CACHE_HIT_THRESHOLD_METRICS = _env_int('CACHE_HIT_THRESHOLD_METRICS', 85)  # Target cache hit rate %
+
+# Cache warming configuration
+CACHE_WARMING_ENABLED = _env_bool('CACHE_WARMING_ENABLED', True)
+CACHE_WARMING_INTERVAL_MINUTES = _env_int('CACHE_WARMING_INTERVAL_MINUTES', 30)
+
+# =============================================================================
 # DATABASE - PostgreSQL with Connection Pooling
 # =============================================================================
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -177,18 +198,24 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set in production environment")
 
 # Connection Pooling Configuration
-# DB_CONN_MAX_AGE: How long (seconds) a connection is kept alive
-# Default: 600 seconds (10 minutes) for production
-# - 0 = no pooling (creates new connection per request - BAD for production)
-# - 600 = keep connection for 10 minutes (recommended)
-# - 3600 = keep for 1 hour (for high traffic)
-# Override with: DB_CONN_MAX_AGE=3600
-DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 600)  # 10 minutes default for production
+# =============================================================================
+# DATABASE - OPTIMIZED FOR RENDER WEB SERVICES
+# =============================================================================
 
-DB_CONNECT_TIMEOUT_SECONDS = _env_int('DB_CONNECT_TIMEOUT_SECONDS', 30)
-DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 30000)
-DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 60000)
-DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 60000)
+# DB_CONN_MAX_AGE: How long (seconds) a connection is kept alive
+# For Render free tier with limited memory:
+# - Lower value (60-120s) prevents memory bloat from idle connections
+# - BUT too low increases connection overhead
+# Balance: 300s (5 minutes) for moderate traffic
+# Override with: DB_CONN_MAX_AGE=60 for memory-constrained environments
+DB_CONN_MAX_AGE = _env_int('DB_CONN_MAX_AGE', 300)  # 5 minutes - balance between speed and memory
+
+# Database timeouts optimized for web services
+# These prevent long-running queries from causing worker timeouts
+DB_CONNECT_TIMEOUT_SECONDS = _env_int('DB_CONNECT_TIMEOUT_SECONDS', 10)  # Fail fast on connection issues
+DB_STATEMENT_TIMEOUT_MS = _env_int('DB_STATEMENT_TIMEOUT_MS', 25000)  # 25s - below Gunicorn default timeout
+DB_IDLE_TX_TIMEOUT_MS = _env_int('DB_IDLE_TX_TIMEOUT_MS', 30000)  # 30s - kill idle transactions
+DB_IDLE_SESSION_TIMEOUT_MS = _env_int('DB_IDLE_SESSION_TIMEOUT_MS', 300000)  # 5min - cleanup idle sessions
 
 # Schema migrations can legitimately exceed runtime query timeouts.
 if _is_schema_command():
@@ -288,10 +315,24 @@ SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
 # =============================================================================
 # CACHE - Redis
 # =============================================================================
-REDIS_URL = _normalize_rediss_url(os.environ.get('REDIS_URL'))
-UPSTASH_REDIS_REST_URL = os.environ.get('UPSTASH_REDIS_REST_URL', '').strip()
-UPSTASH_REDIS_REST_TOKEN = os.environ.get('UPSTASH_REDIS_REST_TOKEN', '').strip()
-if REDIS_URL:
+REDIS_URL = _normalize_rediss_url((os.environ.get('REDIS_URL') or '').strip())
+CELERY_REDIS_URL = _normalize_rediss_url(
+    (
+        os.environ.get('CELERY_REDIS_URL')
+        or os.environ.get('CELERY_BROKER_URL')
+        or REDIS_URL
+        or ''
+    ).strip()
+)
+SESSION_REDIS_URL = REDIS_URL or CELERY_REDIS_URL
+CHANNEL_LAYERS_REDIS_URL = _normalize_rediss_url(
+    (os.environ.get('CHANNEL_LAYERS_REDIS_URL') or CELERY_REDIS_URL or '').strip()
+)
+ML_REDIS_URL = _normalize_rediss_url(
+    (globals().get('ML_REDIS_URL') or os.environ.get('ML_REDIS_URL') or '').strip()
+)
+# Note: UPSTASH_REDIS_REST_* vars remain optional; ML TCP access uses ML_REDIS_URL.
+if CELERY_REDIS_URL or SESSION_REDIS_URL:
     REDIS_SOCKET_CONNECT_TIMEOUT = _env_int('REDIS_SOCKET_CONNECT_TIMEOUT', 10)
     REDIS_SOCKET_TIMEOUT = _env_int('REDIS_SOCKET_TIMEOUT', 10)
     REDIS_SOCKET_KEEPALIVE = _env_bool('REDIS_SOCKET_KEEPALIVE', True)
@@ -336,12 +377,14 @@ if REDIS_URL:
         return options or None
 
     _redis_keepalive_options = _socket_keepalive_options()
+    _default_cache_url = CELERY_REDIS_URL or SESSION_REDIS_URL
+    _session_cache_url = SESSION_REDIS_URL or _default_cache_url
 
     _session_cache_timeout = _env_int('SESSION_CACHE_TIMEOUT_SECONDS', SESSION_COOKIE_AGE)
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': REDIS_URL,
+            'LOCATION': _default_cache_url,
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
                 'CONNECTION_POOL_CLASS': _redis_pool_class,
@@ -358,7 +401,7 @@ if REDIS_URL:
         },
         'sessions': {
             'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': _redis_db_url(REDIS_URL, 1),
+            'LOCATION': _session_cache_url,
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
                 'CONNECTION_POOL_CLASS': _redis_pool_class,
@@ -380,11 +423,12 @@ if REDIS_URL:
     if not SESSION_ENGINE:
         SESSION_ENGINE = (
             'django.contrib.sessions.backends.cache'
-            if REDIS_URL
+            if _session_cache_url
             else 'django.contrib.sessions.backends.cached_db'
         )
     SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
     SESSION_CACHE_ALIAS = 'sessions'
+    REALTIME_CACHE_ALIAS = os.environ.get('REALTIME_CACHE_ALIAS', 'sessions')
 
     WS_SESSION_AUTH_ENABLED = _env_bool('WS_SESSION_AUTH_ENABLED', False)
 
@@ -436,8 +480,22 @@ EMAIL_HOST_PASSWORD = os.environ.get('SENDGRID_API_KEY') or os.environ.get('EMAI
 # =============================================================================
 # CELERY - MEMORY OPTIMIZED FOR LOW RESOURCE ENVIRONMENTS
 # =============================================================================
-CELERY_BROKER_URL = _normalize_rediss_url(os.environ.get('CELERY_BROKER_URL', REDIS_URL))
-CELERY_RESULT_BACKEND = _normalize_rediss_url(os.environ.get('CELERY_RESULT_BACKEND', REDIS_URL))
+CELERY_BROKER_URL = _normalize_rediss_url(
+    (
+        os.environ.get('CELERY_BROKER_URL')
+        or CELERY_REDIS_URL
+        or SESSION_REDIS_URL
+        or ''
+    ).strip()
+)
+CELERY_RESULT_BACKEND = _normalize_rediss_url(
+    (
+        os.environ.get('CELERY_RESULT_BACKEND')
+        or CELERY_REDIS_URL
+        or SESSION_REDIS_URL
+        or ''
+    ).strip()
+)
 CELERY_TASK_ALWAYS_EAGER = False
 
 # Connection retry behavior
@@ -467,10 +525,7 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 # =============================================================================
 # CHANNEL LAYERS - WebSockets with Redis
 # =============================================================================
-if REDIS_URL:
-    channel_layers_redis_url = _normalize_rediss_url(
-        os.environ.get('CHANNEL_LAYERS_REDIS_URL', _redis_db_url(REDIS_URL, 2))
-    )
+if CHANNEL_LAYERS_REDIS_URL:
     # Use Redis for channel layers in production (required for WebSocket support)
     CHANNEL_LAYERS = {
         'default': {
@@ -478,7 +533,7 @@ if REDIS_URL:
             'CONFIG': {
                 'hosts': [
                     {
-                        'address': channel_layers_redis_url,
+                        'address': CHANNEL_LAYERS_REDIS_URL,
                         'socket_connect_timeout': REDIS_SOCKET_CONNECT_TIMEOUT,
                         'socket_timeout': REDIS_SOCKET_TIMEOUT,
                         'health_check_interval': REDIS_HEALTH_CHECK_INTERVAL,
@@ -522,3 +577,88 @@ if SENTRY_DSN:
         send_default_pii=False,
         environment=ENVIRONMENT,
     )
+
+# =============================================================================
+# PERFORMANCE & MEMORY MONITORING - Enhanced Logging
+# =============================================================================
+# Add performance monitoring loggers
+LOGGING['loggers']['bunoraa.performance'] = {
+    'handlers': ['console'],
+    'level': 'INFO',
+    'propagate': False,
+}
+
+LOGGING['loggers']['bunoraa.memory'] = {
+    'handlers': ['console'],
+    'level': 'WARNING',
+    'propagate': False,
+}
+
+# Gunicorn-specific logging
+LOGGING['loggers']['gunicorn.error'] = {
+    'handlers': ['console'],
+    'level': 'INFO',
+    'propagate': False,
+}
+
+LOGGING['loggers']['gunicorn.access'] = {
+    'handlers': ['console'],
+    'level': 'INFO',
+    'propagate': False,
+}
+
+# Database query logging (for debugging slow queries)
+LOGGING['loggers']['django.db.backends'] = {
+    'handlers': ['console'],
+    'level': 'WARNING',  # Change to DEBUG to log all queries
+    'propagate': False,
+}
+
+# =============================================================================
+# RENDER-SPECIFIC OPTIMIZATIONS
+# =============================================================================
+
+# Compress responses to reduce bandwidth
+MIDDLEWARE += ['django.middleware.gzip.GZipMiddleware']
+
+# Add response time logging middleware
+if 'core.middleware.performance.PerformanceMonitoringMiddleware' not in MIDDLEWARE:
+    MIDDLEWARE.insert(0, 'core.middleware.performance.PerformanceMonitoringMiddleware')
+
+# Ensure cache middleware is properly positioned
+if 'django.middleware.cache.UpdateCacheMiddleware' not in MIDDLEWARE:
+    # Add cache middleware at the very beginning and end
+    MIDDLEWARE.insert(0, 'django.middleware.cache.UpdateCacheMiddleware')
+    MIDDLEWARE.append('django.middleware.cache.FetchFromCacheMiddleware')
+
+# Cache configuration for web services
+CACHE_MIDDLEWARE_SECONDS = _env_int('CACHE_MIDDLEWARE_SECONDS', 300)  # 5 minutes
+CACHE_MIDDLEWARE_KEY_PREFIX = 'bunoraa_prod'
+
+# =============================================================================
+# WARMUP & HEALTH CHECK SETTINGS
+# =============================================================================
+# URL endpoints for warmup script
+WARMUP_URLS = _split_csv(os.environ.get('WARMUP_URLS', '/api/docs/,/admin/login/'))
+WARMUP_TIMEOUT = _env_int('WARMUP_TIMEOUT', 45)
+WARMUP_RETRIES = _env_int('WARMUP_RETRIES', 3)
+
+# Health check configuration
+HEALTH_CHECK = {
+    'DISABLED_APPS': [],  # Enable all health checks in production
+    'WARNINGS_AS_ERRORS': True,  # Fail on warnings
+}
+
+# =============================================================================
+# ML/MODEL SETTINGS - DISABLED BY DEFAULT IN WEB WORKERS
+# =============================================================================
+# ML models consume significant memory - control loading carefully
+ML_LAZY_LOAD = _env_bool('ML_LAZY_LOAD', True)  # Load models only when needed
+ML_PRELOAD_ON_STARTUP = _env_bool('ML_PRELOAD_ON_STARTUP', False)  # Don't preload in web workers
+ML_MAX_MEMORY_MB = _env_int('ML_MAX_MEMORY_MB', 500)  # Maximum memory for ML models
+
+# Disable ML in web workers unless explicitly enabled
+if os.environ.get('PROCESS_TYPE') == 'web':
+    ML_ENABLED = _env_bool('ML_ENABLED_IN_WEB_WORKER', True)
+else:
+    ML_ENABLED = _env_bool('ML_ENABLED', True)

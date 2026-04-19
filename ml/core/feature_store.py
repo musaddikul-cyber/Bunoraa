@@ -450,8 +450,9 @@ def get_feature_store() -> FeatureStore:
     if _store is None:
         # Try to use Redis in production
         try:
-            from django.conf import settings
-            redis_url = getattr(settings, 'REDIS_URL', None)
+            from ml.redis import get_ml_redis_url
+
+            redis_url = get_ml_redis_url(default='')
             if redis_url:
                 _store = FeatureStore(backend=RedisBackend(redis_url))
             else:

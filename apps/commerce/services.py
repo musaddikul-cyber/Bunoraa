@@ -899,17 +899,39 @@ class CartService:
 # =============================================================================
 
 class WishlistService:
-    """Service class for wishlist operations."""
+    """Service class for wishlist operations with session support."""
+    
+    SESSION_WISHLIST_DAYS = 30  # Session wishlist expiry
     
     @classmethod
-    def get_or_create_wishlist(cls, user) -> Wishlist:
-        """Get or create a wishlist for a user."""
-        wishlist, created = Wishlist.objects.get_or_create(user=user)
-        return wishlist
+    def get_or_create_wishlist(cls, user=None, session_key=None) -> Wishlist:
+        """Get or create a wishlist for user or session."""
+        if user and user.is_authenticated:
+            wishlist, created = Wishlist.objects.get_or_create(
+                user=user,
+                defaults={'session_key': ''}
+            )
+            return wishlist
+        
+        if session_key:
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            expires_at = timezone.now() + timedelta(days=cls.SESSION_WISHLIST_DAYS)
+            wishlist, created = Wishlist.objects.get_or_create(
+                session_key=session_key,
+                user__isnull=True,
+                defaults={'expires_at': expires_at}
+            )
+            return wishlist
+        
+        raise ValueError("Either user or session_key is required")
     
     @classmethod
     @transaction.atomic
-    def add_item(cls, wishlist: Wishlist, product, variant=None, notes='') -> WishlistItem:
+    def add_item(cls, wishlist: Wishlist, product, variant=None, notes='', 
+                 priority=WishlistItem.PRIORITY_NORMAL,
+                 notify_on_sale=True, notify_on_restock=True) -> WishlistItem:
         """Add an item to the wishlist."""
         item, created = WishlistItem.objects.get_or_create(
             wishlist=wishlist,
@@ -917,7 +939,10 @@ class WishlistService:
             variant=variant,
             defaults={
                 'notes': notes,
-                'price_at_add': product.current_price
+                'price_at_add': product.current_price,
+                'priority': priority,
+                'notify_on_sale': notify_on_sale,
+                'notify_on_restock': notify_on_restock,
             }
         )
         
@@ -950,10 +975,79 @@ class WishlistService:
             cart=cart,
             product=wishlist_item.product,
             variant=wishlist_item.variant,
-            quantity=1
+            quantity=wishlist_item.desired_quantity or 1
         )
         cls.remove_item(wishlist_item.wishlist, wishlist_item.id)
         return cart_item
+    
+    @classmethod
+    def merge_session_wishlist(cls, user_wishlist: Wishlist, session_key: str) -> dict:
+        """Merge session wishlist into user wishlist after login.
+        
+        Returns:
+            dict: Merge statistics
+        """
+        from django.utils import timezone
+        
+        result = {
+            'merged_items': 0,
+            'skipped_items': 0,
+            'deleted_session_wishlists': 0,
+        }
+        
+        # Get all session wishlists for this session key
+        session_wishlists = Wishlist.objects.filter(
+            session_key=session_key,
+            user__isnull=True
+        )
+        
+        for session_wishlist in session_wishlists:
+            items_count = session_wishlist.items.count()
+            
+            # Merge items
+            for item in session_wishlist.items.all():
+                existing = user_wishlist.items.filter(
+                    product=item.product,
+                    variant=item.variant
+                ).first()
+                
+                if existing:
+                    # Keep higher priority
+                    if item.priority > existing.priority:
+                        existing.priority = item.priority
+                    # Merge notes
+                    if item.notes and not existing.notes:
+                        existing.notes = item.notes
+                    existing.save()
+                    result['skipped_items'] += 1
+                else:
+                    # Move item
+                    item.wishlist = user_wishlist
+                    item.save()
+                    result['merged_items'] += 1
+            
+            # Delete session wishlist
+            session_wishlist.delete()
+            result['deleted_session_wishlists'] += 1
+        
+        return result
+    
+    @classmethod
+    def cleanup_expired_session_wishlists(cls) -> int:
+        """Clean up expired session wishlists.
+        
+        Returns:
+            int: Number of deleted wishlists
+        """
+        from django.utils import timezone
+        
+        expired = Wishlist.objects.filter(
+            user__isnull=True,
+            expires_at__lt=timezone.now()
+        )
+        count = expired.count()
+        expired.delete()
+        return count
     
     @classmethod
     def create_share_link(cls, wishlist: Wishlist, expires_days=30, allow_purchase=False) -> WishlistShare:

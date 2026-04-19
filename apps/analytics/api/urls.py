@@ -4,12 +4,16 @@ Analytics API URL configuration
 from django.urls import path, include
 from core.api.routers import DefaultRouter
 
-from .views import DashboardViewSet, DailyStatViewSet, TrackingViewSet, PublicAnalyticsViewSet
+from .views import (
+    DashboardViewSet, DailyStatViewSet, TrackingViewSet,
+    PublicAnalyticsViewSet, PerformanceAnalyticsViewSet
+)
 
 router = DefaultRouter()
 router.register(r'dashboard', DashboardViewSet, basename='dashboard')
 router.register(r'daily', DailyStatViewSet, basename='daily-stats')
 router.register(r'track', TrackingViewSet, basename='tracking')
+router.register(r'performance', PerformanceAnalyticsViewSet, basename='performance-analytics')
 
 # Create a public analytics instance for direct path access
 public_analytics = PublicAnalyticsViewSet.as_view({

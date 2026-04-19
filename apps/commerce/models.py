@@ -342,8 +342,8 @@ class Wishlist(models.Model):
         ordering = ['-updated_at']
         constraints = [
             models.CheckConstraint(
-                check=(models.Q(user__isnull=False, session_key__exact='') | 
-                       models.Q(user__isnull=True, session_key__isnull=False)),
+                condition=(models.Q(user__isnull=False, session_key__exact='') | 
+                           models.Q(user__isnull=True, session_key__isnull=False)),
                 name='wishlist_user_or_session'
             ),
         ]

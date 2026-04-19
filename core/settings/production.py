@@ -418,13 +418,14 @@ if CELERY_REDIS_URL or SESSION_REDIS_URL:
         }
     }
     
-    # Prefer cache-only sessions to reduce DB connections when Redis is available.
+    # Prefer cached_db sessions for durability when Redis is available.
+    # This uses the cache for fast lookups and the DB as a durable fallback.
     SESSION_ENGINE = os.environ.get('SESSION_ENGINE')
     if not SESSION_ENGINE:
         SESSION_ENGINE = (
-            'django.contrib.sessions.backends.cache'
+            'django.contrib.sessions.backends.cached_db'
             if _session_cache_url
-            else 'django.contrib.sessions.backends.cached_db'
+            else 'django.contrib.sessions.backends.db'
         )
     SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
     SESSION_CACHE_ALIAS = 'sessions'

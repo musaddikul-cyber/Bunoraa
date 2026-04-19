@@ -138,8 +138,8 @@ CACHES = {
 # SESSION CONFIGURATION
 # =============================================================================
 
-# Use Simple Redis (25MB) for session storage - efficient for simple key-value
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+# Use cached_db for session storage so Redis acts as a cache and DB provides durable fallback.
+SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
 SESSION_CACHE_ALIAS = 'realtime'
 SESSION_COOKIE_AGE = 86400 * 7  # 7 days
 SESSION_COOKIE_SECURE = True  # Only send over HTTPS

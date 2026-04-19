@@ -289,7 +289,7 @@ class ProductVariantEnhancedInline(ReorderableInlineMixin, admin.TabularInline):
     def stock_status_badge(self, obj):
         """Visual stock status indicator."""
         if obj.stock_quantity <= 0:
-            return format_html(
+            return mark_safe(
                 '<span class="status-badge out-of-stock">'
                 '<span class="status-dot"></span> Out</span>'
             )
@@ -318,7 +318,7 @@ class ProductVariantEnhancedInline(ReorderableInlineMixin, admin.TabularInline):
                 '\n'.join(options),
                 ' • '.join(options[:3]) + ('...' if len(options) > 3 else '')
             )
-        return format_html('<span class="variant-no-options">-</span>')
+        return mark_safe('<span class="variant-no-options">-</span>')
     variant_preview.short_description = "Configuration"
     
     def get_formset(self, request, obj=None, **kwargs):
@@ -374,7 +374,7 @@ class ProductImageEnhancedInline(ReorderableInlineMixin, admin.TabularInline):
                 'style="max-height: 50px; max-width: 70px; object-fit: cover; border-radius: 4px;" />',
                 obj.image.url
             )
-        return format_html('<span class="no-image">No image</span>')
+        return mark_safe('<span class="no-image">No image</span>')
     thumbnail_preview.short_description = "Thumb"
     
     def image_preview_large(self, obj):

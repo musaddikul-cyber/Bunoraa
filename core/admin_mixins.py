@@ -237,14 +237,24 @@ class AuditLogMixin:
         message = action.capitalize()
         if changed_fields:
             message += f': {", ".join(changed_fields)}'
-        
-        LogEntry.objects.log_action(
+
+        if hasattr(LogEntry.objects, "log_actions"):
+            return LogEntry.objects.log_actions(
+                user_id=request.user.pk,
+                queryset=[obj],
+                action_flag=action_flag,
+                change_message=message,
+                single_object=True,
+            )
+
+        content_type = ContentType.objects.get_for_model(obj, for_concrete_model=False)
+        return LogEntry.objects.log_action(
             user_id=request.user.pk,
-            content_type_id=ContentType.objects.get_for_model(obj).pk,
+            content_type_id=content_type.pk,
             object_id=obj.pk,
             object_repr=str(obj)[:200],
             action_flag=action_flag,
-            change_message=message
+            change_message=message,
         )
 
 

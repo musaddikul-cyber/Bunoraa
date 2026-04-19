@@ -122,6 +122,11 @@ class CategoryDropdownWidget(forms.Select):
     """
     template_name = 'admin/catalog/widgets/category_dropdown.html'
 
+    class Media:
+        css = {
+            'all': ('css/admin/category_dropdown.css',)
+        }
+
     def __init__(self, attrs=None, choices=()):
         super().__init__(attrs)
         self.choices = list(choices)

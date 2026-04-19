@@ -165,6 +165,25 @@
       });
     }
 
+    function setFileInputFiles(input, file) {
+      if (!input || !file) {
+        return;
+      }
+      if (typeof DataTransfer !== 'undefined') {
+        var dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        input.files = dataTransfer.files;
+      } else if (typeof ClipboardEvent !== 'undefined') {
+        try {
+          var clipboardData = new ClipboardEvent('').clipboardData || new DataTransfer();
+          clipboardData.items.add(file);
+          input.files = clipboardData.files;
+        } catch (err) {
+          // Fallback: cannot programmatically assign files
+        }
+      }
+    }
+
     function handleFiles(files) {
       var inlineTable = $('.image-table tbody');
       var prefix = $('.image-group').attr('id').replace('-group', '');
@@ -192,6 +211,13 @@
               if (id) $input.attr('id', id.replace('__prefix__', newIndex));
               if (name) $input.attr('name', name.replace('__prefix__', newIndex));
             });
+
+            // Assign the dropped file to the cloned file input
+            var fileInputField = newForm.find('input[type="file"]').get(0);
+            if (fileInputField) {
+              setFileInputFiles(fileInputField, file);
+              fileInputField.dispatchEvent(new Event('change', { bubbles: true }));
+            }
 
             // Update the preview image
             newForm.find('.inline-thumb').attr('src', e.target.result);

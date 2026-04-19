@@ -3,6 +3,23 @@
  * Enhanced styling for product variant management
  */
 
+:root {
+    --variant-bg: var(--body-bg, #ffffff);
+    --variant-border: var(--border-color, #e2e8f0);
+    --variant-header-bg: var(--surface-muted, #f8fafc);
+    --variant-panel-bg: var(--body-bg, #ffffff);
+    --variant-card-bg: var(--surface-muted, #f8fafc);
+    --variant-text: var(--body-fg, #334155);
+    --variant-muted-text: var(--body-quiet-color, #6b7280);
+    --variant-button-bg: var(--button-bg, #ffffff);
+    --variant-button-border: var(--border-color, #d1d5db);
+    --variant-button-hover: var(--surface-hover, #f3f4f6);
+    --variant-primary: var(--primary, #3b82f6);
+    --variant-primary-hover: #2563eb;
+    --variant-table-header: var(--surface-muted, #f8fafc);
+    --variant-row-hover: var(--surface-hover, #f8fafc);
+}
+
 /* ==========================================================================
    Section Header
    ========================================================================== */
@@ -12,8 +29,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 12px 16px;
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    border: 1px solid #e2e8f0;
+    background: var(--variant-header-bg);
+    border: 1px solid var(--variant-border);
     border-bottom: none;
     border-radius: 8px 8px 0 0;
     flex-wrap: wrap;
@@ -46,19 +63,19 @@
     align-items: center;
     gap: 5px;
     padding: 6px 12px;
-    background: #fff;
-    border: 1px solid #d1d5db;
+    background: var(--variant-button-bg);
+    border: 1px solid var(--variant-button-border);
     border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
-    color: #374151;
+    color: var(--variant-text);
     transition: all 0.2s;
     white-space: nowrap;
 }
 
 .variant-tool-btn:hover {
-    background: #f3f4f6;
+    background: var(--variant-button-hover);
     border-color: #9ca3af;
 }
 
@@ -68,9 +85,9 @@
 
 .variant-count {
     font-size: 12px;
-    color: #6b7280;
+    color: var(--variant-muted-text);
     padding: 4px 10px;
-    background: #e5e7eb;
+    background: var(--variant-card-bg);
     border-radius: 12px;
     margin-left: 8px;
 }
@@ -81,8 +98,8 @@
 
 .variant-generator-panel,
 .bulk-pricing-panel {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--variant-panel-bg);
+    border: 1px solid var(--variant-border);
     border-top: none;
     padding: 20px;
 }
@@ -100,7 +117,7 @@
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--variant-text);
 }
 
 .panel-close {
@@ -108,7 +125,7 @@
     border: none;
     font-size: 24px;
     line-height: 1;
-    color: #6b7280;
+    color: var(--variant-muted-text);
     cursor: pointer;
     padding: 0;
     width: 28px;
@@ -140,8 +157,8 @@
 }
 
 .option-group {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--variant-card-bg);
+    border: 1px solid var(--variant-border);
     border-radius: 6px;
     padding: 12px;
 }
@@ -152,7 +169,7 @@
     gap: 8px;
     font-size: 13px;
     font-weight: 600;
-    color: #374151;
+    color: var(--variant-text);
     margin-bottom: 8px;
     cursor: pointer;
 }
@@ -173,12 +190,12 @@
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: #4b5563;
+    color: var(--variant-muted-text);
     cursor: pointer;
 }
 
 .option-value-label:hover {
-    color: #1e293b;
+    color: var(--variant-text);
 }
 
 .option-value-label input[type="checkbox"] {
@@ -186,11 +203,11 @@
 }
 
 .no-options {
-    color: #6b7280;
+    color: var(--variant-muted-text);
     font-style: italic;
     padding: 20px;
     text-align: center;
-    background: #f9fafb;
+    background: var(--variant-card-bg);
     border-radius: 6px;
 }
 
@@ -204,14 +221,14 @@
 }
 
 .generate-btn {
-    background: #3b82f6 !important;
+    background: var(--variant-primary);
     color: white !important;
     padding: 8px 20px !important;
     font-weight: 500 !important;
 }
 
 .generate-btn:hover {
-    background: #2563eb !important;
+    background: var(--variant-primary-hover) !important;
 }
 
 .generate-btn:disabled {
@@ -234,7 +251,7 @@
     align-items: center;
     gap: 12px;
     padding: 10px 0;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--variant-row-hover);
 }
 
 .pricing-row:last-child {
@@ -244,15 +261,17 @@
 .pricing-row label {
     min-width: 160px;
     font-size: 13px;
-    color: #374151;
+    color: var(--variant-text);
 }
 
 .pricing-row input[type="number"] {
     width: 120px;
     padding: 6px 10px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--variant-button-border);
     border-radius: 4px;
     font-size: 13px;
+    background: var(--variant-bg);
+    color: var(--variant-text);
 }
 
 .pricing-row .button {
@@ -268,30 +287,32 @@
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--variant-border);
     border-top: none;
 }
 
 .variant-table thead th {
-    background: #f8fafc;
+    background: var(--variant-table-header);
     padding: 10px 8px;
     font-size: 12px;
     font-weight: 600;
-    color: #475569;
+    color: var(--variant-text);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--variant-border);
     white-space: nowrap;
 }
 
 .variant-table tbody td {
     padding: 10px 8px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--variant-row-hover);
     vertical-align: middle;
+    color: var(--variant-text);
+    background: var(--variant-bg);
 }
 
 .variant-table tbody tr:hover {
-    background: #f8fafc;
+    background: var(--variant-row-hover);
 }
 
 .variant-table tbody tr:last-child td {
@@ -445,8 +466,8 @@
 
 .add-variant-row {
     padding: 16px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--variant-card-bg);
+    border: 1px solid var(--variant-border);
     border-top: none;
     border-radius: 0 0 8px 8px;
 }
@@ -456,7 +477,7 @@
     align-items: center;
     gap: 6px;
     padding: 8px 16px;
-    background: #3b82f6;
+    background: var(--variant-primary);
     color: white !important;
     text-decoration: none !important;
     border-radius: 6px;
@@ -466,7 +487,7 @@
 }
 
 .add-variant-link:hover {
-    background: #2563eb;
+    background: var(--variant-primary-hover);
 }
 
 .add-icon {
@@ -632,4 +653,56 @@ tr.empty-form {
 /* Hide default Django add button when using custom */
 .variant-group + .add-row {
     display: none;
+}
+
+/* Dark Mode */
+[data-admin-theme="dark"] {
+    --variant-bg: #111827;
+    --variant-border: #374151;
+    --variant-header-bg: #1f2937;
+    --variant-panel-bg: #111827;
+    --variant-card-bg: #1f2937;
+    --variant-text: #e2e8eb;
+    --variant-muted-text: #9ca3af;
+    --variant-button-bg: #1f2937;
+    --variant-button-border: #4b5563;
+    --variant-button-hover: #374151;
+    --variant-table-header: #1f2937;
+    --variant-row-hover: #111827;
+}
+
+[data-admin-theme="dark"] .variant-tool-btn {
+    color: var(--variant-text);
+    background: var(--variant-button-bg);
+    border-color: var(--variant-button-border);
+}
+
+[data-admin-theme="dark"] .variant-tool-btn:hover {
+    background: var(--variant-button-hover);
+}
+
+[data-admin-theme="dark"] .variant-count,
+[data-admin-theme="dark"] .option-group,
+[data-admin-theme="dark"] .no-options,
+[data-admin-theme="dark"] .add-variant-row {
+    background: var(--variant-card-bg);
+    border-color: var(--variant-border);
+}
+
+[data-admin-theme="dark"] .variant-table thead th,
+[data-admin-theme="dark"] .variant-table tbody td,
+[data-admin-theme="dark"] .variant-section-header {
+    color: var(--variant-text);
+}
+
+[data-admin-theme="dark"] .variant-table tbody tr:hover {
+    background: #1f2937;
+}
+
+[data-admin-theme="dark"] .panel-header h4,
+[data-admin-theme="dark"] .panel-description,
+[data-admin-theme="dark"] .pricing-row label,
+[data-admin-theme="dark"] .option-group-title,
+[data-admin-theme="dark"] .option-value-label {
+    color: var(--variant-text);
 }

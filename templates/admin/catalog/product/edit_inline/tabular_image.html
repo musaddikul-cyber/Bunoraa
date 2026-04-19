@@ -53,9 +53,8 @@
             {# Thumbnail #}
             <td class="field-thumbnail">
               {% if inline_admin_form.form.instance.image %}
-                <img src="{{ inline_admin_form.form.instance.image.url }}" 
-                     class="inline-thumb" 
-                     style="max-height: 50px; max-width: 70px; object-fit: cover; border-radius: 4px;"
+                <img src="{{ inline_admin_form.form.instance.image.url }}"
+                     class="inline-thumb"
                      alt="Thumbnail" />
               {% else %}
                 <span class="no-image">-</span>
@@ -66,9 +65,8 @@
             <td class="field-preview">
               {% if inline_admin_form.form.instance.image %}
                 <a href="{{ inline_admin_form.form.instance.image.url }}" target="_blank" class="image-preview-link">
-                  <img src="{{ inline_admin_form.form.instance.image.url }}" 
+                  <img src="{{ inline_admin_form.form.instance.image.url }}"
                        class="inline-preview-large"
-                       style="max-height: 120px; max-width: 150px; object-fit: contain; border: 1px solid #ddd; border-radius: 4px;"
                        alt="Preview" />
                 </a>
               {% else %}

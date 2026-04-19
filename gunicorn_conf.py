@@ -30,7 +30,7 @@ import signal
 # Fast startup mode - skip heavy operations
 os.environ.setdefault('SKIP_MIGRATIONS_CHECK', 'True')
 os.environ.setdefault('PROCESS_TYPE', 'web')
-os.environ.setdefault('ML_ENABLED', 'False')  # DISABLED by default - enable after warmup
+os.environ.setdefault('ML_ENABLED', 'True')
 
 # ============================================
 # MEMORY MONITORING SETUP

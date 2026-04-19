@@ -388,33 +388,3 @@
 {{ block.super }}
 {% endblock %}
 
-{% block inline_field_sets %}
-{{ block.super }}
-
-<!-- Additional Tools Section -->
-{% if change and original %}
-<div class="module aligned" style="margin-top: 30px;">
-  <h2>🛠️ Product Tools</h2>
-  <div class="form-row">
-    <div class="field-box">
-      <label>Variant Management:</label>
-      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <a href="{% url 'admin:catalog_product_variant_generator' original.pk %}"
-           class="button"
-           target="_blank"
-           style="background: #3b82f6; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none;">
-          ✨ Generate Variants
-        </a>
-        <a href="{% url 'admin:catalog_product_bulk_pricing' original.pk %}"
-           class="button"
-           target="_blank"
-           style="background: #10b981; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none;">
-          💰 Bulk Pricing
-        </a>
-      </div>
-      <p class="help">Use these tools to quickly create and manage product variants.</p>
-    </div>
-  </div>
-</div>
-{% endif %}
-{% endblock %}

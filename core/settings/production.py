@@ -107,8 +107,8 @@ elif not PRERENDER_MIDDLEWARE_ENABLED and 'core.middleware.bot_prerender.BotPreR
 # =============================================================================
 # Reduce startup time by 50-75%
 
-# Only enable ML on worker processes, not web servers
-ML_ENABLED = os.environ.get('ML_ENABLED', 'False') == 'True'
+# ML defaults are managed in core.settings; worker/web process overrides are applied later.
+ML_ENABLED = _env_bool('ML_ENABLED', True)
 PROCESS_TYPE = os.environ.get('PROCESS_TYPE', 'web')  # 'web', 'worker', 'scheduler'
 
 # Fast startup mode - skip heavy operations
@@ -623,8 +623,8 @@ LOGGING['loggers']['django.db.backends'] = {
 MIDDLEWARE += ['django.middleware.gzip.GZipMiddleware']
 
 # Add response time logging middleware
-if 'core.middleware.performance.PerformanceMonitoringMiddleware' not in MIDDLEWARE:
-    MIDDLEWARE.insert(0, 'core.middleware.performance.PerformanceMonitoringMiddleware')
+if 'core.middleware.monitoring.MetricsCollectorMiddleware' not in MIDDLEWARE:
+    MIDDLEWARE.insert(0, 'core.middleware.monitoring.MetricsCollectorMiddleware')
 
 # Ensure cache middleware is properly positioned
 if 'django.middleware.cache.UpdateCacheMiddleware' not in MIDDLEWARE:

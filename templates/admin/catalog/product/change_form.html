@@ -167,21 +167,32 @@
 
     function setFileInputFiles(input, file) {
       if (!input || !file) {
-        return;
+        return input;
       }
-      if (typeof DataTransfer !== 'undefined') {
-        var dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
-        input.files = dataTransfer.files;
-      } else if (typeof ClipboardEvent !== 'undefined') {
-        try {
+
+      var newInput = input.cloneNode(false);
+      Array.from(input.attributes).forEach(function(attr) {
+        newInput.setAttribute(attr.name, attr.value);
+      });
+
+      try {
+        if (typeof DataTransfer !== 'undefined') {
+          var dataTransfer = new DataTransfer();
+          dataTransfer.items.add(file);
+          newInput.files = dataTransfer.files;
+        } else if (typeof ClipboardEvent !== 'undefined') {
           var clipboardData = new ClipboardEvent('').clipboardData || new DataTransfer();
           clipboardData.items.add(file);
-          input.files = clipboardData.files;
-        } catch (err) {
-          // Fallback: cannot programmatically assign files
+          newInput.files = clipboardData.files;
         }
+      } catch (err) {
+        console.warn('Unable to assign file to input programmatically:', err);
       }
+
+      if (input.parentNode) {
+        input.parentNode.replaceChild(newInput, input);
+      }
+      return newInput;
     }
 
     function handleFiles(files) {
@@ -215,13 +226,13 @@
             // Assign the dropped file to the cloned file input
             var fileInputField = newForm.find('input[type="file"]').get(0);
             if (fileInputField) {
-              setFileInputFiles(fileInputField, file);
-              fileInputField.dispatchEvent(new Event('change', { bubbles: true }));
+              var assignedInput = setFileInputFiles(fileInputField, file);
+              if (assignedInput && typeof assignedInput.dispatchEvent === 'function') {
+                assignedInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
             }
 
             // Update the preview image
-            newForm.find('.inline-thumb').attr('src', e.target.result);
-            newForm.find('.inline-preview-large').attr('src', e.target.result);
             newForm.find('.field-thumbnail').html(
               '<img src="' + e.target.result + '" class="inline-thumb" style="max-height: 50px; max-width: 70px; object-fit: cover; border-radius: 4px;" alt="Preview" />'
             );

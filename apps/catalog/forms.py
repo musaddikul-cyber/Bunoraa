@@ -55,6 +55,9 @@ class PrimaryCategoryTreeWidget(forms.Select):
         for cat in categories_list:
             cat['_categories'] = categories_list
         
+        # Normalize model instance values to PK strings
+        if hasattr(value, 'pk'):
+            value = value.pk
         context['widget']['categories'] = categories_list
         context['widget']['selected_value'] = str(value) if value else None
         
@@ -95,7 +98,7 @@ class CategoriesFilteredWidget(forms.SelectMultiple):
             cat['_categories'] = categories_list
         
         context['widget']['categories'] = categories_list
-        context['widget']['selected_values'] = [str(v) for v in value] if value else []
+        context['widget']['selected_values'] = [str(getattr(v, 'pk', v)) for v in value] if value else []
         
         return context
 
@@ -134,10 +137,11 @@ class CategoryDropdownWidget(forms.Select):
     def get_context(self, name, value, attrs):
         context = super().get_context(name, value, attrs)
 
-        # Normalize value - handle various invalid inputs
+        # Normalize value - handle model instances, lists, and string representations
+        if hasattr(value, 'pk'):
+            value = value.pk
         if isinstance(value, list):
             value = value[0] if value else None
-        # Handle string representations of lists
         if isinstance(value, str):
             if value.startswith('[') and value.endswith(']'):
                 # Try to parse as list

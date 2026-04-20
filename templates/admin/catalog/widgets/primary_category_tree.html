@@ -27,7 +27,13 @@
     </div>
     
     <div class="category-tree-selected-display" id="primary_category-selected">
-        {% if widget.selected_value %}
+        {% if widget.selected_name %}
+            <span class="selected-category-badge">
+                <span class="category-icon">📁</span>
+                {{ widget.selected_name }}
+                <button type="button" class="clear-category" data-field="primary_category">×</button>
+            </span>
+        {% elif widget.selected_value %}
             {% for cat in widget.categories %}
                 {% if cat.id == widget.selected_value %}
                     <span class="selected-category-badge">

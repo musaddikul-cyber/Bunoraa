@@ -177,8 +177,20 @@ CACHES = {
             'SOCKET_CONNECT_TIMEOUT': 2,
             'SOCKET_TIMEOUT': 2,
         },
-    }
+    },
+    'realtime': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'TIMEOUT': 60,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'IGNORE_EXCEPTIONS': True,
+            'SOCKET_CONNECT_TIMEOUT': 2,
+            'SOCKET_TIMEOUT': 2,
+        },
+    },
 }
+SESSION_CACHE_ALIAS = 'default'
 DJANGO_REDIS_IGNORE_EXCEPTIONS = True
 
 # =============================================================================

@@ -415,7 +415,24 @@ if CELERY_REDIS_URL or SESSION_REDIS_URL:
             },
             'KEY_PREFIX': 'session',
             'TIMEOUT': _session_cache_timeout,
-        }
+        },
+        'realtime': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': _session_cache_url,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'CONNECTION_POOL_CLASS': _redis_pool_class,
+                'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(max(5, REDIS_MAX_CONNECTIONS // 2)),
+                'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
+                'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
+                'SOCKET_KEEPALIVE': REDIS_SOCKET_KEEPALIVE,
+                **({'SOCKET_KEEPALIVE_OPTIONS': _redis_keepalive_options} if _redis_keepalive_options else {}),
+                'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
+                'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
+            },
+            'KEY_PREFIX': 'session',
+            'TIMEOUT': _session_cache_timeout,
+        },
     }
     
     # Prefer cached_db sessions for durability when Redis is available.

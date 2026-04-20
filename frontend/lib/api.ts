@@ -20,6 +20,9 @@ type ApiFetchOptions = {
 
 const PUBLIC_API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
 const INTERNAL_API_BASE_URL = (process.env.NEXT_INTERNAL_API_BASE_URL || "").replace(/\/$/, "");
+const PUBLIC_API_USE_PROXY = (process.env.NEXT_PUBLIC_API_USE_PROXY || "").trim().toLowerCase();
+const SHOULD_USE_API_PROXY =
+  PUBLIC_API_USE_PROXY === "true" || PUBLIC_API_USE_PROXY === "1";
 const FALLBACK_SITE_URL =
   (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || "http://localhost:3000";
 const DISABLE_BUILD_PRERENDER =
@@ -61,8 +64,8 @@ function getApiBaseUrl() {
 
   try {
     const apiOrigin = new URL(PUBLIC_API_BASE_URL).origin;
-    if (apiOrigin !== window.location.origin) {
-      // Prefer the Next.js same-origin API rewrite to reduce CORS preflights on client-side requests.
+    if (apiOrigin !== window.location.origin && SHOULD_USE_API_PROXY) {
+      // Prefer the Next.js same-origin API rewrite only when proxying is explicitly enabled.
       return toPathBase(PUBLIC_API_BASE_URL);
     }
   } catch {

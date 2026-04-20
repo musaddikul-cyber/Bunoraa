@@ -47,6 +47,9 @@ const apiProxyOrigin =
   toOrigin(process.env.NEXT_API_PROXY_TARGET) ||
   toOrigin(process.env.NEXT_INTERNAL_API_BASE_URL) ||
   null;
+const shouldUseApiProxy =
+  (process.env.NEXT_PUBLIC_API_USE_PROXY || "").trim().toLowerCase() === "true" ||
+  (process.env.NEXT_PUBLIC_API_USE_PROXY || "").trim().toLowerCase() === "1";
 const shouldProxyMedia =
   !process.env.NEXT_PUBLIC_MEDIA_BASE_URL ||
   process.env.NEXT_PUBLIC_MEDIA_BASE_URL.startsWith("/");
@@ -106,7 +109,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    if (!apiProxyOrigin) return [];
+    if (!apiProxyOrigin || !shouldUseApiProxy) return [];
     const rules = [
       { source: "/sitemap.xml", destination: `${apiProxyOrigin}/sitemap.xml` },
       { source: "/sitemap-:section.xml", destination: `${apiProxyOrigin}/sitemap-:section.xml` },

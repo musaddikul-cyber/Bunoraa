@@ -333,7 +333,24 @@ CACHES = {
         },
         'KEY_PREFIX': 'session',
         'TIMEOUT': _session_cache_timeout,
-    }
+    },
+    'realtime': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': _session_cache_url,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_CLASS': _redis_pool_class,
+            'CONNECTION_POOL_KWARGS': _redis_pool_kwargs(max(5, REDIS_MAX_CONNECTIONS // 2)),
+            'SOCKET_CONNECT_TIMEOUT': REDIS_SOCKET_CONNECT_TIMEOUT,
+            'SOCKET_TIMEOUT': REDIS_SOCKET_TIMEOUT,
+            'SOCKET_KEEPALIVE': REDIS_SOCKET_KEEPALIVE,
+            **({'SOCKET_KEEPALIVE_OPTIONS': _redis_keepalive_options} if _redis_keepalive_options else {}),
+            'IGNORE_EXCEPTIONS': REDIS_IGNORE_EXCEPTIONS,
+            'LOG_IGNORED_EXCEPTIONS': REDIS_LOG_IGNORED_EXCEPTIONS,
+        },
+        'KEY_PREFIX': 'session',
+        'TIMEOUT': _session_cache_timeout,
+    },
 }
 
 if CHANNEL_LAYERS_USE_REDIS and CHANNEL_LAYERS_REDIS_URL:
@@ -371,6 +388,7 @@ if not SESSION_ENGINE:
         if _session_cache_url
         else 'django.contrib.sessions.backends.db'
     )
+
 SESSION_SAVE_EVERY_REQUEST = _env_bool('SESSION_SAVE_EVERY_REQUEST', False)
 SESSION_CACHE_ALIAS = 'sessions'
 REALTIME_CACHE_ALIAS = os.environ.get('REALTIME_CACHE_ALIAS', 'sessions')

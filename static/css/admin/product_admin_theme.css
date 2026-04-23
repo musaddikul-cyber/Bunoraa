@@ -841,35 +841,23 @@ tr.sortable-drag {
 /* =============================================================================
    Theme-Friendly Tags Dual-List Selector (FilteredSelectMultiple)
    Full theme integration for Django's filter_horizontal widget.
-   DOM structure:  .selector > .selector-available / .selector-chosen
-   Title bars:     .selector-available-title / .selector-chosen-title
-   Filter:         .selector-filter (search icon + input)
-   Buttons:        .selector-chooser > li > .selector-add / .selector-remove
-   Links:          .selector-chooseall / .selector-clearall
-   Footer:         .list-footer-display
+   Django uses <a> tags with SVG sprite backgrounds for arrows/icons.
+   DOM:  .selector > .selector-available / .selector-chosen
    ============================================================================= */
 
 /* Main selector container */
 .product-admin-content .selector {
-  gap: 0 8px;
-  display: flex;
-  align-items: stretch;
+  gap: 0 10px;
 }
 
-/* Available & Chosen panels */
+/* --- Both panels --- */
 .product-admin-content .selector-available,
 .product-admin-content .selector-chosen {
   background: var(--pa-bg);
   border: 1px solid var(--pa-border);
-  border-radius: var(--pa-radius-lg);
+  border-radius: var(--pa-radius) var(--pa-radius) 0 0;
   overflow: hidden;
   box-shadow: var(--pa-shadow-sm);
-  transition: border-color .2s;
-}
-
-.product-admin-content .selector-available:hover,
-.product-admin-content .selector-chosen:hover {
-  border-color: var(--pa-muted);
 }
 
 /* --- Title bars --- */
@@ -881,7 +869,6 @@ tr.sortable-drag {
   padding: 10px 12px;
   border: none;
   border-bottom: 1px solid var(--pa-border);
-  border-radius: var(--pa-radius-lg) var(--pa-radius-lg) 0 0;
 }
 
 .product-admin-content .selector-available-title label {
@@ -890,18 +877,17 @@ tr.sortable-drag {
 }
 
 .product-admin-content .selector-chosen-title {
-  background: var(--pa-primary);
-  color: #fff;
+  background: var(--pa-surface);
+  color: var(--pa-fg);
   font-size: 13px;
   font-weight: 600;
   padding: 10px 12px;
   border: none;
-  border-bottom: 1px solid var(--pa-primary-hover);
-  border-radius: var(--pa-radius-lg) var(--pa-radius-lg) 0 0;
+  border-bottom: 1px solid var(--pa-border);
 }
 
 .product-admin-content .selector-chosen-title label {
-  color: #fff;
+  color: var(--pa-fg);
   font-weight: 600;
 }
 
@@ -909,30 +895,13 @@ tr.sortable-drag {
 .product-admin-content .selector .selector-filter {
   padding: 8px 10px;
   background: var(--pa-bg);
-  border-width: 0 0 1px 0;
-  border-style: solid;
-  border-color: var(--pa-border);
+  border: 1px solid var(--pa-border);
+  border-width: 0 1px;
+  border-bottom: 1px solid var(--pa-border);
   color: var(--pa-fg);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.product-admin-content .selector .selector-filter label {
-  color: var(--pa-muted);
-  display: flex;
-  align-items: center;
-}
-
-/* Search icon in filter — override Django's background-image approach */
-.product-admin-content .selector .selector-filter label img,
-.product-admin-content .selector .selector-filter label .help-tooltip {
-  filter: var(--pa-icon-filter, none);
 }
 
 .product-admin-content .selector .selector-filter input {
-  width: 100%;
-  box-sizing: border-box;
   padding: 7px 10px;
   font-size: 13px;
   border: 1px solid var(--pa-border);
@@ -952,14 +921,17 @@ tr.sortable-drag {
   box-shadow: 0 0 0 2px var(--pa-primary-light);
 }
 
-/* --- Select boxes --- */
+/* --- Select boxes (the <select multiple> elements) --- */
 .product-admin-content .selector select {
   background: var(--pa-bg);
   color: var(--pa-fg);
-  border: none;
+  border: 1px solid var(--pa-border);
+  border-width: 0 1px;
   padding: 4px 0;
+  margin-bottom: 0;
   font-size: 13px;
   outline: none;
+  border-radius: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--pa-border) transparent;
 }
@@ -967,25 +939,18 @@ tr.sortable-drag {
 .product-admin-content .selector select::-webkit-scrollbar {
   width: 6px;
 }
-
 .product-admin-content .selector select::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .product-admin-content .selector select::-webkit-scrollbar-thumb {
   background: var(--pa-border);
   border-radius: 3px;
 }
 
-.product-admin-content .selector select::-webkit-scrollbar-thumb:hover {
-  background: var(--pa-muted);
-}
-
 .product-admin-content .selector select option {
   padding: 6px 10px;
-  border-radius: 4px;
   margin: 1px 4px;
-  transition: background .1s;
+  border-radius: 4px;
 }
 
 .product-admin-content .selector select option:hover {
@@ -999,24 +964,43 @@ tr.sortable-drag {
   font-weight: 500;
 }
 
-/* --- "Choose all" / "Clear all" links --- */
+/* --- "Choose all" / "Clear all" action links ---
+   Django sets: height:16px, overflow:hidden, background:svg-sprite
+   We fix: auto height, visible overflow, proper padding for icon+text  */
 .product-admin-content .selector-chooseall,
 .product-admin-content .selector-clearall {
+  height: auto !important;
+  overflow: visible !important;
+  line-height: 18px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
   color: var(--pa-primary) !important;
   font-size: 12px;
   font-weight: 600;
   opacity: 1 !important;
-  padding: 6px 10px;
+  background-size: 16px auto !important;
   transition: color .15s;
 }
 
-.product-admin-content .selector-chooseall:hover,
-.product-admin-content .selector-clearall:hover {
-  color: var(--pa-primary-hover) !important;
-  text-decoration: underline;
+/* Keep icon padding but adjust for the new background-size */
+.product-admin-content .selector-chooseall {
+  padding-right: 20px !important;
+  padding-left: 0 !important;
 }
 
-/* --- Chosen footer (count display) --- */
+.product-admin-content .selector-clearall {
+  padding-left: 20px !important;
+  padding-right: 0 !important;
+}
+
+.product-admin-content :enabled.selector-chooseall:hover,
+.product-admin-content :enabled.selector-clearall:hover,
+.product-admin-content :enabled.selector-chooseall:focus,
+.product-admin-content :enabled.selector-clearall:focus {
+  color: var(--pa-primary-hover) !important;
+}
+
+/* --- Chosen panel footer (count display) --- */
 .product-admin-content .selector-chosen .list-footer-display {
   background: var(--pa-primary);
   color: #fff;
@@ -1024,96 +1008,74 @@ tr.sortable-drag {
   border-top: none;
   font-size: 13px;
   font-weight: 500;
-  border-radius: 0 0 var(--pa-radius-lg) var(--pa-radius-lg);
+  border-radius: 0 0 var(--pa-radius) var(--pa-radius);
 }
 
 .product-admin-content .selector-chosen .list-footer-display__clear {
   color: rgba(255, 255, 255, .8);
-  transition: color .15s;
 }
-
 .product-admin-content .selector-chosen .list-footer-display__clear:hover {
   color: #fff;
 }
 
-/* Available footer */
-.product-admin-content .selector-available .list-footer-display {
-  background: var(--pa-surface);
-  color: var(--pa-muted);
-  border: none;
-  border-top: 1px solid var(--pa-border);
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: 0 0 var(--pa-radius-lg) var(--pa-radius-lg);
+/* Available panel bottom border radius */
+.product-admin-content .selector-available select {
+  border-radius: 0 0 var(--pa-radius) var(--pa-radius);
+  margin-bottom: 6px;
 }
 
-/* --- Chooser arrows container --- */
+/* --- Chooser arrows container ---
+   Django: ul.selector-chooser with 30px width, translateY(-17px), bg pill
+   We keep Django's layout but theme the background  */
 .product-admin-content .selector ul.selector-chooser {
-  background-color: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 8px 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: 0;
-  list-style: none;
+  background-color: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-radius: 10px;
+  padding: 2px;
+  width: 30px;
 }
 
-.product-admin-content .selector ul.selector-chooser li {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.product-admin-content .selector-chooser li {
+  padding: 3px;
 }
 
-/* --- Chooser arrow buttons (Add / Remove) --- */
+/* --- Chooser arrow buttons (Add ► / ◄ Remove) ---
+   These are <a> tags with background:url(selector-icons.svg) sprite.
+   Keep the sprite approach, just make the buttons more visible.  */
 .product-admin-content .selector .selector-add,
 .product-admin-content .selector .selector-remove {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
+  display: block;
+  opacity: 0.8;
+  border: none;
   border-radius: 50%;
-  border: 1px solid var(--pa-border);
-  background: var(--pa-bg);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all .2s ease;
-  box-shadow: var(--pa-shadow-sm);
-  position: relative;
+  transition: opacity .15s, transform .15s, background-color .15s;
+}
+
+.product-admin-content :enabled.selector-add,
+.product-admin-content :enabled.selector-remove {
   opacity: 1;
+  cursor: pointer;
 }
 
-.product-admin-content .selector .selector-add:hover,
-.product-admin-content .selector .selector-remove:hover {
-  background: var(--pa-primary);
-  border-color: var(--pa-primary);
-  box-shadow: 0 2px 8px rgba(24, 119, 242, .25);
-  transform: scale(1.08);
+.product-admin-content :enabled.selector-add:hover,
+.product-admin-content :enabled.selector-remove:hover {
+  opacity: 1;
+  transform: scale(1.15);
+  background-color: rgba(24, 119, 242, .08);
+  border-radius: 50%;
 }
 
-.product-admin-content .selector .selector-add:active,
-.product-admin-content .selector .selector-remove:active {
-  transform: scale(.95);
-}
-
-/* Override Django's default icon filter for dark mode */
-.product-admin-content .selector .selector-add img,
-.product-admin-content .selector .selector-remove img {
-  transition: filter .15s;
-}
-
-.product-admin-content .selector .selector-add:hover img,
-.product-admin-content .selector .selector-remove:hover img {
-  filter: brightness(0) invert(1);
+.product-admin-content :enabled.selector-add:active,
+.product-admin-content :enabled.selector-remove:active {
+  transform: scale(.9);
 }
 
 /* --- Help text under selector --- */
 .product-admin-content .field-tags .help,
 .product-admin-content .field-tags .helptext,
-.product-admin-content .related-widget-wrapper + .help,
+.product-admin-content .selector .helptext,
 .product-admin-content .selector + .help {
   display: block;
   font-size: 12px;
@@ -1137,39 +1099,35 @@ tr.sortable-drag {
   }
 
   .product-admin-content .selector ul.selector-chooser {
+    align-self: center;
     flex-direction: row;
-    padding: 4px 8px;
-  }
-
-  .product-admin-content .selector .selector-add,
-  .product-admin-content .selector .selector-remove {
-    width: 36px;
-    height: 36px;
+    width: auto;
+    transform: none;
   }
 }
 
 /* =============================================================================
-   Dark theme overrides for selector
+   Dark theme overrides for tags selector
    ============================================================================= */
+
+/* Panels */
 html[data-theme="dark"] .product-admin-content .selector-available,
 html.dark .product-admin-content .selector-available,
-body.dark .product-admin-content .selector-available {
-  border-color: var(--pa-border);
-  box-shadow: var(--pa-shadow-sm);
-}
-
+body.dark .product-admin-content .selector-available,
 html[data-theme="dark"] .product-admin-content .selector-chosen,
 html.dark .product-admin-content .selector-chosen,
 body.dark .product-admin-content .selector-chosen {
   border-color: var(--pa-border);
-  box-shadow: var(--pa-shadow-sm);
+  background: var(--pa-bg);
 }
 
+/* Select boxes */
 html[data-theme="dark"] .product-admin-content .selector select,
 html.dark .product-admin-content .selector select,
 body.dark .product-admin-content .selector select {
   background: var(--pa-bg);
   color: var(--pa-fg);
+  border-color: var(--pa-border);
 }
 
 html[data-theme="dark"] .product-admin-content .selector select option:checked,
@@ -1177,6 +1135,14 @@ html.dark .product-admin-content .selector select option:checked,
 body.dark .product-admin-content .selector select option:checked {
   background: var(--pa-primary-light);
   color: var(--pa-primary);
+}
+
+/* Filter inputs */
+html[data-theme="dark"] .product-admin-content .selector .selector-filter,
+html.dark .product-admin-content .selector .selector-filter,
+body.dark .product-admin-content .selector .selector-filter {
+  background: var(--pa-bg);
+  border-color: var(--pa-border);
 }
 
 html[data-theme="dark"] .product-admin-content .selector .selector-filter input,
@@ -1187,42 +1153,57 @@ body.dark .product-admin-content .selector .selector-filter input {
   color: var(--pa-fg);
 }
 
+/* Chooser pill container */
+html[data-theme="dark"] .product-admin-content .selector ul.selector-chooser,
+html.dark .product-admin-content .selector ul.selector-chooser,
+body.dark .product-admin-content .selector ul.selector-chooser {
+  background-color: var(--pa-surface);
+  border-color: var(--pa-border);
+}
+
+/* Arrow hover in dark mode */
+html[data-theme="dark"] .product-admin-content :enabled.selector-add:hover,
+html.dark .product-admin-content :enabled.selector-add:hover,
+body.dark .product-admin-content :enabled.selector-add:hover,
+html[data-theme="dark"] .product-admin-content :enabled.selector-remove:hover,
+html.dark .product-admin-content :enabled.selector-remove:hover,
+body.dark .product-admin-content :enabled.selector-remove:hover {
+  background-color: rgba(24, 119, 242, .15);
+}
+
+/* Invert Django's SVG sprite icons in dark mode for visibility */
 html[data-theme="dark"] .product-admin-content .selector .selector-add,
 html.dark .product-admin-content .selector .selector-add,
 body.dark .product-admin-content .selector .selector-add,
 html[data-theme="dark"] .product-admin-content .selector .selector-remove,
 html.dark .product-admin-content .selector .selector-remove,
-body.dark .product-admin-content .selector .selector-remove {
+body.dark .product-admin-content .selector .selector-remove,
+html[data-theme="dark"] .product-admin-content .selector .search-label-icon,
+html.dark .product-admin-content .selector .search-label-icon,
+body.dark .product-admin-content .selector .search-label-icon,
+html[data-theme="dark"] .product-admin-content .selector-chooseall,
+html.dark .product-admin-content .selector-chooseall,
+body.dark .product-admin-content .selector-chooseall,
+html[data-theme="dark"] .product-admin-content .selector-clearall,
+html.dark .product-admin-content .selector-clearall,
+body.dark .product-admin-content .selector-clearall {
+  filter: invert(.85) hue-rotate(180deg);
+}
+
+/* But keep the text color override for choose/clear links */
+html[data-theme="dark"] .product-admin-content .selector-chooseall,
+html.dark .product-admin-content .selector-chooseall,
+body.dark .product-admin-content .selector-chooseall,
+html[data-theme="dark"] .product-admin-content .selector-clearall,
+html.dark .product-admin-content .selector-clearall,
+body.dark .product-admin-content .selector-clearall {
+  filter: none;
+}
+
+/* Title bar in dark mode */
+html[data-theme="dark"] .product-admin-content .selector-available-title,
+html.dark .product-admin-content .selector-available-title,
+body.dark .product-admin-content .selector-available-title {
   background: var(--pa-surface);
-  border-color: var(--pa-border);
-}
-
-html[data-theme="dark"] .product-admin-content .selector .selector-add:hover,
-html.dark .product-admin-content .selector .selector-add:hover,
-body.dark .product-admin-content .selector .selector-add:hover,
-html[data-theme="dark"] .product-admin-content .selector .selector-remove:hover,
-html.dark .product-admin-content .selector .selector-remove:hover,
-body.dark .product-admin-content .selector .selector-remove:hover {
-  background: var(--pa-primary);
-  border-color: var(--pa-primary);
-}
-
-html[data-theme="dark"] .product-admin-content .selector ul.selector-chooser,
-html.dark .product-admin-content .selector ul.selector-chooser,
-body.dark .product-admin-content .selector ul.selector-chooser {
-  background-color: transparent;
-  border-color: transparent;
-}
-
-/* Dark mode: invert Django's default admin icons for visibility */
-html[data-theme="dark"] .product-admin-content .selector .selector-filter label img,
-html.dark .product-admin-content .selector .selector-filter label img,
-body.dark .product-admin-content .selector .selector-filter label img,
-html[data-theme="dark"] .product-admin-content .selector .selector-add img,
-html.dark .product-admin-content .selector .selector-add img,
-body.dark .product-admin-content .selector .selector-add img,
-html[data-theme="dark"] .product-admin-content .selector .selector-remove img,
-html.dark .product-admin-content .selector .selector-remove img,
-body.dark .product-admin-content .selector .selector-remove img {
-  filter: invert(.8);
+  border-bottom-color: var(--pa-border);
 }

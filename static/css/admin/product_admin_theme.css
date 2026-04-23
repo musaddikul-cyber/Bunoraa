@@ -717,3 +717,512 @@ tr.sortable-drag {
 .variant-inline-headerless .variant-table {
   border: none;
 }
+
+/* =============================================================================
+   Themed Save Buttons (used with save_on_top = True in admin.py)
+   ============================================================================= */
+
+.product-admin-content .submit-row {
+  background: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius-lg);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: var(--pa-shadow-sm);
+}
+
+.product-admin-content .submit-row input[type="submit"],
+.product-admin-content .submit-row button {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--pa-radius);
+  cursor: pointer;
+  transition: background .15s, box-shadow .15s, transform .1s;
+  line-height: 1;
+  height: auto;
+}
+
+/* Primary save button */
+.product-admin-content .submit-row input.default {
+  background: var(--pa-primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(24, 119, 242, .25);
+  text-transform: none;
+}
+
+.product-admin-content .submit-row input.default:hover,
+.product-admin-content .submit-row input.default:focus {
+  background: var(--pa-primary-hover);
+  box-shadow: 0 4px 14px rgba(24, 119, 242, .35);
+  transform: translateY(-1px);
+}
+
+/* Secondary save buttons */
+.product-admin-content .submit-row input[type="submit"]:not(.default) {
+  background: var(--pa-bg);
+  color: var(--pa-fg);
+  border: 1px solid var(--pa-border);
+}
+
+.product-admin-content .submit-row input[type="submit"]:not(.default):hover,
+.product-admin-content .submit-row input[type="submit"]:not(.default):focus {
+  background: var(--pa-hover);
+  border-color: var(--pa-primary);
+  color: var(--pa-primary);
+}
+
+/* Delete link */
+.product-admin-content .submit-row a.deletelink {
+  margin-left: auto;
+  background: transparent;
+  color: var(--pa-danger);
+  border: 1px solid var(--pa-danger);
+  border-radius: var(--pa-radius);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .15s, color .15s;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  height: auto;
+}
+
+.product-admin-content .submit-row a.deletelink:hover,
+.product-admin-content .submit-row a.deletelink:focus {
+  background: var(--pa-danger);
+  color: #fff;
+}
+
+/* Close link (popup mode) */
+.product-admin-content .submit-row a.closelink {
+  background: var(--pa-bg);
+  color: var(--pa-fg);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .15s;
+  line-height: 1;
+  height: auto;
+}
+
+.product-admin-content .submit-row a.closelink:hover,
+.product-admin-content .submit-row a.closelink:focus {
+  background: var(--pa-hover);
+  border-color: var(--pa-primary);
+  color: var(--pa-primary);
+}
+
+/* --- Responsive adjustments --- */
+@media (max-width: 768px) {
+  .product-admin-content .submit-row {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .product-admin-content .submit-row input[type="submit"],
+  .product-admin-content .submit-row button,
+  .product-admin-content .submit-row a.deletelink,
+  .product-admin-content .submit-row a.closelink {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+}
+
+/* =============================================================================
+   Theme-Friendly Tags Dual-List Selector (FilteredSelectMultiple)
+   Full theme integration for Django's filter_horizontal widget.
+   DOM structure:  .selector > .selector-available / .selector-chosen
+   Title bars:     .selector-available-title / .selector-chosen-title
+   Filter:         .selector-filter (search icon + input)
+   Buttons:        .selector-chooser > li > .selector-add / .selector-remove
+   Links:          .selector-chooseall / .selector-clearall
+   Footer:         .list-footer-display
+   ============================================================================= */
+
+/* Main selector container */
+.product-admin-content .selector {
+  gap: 0 8px;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Available & Chosen panels */
+.product-admin-content .selector-available,
+.product-admin-content .selector-chosen {
+  background: var(--pa-bg);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--pa-shadow-sm);
+  transition: border-color .2s;
+}
+
+.product-admin-content .selector-available:hover,
+.product-admin-content .selector-chosen:hover {
+  border-color: var(--pa-muted);
+}
+
+/* --- Title bars --- */
+.product-admin-content .selector-available-title {
+  background: var(--pa-surface);
+  color: var(--pa-fg);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius-lg) var(--pa-radius-lg) 0 0;
+}
+
+.product-admin-content .selector-available-title label {
+  color: var(--pa-fg);
+  font-weight: 600;
+}
+
+.product-admin-content .selector-chosen-title {
+  background: var(--pa-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--pa-primary-hover);
+  border-radius: var(--pa-radius-lg) var(--pa-radius-lg) 0 0;
+}
+
+.product-admin-content .selector-chosen-title label {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* --- Filter search area --- */
+.product-admin-content .selector .selector-filter {
+  padding: 8px 10px;
+  background: var(--pa-bg);
+  border-width: 0 0 1px 0;
+  border-style: solid;
+  border-color: var(--pa-border);
+  color: var(--pa-fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.product-admin-content .selector .selector-filter label {
+  color: var(--pa-muted);
+  display: flex;
+  align-items: center;
+}
+
+/* Search icon in filter — override Django's background-image approach */
+.product-admin-content .selector .selector-filter label img,
+.product-admin-content .selector .selector-filter label .help-tooltip {
+  filter: var(--pa-icon-filter, none);
+}
+
+.product-admin-content .selector .selector-filter input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  font-size: 13px;
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  background: var(--pa-bg);
+  color: var(--pa-fg);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.product-admin-content .selector .selector-filter input::placeholder {
+  color: var(--pa-muted);
+}
+
+.product-admin-content .selector .selector-filter input:focus {
+  border-color: var(--pa-primary);
+  box-shadow: 0 0 0 2px var(--pa-primary-light);
+}
+
+/* --- Select boxes --- */
+.product-admin-content .selector select {
+  background: var(--pa-bg);
+  color: var(--pa-fg);
+  border: none;
+  padding: 4px 0;
+  font-size: 13px;
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pa-border) transparent;
+}
+
+.product-admin-content .selector select::-webkit-scrollbar {
+  width: 6px;
+}
+
+.product-admin-content .selector select::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.product-admin-content .selector select::-webkit-scrollbar-thumb {
+  background: var(--pa-border);
+  border-radius: 3px;
+}
+
+.product-admin-content .selector select::-webkit-scrollbar-thumb:hover {
+  background: var(--pa-muted);
+}
+
+.product-admin-content .selector select option {
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin: 1px 4px;
+  transition: background .1s;
+}
+
+.product-admin-content .selector select option:hover {
+  background: var(--pa-hover);
+}
+
+.product-admin-content .selector select option:checked,
+.product-admin-content .selector select option:checked:hover {
+  background: var(--pa-primary-light);
+  color: var(--pa-primary);
+  font-weight: 500;
+}
+
+/* --- "Choose all" / "Clear all" links --- */
+.product-admin-content .selector-chooseall,
+.product-admin-content .selector-clearall {
+  color: var(--pa-primary) !important;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 1 !important;
+  padding: 6px 10px;
+  transition: color .15s;
+}
+
+.product-admin-content .selector-chooseall:hover,
+.product-admin-content .selector-clearall:hover {
+  color: var(--pa-primary-hover) !important;
+  text-decoration: underline;
+}
+
+/* --- Chosen footer (count display) --- */
+.product-admin-content .selector-chosen .list-footer-display {
+  background: var(--pa-primary);
+  color: #fff;
+  border: 1px solid var(--pa-primary-hover);
+  border-top: none;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 0 0 var(--pa-radius-lg) var(--pa-radius-lg);
+}
+
+.product-admin-content .selector-chosen .list-footer-display__clear {
+  color: rgba(255, 255, 255, .8);
+  transition: color .15s;
+}
+
+.product-admin-content .selector-chosen .list-footer-display__clear:hover {
+  color: #fff;
+}
+
+/* Available footer */
+.product-admin-content .selector-available .list-footer-display {
+  background: var(--pa-surface);
+  color: var(--pa-muted);
+  border: none;
+  border-top: 1px solid var(--pa-border);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 0 0 var(--pa-radius-lg) var(--pa-radius-lg);
+}
+
+/* --- Chooser arrows container --- */
+.product-admin-content .selector ul.selector-chooser {
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  list-style: none;
+}
+
+.product-admin-content .selector ul.selector-chooser li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Chooser arrow buttons (Add / Remove) --- */
+.product-admin-content .selector .selector-add,
+.product-admin-content .selector .selector-remove {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--pa-border);
+  background: var(--pa-bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s ease;
+  box-shadow: var(--pa-shadow-sm);
+  position: relative;
+  opacity: 1;
+}
+
+.product-admin-content .selector .selector-add:hover,
+.product-admin-content .selector .selector-remove:hover {
+  background: var(--pa-primary);
+  border-color: var(--pa-primary);
+  box-shadow: 0 2px 8px rgba(24, 119, 242, .25);
+  transform: scale(1.08);
+}
+
+.product-admin-content .selector .selector-add:active,
+.product-admin-content .selector .selector-remove:active {
+  transform: scale(.95);
+}
+
+/* Override Django's default icon filter for dark mode */
+.product-admin-content .selector .selector-add img,
+.product-admin-content .selector .selector-remove img {
+  transition: filter .15s;
+}
+
+.product-admin-content .selector .selector-add:hover img,
+.product-admin-content .selector .selector-remove:hover img {
+  filter: brightness(0) invert(1);
+}
+
+/* --- Help text under selector --- */
+.product-admin-content .field-tags .help,
+.product-admin-content .field-tags .helptext,
+.product-admin-content .related-widget-wrapper + .help,
+.product-admin-content .selector + .help {
+  display: block;
+  font-size: 12px;
+  color: var(--pa-muted);
+  margin-top: 6px;
+  padding: 0 4px;
+  line-height: 1.5;
+}
+
+/* --- Responsive: stacked on narrow screens --- */
+@media (max-width: 767px) {
+  .product-admin-content .selector {
+    flex-direction: column;
+    gap: 8px 0;
+  }
+
+  .product-admin-content .selector-available,
+  .product-admin-content .selector-chosen {
+    width: 100% !important;
+    float: none !important;
+  }
+
+  .product-admin-content .selector ul.selector-chooser {
+    flex-direction: row;
+    padding: 4px 8px;
+  }
+
+  .product-admin-content .selector .selector-add,
+  .product-admin-content .selector .selector-remove {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* =============================================================================
+   Dark theme overrides for selector
+   ============================================================================= */
+html[data-theme="dark"] .product-admin-content .selector-available,
+html.dark .product-admin-content .selector-available,
+body.dark .product-admin-content .selector-available {
+  border-color: var(--pa-border);
+  box-shadow: var(--pa-shadow-sm);
+}
+
+html[data-theme="dark"] .product-admin-content .selector-chosen,
+html.dark .product-admin-content .selector-chosen,
+body.dark .product-admin-content .selector-chosen {
+  border-color: var(--pa-border);
+  box-shadow: var(--pa-shadow-sm);
+}
+
+html[data-theme="dark"] .product-admin-content .selector select,
+html.dark .product-admin-content .selector select,
+body.dark .product-admin-content .selector select {
+  background: var(--pa-bg);
+  color: var(--pa-fg);
+}
+
+html[data-theme="dark"] .product-admin-content .selector select option:checked,
+html.dark .product-admin-content .selector select option:checked,
+body.dark .product-admin-content .selector select option:checked {
+  background: var(--pa-primary-light);
+  color: var(--pa-primary);
+}
+
+html[data-theme="dark"] .product-admin-content .selector .selector-filter input,
+html.dark .product-admin-content .selector .selector-filter input,
+body.dark .product-admin-content .selector .selector-filter input {
+  background: var(--pa-surface);
+  border-color: var(--pa-border);
+  color: var(--pa-fg);
+}
+
+html[data-theme="dark"] .product-admin-content .selector .selector-add,
+html.dark .product-admin-content .selector .selector-add,
+body.dark .product-admin-content .selector .selector-add,
+html[data-theme="dark"] .product-admin-content .selector .selector-remove,
+html.dark .product-admin-content .selector .selector-remove,
+body.dark .product-admin-content .selector .selector-remove {
+  background: var(--pa-surface);
+  border-color: var(--pa-border);
+}
+
+html[data-theme="dark"] .product-admin-content .selector .selector-add:hover,
+html.dark .product-admin-content .selector .selector-add:hover,
+body.dark .product-admin-content .selector .selector-add:hover,
+html[data-theme="dark"] .product-admin-content .selector .selector-remove:hover,
+html.dark .product-admin-content .selector .selector-remove:hover,
+body.dark .product-admin-content .selector .selector-remove:hover {
+  background: var(--pa-primary);
+  border-color: var(--pa-primary);
+}
+
+html[data-theme="dark"] .product-admin-content .selector ul.selector-chooser,
+html.dark .product-admin-content .selector ul.selector-chooser,
+body.dark .product-admin-content .selector ul.selector-chooser {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+/* Dark mode: invert Django's default admin icons for visibility */
+html[data-theme="dark"] .product-admin-content .selector .selector-filter label img,
+html.dark .product-admin-content .selector .selector-filter label img,
+body.dark .product-admin-content .selector .selector-filter label img,
+html[data-theme="dark"] .product-admin-content .selector .selector-add img,
+html.dark .product-admin-content .selector .selector-add img,
+body.dark .product-admin-content .selector .selector-add img,
+html[data-theme="dark"] .product-admin-content .selector .selector-remove img,
+html.dark .product-admin-content .selector .selector-remove img,
+body.dark .product-admin-content .selector .selector-remove img {
+  filter: invert(.8);
+}

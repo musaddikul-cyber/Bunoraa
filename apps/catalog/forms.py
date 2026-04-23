@@ -68,40 +68,69 @@ class PrimaryCategoryTreeWidget(forms.Select):
 
 class CategoriesFilteredWidget(forms.SelectMultiple):
     """
-    Multi-select widget for categories that filters based on primary category.
-    Shows tree structure with checkboxes.
+    Multi-select widget for categories — Facebook-style popup with drill-down,
+    search, breadcrumbs, and checkboxes.  Matches the look of CategoryDropdownWidget.
     """
-    
+
     template_name = 'admin/catalog/widgets/categories_filtered.html'
-    
+
+    class Media:
+        css = {
+            'all': ('css/admin/category_dropdown.css',)
+        }
+
     def __init__(self, attrs=None, choices=()):
         super().__init__(attrs)
         self.choices = list(choices)
-    
+
     def get_context(self, name, value, attrs):
         context = super().get_context(name, value, attrs)
-        
+
         # Get all categories for tree building
-        categories = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
-        
-        categories_list = [
-            {
-                'id': str(cat.id),
-                'name': cat.name,
-                'parent_id': str(cat.parent_id) if cat.parent_id else None,
-                'depth': cat.depth,
-                'sort_order': getattr(cat, 'sort_order', 0),
-            }
-            for cat in categories
-        ]
-        
+        try:
+            categories = Category.objects.all_with_deleted().filter(is_deleted=False).order_by('path')
+        except Exception:
+            categories = Category.objects.filter(is_deleted=False).order_by('path')
+
+        categories_list = []
+        root_categories = []
+
+        for cat in categories:
+            try:
+                children_count = categories.filter(parent_id=cat.id).count()
+                cat_data = {
+                    'id': str(cat.id),
+                    'name': cat.name,
+                    'parent_id': str(cat.parent_id) if cat.parent_id else None,
+                    'depth': cat.depth,
+                    'sort_order': getattr(cat, 'sort_order', 0),
+                    'has_children': children_count > 0,
+                    'children_count': children_count,
+                }
+                categories_list.append(cat_data)
+                if not cat.parent_id:
+                    root_categories.append(cat_data)
+            except Exception:
+                continue
+
         selected_values = [str(getattr(v, 'pk', v)) for v in value] if value else []
+
+        # Build list of selected category names for pills display
+        selected_names = []
+        for sv in selected_values:
+            for c in categories_list:
+                if c['id'] == sv:
+                    selected_names.append({'id': sv, 'name': c['name']})
+                    break
 
         context['widget']['categories'] = categories_list
         context['widget']['categories_json'] = json.dumps(categories_list)
+        context['widget']['root_categories'] = root_categories
         context['widget']['selected_values'] = selected_values
         context['widget']['selected_values_json'] = json.dumps(selected_values)
-        
+        context['widget']['selected_names'] = selected_names
+        context['widget']['selected_names_json'] = json.dumps(selected_names)
+
         return context
 
 
@@ -172,13 +201,14 @@ class CategoryDropdownWidget(forms.Select):
 
         for cat in categories:
             try:
-                has_children = categories.filter(parent_id=cat.id).exists()
+                children_count = categories.filter(parent_id=cat.id).count()
                 cat_data = {
                     'id': str(cat.id),
                     'name': cat.name,
                     'parent_id': str(cat.parent_id) if cat.parent_id else None,
                     'depth': getattr(cat, 'depth', 0),
-                    'has_children': has_children,
+                    'has_children': children_count > 0,
+                    'children_count': children_count,
                     'path': getattr(cat, 'path', '') or str(cat.id),
                 }
                 categories_list.append(cat_data)

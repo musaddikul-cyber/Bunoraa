@@ -1,33 +1,71 @@
-{# Categories Multi-Select Tree Widget Template #}
-{# Shows tree structure with checkboxes, filters based on primary category selection #}
+{# Categories Multi-Select — Facebook-style popup matching primary category dropdown #}
+{# Drill-down with search, breadcrumbs, checkboxes, and selected pills #}
 
-<div class="category-tree-widget-container" id="categories-widget">
-    <div class="category-tree-widget-header">
-        <span class="category-tree-widget-title">Select Categories</span>
-        <span class="category-tree-subtitle" id="categories-filter-status"></span>
+{% load static %}
+
+<div class="cat-multi-dropdown" id="cat-multi-widget-{{ widget.name }}">
+    {# Trigger Button — shows selected pills #}
+    <div class="cat-multi-trigger" role="button" tabindex="0" aria-expanded="false">
+        <div class="cat-multi-trigger-content" id="cat-multi-pills-{{ widget.name }}">
+            {% if widget.selected_names %}
+                {% for item in widget.selected_names %}
+                <span class="cat-multi-pill" data-id="{{ item.id }}">
+                    {{ item.name }}
+                    <button type="button" class="cat-multi-pill-remove" data-id="{{ item.id }}" aria-label="Remove">×</button>
+                </span>
+                {% endfor %}
+            {% else %}
+                <span class="cat-multi-placeholder">🔍 Select categories...</span>
+            {% endif %}
+        </div>
+        <svg class="cat-multi-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
     </div>
-    
-    <div class="category-tree-search-wrapper">
-        <input type="text" class="category-tree-search" placeholder="Search categories..." autocomplete="off">
+
+    {# Popup Panel #}
+    <div class="cat-multi-panel" id="cat-multi-panel-{{ widget.name }}" style="display: none;">
+        {# Header with Search #}
+        <div class="cat-dropdown-panel-header">
+            <div class="cat-dropdown-search-wrapper">
+                <svg class="cat-dropdown-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="2"/>
+                    <path d="M11 11L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <input type="text"
+                       class="cat-dropdown-search"
+                       placeholder="Search categories..."
+                       autocomplete="off"
+                       id="cat-multi-search-{{ widget.name }}">
+            </div>
+            <button type="button" class="cat-dropdown-close cat-multi-close-btn" aria-label="Close">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+
+        {# Breadcrumb Navigation #}
+        <div class="cat-dropdown-breadcrumb" id="cat-multi-breadcrumb-{{ widget.name }}"></div>
+
+        {# Category List Container #}
+        <div class="cat-dropdown-list-container" id="cat-multi-list-{{ widget.name }}">
+            {# Levels rendered by JS #}
+        </div>
+
+        {# Search Results #}
+        <div class="cat-dropdown-list-container" id="cat-multi-search-results-{{ widget.name }}" style="display: none;">
+        </div>
+
+        {# Footer — count + Done #}
+        <div class="cat-multi-panel-footer">
+            <span class="cat-multi-count" id="cat-multi-count-{{ widget.name }}">0 selected</span>
+            <button type="button" class="cat-multi-done" id="cat-multi-done-{{ widget.name }}">Done</button>
+        </div>
     </div>
-    
-    <div class="category-tree-selection-summary" id="categories-selection-summary">
-        <span class="no-categories-selected">0 categories selected</span>
-    </div>
-    
-    <div class="category-tree-wrapper" id="categories_tree_widget">
-        <ul class="category-tree-list category-tree-root" id="categories-list">
-            {# Categories will be populated by JavaScript #}
-        </ul>
-    </div>
-    
-    <p class="category-tree-help">
-        Categories are filtered based on the Primary Category selection above. 
-        Only subcategories of the selected primary category are shown.
-    </p>
-    
+
     {# Hidden checkboxes for form submission #}
-    <div id="categories-hidden-inputs" style="display: none;">
+    <div id="cat-multi-hidden-{{ widget.name }}" style="display: none;">
         {% for value in widget.selected_values %}
             <input type="checkbox" name="{{ widget.name }}" value="{{ value }}" checked>
         {% endfor %}
@@ -37,189 +75,351 @@
 <script>
 (function() {
     'use strict';
-    
-    // Store category data
-    const categoriesData = {{ widget.categories_json|safe }};
-    const selectedValues = {{ widget.selected_values_json|safe }};
-    
-    // State
-    let filteredRootIds = new Set();
-    let currentSelection = new Set(selectedValues);
-    
-    function getChildren(categoryId) {
-        return categoriesData.filter(c => c.parent_id === categoryId);
-    }
-    
-    function buildTreeHTML(categories, parentId, level = 0) {
-        const children = categories.filter(c => c.parent_id === parentId);
-        if (children.length === 0) return '';
-        
-        let html = '';
-        children.forEach(category => {
-            const hasChildren = categories.some(c => c.parent_id === category.id);
-            const isSelected = currentSelection.has(category.id);
-            
-            html += '<li class="category-tree-item" data-id="' + category.id + '">';
-            html += '<div class="category-tree-content" style="padding-left: calc(' + level + ' * 20px)">';
-            
-            if (hasChildren) {
-                html += '<button type="button" class="category-tree-toggle"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M3 1.5L7 5L3 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+
+    function initCategoriesMultiDropdown() {
+        const categoryData = {{ widget.categories_json|safe }};
+        const widgetName   = '{{ widget.name }}';
+        let selectedSet    = new Set({{ widget.selected_values_json|safe }});
+        // Map id → name for pill rendering
+        const nameMap = {};
+        categoryData.forEach(function(c) { nameMap[c.id] = c.name; });
+
+        // Elements
+        const widgetEl      = document.getElementById('cat-multi-widget-' + widgetName);
+        if (!widgetEl) return;
+        const trigger       = widgetEl.querySelector('.cat-multi-trigger');
+        const panel         = document.getElementById('cat-multi-panel-' + widgetName);
+        const closeBtn      = widgetEl.querySelector('.cat-multi-close-btn');
+        const doneBtn       = document.getElementById('cat-multi-done-' + widgetName);
+        const searchInput   = document.getElementById('cat-multi-search-' + widgetName);
+        const breadcrumb    = document.getElementById('cat-multi-breadcrumb-' + widgetName);
+        const listContainer = document.getElementById('cat-multi-list-' + widgetName);
+        const searchResults = document.getElementById('cat-multi-search-results-' + widgetName);
+        const countEl       = document.getElementById('cat-multi-count-' + widgetName);
+        const pillsEl       = document.getElementById('cat-multi-pills-' + widgetName);
+        const hiddenDiv     = document.getElementById('cat-multi-hidden-' + widgetName);
+
+        let breadcrumbPath = [];
+        let currentLevel = 0;
+        let currentParentId = null;
+
+        // ── Position & Open ──
+        function positionPanel() {
+            var rect = trigger.getBoundingClientRect();
+            var panelHeight = 460;
+            var viewportH = window.innerHeight;
+            var spaceBelow = viewportH - rect.bottom;
+            var spaceAbove = rect.top;
+            var panelWidth = Math.min(420, window.innerWidth * 0.9);
+
+            var left = rect.left;
+            if (left + panelWidth > window.innerWidth - 12) left = window.innerWidth - panelWidth - 12;
+            panel.style.left = Math.max(12, left) + 'px';
+            panel.style.width = panelWidth + 'px';
+
+            if (spaceBelow >= Math.min(panelHeight, 300) || spaceBelow >= spaceAbove) {
+                panel.style.top = (rect.bottom + 4) + 'px';
+                panel.style.bottom = 'auto';
+                panel.style.maxHeight = Math.min(panelHeight, spaceBelow - 12) + 'px';
             } else {
-                html += '<span class="category-tree-spacer"></span>';
-            }
-            
-            html += '<label class="category-tree-checkbox-label">';
-            html += '<input type="checkbox" class="category-tree-checkbox" value="' + category.id + '"' + (isSelected ? ' checked' : '') + '>';
-            html += '<span class="category-tree-name">' + category.name + '</span>';
-            html += '</label>';
-            
-            html += '</div>';
-            
-            if (hasChildren) {
-                html += '<ul class="category-tree-children" style="display: none;">';
-                html += buildTreeHTML(categories, category.id, level + 1);
-                html += '</ul>';
-            }
-            
-            html += '</li>';
-        });
-        
-        return html;
-    }
-    
-    function updateSelection() {
-        // Update hidden inputs
-        const container = document.getElementById('categories-hidden-inputs');
-        container.innerHTML = '';
-        currentSelection.forEach(id => {
-            const input = document.createElement('input');
-            input.type = 'checkbox';
-            input.name = '{{ widget.name }}';
-            input.value = id;
-            input.checked = true;
-            container.appendChild(input);
-        });
-        
-        // Update summary
-        const summary = document.getElementById('categories-selection-summary');
-        if (currentSelection.size === 0) {
-            summary.innerHTML = '<span class="no-categories-selected">No categories selected</span>';
-        } else {
-            const names = categoriesData
-                .filter(c => currentSelection.has(c.id))
-                .map(c => c.name)
-                .join(', ');
-            summary.innerHTML = '<span class="categories-selected">' + currentSelection.size + ' selected: ' + names + '</span>';
-        }
-    }
-    
-    function filterByPrimaryCategory(primaryId) {
-        const listContainer = document.getElementById('categories-list');
-        const filterStatus = document.getElementById('categories-filter-status');
-        
-        if (!primaryId) {
-            // Show all categories
-            filteredRootIds = new Set(categoriesData.filter(c => !c.parent_id).map(c => c.id));
-            listContainer.innerHTML = buildTreeHTML(categoriesData, null);
-            filterStatus.textContent = '';
-        } else {
-            // Filter to show only descendants of primary category
-            const primaryCat = categoriesData.find(c => c.id === primaryId);
-            if (primaryCat) {
-                // Get all descendants
-                const descendantIds = new Set();
-                const collectDescendants = (id) => {
-                    descendantIds.add(id);
-                    categoriesData.filter(c => c.parent_id === id).forEach(c => collectDescendants(c.id));
-                };
-                collectDescendants(primaryId);
-                
-                // Filter categories to only those in the subtree
-                const filteredCategories = categoriesData.filter(c => descendantIds.has(c.id));
-                
-                if (filteredCategories.length > 0) {
-                    listContainer.innerHTML = buildTreeHTML(filteredCategories, primaryId);
-                    filterStatus.textContent = 'Filtered: ' + primaryCat.name;
-                } else {
-                    listContainer.innerHTML = '<li class="category-tree-empty"><span>No subcategories available</span></li>';
-                    filterStatus.textContent = 'No subcategories';
-                }
+                panel.style.bottom = (viewportH - rect.top + 4) + 'px';
+                panel.style.top = 'auto';
+                panel.style.maxHeight = Math.min(panelHeight, spaceAbove - 12) + 'px';
             }
         }
-        
-        bindTreeEvents();
-    }
-    
-    function bindTreeEvents() {
-        const widget = document.getElementById('categories-widget');
-        
-        // Toggle
-        widget.querySelectorAll('.category-tree-toggle').forEach(toggle => {
-            toggle.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const children = this.closest('.category-tree-item').querySelector('.category-tree-children');
-                const icon = this.querySelector('svg');
-                if (children) {
-                    const isVisible = children.style.display !== 'none';
-                    children.style.display = isVisible ? 'none' : 'block';
-                    icon.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(90deg)';
+
+        function openPanel() {
+            trigger.setAttribute('aria-expanded', 'true');
+            positionPanel();
+            panel.style.display = 'flex';
+            searchInput.value = '';
+            searchResults.style.display = 'none';
+            listContainer.style.display = 'block';
+            searchInput.focus();
+            renderLevel(0, null);
+        }
+
+        function closePanel() {
+            trigger.setAttribute('aria-expanded', 'false');
+            panel.style.display = 'none';
+        }
+
+        // Trigger click — but ignore clicks on pill remove buttons
+        trigger.addEventListener('click', function(e) {
+            if (e.target.closest('.cat-multi-pill-remove')) return;
+            var isExpanded = this.getAttribute('aria-expanded') === 'true';
+            if (isExpanded) closePanel(); else openPanel();
+        });
+
+        trigger.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); trigger.click(); }
+        });
+
+        closeBtn.addEventListener('click', function(e) { e.stopPropagation(); closePanel(); });
+        doneBtn.addEventListener('click', function(e) { e.stopPropagation(); closePanel(); });
+
+        document.addEventListener('click', function(e) {
+            if (!widgetEl.contains(e.target)) closePanel();
+        });
+
+        // ── Render Level ──
+        function renderLevel(level, parentId) {
+            currentLevel = level;
+            currentParentId = parentId;
+            listContainer.innerHTML = '';
+
+            var cats = parentId
+                ? categoryData.filter(function(c) { return c.parent_id === parentId; })
+                : categoryData.filter(function(c) { return !c.parent_id; });
+
+            if (cats.length === 0) {
+                listContainer.innerHTML = '<div class="cat-dropdown-empty"><span>No subcategories</span></div>';
+            } else {
+                listContainer.innerHTML = cats.map(function(cat) { return buildItemHTML(cat); }).join('');
+            }
+
+            updateBreadcrumb();
+            bindItemEvents(listContainer);
+        }
+
+        function buildItemHTML(cat) {
+            var checked = selectedSet.has(cat.id);
+            var countText = (cat.has_children && cat.children_count)
+                ? '<span class="cat-dropdown-subcategory-count">' + cat.children_count + '</span>'
+                : '';
+            return '<div class="cat-multi-item ' + (checked ? 'is-checked' : '') + '"' +
+                ' data-id="' + cat.id + '" data-name="' + escapeAttr(cat.name) + '"' +
+                ' data-has-children="' + (cat.has_children ? 'true' : 'false') + '">' +
+                '<div class="cat-multi-checkbox">' +
+                    '<svg width="12" height="12" viewBox="0 0 12 12" fill="none">' +
+                        '<path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+                    '</svg>' +
+                '</div>' +
+                '<div class="cat-multi-item-content">' +
+                    '<span class="cat-multi-name">' + escapeHtml(cat.name) + '</span>' +
+                    countText +
+                    (cat.has_children
+                        ? '<svg class="cat-multi-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                        : '') +
+                '</div>' +
+                '</div>';
+        }
+
+        function bindItemEvents(container) {
+            container.querySelectorAll('.cat-multi-item').forEach(function(item) {
+                // Checkbox area — toggle selection
+                item.querySelector('.cat-multi-checkbox').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggleSelect(item.dataset.id, item);
+                });
+
+                // Name click — if has children, drill down; else toggle
+                item.querySelector('.cat-multi-item-content').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (item.dataset.hasChildren === 'true') {
+                        breadcrumbPath = breadcrumbPath.slice(0, currentLevel);
+                        breadcrumbPath.push({ id: item.dataset.id, name: item.dataset.name });
+                        renderLevel(currentLevel + 1, item.dataset.id);
+                    } else {
+                        toggleSelect(item.dataset.id, item);
+                    }
+                });
+
+                // Arrow click — drill down
+                var arrow = item.querySelector('.cat-multi-arrow');
+                if (arrow) {
+                    arrow.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        breadcrumbPath = breadcrumbPath.slice(0, currentLevel);
+                        breadcrumbPath.push({ id: item.dataset.id, name: item.dataset.name });
+                        renderLevel(currentLevel + 1, item.dataset.id);
+                    });
                 }
             });
-        });
-        
-        // Checkboxes
-        widget.querySelectorAll('.category-tree-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const categoryId = this.value;
-                if (this.checked) {
-                    currentSelection.add(categoryId);
-                } else {
-                    currentSelection.delete(categoryId);
-                }
-                updateSelection();
+        }
+
+        function toggleSelect(catId, itemEl) {
+            if (selectedSet.has(catId)) {
+                selectedSet.delete(catId);
+                if (itemEl) itemEl.classList.remove('is-checked');
+            } else {
+                selectedSet.add(catId);
+                if (itemEl) itemEl.classList.add('is-checked');
+            }
+            syncHiddenInputs();
+            refreshPills();
+            updateCount();
+        }
+
+        // ── Breadcrumb ──
+        function updateBreadcrumb() {
+            // Home icon as root — no "All Categories" text
+            var html = '<span class="cat-dropdown-breadcrumb-item cat-dropdown-breadcrumb-root' + (breadcrumbPath.length === 0 ? ' active' : '') + '" data-category-id=""><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2.5 8L8 3L13.5 8M4 7v5.5a.5.5 0 00.5.5H7v-3h2v3h2.5a.5.5 0 00.5-.5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+            breadcrumbPath.forEach(function(item, idx) {
+                html += '<span class="cat-dropdown-breadcrumb-separator">›</span>';
+                var isLast = idx === breadcrumbPath.length - 1;
+                html += '<span class="cat-dropdown-breadcrumb-item ' + (isLast ? 'active' : '') + '" data-category-id="' + item.id + '">' + escapeHtml(item.name) + '</span>';
             });
-        });
-        
-        // Search
-        const searchInput = widget.querySelector('.category-tree-search');
+            breadcrumb.innerHTML = html;
+
+            // Hide breadcrumb bar entirely when at root level
+            breadcrumb.style.display = breadcrumbPath.length === 0 ? 'none' : 'flex';
+
+            breadcrumb.querySelectorAll('.cat-dropdown-breadcrumb-item:not(.active)').forEach(function(el) {
+                el.addEventListener('click', function() {
+                    var catId = this.dataset.categoryId;
+                    if (!catId) {
+                        breadcrumbPath = [];
+                        renderLevel(0, null);
+                    } else {
+                        var idx = breadcrumbPath.findIndex(function(p) { return p.id === catId; });
+                        breadcrumbPath = breadcrumbPath.slice(0, idx + 1);
+                        renderLevel(idx + 1, catId);
+                    }
+                });
+            });
+        }
+
+        // ── Search ──
         searchInput.addEventListener('input', function() {
-            const term = this.value.toLowerCase();
-            if (!term) {
-                widget.querySelectorAll('.category-tree-item').forEach(item => item.style.display = 'block');
+            var query = this.value.trim().toLowerCase();
+            if (!query) {
+                searchResults.style.display = 'none';
+                listContainer.style.display = 'block';
                 return;
             }
-            
-            widget.querySelectorAll('.category-tree-item').forEach(item => {
-                const name = item.querySelector('.category-tree-name').textContent.toLowerCase();
-                const shouldShow = name.includes(term);
-                item.style.display = shouldShow ? 'block' : 'none';
-                
-                if (shouldShow) {
-                    // Expand parents
-                    let parent = item.parentElement.closest('.category-tree-item');
-                    while (parent) {
-                        parent.style.display = 'block';
-                        const children = parent.querySelector('.category-tree-children');
-                        if (children) children.style.display = 'block';
-                        parent = parent.parentElement.closest('.category-tree-item');
-                    }
-                }
-            });
-        });
-    }
-    
-    // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
-        const primaryInput = document.getElementById('id_primary_category');
-        filterByPrimaryCategory(primaryInput ? primaryInput.value : null);
-        updateSelection();
+            listContainer.style.display = 'none';
+            searchResults.style.display = 'block';
 
-        // Listen for primary category change
-        if (primaryInput) {
-            primaryInput.addEventListener('change', function() {
-                filterByPrimaryCategory(this.value);
+            var matches = categoryData.filter(function(c) {
+                return c.name.toLowerCase().includes(query);
+            });
+            if (matches.length === 0) {
+                searchResults.innerHTML = '<div class="cat-dropdown-empty"><span>No categories found</span></div>';
+            } else {
+                searchResults.innerHTML = matches.map(function(cat) {
+                    var checked = selectedSet.has(cat.id);
+                    var path = getCategoryPath(cat);
+                    var highlighted = highlightMatch(cat.name, query);
+                    return '<div class="cat-multi-search-item ' + (checked ? 'is-checked' : '') + '" data-id="' + cat.id + '" data-name="' + escapeAttr(cat.name) + '">' +
+                        '<div class="cat-multi-checkbox"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
+                        '<div style="flex:1;min-width:0"><span class="cat-multi-name">' + highlighted + '</span><div class="cat-multi-search-item-path">' + escapeHtml(path) + '</div></div>' +
+                        '</div>';
+                }).join('');
+
+                searchResults.querySelectorAll('.cat-multi-search-item').forEach(function(el) {
+                    el.addEventListener('click', function() {
+                        toggleSelect(this.dataset.id, this);
+                    });
+                });
+            }
+        });
+
+        function getCategoryPath(cat) {
+            var parts = [];
+            var cur = cat;
+            while (cur) {
+                parts.unshift(cur.name);
+                cur = cur.parent_id ? categoryData.find(function(c) { return c.id === cur.parent_id; }) : null;
+            }
+            return parts.join(' › ');
+        }
+
+        function highlightMatch(text, query) {
+            var re = new RegExp('(' + escapeRegex(query) + ')', 'gi');
+            return escapeHtml(text).replace(re, '<span class="cat-dropdown-search-highlight">$1</span>');
+        }
+
+        // ── Sync hidden inputs ──
+        function syncHiddenInputs() {
+            hiddenDiv.innerHTML = '';
+            selectedSet.forEach(function(id) {
+                var inp = document.createElement('input');
+                inp.type = 'checkbox';
+                inp.name = widgetName;
+                inp.value = id;
+                inp.checked = true;
+                hiddenDiv.appendChild(inp);
             });
         }
-    });
+
+        // ── Pills ──
+        function refreshPills() {
+            var MAX_PILLS = 5;
+            var arr = Array.from(selectedSet);
+            if (arr.length === 0) {
+                pillsEl.innerHTML = '<span class="cat-multi-placeholder">🔍 Select categories...</span>';
+                return;
+            }
+            var html = '';
+            var show = arr.slice(0, MAX_PILLS);
+            show.forEach(function(id) {
+                var name = nameMap[id] || id;
+                html += '<span class="cat-multi-pill" data-id="' + id + '">' +
+                    escapeHtml(name) +
+                    '<button type="button" class="cat-multi-pill-remove" data-id="' + id + '" aria-label="Remove">×</button>' +
+                    '</span>';
+            });
+            if (arr.length > MAX_PILLS) {
+                html += '<span class="cat-multi-overflow">+' + (arr.length - MAX_PILLS) + ' more</span>';
+            }
+            pillsEl.innerHTML = html;
+
+            // Bind remove buttons
+            pillsEl.querySelectorAll('.cat-multi-pill-remove').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var id = this.dataset.id;
+                    selectedSet.delete(id);
+                    syncHiddenInputs();
+                    refreshPills();
+                    updateCount();
+                    // Update visible items if panel is open
+                    widgetEl.querySelectorAll('.cat-multi-item[data-id="' + id + '"], .cat-multi-search-item[data-id="' + id + '"]').forEach(function(el) {
+                        el.classList.remove('is-checked');
+                    });
+                });
+            });
+        }
+
+        function updateCount() {
+            countEl.textContent = selectedSet.size + ' selected';
+        }
+
+        // ── Listen for primary_category changes to filter ──
+        var primaryInput = document.getElementById('id_primary_category');
+        if (primaryInput) {
+            primaryInput.addEventListener('change', function() {
+                breadcrumbPath = [];
+                if (panel.style.display !== 'none') {
+                    renderLevel(0, null);
+                }
+            });
+        }
+
+        // ── Helpers ──
+        function escapeHtml(str) {
+            var d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+        function escapeAttr(str) {
+            return str.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+        function escapeRegex(s) {
+            return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // ── Init ──
+        renderLevel(0, null);
+        refreshPills();
+        updateCount();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCategoriesMultiDropdown);
+    } else {
+        initCategoriesMultiDropdown();
+    }
 })();
 </script>

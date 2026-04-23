@@ -45,30 +45,26 @@
         </div>
 
         {# Breadcrumb Navigation #}
-        <div class="cat-dropdown-breadcrumb" id="cat-dropdown-breadcrumb-{{ widget.name }}">
-            <span class="cat-dropdown-breadcrumb-item cat-dropdown-breadcrumb-root active" data-category-id="">
-                All Categories
-            </span>
-        </div>
+        <div class="cat-dropdown-breadcrumb" id="cat-dropdown-breadcrumb-{{ widget.name }}"></div>
 
         {# Category List Container #}
         <div class="cat-dropdown-list-container">
             {# Level 0: Root Categories #}
             <div class="cat-dropdown-level active" data-level="0" id="cat-dropdown-level-0-{{ widget.name }}">
                 {% for category in widget.root_categories %}
-                <div class="cat-dropdown-item"
+                <div class="cat-dropdown-item{% if widget.selected_value == category.id|stringformat:'s' %} is-selected{% endif %}"
                      data-category-id="{{ category.id }}"
                      data-name="{{ category.name }}"
                      data-has-children="{{ category.has_children|yesno:'true,false' }}">
+                    <span class="cat-dropdown-radio"><span class="cat-dropdown-radio-dot"></span></span>
                     <div class="cat-dropdown-item-content">
                         <span class="cat-dropdown-name">{{ category.name }}</span>
                     </div>
                     {% if category.has_children %}
+                    <span class="cat-dropdown-subcategory-count">{% if category.children_count %}{{ category.children_count }}{% endif %}</span>
                     <svg class="cat-dropdown-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    {% else %}
-                    <span class="cat-dropdown-select-hint">Click to select</span>
                     {% endif %}
                 </div>
                 {% empty %}
@@ -221,24 +217,28 @@
         }
 
         // Build HTML
-        if (categories.length === 0) {
-            levelContainer.innerHTML = '<div class="cat-dropdown-empty"><span>No subcategories</span></div>';
+        let itemsHTML = '';
+
+        if (categories.length === 0 && !parentId) {
+            levelContainer.innerHTML = '<div class="cat-dropdown-empty"><span>No categories found</span></div>';
         } else {
-            levelContainer.innerHTML = categories.map(cat => `
-                <div class="cat-dropdown-item ${selectedCategoryId === cat.id ? 'is-selected' : ''}"
+            itemsHTML += categories.map(cat => `
+                <div class="cat-dropdown-item ${selectedCategoryId == cat.id ? 'is-selected' : ''}"
                      data-category-id="${cat.id}"
                      data-name="${cat.name}"
                      data-has-children="${cat.has_children}"
                      data-level="${level}">
+                    <span class="cat-dropdown-radio"><span class="cat-dropdown-radio-dot"></span></span>
                     <div class="cat-dropdown-item-content">
                         <span class="cat-dropdown-name">${cat.name}</span>
                     </div>
                     ${cat.has_children
-                        ? '<svg class="cat-dropdown-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-                        : '<span class="cat-dropdown-select-hint">Click to select</span>'
+                        ? '<span class="cat-dropdown-subcategory-count">' + (cat.children_count || '') + '</span><svg class="cat-dropdown-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                        : ''
                     }
                 </div>
             `).join('');
+            levelContainer.innerHTML = itemsHTML;
         }
 
         levelContainer.classList.add('active');
@@ -253,41 +253,64 @@
         // Update breadcrumb
         updateBreadcrumb();
 
-        // Add click handlers
+        // Category item click handlers — radio selects, arrow drills
         levelContainer.querySelectorAll('.cat-dropdown-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const catId = this.dataset.categoryId;
-                const catName = this.dataset.name;
-                const hasChildren = this.dataset.hasChildren === 'true';
-                const itemLevel = parseInt(this.dataset.level);
+            const hasChildren = item.dataset.hasChildren === 'true';
+            const catId = item.dataset.categoryId;
+            const catName = item.dataset.name;
+            const itemLevel = parseInt(item.dataset.level);
 
-                if (hasChildren) {
-                    // Save to breadcrumb path
+            if (hasChildren) {
+                // Clicking the radio or name → selects this category
+                item.querySelector('.cat-dropdown-radio').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    selectCategory(catId, catName);
+                });
+                item.querySelector('.cat-dropdown-item-content').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    selectCategory(catId, catName);
+                });
+
+                // Clicking the arrow or count → drills into subcategories
+                item.querySelector('.cat-dropdown-arrow').addEventListener('click', function(e) {
+                    e.stopPropagation();
                     breadcrumbPath = breadcrumbPath.slice(0, itemLevel);
                     breadcrumbPath.push({ id: catId, name: catName });
                     renderLevel(itemLevel + 1, catId);
-                } else {
-                    // Select this category
-                    selectCategory(catId, catName);
+                });
+                var countSpan = item.querySelector('.cat-dropdown-subcategory-count');
+                if (countSpan) {
+                    countSpan.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        breadcrumbPath = breadcrumbPath.slice(0, itemLevel);
+                        breadcrumbPath.push({ id: catId, name: catName });
+                        renderLevel(itemLevel + 1, catId);
+                    });
                 }
-            });
+            } else {
+                // Leaf — entire row selects
+                item.addEventListener('click', function() {
+                    selectCategory(catId, catName);
+                });
+            }
         });
     }
 
     // Update breadcrumb
     function updateBreadcrumb() {
-        let html = '<span class="cat-dropdown-breadcrumb-item cat-dropdown-breadcrumb-root" data-category-id="">All Categories</span>';
+        // Home icon as root — no "All Categories" text
+        let html = '<span class="cat-dropdown-breadcrumb-item cat-dropdown-breadcrumb-root' + (breadcrumbPath.length === 0 ? ' active' : '') + '" data-category-id=""><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2.5 8L8 3L13.5 8M4 7v5.5a.5.5 0 00.5.5H7v-3h2v3h2.5a.5.5 0 00.5-.5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
 
         breadcrumbPath.forEach((item, index) => {
             html += '<span class="cat-dropdown-breadcrumb-separator">›</span>';
-            if (index === breadcrumbPath.length - 1) {
-                html += `<span class="cat-dropdown-breadcrumb-item active" data-category-id="${item.id}">${item.name}</span>`;
-            } else {
-                html += `<span class="cat-dropdown-breadcrumb-item" data-category-id="${item.id}">${item.name}</span>`;
-            }
+            const isLast = index === breadcrumbPath.length - 1;
+            html += `<span class="cat-dropdown-breadcrumb-item ${isLast ? 'active' : ''}" data-category-id="${item.id}">${item.name}</span>`;
         });
 
         breadcrumb.innerHTML = html;
+
+        // Hide breadcrumb bar entirely when at root level
+        breadcrumb.style.display = breadcrumbPath.length === 0 ? 'none' : 'flex';
 
         // Add click handlers
         breadcrumb.querySelectorAll('.cat-dropdown-breadcrumb-item:not(.active)').forEach(item => {
@@ -318,7 +341,7 @@
 
         // Update visual selection
         widgetEl.querySelectorAll('.cat-dropdown-item').forEach(el => el.classList.remove('is-selected'));
-        const selectedItem = widgetEl.querySelector('.cat-dropdown-item[data-category-id="' + catId + '"]');
+        const selectedItem = widgetEl.querySelector('[data-category-id="' + catId + '"]');
         if (selectedItem) {
             selectedItem.classList.add('is-selected');
         }

@@ -941,7 +941,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         "is_active", "is_featured", "is_bestseller", "is_new_arrival",
         StockFilter, PriceRangeFilter, "aspect_ratio", "primary_category"
     )
-    inlines = [ProductImageEnhancedInline, ProductVariantEnhancedInline, ProductAttributeValueInline, Product3DAssetEnhancedInline, ProductMakingOfInline]
+    inlines = [ProductAttributeValueInline, ProductImageEnhancedInline, ProductVariantEnhancedInline, Product3DAssetEnhancedInline, ProductMakingOfInline]
     prepopulated_fields = {"slug": ("name",)}
     date_hierarchy = "created_at"
     list_per_page = 25

@@ -74,6 +74,8 @@ from .models import (
     CategoryPricingProfile,
     Option,
     OptionValue,
+    SizeChart,
+    ProductSizeChart,
 )
 from .ai.validators import apply_suggestions_to_product
 from .tasks import run_product_autofill_job
@@ -129,6 +131,12 @@ class ProductMakingOfInline(EnhancedTabularInline):
     extra = 0
     fields = ("order", "title", "description", "image", "video_url")
     ordering = ["order"]
+
+
+class ProductSizeChartInline(admin.TabularInline):
+    model = ProductSizeChart
+    extra = 0
+    autocomplete_fields = ['size_chart']
 
 
 class CustomerPhotoInline(EnhancedTabularInline):
@@ -941,7 +949,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
         "is_active", "is_featured", "is_bestseller", "is_new_arrival",
         StockFilter, PriceRangeFilter, "aspect_ratio", "primary_category"
     )
-    inlines = [ProductAttributeValueInline, ProductImageEnhancedInline, ProductVariantEnhancedInline, Product3DAssetEnhancedInline, ProductMakingOfInline]
+    inlines = [ProductAttributeValueInline, ProductImageEnhancedInline, ProductVariantEnhancedInline, Product3DAssetEnhancedInline, ProductMakingOfInline, ProductSizeChartInline]
     prepopulated_fields = {"slug": ("name",)}
     date_hierarchy = "created_at"
     list_per_page = 25
@@ -2675,3 +2683,45 @@ class CustomerPhotoAdmin(ImportExportEnhancedModelAdmin):
         updated = queryset.update(status='rejected')
         self.message_user(request, f'{updated} photos rejected.')
     reject_photos.short_description = 'Reject selected photos'
+
+
+# =============================================================================
+# Size Chart Admin
+# =============================================================================
+
+@admin.register(SizeChart)
+class SizeChartAdmin(admin.ModelAdmin):
+    list_display = ['name', 'garment_type', 'unit', 'is_active', 'is_default', 'column_count', 'row_count', 'created_at']
+    list_filter = ['garment_type', 'unit', 'is_active', 'is_default']
+    search_fields = ['name', 'slug', 'description']
+    prepopulated_fields = {'slug': ('name',)}
+    filter_horizontal = ['categories']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'slug', 'garment_type', 'unit', 'is_active', 'is_default')
+        }),
+        ('Chart Data', {
+            'fields': ('columns', 'rows'),
+            'description': 'Columns: JSON array of header strings. Rows: JSON array of arrays matching columns.',
+        }),
+        ('Additional Info', {
+            'fields': ('description', 'fit_notes'),
+            'classes': ('collapse',),
+        }),
+        ('Categories', {
+            'fields': ('categories',),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def column_count(self, obj):
+        return len(obj.columns) if isinstance(obj.columns, list) else 0
+    column_count.short_description = 'Columns'
+
+    def row_count(self, obj):
+        return len(obj.rows) if isinstance(obj.rows, list) else 0
+    row_count.short_description = 'Rows'

@@ -1844,3 +1844,106 @@ class ProductAutofillFeedback(models.Model):
         return f"{self.feedback_type} - {self.field_name}"
 
 
+# =============================================================================
+# Size Chart System
+# =============================================================================
+
+class SizeChart(TimeStampedMixin):
+    """
+    Reusable size chart that can be linked to products or categories.
+    Stores measurements in a structured JSON table format.
+    """
+    UNIT_CHOICES = [
+        ('in', 'Inches'),
+        ('cm', 'Centimeters'),
+        ('mm', 'Millimeters'),
+    ]
+    GARMENT_TYPE_CHOICES = [
+        ('tops', 'Tops & Shirts'),
+        ('bottoms', 'Bottoms & Pants'),
+        ('dresses', 'Dresses & Gowns'),
+        ('outerwear', 'Outerwear & Jackets'),
+        ('footwear', 'Footwear'),
+        ('accessories', 'Accessories'),
+        ('kids', 'Kids Clothing'),
+        ('unisex', 'Unisex / General'),
+        ('custom', 'Custom'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200, help_text='E.g. "Men\'s T-Shirt Size Chart"')
+    slug = models.SlugField(max_length=200, unique=True)
+    garment_type = models.CharField(
+        max_length=30, choices=GARMENT_TYPE_CHOICES, default='custom',
+        db_index=True, help_text='Type of garment this chart applies to.'
+    )
+    description = models.TextField(blank=True, help_text='Optional guide text (e.g. "How to measure")')
+    unit = models.CharField(max_length=5, choices=UNIT_CHOICES, default='in')
+
+    # Structured data: list of column headers
+    columns = models.JSONField(
+        default=list,
+        help_text='Ordered list of column headers, e.g. ["Size", "Chest", "Waist", "Length"]'
+    )
+    # Structured data: list of rows (each row is a list matching columns)
+    rows = models.JSONField(
+        default=list,
+        help_text='List of rows. Each row is a list of values matching column order.'
+    )
+
+    # Optional fit tips
+    fit_notes = models.TextField(blank=True, help_text='Additional fit recommendations')
+
+    # Relationships
+    categories = models.ManyToManyField(
+        Category, blank=True, related_name='size_charts',
+        help_text='Categories this size chart applies to (inherited by products in these categories).'
+    )
+
+    is_active = models.BooleanField(default=True, db_index=True)
+    is_default = models.BooleanField(
+        default=False, db_index=True,
+        help_text='If true, this chart is a fallback when no specific chart is assigned.'
+    )
+
+    class Meta:
+        ordering = ['garment_type', 'name']
+        verbose_name = 'Size Chart'
+        verbose_name_plural = 'Size Charts'
+        indexes = [
+            models.Index(fields=['garment_type']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['is_default']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)[:200]
+        super().save(*args, **kwargs)
+
+
+class ProductSizeChart(models.Model):
+    """Link a specific size chart to a product (overrides category-level charts)."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name='size_charts'
+    )
+    size_chart = models.ForeignKey(
+        SizeChart, on_delete=models.CASCADE, related_name='product_links'
+    )
+    is_primary = models.BooleanField(default=True, help_text='Primary chart shown by default.')
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order']
+        unique_together = ('product', 'size_chart')
+        verbose_name = 'Product Size Chart'
+        verbose_name_plural = 'Product Size Charts'
+
+    def __str__(self):
+        return f"{self.product.name} - {self.size_chart.name}"
+
+

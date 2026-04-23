@@ -9,7 +9,7 @@ from apps.catalog.models import (
     Collection, CollectionItem, Badge, Spotlight, Bundle, BundleItem,
     Facet, CategoryFacet, ShippingMaterial, Product3DAsset, Option, OptionValue,
     Currency, ProductPrice, EcoCertification, CustomerPhoto,
-    ProductQuestion, ProductAnswer
+    ProductQuestion, ProductAnswer, SizeChart, ProductSizeChart
 )
 from apps.i18n.services import CurrencyService, CurrencyConversionService, TranslationService
 from apps.i18n.api.serializers import PriceConversionMixin
@@ -305,6 +305,7 @@ class ProductDetailSerializer(ContentTranslationMixin, PriceConversionMixin, ser
     eco_certifications = EcoCertificationSerializer(many=True, read_only=True)
     assets_3d = Product3DAssetSerializer(many=True, read_only=True)
     badges = serializers.SerializerMethodField()
+    size_charts = serializers.SerializerMethodField()
     
     current_price = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     discount_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
@@ -343,7 +344,7 @@ class ProductDetailSerializer(ContentTranslationMixin, PriceConversionMixin, ser
             'meta_title', 'meta_description', 'meta_keywords',
             'is_featured', 'is_bestseller', 'is_new_arrival',
             'average_rating', 'reviews_count', 'rating_count', 'views_count', 'sales_count',
-            'breadcrumbs', 'schema_org', 'badges',
+            'breadcrumbs', 'schema_org', 'badges', 'size_charts',
             'created_at', 'updated_at'
         )
     
@@ -370,6 +371,33 @@ class ProductDetailSerializer(ContentTranslationMixin, PriceConversionMixin, ser
             if badge.target_product_id or badge.target_category_id or badge.target_tag_id
         ]
         return BadgeSerializer(badges, many=True, context=self.context).data
+
+    def get_size_charts(self, obj):
+        """Return size charts: product-specific first, then category-level fallbacks."""
+        # 1. Product-specific charts
+        product_charts = ProductSizeChart.objects.filter(
+            product=obj, size_chart__is_active=True
+        ).select_related('size_chart').order_by('sort_order')
+        if product_charts.exists():
+            return ProductSizeChartSerializer(product_charts, many=True, context=self.context).data
+
+        # 2. Category-level charts (from primary category or any assigned category)
+        category_ids = list(obj.categories.values_list('id', flat=True))
+        if obj.primary_category_id:
+            category_ids.insert(0, obj.primary_category_id)
+        if category_ids:
+            charts = SizeChart.objects.filter(
+                categories__id__in=category_ids, is_active=True
+            ).distinct().order_by('garment_type', 'name')
+            if charts.exists():
+                return [{'id': None, 'is_primary': True, 'sort_order': i, 'size_chart': SizeChartSerializer(c, context=self.context).data} for i, c in enumerate(charts)]
+
+        # 3. Default charts
+        default_charts = SizeChart.objects.filter(is_active=True, is_default=True).order_by('garment_type', 'name')
+        if default_charts.exists():
+            return [{'id': None, 'is_primary': True, 'sort_order': i, 'size_chart': SizeChartSerializer(c, context=self.context).data} for i, c in enumerate(default_charts)]
+
+        return []
     
     def to_representation(self, instance):
         """Convert prices to user's selected currency."""
@@ -585,6 +613,31 @@ class FacetWithCountsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Facet
         fields = ('id', 'name', 'slug', 'type', 'values', 'value_counts')
+
+
+# =============================================================================
+# Size Chart Serializers
+# =============================================================================
+
+class SizeChartSerializer(serializers.ModelSerializer):
+    """Full size chart serializer with structured data."""
+
+    class Meta:
+        model = SizeChart
+        fields = (
+            'id', 'name', 'slug', 'garment_type', 'description', 'unit',
+            'columns', 'rows', 'fit_notes', 'is_default',
+            'created_at', 'updated_at',
+        )
+
+
+class ProductSizeChartSerializer(serializers.ModelSerializer):
+    """Size chart linked to a product."""
+    size_chart = SizeChartSerializer(read_only=True)
+
+    class Meta:
+        model = ProductSizeChart
+        fields = ('id', 'is_primary', 'sort_order', 'size_chart')
 
 
 # =============================================================================

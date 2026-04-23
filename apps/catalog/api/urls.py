@@ -9,7 +9,7 @@ from .views import (
     CategoryViewSet, ProductViewSet, CollectionViewSet, BundleViewSet,
     TagViewSet, SpotlightViewSet, BadgeViewSet,
     SearchAPIView, HomepageDataView, CustomerPhotoUploadView,
-    ProductQuestionListView, ProductAnswerCreateView
+    ProductQuestionListView, ProductAnswerCreateView, SizeChartViewSet
 )
 
 router = DefaultRouter()
@@ -20,6 +20,7 @@ router.register(r'bundles', BundleViewSet, basename='api-bundle')
 router.register(r'tags', TagViewSet, basename='api-tag')
 router.register(r'spotlights', SpotlightViewSet, basename='api-spotlight')
 router.register(r'badges', BadgeViewSet, basename='api-badge')
+router.register(r'size-charts', SizeChartViewSet, basename='api-size-chart')
 
 urlpatterns = [
     # Guard against relative favicon/static requests being interpreted as nested category slugs.

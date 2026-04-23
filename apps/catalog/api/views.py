@@ -18,7 +18,7 @@ from uuid import UUID
 
 from apps.catalog.models import (
     Category, Product, Collection, Bundle, Badge, Spotlight, Facet, Tag, CustomerPhoto,
-    ProductQuestion, ProductAnswer, ProductVariant
+    ProductQuestion, ProductAnswer, ProductVariant, SizeChart
 )
 from apps.catalog.services import (
     CategoryService, ProductService, CollectionService, ReviewService,
@@ -35,7 +35,8 @@ from .serializers import (
     FacetSerializer, FacetWithCountsSerializer, FacetValueSerializer,
     SpotlightSerializer, TagSerializer, BadgeSerializer,
     CustomerPhotoSerializer,
-    ProductQuestionSerializer, ProductAnswerSerializer
+    ProductQuestionSerializer, ProductAnswerSerializer,
+    SizeChartSerializer
 )
 
 from apps.notifications.api.serializers import BackInStockNotificationSerializer 
@@ -1014,3 +1015,24 @@ class ProductAnswerCreateView(mixins.CreateModelMixin, viewsets.GenericViewSet):
             'message': 'Your answer has been submitted and is pending review!',
             'data': serializer.data
         }, status=status.HTTP_201_CREATED)
+
+
+class SizeChartViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint for size charts.
+    list: Get all active size charts.
+    retrieve: Get a single size chart by slug or id.
+    """
+    serializer_class = SizeChartSerializer
+    permission_classes = [AllowAny]
+    lookup_field = 'slug'
+
+    def get_queryset(self):
+        qs = SizeChart.objects.filter(is_active=True)
+        garment_type = self.request.query_params.get('garment_type')
+        if garment_type:
+            qs = qs.filter(garment_type=garment_type)
+        category = self.request.query_params.get('category')
+        if category:
+            qs = qs.filter(categories__slug=category)
+        return qs.order_by('garment_type', 'name')

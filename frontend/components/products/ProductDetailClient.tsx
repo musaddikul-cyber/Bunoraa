@@ -230,8 +230,10 @@ function ProductGallery({
                 )}
                 aria-label={`Show image ${index + 1}`}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   {...getLazyImageProps(image.image, image.alt)}
+                  alt={image.alt}
                   className="h-full w-full object-cover"
                 />
               </button>
@@ -263,8 +265,10 @@ function ProductGallery({
           onClick={() => setIsZoomed((prev) => !prev)}
         >
           {activeImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               {...getLazyImageProps(activeImage.image, activeImage.alt)}
+              alt={activeImage.alt}
               className={cn(
                 "h-full w-full object-cover transition-transform duration-300",
                 zoomActive ? "scale-110" : "scale-100",
@@ -316,8 +320,10 @@ function ProductGallery({
                   )}
                   aria-label={`Show image ${index + 1}`}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     {...getLazyImageProps(image.image, image.alt)}
+                    alt={image.alt}
                     className="h-full w-full object-cover"
                   />
                 </button>
@@ -342,8 +348,10 @@ function ProductGallery({
                 )}
                 aria-label={`Show image ${index + 1}`}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   {...getLazyImageProps(image.image, image.alt)}
+                  alt={image.alt}
                   className="h-full w-full object-cover"
                 />
               </button>
@@ -391,6 +399,7 @@ function ProductGallery({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               {...getLazyImageProps(activeImage.image, activeImage.alt)}
+              alt={activeImage.alt}
               className="max-h-[88vh] max-w-[92vw] rounded-xl object-contain"
             />
             {hasMultipleImages ? (
@@ -547,27 +556,27 @@ function ShippingEstimator({
         <input
           value={country}
           onChange={(event) => setCountry(event.target.value)}
-          className="h-10 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-9 sm:flex-1 sm:px-2 sm:text-xs"
+          className="h-11 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-11 sm:flex-1 sm:px-3 sm:text-sm"
           placeholder="Country"
         />
         <input
           value={state}
           onChange={(event) => setState(event.target.value)}
-          className="h-10 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-9 sm:flex-1 sm:px-2 sm:text-xs"
+          className="h-11 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-11 sm:flex-1 sm:px-3 sm:text-sm"
           placeholder="State"
         />
         <input
           value={postalCode}
           onChange={(event) => setPostalCode(event.target.value)}
-          className="h-10 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-9 sm:flex-1 sm:px-2 sm:text-xs"
+          className="h-11 w-full min-w-0 rounded-xl border border-border bg-transparent px-3 text-sm sm:h-11 sm:flex-1 sm:px-3 sm:text-sm"
           placeholder="Postal code"
         />
         <Button
-          size="sm"
+          size="md"
           variant="secondary"
           onClick={handleEstimate}
           disabled={loading}
-          className="h-10 w-full px-3 text-sm sm:h-9 sm:w-auto sm:shrink-0 sm:text-xs"
+          className="h-11 w-full px-4 text-sm sm:h-11 sm:w-auto sm:shrink-0 sm:text-sm"
         >
           {loading ? "Estimating..." : "Get rates"}
         </Button>
@@ -833,6 +842,9 @@ export function ProductDetailClient({
     getVariantOptionMap(defaultVariant)
   );
   const [descriptionExpanded, setDescriptionExpanded] = React.useState(false);
+  const [sizeChartExpanded, setSizeChartExpanded] = React.useState(false);
+  const [moreInfoExpanded, setMoreInfoExpanded] = React.useState(false);
+  const [returnsExpanded, setReturnsExpanded] = React.useState(false);
 
   const variantOptionMapById = React.useMemo(() => {
     const map = new Map<string, VariantOptionMap>();
@@ -884,6 +896,9 @@ export function ProductDetailClient({
     setSelectedOptions(getVariantOptionMap(defaultVariant));
     setQuantity(1);
     setDescriptionExpanded(false);
+    setSizeChartExpanded(false);
+    setMoreInfoExpanded(false);
+    setReturnsExpanded(false);
   }, [defaultVariant, product.id]);
 
   React.useEffect(() => {
@@ -1044,11 +1059,6 @@ export function ProductDetailClient({
       ? product.categories.map((category) => category.name).join(", ")
       : null);
   const fullDescription = product.description || product.short_description || "";
-  const shouldClampDescription = fullDescription.length > 420;
-  const visibleDescription =
-    shouldClampDescription && !descriptionExpanded
-      ? `${fullDescription.slice(0, 420).trimEnd()}...`
-      : fullDescription;
   const sizeGroup = optionGroups.find((group) => group.name.toLowerCase().includes("size"));
   const otherGroups = optionGroups.filter((group) => group !== sizeGroup);
   const categoryBreadcrumbs = (() => {
@@ -1242,81 +1252,140 @@ export function ProductDetailClient({
           </div>
 
           {!inStock ? <BackInStockForm product={product} variantId={variantId} /> : null}
+
+          {/* Collapsible Sections */}
+          <div className="border-t border-border pt-4 space-y-3">
+            {/* Description */}
+            <section id="description" className="space-y-2 border-b border-border pb-3">
+              <button
+                type="button"
+                onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                className="flex w-full items-center justify-between"
+              >
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+                  Description
+                </h2>
+                <ChevronDown
+                  size={16}
+                  className={cn(
+                    "transition-transform",
+                    descriptionExpanded && "rotate-180"
+                  )}
+                />
+              </button>
+              {descriptionExpanded && (
+                <div className="pt-2 space-y-2">
+                  <p className="text-sm text-foreground/70">
+                    {fullDescription || "No description available."}
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {/* Size Chart */}
+            <section id="size-chart" className="space-y-2 border-b border-border pb-3">
+              <button
+                type="button"
+                onClick={() => setSizeChartExpanded(!sizeChartExpanded)}
+                className="flex w-full items-center justify-between"
+              >
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+                  Size Chart
+                </h2>
+                <ChevronDown
+                  size={16}
+                  className={cn(
+                    "transition-transform",
+                    sizeChartExpanded && "rotate-180"
+                  )}
+                />
+              </button>
+              {sizeChartExpanded && (
+                <div className="pt-2">
+                  {product.attributes?.length ? (
+                    <div className="grid gap-2 text-sm text-foreground/70">
+                      {product.attributes.map((attr) => (
+                        <div key={attr.id} className="flex items-center justify-between border-b border-border/70 py-1">
+                          <span className="uppercase tracking-[0.12em] text-foreground/60">
+                            {attr.attribute.name}
+                          </span>
+                          <span>{attr.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-foreground/60">Size chart not available.</p>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* More Information */}
+            <section id="more-info" className="space-y-2 border-b border-border pb-3">
+              <button
+                type="button"
+                onClick={() => setMoreInfoExpanded(!moreInfoExpanded)}
+                className="flex w-full items-center justify-between"
+              >
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+                  More Information
+                </h2>
+                <ChevronDown
+                  size={16}
+                  className={cn(
+                    "transition-transform",
+                    moreInfoExpanded && "rotate-180"
+                  )}
+                />
+              </button>
+              {moreInfoExpanded && (
+                <div className="pt-2 space-y-1 text-sm text-foreground/70">
+                  <DetailRow label="Category" value={categoryLabel} />
+                  <DetailRow label="Stock status" value={stockLabel} />
+                  <DetailRow label="Available stock" value={stockQty !== null ? stockQty : null} />
+                  <DetailRow label="Dimensions (L x W x H)" value={dimensions || null} />
+                  <DetailRow label="Weight" value={product.weight ?? null} />
+                  <DetailRow label="Shipping material" value={product.shipping_material?.name} />
+                </div>
+              )}
+            </section>
+
+            {/* Returns & Exchange */}
+            <section id="returns" className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setReturnsExpanded(!returnsExpanded)}
+                className="flex w-full items-center justify-between"
+              >
+                <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
+                  Returns & Exchange
+                </h2>
+                <ChevronDown
+                  size={16}
+                  className={cn(
+                    "transition-transform",
+                    returnsExpanded && "rotate-180"
+                  )}
+                />
+              </button>
+              {returnsExpanded && (
+                <div className="pt-2">
+                  <p className="text-sm text-foreground/70">
+                    Returns and exchanges are accepted within 7 days of delivery when items are unused,
+                    unwashed, and in original packaging.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
         </div>
       </div>
 
-      <section id="description" className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
-          Description
-        </h2>
-        <p className="text-sm text-foreground/70">
-          {visibleDescription || "No description available."}
-        </p>
-        {shouldClampDescription ? (
-          <button
-            type="button"
-            className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/70"
-            onClick={() => setDescriptionExpanded((prev) => !prev)}
-          >
-            {descriptionExpanded ? "Show less" : "Read more"}
-          </button>
-        ) : null}
-      </section>
-
-      <section id="size-chart" className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
-          Size Chart
-        </h2>
-        {product.attributes?.length ? (
-          <div className="grid gap-2 text-sm text-foreground/70">
-            {product.attributes.map((attr) => (
-              <div key={attr.id} className="flex items-center justify-between border-b border-border/70 py-1">
-                <span className="uppercase tracking-[0.12em] text-foreground/60">
-                  {attr.attribute.name}
-                </span>
-                <span>{attr.value}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-foreground/60">Size chart not available.</p>
-        )}
-      </section>
-
-      <section id="more-info" className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
-          More Information
-        </h2>
-        <div className="space-y-1 text-sm text-foreground/70">
-          <DetailRow label="Category" value={categoryLabel} />
-          <DetailRow label="Stock status" value={stockLabel} />
-          <DetailRow label="Available stock" value={stockQty !== null ? stockQty : null} />
-          <DetailRow label="Dimensions (L x W x H)" value={dimensions || null} />
-          <DetailRow label="Weight" value={product.weight ?? null} />
-          <DetailRow label="Shipping material" value={product.shipping_material?.name} />
-        </div>
-      </section>
-
-      <section id="returns" className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
-          Returns & Exchange Information
-        </h2>
-        <p className="text-sm text-foreground/70">
-          Returns and exchanges are accepted within 7 days of delivery when items are unused,
-          unwashed, and in original packaging.
-        </p>
-      </section>
-
-      <section id="delivery" className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
-          Estimated Delivery Date & COD Checker
-        </h2>
-        <ShippingEstimator product={product} quantity={quantity} unitPrice={unitPrice} />
-      </section>
+      <ShippingEstimator product={product} quantity={quantity} unitPrice={unitPrice} />
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
-          Recently Stalked
+          Recently viewed
         </h2>
         <RecentlyViewedSection
           excludeProductId={product.id}

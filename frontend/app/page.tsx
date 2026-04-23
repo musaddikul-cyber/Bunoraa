@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { apiFetch } from "@/lib/api";
@@ -7,16 +8,26 @@ import type {
   ProductListItem,
   SiteSettings,
 } from "@/lib/types";
-import { ProductGrid } from "@/components/products/ProductGrid";
-import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
-import { HomeProductTabs } from "@/components/products/HomeProductTabs";
-import { HeroBannerSlider, type HeroBanner } from "@/components/promotions/HeroBannerSlider";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { absoluteUrl, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
+
+const ProductGrid = dynamic(
+  () => import("@/components/products/ProductGrid").then((mod) => mod.ProductGrid)
+);
+const RecentlyViewedSection = dynamic(
+  () => import("@/components/products/RecentlyViewedSection").then((mod) => mod.RecentlyViewedSection)
+);
+const HomeProductTabs = dynamic(
+  () => import("@/components/products/HomeProductTabs").then((mod) => mod.HomeProductTabs)
+);
+const HeroBannerSlider = dynamic(
+  () => import("@/components/promotions/HeroBannerSlider").then((mod) => mod.HeroBannerSlider)
+);
+import type { HeroBanner } from "@/components/promotions/HeroBannerSlider";
 
 export const revalidate = 300;
 export const metadata: Metadata = buildPageMetadata({
@@ -403,7 +414,7 @@ export default async function Home() {
 
       <section className={`${sectionWrapperClass} py-8`}>
         <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/70">
-          Recently Stalked
+          Recently viewed
         </h2>
         <div className="mt-4">
           <RecentlyViewedSection />

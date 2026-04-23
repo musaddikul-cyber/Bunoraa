@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Collection, ProductListItem } from "@/lib/types";
-import { ProductGrid } from "@/components/products/ProductGrid";
 import { Button } from "@/components/ui/Button";
 import { notFound } from "next/navigation";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildBreadcrumbList, buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 import { buildProductPath } from "@/lib/productPaths";
+
+const ProductGrid = dynamic(
+  () => import("@/components/products/ProductGrid").then((mod) => mod.ProductGrid)
+);
 
 export const revalidate = 600;
 

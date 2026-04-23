@@ -136,14 +136,20 @@ function reportMetric(name: string, metric: Metric) {
   if (navigator.sendBeacon) {
     navigator.sendBeacon(CONFIG.reportEndpoint, JSON.stringify(payload));
   } else {
-    // Fallback to fetch
+    // Fallback to fetch with timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout
+    
     fetch(CONFIG.reportEndpoint, {
       method: "POST",
       body: JSON.stringify(payload),
       keepalive: true,
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
     }).catch(() => {
       // Silent fail - analytics shouldn't break functionality
+    }).finally(() => {
+      clearTimeout(timeout);
     });
   }
 
@@ -242,6 +248,7 @@ export function getPerformanceReport(): PerformanceReport {
 /**
  * Measure function execution time
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function measure<T extends (...args: any[]) => any>(
   name: string,
   fn: T
@@ -249,7 +256,7 @@ export function measure<T extends (...args: any[]) => any>(
   return ((...args: Parameters<T>): ReturnType<T> => {
     const start = performance.now();
     const result = fn(...args);
-    
+
     // Handle both sync and async
     const measureEnd = () => {
       const duration = performance.now() - start;

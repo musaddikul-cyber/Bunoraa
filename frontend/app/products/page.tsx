@@ -1,18 +1,32 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { ProductListItem, ProductFilterResponse } from "@/lib/types";
-import { ProductGrid } from "@/components/products/ProductGrid";
-import { FilterPanel } from "@/components/products/FilterPanel";
-import { FilterDrawer } from "@/components/products/FilterDrawer";
-import { AppliedFilters } from "@/components/products/AppliedFilters";
-import { SortMenu } from "@/components/products/SortMenu";
-import { RecentlyViewedSection } from "@/components/products/RecentlyViewedSection";
 import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildCollectionPage, buildItemList, buildPageMetadata } from "@/lib/seo";
 import { buildProductPath } from "@/lib/productPaths";
 import { cn } from "@/lib/utils";
+
+const ProductGrid = dynamic(
+  () => import("@/components/products/ProductGrid").then((mod) => mod.ProductGrid)
+);
+const FilterPanel = dynamic(
+  () => import("@/components/products/FilterPanel").then((mod) => mod.FilterPanel)
+);
+const FilterDrawer = dynamic(
+  () => import("@/components/products/FilterDrawer").then((mod) => mod.FilterDrawer)
+);
+const AppliedFilters = dynamic(
+  () => import("@/components/products/AppliedFilters").then((mod) => mod.AppliedFilters)
+);
+const SortMenu = dynamic(
+  () => import("@/components/products/SortMenu").then((mod) => mod.SortMenu)
+);
+const RecentlyViewedSection = dynamic(
+  () => import("@/components/products/RecentlyViewedSection").then((mod) => mod.RecentlyViewedSection)
+);
 
 export const revalidate = 300;
 

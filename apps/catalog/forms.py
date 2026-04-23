@@ -1,3 +1,5 @@
+import json
+
 from django import forms
 from django.conf import settings
 from django.contrib import admin
@@ -93,12 +95,12 @@ class CategoriesFilteredWidget(forms.SelectMultiple):
             for cat in categories
         ]
         
-        # Add reference to categories list for is_descendant filter
-        for cat in categories_list:
-            cat['_categories'] = categories_list
-        
+        selected_values = [str(getattr(v, 'pk', v)) for v in value] if value else []
+
         context['widget']['categories'] = categories_list
-        context['widget']['selected_values'] = [str(getattr(v, 'pk', v)) for v in value] if value else []
+        context['widget']['categories_json'] = json.dumps(categories_list)
+        context['widget']['selected_values'] = selected_values
+        context['widget']['selected_values_json'] = json.dumps(selected_values)
         
         return context
 
@@ -250,11 +252,12 @@ class ProductAdminForm(forms.ModelForm):
             from .models import Tag
             self.fields['tags'].queryset = Tag.objects.all()
             self.fields['tags'].required = False
-            # Use select2-style widget or simple select multiple
+            # Force readable native select styling in the admin theme.
             self.fields['tags'].widget.attrs.update({
-                'class': 'select2-tags',
-                'style': 'min-width: 300px;',
-                'data-placeholder': 'Select tags...'
+                'class': 'bunoraa-admin-tags',
+                'style': 'min-width: 300px; min-height: 240px;',
+                'size': 10,
+                'data-placeholder': 'Select tags...',
             })
 
         currencies = I18nCurrency.objects.order_by('sort_order', 'code')

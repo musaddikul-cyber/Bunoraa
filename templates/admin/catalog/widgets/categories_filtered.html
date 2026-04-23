@@ -28,7 +28,7 @@
     
     {# Hidden checkboxes for form submission #}
     <div id="categories-hidden-inputs" style="display: none;">
-        {% for value in widget.value %}
+        {% for value in widget.selected_values %}
             <input type="checkbox" name="{{ widget.name }}" value="{{ value }}" checked>
         {% endfor %}
     </div>
@@ -39,8 +39,8 @@
     'use strict';
     
     // Store category data
-    const categoriesData = {{ widget.categories|safe }};
-    const selectedValues = {{ widget.selected_values|safe }};
+    const categoriesData = {{ widget.categories_json|safe }};
+    const selectedValues = {{ widget.selected_values_json|safe }};
     
     // State
     let filteredRootIds = new Set();
@@ -211,11 +211,11 @@
     
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
-        filterByPrimaryCategory(null);
-        updateSelection();
-        
-        // Listen for primary category change
         const primaryInput = document.getElementById('id_primary_category');
+        filterByPrimaryCategory(primaryInput ? primaryInput.value : null);
+        updateSelection();
+
+        // Listen for primary category change
         if (primaryInput) {
             primaryInput.addEventListener('change', function() {
                 filterByPrimaryCategory(this.value);

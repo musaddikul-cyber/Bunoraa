@@ -51,3 +51,15 @@
     display: inline-block;
     min-width: 8px;
 }
+
+select.bunoraa-admin-tags,
+.related-widget-wrapper select.bunoraa-admin-tags {
+    background: var(--body-bg, #ffffff) !important;
+    color: var(--body-fg, #111827) !important;
+}
+
+select.bunoraa-admin-tags option,
+.related-widget-wrapper select.bunoraa-admin-tags option {
+    background: var(--body-bg, #ffffff);
+    color: var(--body-fg, #111827);
+}

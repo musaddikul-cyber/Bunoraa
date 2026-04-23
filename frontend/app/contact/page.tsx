@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
-import { ContactPageClient } from "@/components/contact/ContactPageClient";
+import dynamic from "next/dynamic";
 import { buildPageMetadata } from "@/lib/seo";
+
+const ContactPageClient = dynamic(
+  () => import("@/components/contact/ContactPageClient").then((mod) => mod.ContactPageClient)
+);
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Contact Bunoraa",

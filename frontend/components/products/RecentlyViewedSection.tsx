@@ -97,7 +97,6 @@ export function RecentlyViewedSection({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold sm:text-xl">Recently viewed</h3>
       <div className="grid grid-flow-col auto-cols-[78%] gap-3 overflow-x-auto pb-1 snap-x snap-mandatory sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
         {visibleItems.map((item) => {
           const aspectRatio = (item as any).aspect_ratio || (item as any).category?.aspect_ratio || "4/5";

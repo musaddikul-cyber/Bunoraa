@@ -201,6 +201,20 @@ class CatalogRegressionTests(TestCase):
         selected_ids = set(cleaned["categories"].values_list("id", flat=True))
         self.assertEqual(selected_ids, {root.id, parent.id, child.id})
 
+    def test_product_form_categories_widget_uses_json_safe_payload(self):
+        root = Category.objects.create(name="Root", slug="root")
+        Category.objects.create(name="Child", slug="child", parent=root)
+
+        form = ProductAdminForm()
+        html = str(form["categories"])
+
+        self.assertIn("const categoriesData = [{", html)
+        self.assertIn('"parent_id": null', html)
+        self.assertIn("const selectedValues = [];", html)
+        self.assertNotIn("'_categories':", html)
+        self.assertNotIn("[...]", html)
+        self.assertNotIn("None", html)
+
     def test_root_categories_exclude_disabled_by_default(self):
         active = Category.objects.create(name="Active Root", slug="active-root", is_active=True)
         Category.objects.create(name="Disabled Root", slug="disabled-root", is_active=False)

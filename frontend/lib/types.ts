@@ -111,6 +111,23 @@ export type ProductDetail = ProductListItem & {
   assets_3d?: Array<{ id: string; file?: string | null; poster_image?: string | null; poster_alt?: string | null; is_primary?: boolean | null; is_ar_compatible?: boolean | null; ar_quicklook_url?: string | null }> | null;
   is_ar_compatible?: boolean | null;
   is_mobile_optimized?: boolean | null;
+  size_charts?: Array<{
+    id: string | null;
+    is_primary: boolean;
+    sort_order: number;
+    size_chart: {
+      id: string;
+      name: string;
+      slug: string;
+      garment_type: string;
+      description?: string | null;
+      unit: string;
+      columns: string[];
+      rows: string[][];
+      fit_notes?: string | null;
+      is_default?: boolean;
+    };
+  }> | null;
 };
 
 export type ProductBadge = {

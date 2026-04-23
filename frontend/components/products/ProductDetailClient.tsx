@@ -1301,8 +1301,69 @@ export function ProductDetailClient({
                 />
               </button>
               {sizeChartExpanded && (
-                <div className="pt-2">
-                  {product.attributes?.length ? (
+                <div className="pt-2 space-y-4">
+                  {product.size_charts?.length ? (
+                    product.size_charts.map((link, chartIdx) => {
+                      const chart = link.size_chart;
+                      return (
+                        <div key={chart.id || chartIdx} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-foreground/80">{chart.name}</p>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-foreground/50">
+                              {chart.unit}
+                            </span>
+                          </div>
+                          {chart.description ? (
+                            <p className="text-xs text-foreground/60">{chart.description}</p>
+                          ) : null}
+                          {chart.columns?.length && chart.rows?.length ? (
+                            <div className="overflow-x-auto rounded-lg border border-border">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-border bg-muted/50">
+                                    {chart.columns.map((col, colIdx) => (
+                                      <th
+                                        key={colIdx}
+                                        className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-foreground/60"
+                                      >
+                                        {col}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {chart.rows.map((row, rowIdx) => (
+                                    <tr
+                                      key={rowIdx}
+                                      className={cn(
+                                        "border-b border-border/50 transition-colors hover:bg-muted/30",
+                                        rowIdx % 2 === 1 && "bg-muted/20"
+                                      )}
+                                    >
+                                      {row.map((cell, cellIdx) => (
+                                        <td
+                                          key={cellIdx}
+                                          className={cn(
+                                            "whitespace-nowrap px-3 py-2 text-foreground/70",
+                                            cellIdx === 0 && "font-medium text-foreground/90"
+                                          )}
+                                        >
+                                          {cell}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : null}
+                          {chart.fit_notes ? (
+                            <p className="text-xs italic text-foreground/50">💡 {chart.fit_notes}</p>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  ) : product.attributes?.length ? (
                     <div className="grid gap-2 text-sm text-foreground/70">
                       {product.attributes.map((attr) => (
                         <div key={attr.id} className="flex items-center justify-between border-b border-border/70 py-1">

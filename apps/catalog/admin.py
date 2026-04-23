@@ -947,8 +947,7 @@ class ProductAdmin(ImportExportEnhancedModelAdmin, BulkActivateMixin, BulkFeatur
     list_per_page = 25
     list_editable = ("price", "sale_price", "is_active")
     save_on_top = False
-    filter_horizontal = ()
-    autocomplete_fields = ("tags",)
+    filter_horizontal = ("tags",)
 
     # Export fields
     export_fields = [

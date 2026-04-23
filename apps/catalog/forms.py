@@ -247,9 +247,8 @@ class ProductAdminForm(forms.ModelForm):
             # Use custom widget with tree structure  
             self.fields['categories'].widget = CategoriesFilteredWidget()
 
-        # Configure tags widget
-        # Note: tags uses autocomplete_fields in ProductAdmin, so don't override widget.
-        # Only set queryset and required here.
+        # Configure tags — only set queryset and required.
+        # The widget is handled by filter_horizontal in ProductAdmin.
         if "tags" in self.fields:
             from .models import Tag
             self.fields['tags'].queryset = Tag.objects.all()

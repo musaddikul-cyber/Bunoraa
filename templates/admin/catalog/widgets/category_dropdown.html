@@ -61,13 +61,6 @@
                      data-name="{{ category.name }}"
                      data-has-children="{{ category.has_children|yesno:'true,false' }}">
                     <div class="cat-dropdown-item-content">
-                        <span class="cat-dropdown-icon">
-                            {% if category.has_children %}
-                                📁
-                            {% else %}
-                                📄
-                            {% endif %}
-                        </span>
                         <span class="cat-dropdown-name">{{ category.name }}</span>
                     </div>
                     {% if category.has_children %}
@@ -238,7 +231,6 @@
                      data-has-children="${cat.has_children}"
                      data-level="${level}">
                     <div class="cat-dropdown-item-content">
-                        <span class="cat-dropdown-icon">${cat.has_children ? '📁' : '📄'}</span>
                         <span class="cat-dropdown-name">${cat.name}</span>
                     </div>
                     ${cat.has_children
@@ -366,7 +358,6 @@
                 return `
                     <div class="cat-dropdown-search-item" data-category-id="${cat.id}" data-name="${cat.name}">
                         <div class="cat-dropdown-item-content">
-                            <span class="cat-dropdown-icon">${cat.has_children ? '📁' : '📄'}</span>
                             <span class="cat-dropdown-name">${highlightedName}</span>
                         </div>
                         <div class="cat-dropdown-search-item-path">${path}</div>

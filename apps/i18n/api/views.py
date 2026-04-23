@@ -292,7 +292,7 @@ class TimezoneViewSet(viewsets.ReadOnlyModelViewSet):
 class CountryViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet for Country model."""
     
-    queryset = Country.objects.filter(is_active=True)
+    queryset = Country.objects.filter(is_active=True).order_by('name')
     permission_classes = [permissions.AllowAny]
     lookup_field = 'code'
     
@@ -506,14 +506,15 @@ class UserLocalePreferenceView(APIView):
             serializer = UserLocalePreferenceSerializer(pref)
             return Response(serializer.data)
 
-        # Return detected/session-based preferences for anonymous users
-        language = LanguageService.detect_language(request)
-        currency = CurrencyService.get_user_currency(user=None, request=request)
-        timezone_obj = TimezoneService.get_user_timezone(user=None, request=request)
+        # Return detected/session-based preferences for anonymous users.
+        # Reuse values already set by LocaleMiddleware to avoid duplicate DB queries.
+        language = getattr(request, 'language', None) or LanguageService.detect_language(request)
+        currency = getattr(request, 'currency', None) or CurrencyService.get_user_currency(user=None, request=request)
+        timezone_obj = getattr(request, 'timezone', None) or TimezoneService.get_user_timezone(user=None, request=request)
         country = GeoService.detect_country(request)
 
         try:
-            settings = I18nSettings.get_settings()
+            settings = I18nSettings.get_settings()  # cached after first call
             auto_detect_language = settings.auto_detect_language
             auto_detect_currency = settings.auto_detect_currency
             auto_detect_timezone = settings.auto_detect_timezone

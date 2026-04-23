@@ -112,3 +112,12 @@ application = ProtocolTypeRouter({
     'http': _shutdown_aware_http_app,
     'websocket': _shutdown_aware_ws_app,
 })
+
+# Daphne application_close_timeout: When Daphne is used (e.g. via `runserver`
+# with daphne in INSTALLED_APPS), it defaults to killing ASGI instances after
+# 10s on shutdown.  Increase this so in-flight sync middleware chains can finish.
+try:
+    from daphne.server import Server as _DaphneServer
+    _DaphneServer.application_close_timeout = 30  # seconds (default is 10)
+except (ImportError, AttributeError):
+    pass

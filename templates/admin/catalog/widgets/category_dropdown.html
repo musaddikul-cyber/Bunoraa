@@ -116,28 +116,58 @@
 (function() {
     'use strict';
 
-    // Category tree data
-    const categoryData = {{ widget.categories_json|safe }};
-    const widgetName = '{{ widget.name }}';
+    function initCategoryDropdown() {
+        // Category tree data
+        const categoryData = {{ widget.categories_json|safe }};
+        const widgetName = '{{ widget.name }}';
 
-    // Get elements
-    const widget = document.getElementById('cat-dropdown-widget-' + widgetName);
-    const trigger = widget.querySelector('.cat-dropdown-trigger');
-    const panel = document.getElementById('cat-dropdown-panel-' + widgetName);
-    const closeBtn = widget.querySelector('.cat-dropdown-close');
-    const searchInput = document.getElementById('cat-dropdown-search-' + widgetName);
-    const breadcrumb = document.getElementById('cat-dropdown-breadcrumb-' + widgetName);
-    const searchResults = document.getElementById('cat-dropdown-search-results-' + widgetName);
-    const hiddenInput = document.getElementById('id_' + widgetName);
+        // Get elements
+        const widgetEl = document.getElementById('cat-dropdown-widget-' + widgetName);
+        if (!widgetEl) { console.warn('Category dropdown widget not found:', widgetName); return; }
 
-    let selectedCategoryId = hiddenInput.value;
-    let breadcrumbPath = [];
+        const trigger = widgetEl.querySelector('.cat-dropdown-trigger');
+        const panel = document.getElementById('cat-dropdown-panel-' + widgetName);
+        const closeBtn = widgetEl.querySelector('.cat-dropdown-close');
+        const searchInput = document.getElementById('cat-dropdown-search-' + widgetName);
+        const breadcrumb = document.getElementById('cat-dropdown-breadcrumb-' + widgetName);
+        const searchResults = document.getElementById('cat-dropdown-search-results-' + widgetName);
+        const hiddenInput = document.getElementById('id_' + widgetName);
+
+        if (!trigger || !panel || !hiddenInput) { console.warn('Category dropdown elements missing'); return; }
+
+        let selectedCategoryId = hiddenInput.value;
+        let breadcrumbPath = [];
 
     // Position and open panel
     function positionPanel() {
         const rect = trigger.getBoundingClientRect();
-        panel.style.left = rect.left + 'px';
-        panel.style.top = (rect.bottom + window.scrollY) + 'px';
+        const panelHeight = 460; // max-height from CSS
+        const viewportH = window.innerHeight;
+        const spaceBelow = viewportH - rect.bottom;
+        const spaceAbove = rect.top;
+
+        // Position horizontally
+        let left = rect.left;
+        // Clamp so panel doesn't overflow right edge
+        const panelWidth = Math.min(420, window.innerWidth * 0.9);
+        if (left + panelWidth > window.innerWidth - 12) {
+            left = window.innerWidth - panelWidth - 12;
+        }
+        panel.style.left = Math.max(12, left) + 'px';
+        panel.style.width = panelWidth + 'px';
+
+        // Position vertically — panel is position:fixed, so use viewport coords only
+        if (spaceBelow >= Math.min(panelHeight, 300) || spaceBelow >= spaceAbove) {
+            // Open below
+            panel.style.top = rect.bottom + 4 + 'px';
+            panel.style.bottom = 'auto';
+            panel.style.maxHeight = Math.min(panelHeight, spaceBelow - 12) + 'px';
+        } else {
+            // Open above
+            panel.style.bottom = (viewportH - rect.top + 4) + 'px';
+            panel.style.top = 'auto';
+            panel.style.maxHeight = Math.min(panelHeight, spaceAbove - 12) + 'px';
+        }
     }
 
     // Open panel
@@ -163,7 +193,7 @@
 
     // Close on click outside
     document.addEventListener('click', function(e) {
-        if (!widget.contains(e.target)) {
+        if (!widgetEl.contains(e.target)) {
             trigger.setAttribute('aria-expanded', 'false');
             panel.style.display = 'none';
         }
@@ -180,7 +210,7 @@
     // Render category level
     function renderLevel(level, parentId) {
         // Hide all levels
-        widget.querySelectorAll('.cat-dropdown-level').forEach(el => el.classList.remove('active'));
+        widgetEl.querySelectorAll('.cat-dropdown-level').forEach(el => el.classList.remove('active'));
 
         // Get categories for this level
         const categories = parentId
@@ -194,7 +224,7 @@
             levelContainer.className = 'cat-dropdown-level';
             levelContainer.id = 'cat-dropdown-level-' + level + '-' + widgetName;
             levelContainer.dataset.level = level;
-            widget.querySelector('.cat-dropdown-list-container').appendChild(levelContainer);
+            widgetEl.querySelector('.cat-dropdown-list-container').appendChild(levelContainer);
         }
 
         // Build HTML
@@ -222,7 +252,7 @@
         levelContainer.classList.add('active');
 
         // Remove deeper levels
-        widget.querySelectorAll('.cat-dropdown-level').forEach(el => {
+        widgetEl.querySelectorAll('.cat-dropdown-level').forEach(el => {
             if (parseInt(el.dataset.level) > level) {
                 el.remove();
             }
@@ -295,8 +325,8 @@
         selectedText.classList.add('cat-dropdown-selected-text');
 
         // Update visual selection
-        widget.querySelectorAll('.cat-dropdown-item').forEach(el => el.classList.remove('is-selected'));
-        const selectedItem = widget.querySelector('.cat-dropdown-item[data-category-id="' + catId + '"]');
+        widgetEl.querySelectorAll('.cat-dropdown-item').forEach(el => el.classList.remove('is-selected'));
+        const selectedItem = widgetEl.querySelector('.cat-dropdown-item[data-category-id="' + catId + '"]');
         if (selectedItem) {
             selectedItem.classList.add('is-selected');
         }
@@ -315,7 +345,7 @@
 
         if (!query) {
             searchResults.style.display = 'none';
-            widget.querySelectorAll('.cat-dropdown-level').forEach(el => {
+            widgetEl.querySelectorAll('.cat-dropdown-level').forEach(el => {
                 el.style.display = el.classList.contains('active') ? 'block' : 'none';
             });
             return;
@@ -353,7 +383,7 @@
         }
 
         searchResults.style.display = 'block';
-        widget.querySelectorAll('.cat-dropdown-level').forEach(el => el.style.display = 'none');
+        widgetEl.querySelectorAll('.cat-dropdown-level').forEach(el => el.style.display = 'none');
     });
 
     // Get category full path
@@ -384,5 +414,13 @@
 
     // Initialize
     renderLevel(0, null);
+    } // end initCategoryDropdown
+
+    // Run when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initCategoryDropdown);
+    } else {
+        initCategoryDropdown();
+    }
 })();
 </script>

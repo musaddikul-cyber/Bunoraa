@@ -138,12 +138,29 @@ max_requests_jitter = int(os.environ.get('GUNICORN_MAX_REQUESTS_JITTER', 10))
 worker_tmp_dir = '/tmp'
 
 # ============================================
-# WORKER CLASS - SYNC FOR STABILITY
+# WORKER CLASS - ASGI REQUIRES ASYNC WORKERS
 # ============================================
-# Use 'sync' worker class for stability with SQLite/PostgreSQL
-# 'gthread' can cause issues with connection pooling
-worker_class = 'sync'
-threads = int(os.environ.get('GUNICORN_THREADS', '1'))  # Not used with sync
+# Since we serve core.asgi:application (ASGI), we MUST use an async-capable
+# worker class. Using 'sync' with ASGI causes shutdown timeouts because
+# sync_to_async thread pools cannot drain in time.
+#
+# Priority: GUNICORN_WORKER_CLASS env > 'uvicorn.workers.UvicornWorker' default
+# For WSGI-only deployments, set GUNICORN_WORKER_CLASS=sync explicitly.
+_worker_class_env = os.environ.get('GUNICORN_WORKER_CLASS', '').strip()
+if _worker_class_env:
+    worker_class = _worker_class_env
+else:
+    # Default to UvicornWorker for ASGI compatibility
+    try:
+        import uvicorn  # noqa: F401
+        worker_class = 'uvicorn.workers.UvicornWorker'
+    except ImportError:
+        # Fallback to sync if uvicorn not installed
+        worker_class = 'sync'
+        logger.warning('[CONFIG] uvicorn not installed; falling back to sync worker class. '
+                       'ASGI shutdown timeouts may occur.')
+
+threads = int(os.environ.get('GUNICORN_THREADS', '4'))
 worker_connections = int(os.environ.get('GUNICORN_WORKER_CONNECTIONS', '1000'))
 
 # ============================================

@@ -23,16 +23,22 @@ def admin_interface_settings(request):
                 theme_settings = {
                     'ADMIN_FIELDSETS_AS_TABS': getattr(theme, 'show_fieldsets_as_tabs', False),
                     'ADMIN_INLINES_AS_TABS': getattr(theme, 'show_inlines_as_tabs', False),
+                    'ADMIN_COLLAPSIBLE_TABULAR': getattr(theme, 'collapsible_tabular_inlines', False),
+                    'ADMIN_COLLAPSIBLE_TABULAR_COLLAPSED': getattr(theme, 'collapsible_tabular_inlines_collapsed', False),
                 }
             else:
                 theme_settings = {
                     'ADMIN_FIELDSETS_AS_TABS': False,
                     'ADMIN_INLINES_AS_TABS': False,
+                    'ADMIN_COLLAPSIBLE_TABULAR': False,
+                    'ADMIN_COLLAPSIBLE_TABULAR_COLLAPSED': False,
                 }
         except Exception:
             theme_settings = {
                 'ADMIN_FIELDSETS_AS_TABS': False,
                 'ADMIN_INLINES_AS_TABS': False,
+                'ADMIN_COLLAPSIBLE_TABULAR': False,
+                'ADMIN_COLLAPSIBLE_TABULAR_COLLAPSED': False,
             }
         cache.set(cache_key, theme_settings, 300)  # Cache for 5 minutes
     

@@ -248,17 +248,12 @@ class ProductAdminForm(forms.ModelForm):
             self.fields['categories'].widget = CategoriesFilteredWidget()
 
         # Configure tags widget
+        # Note: tags uses autocomplete_fields in ProductAdmin, so don't override widget.
+        # Only set queryset and required here.
         if "tags" in self.fields:
             from .models import Tag
             self.fields['tags'].queryset = Tag.objects.all()
             self.fields['tags'].required = False
-            # Force readable native select styling in the admin theme.
-            self.fields['tags'].widget.attrs.update({
-                'class': 'bunoraa-admin-tags',
-                'style': 'min-width: 300px; min-height: 240px;',
-                'size': 10,
-                'data-placeholder': 'Select tags...',
-            })
 
         currencies = I18nCurrency.objects.order_by('sort_order', 'code')
         self.fields['currency'].queryset = currencies

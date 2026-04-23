@@ -495,6 +495,9 @@ class SiteSettings(models.Model):
     def __str__(self):
         return 'Site Settings'
     
+    CACHE_KEY = 'site_settings_singleton'
+    CACHE_TIMEOUT = 300  # 5 minutes
+
     def save(self, *args, **kwargs):
         self.pk = 1
         super().save(*args, **kwargs)
@@ -504,35 +507,48 @@ class SiteSettings(models.Model):
     def delete(self, *args, **kwargs):
         pass  # Prevent deletion
     
-    @staticmethod
-    def _clear_cache():
+    @classmethod
+    def _clear_cache(cls):
         """Clear the site settings cache."""
         from django.core.cache import cache
         cache.delete('site_settings_context')
-    
+        cache.delete(cls.CACHE_KEY)
+
     @classmethod
     def get_settings(cls):
-        default_currency_code = 'BDT'
-        try:
-            from apps.i18n.models import Currency as I18nCurrency
-            I18nCurrency.objects.get_or_create(
-                code=default_currency_code,
-                defaults={
-                    'name': 'Bangladeshi Taka',
-                    'symbol': 'Tk',
-                    'is_active': True,
-                }
-            )
-        except Exception:
-            pass
+        """Return the singleton SiteSettings, using cache to avoid DB writes on reads."""
+        from django.core.cache import cache
 
-        obj, created = cls.objects.get_or_create(
-            pk=1,
-            defaults={'currency_id': default_currency_code},
-        )
-        if not obj.currency_id:
-            obj.currency_id = default_currency_code
-            obj.save(update_fields=['currency'])
+        cached = cache.get(cls.CACHE_KEY)
+        if cached is not None:
+            return cached
+
+        obj = cls.objects.filter(pk=1).first()
+        if obj is None:
+            # First-time setup only — this is the only path that writes
+            default_currency_code = 'BDT'
+            try:
+                from apps.i18n.models import Currency as I18nCurrency
+                I18nCurrency.objects.get_or_create(
+                    code=default_currency_code,
+                    defaults={
+                        'name': 'Bangladeshi Taka',
+                        'symbol': 'Tk',
+                        'is_active': True,
+                    },
+                )
+            except Exception:
+                pass
+
+            obj, _created = cls.objects.get_or_create(
+                pk=1,
+                defaults={'currency_id': default_currency_code},
+            )
+            if not obj.currency_id:
+                obj.currency_id = default_currency_code
+                obj.save(update_fields=['currency'])
+
+        cache.set(cls.CACHE_KEY, obj, cls.CACHE_TIMEOUT)
         return obj
 
 

@@ -32,7 +32,7 @@ services:
       # ============================================
       # Using sync worker class for better stability with PostgreSQL
       - key: GUNICORN_WORKER_CLASS
-        value: "sync"  # Changed from gthread for better stability
+        value: "uvicorn.workers.UvicornWorker"  # ASGI requires async-capable worker
       - key: GUNICORN_PRELOAD
         value: "False"
       - key: GUNICORN_WORKERS

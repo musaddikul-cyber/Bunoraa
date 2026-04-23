@@ -1,0 +1,719 @@
+/* =============================================================================
+   Product Admin Theme Integration
+   Master theme-aware stylesheet for the product add/edit page.
+   Uses CSS custom properties from admin_interface for full theme compatibility.
+   ============================================================================= */
+
+/* --- Theme-aware CSS Custom Properties --- */
+:root {
+  --pa-bg: var(--body-bg, #ffffff);
+  --pa-fg: var(--body-fg, #1c1e21);
+  --pa-muted: var(--body-quiet-color, #65676b);
+  --pa-border: var(--border-color, #dddfe2);
+  --pa-hover: var(--darkened-bg, #f0f2f5);
+  --pa-surface: var(--darkened-bg, #f7f8fa);
+  --pa-primary: var(--link-fg, var(--primary, #1877f2));
+  --pa-primary-hover: var(--link-hover-color, #145dbf);
+  --pa-primary-light: rgba(24, 119, 242, .08);
+  --pa-success: #16a34a;
+  --pa-warning: #d97706;
+  --pa-danger: #dc2626;
+  --pa-radius: 8px;
+  --pa-radius-lg: 12px;
+  --pa-shadow-sm: 0 1px 2px rgba(0, 0, 0, .06);
+  --pa-shadow-md: 0 4px 12px rgba(0, 0, 0, .08);
+  --pa-module-bg: var(--module-bg, #f8f9fa);
+  --pa-module-fg: var(--module-text-color, var(--body-fg, #1c1e21));
+  --pa-header-bg: var(--header-bg, var(--primary, #417690));
+  --pa-header-fg: var(--header-link-color, #ffffff);
+}
+
+/* Dark theme overrides */
+html[data-theme="dark"],
+html.dark,
+body.dark {
+  --pa-bg: var(--body-bg, #18191a);
+  --pa-fg: var(--body-fg, #e4e6eb);
+  --pa-muted: var(--body-quiet-color, #b0b3b8);
+  --pa-border: var(--border-color, #3e4042);
+  --pa-hover: var(--darkened-bg, #3a3b3c);
+  --pa-surface: #242526;
+  --pa-primary-light: rgba(24, 119, 242, .15);
+  --pa-shadow-sm: 0 1px 2px rgba(0, 0, 0, .2);
+  --pa-shadow-md: 0 4px 12px rgba(0, 0, 0, .3);
+}
+
+/* =============================================================================
+   Product Admin Content Container
+   ============================================================================= */
+
+.product-admin-content {
+  max-width: 100%;
+}
+
+/* =============================================================================
+   Help Box (theme-aware)
+   ============================================================================= */
+
+.product-help-box {
+  background: var(--pa-primary-light);
+  border: 1px solid var(--pa-border);
+  border-left: 4px solid var(--pa-primary);
+  border-radius: var(--pa-radius);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.product-help-box h4 {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pa-fg);
+}
+
+.product-help-box p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--pa-muted);
+  line-height: 1.5;
+}
+
+.product-help-box ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.product-help-box li {
+  font-size: 13px;
+  color: var(--pa-muted);
+  line-height: 1.6;
+}
+
+.product-help-box strong {
+  color: var(--pa-fg);
+}
+
+/* =============================================================================
+   Tab Navigation (theme-aware, works with both tabs ON and OFF)
+   ============================================================================= */
+
+.product-admin-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0;
+  margin: 0 0 16px 0;
+  background: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius-lg);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.product-admin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--pa-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  border-radius: var(--pa-radius);
+  margin: 3px;
+  position: relative;
+}
+
+.product-admin-tab:hover {
+  background: var(--pa-hover);
+  color: var(--pa-fg);
+}
+
+.product-admin-tab.active {
+  background: var(--pa-bg);
+  color: var(--pa-primary);
+  font-weight: 600;
+  box-shadow: var(--pa-shadow-sm);
+}
+
+.product-admin-tab .tab-icon {
+  font-size: 16px;
+}
+
+.product-admin-tab .tab-label {
+  font-size: 13px;
+}
+
+.product-admin-tab .tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--pa-surface);
+  color: var(--pa-muted);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+.product-admin-tab.active .tab-count {
+  background: var(--pa-primary-light);
+  color: var(--pa-primary);
+}
+
+/* Responsive tabs */
+@media (max-width: 768px) {
+  .product-admin-tab .tab-label {
+    display: none;
+  }
+  .product-admin-tab {
+    padding: 8px 12px;
+  }
+}
+
+/* =============================================================================
+   Tab Content Sections
+   ============================================================================= */
+
+.tab-content-section {
+  display: none;
+}
+
+.tab-content-section.active {
+  display: block;
+}
+
+/* =============================================================================
+   Theme-friendly Overrides for Inline Groups
+   ============================================================================= */
+
+/* --- Image Group --- */
+.image-group {
+  border-radius: var(--pa-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--pa-border);
+  margin-bottom: 20px;
+}
+
+.image-group .image-fieldset {
+  border: none;
+  margin: 0;
+}
+
+.image-group .fieldset-title {
+  background: var(--pa-surface);
+  padding: 12px 16px;
+  margin: 0 0 0 0;
+  border-bottom: 1px solid var(--pa-border);
+  color: var(--pa-fg);
+}
+
+.image-group .image-help-text {
+  color: var(--pa-muted);
+}
+
+.image-group .image-table {
+  border: none;
+}
+
+.image-group .image-table th {
+  background: var(--pa-surface);
+  color: var(--pa-muted);
+  border-bottom-color: var(--pa-border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.image-group .image-table td {
+  border-bottom-color: var(--pa-border);
+  background: var(--pa-bg);
+  color: var(--pa-fg);
+}
+
+.image-group .image-table tr:hover td {
+  background: var(--pa-hover);
+}
+
+.image-group .is-primary-row,
+.image-group .is-primary-row td {
+  background: var(--pa-primary-light) !important;
+  border-left: 3px solid var(--pa-primary);
+}
+
+.image-group .image-actions-bar {
+  background: var(--pa-surface);
+  border-top-color: var(--pa-border);
+}
+
+.image-group .add-image-link {
+  background: var(--pa-primary);
+  color: #fff;
+  border-radius: var(--pa-radius);
+}
+
+.image-group .add-image-link:hover {
+  background: var(--pa-primary-hover);
+  color: #fff;
+}
+
+.image-group .tool-btn {
+  background: var(--pa-bg);
+  border-color: var(--pa-border);
+  color: var(--pa-fg);
+  border-radius: var(--pa-radius);
+}
+
+.image-group .tool-btn:hover {
+  background: var(--pa-hover);
+  border-color: var(--pa-muted);
+}
+
+/* Image upload zone */
+.image-group .image-upload-zone {
+  background: var(--pa-bg);
+  border-color: var(--pa-border);
+  color: var(--pa-muted);
+  margin: 12px;
+  border-radius: var(--pa-radius-lg);
+}
+
+.image-group .image-upload-zone.dragover {
+  border-color: var(--pa-primary);
+  background: var(--pa-primary-light);
+}
+
+/* Image previews */
+.image-group .inline-thumb {
+  border-radius: 6px;
+  border: 1px solid var(--pa-border);
+}
+
+.image-group .inline-preview-large {
+  border-radius: 6px;
+  border-color: var(--pa-border);
+}
+
+/* Primary badge */
+.image-group .primary-badge {
+  color: var(--pa-primary);
+}
+
+/* No image / no preview text */
+.image-group .no-image,
+.image-group .no-preview {
+  color: var(--pa-muted);
+}
+
+/* Drag handle */
+.image-group .drag-handle {
+  color: var(--pa-muted);
+}
+.image-group .drag-handle:hover {
+  color: var(--pa-fg);
+  background: var(--pa-hover);
+  border-radius: 4px;
+}
+
+/* --- Variant Group --- */
+.variant-group {
+  border-radius: var(--pa-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--pa-border);
+  margin-bottom: 20px;
+}
+
+.variant-group .variant-section-header {
+  background: var(--pa-surface);
+  border-color: var(--pa-border);
+  border-radius: 0;
+}
+
+.variant-group .variant-title {
+  color: var(--pa-fg);
+}
+
+.variant-group .variant-tool-btn {
+  background: var(--pa-bg);
+  border-color: var(--pa-border);
+  color: var(--pa-fg);
+  border-radius: var(--pa-radius);
+}
+
+.variant-group .variant-tool-btn:hover {
+  background: var(--pa-hover);
+  border-color: var(--pa-muted);
+}
+
+.variant-group .variant-count {
+  background: var(--pa-hover);
+  color: var(--pa-muted);
+}
+
+.variant-group .variant-table {
+  border: none;
+  border-top: 1px solid var(--pa-border);
+}
+
+.variant-group .variant-table thead th {
+  background: var(--pa-surface);
+  color: var(--pa-muted);
+  border-bottom-color: var(--pa-border);
+}
+
+.variant-group .variant-table tbody td {
+  border-bottom-color: var(--pa-border);
+  background: var(--pa-bg);
+  color: var(--pa-fg);
+}
+
+.variant-group .variant-table tbody tr:hover td {
+  background: var(--pa-hover);
+}
+
+.variant-group .add-variant-row {
+  background: var(--pa-surface);
+  border-color: var(--pa-border);
+  border-radius: 0;
+}
+
+.variant-group .add-variant-link {
+  background: var(--pa-primary);
+  color: #fff !important;
+  border-radius: var(--pa-radius);
+}
+
+.variant-group .add-variant-link:hover {
+  background: var(--pa-primary-hover);
+}
+
+/* Variant panels */
+.variant-group .variant-generator-panel,
+.variant-group .bulk-pricing-panel {
+  background: var(--pa-bg);
+  border-color: var(--pa-border);
+}
+
+.variant-group .panel-header {
+  border-bottom-color: var(--pa-border);
+}
+
+.variant-group .panel-header h4 {
+  color: var(--pa-fg);
+}
+
+.variant-group .panel-description {
+  color: var(--pa-muted);
+}
+
+.variant-group .panel-close {
+  color: var(--pa-muted);
+}
+
+.variant-group .panel-close:hover {
+  background: rgba(220, 38, 38, .1);
+  color: var(--pa-danger);
+}
+
+.variant-group .option-group {
+  background: var(--pa-surface);
+  border-color: var(--pa-border);
+}
+
+.variant-group .option-group-title {
+  color: var(--pa-fg);
+}
+
+.variant-group .option-value-label {
+  color: var(--pa-muted);
+}
+
+.variant-group .pricing-row {
+  border-bottom-color: var(--pa-border);
+}
+
+.variant-group .pricing-row label {
+  color: var(--pa-fg);
+}
+
+.variant-group .pricing-row input {
+  background: var(--pa-bg);
+  border-color: var(--pa-border);
+  color: var(--pa-fg);
+}
+
+/* Drag handle */
+.variant-group .drag-handle {
+  color: var(--pa-muted);
+}
+.variant-group .drag-handle:hover {
+  color: var(--pa-fg);
+  background: var(--pa-hover);
+  border-radius: 4px;
+}
+
+/* Status badges (theme-aware) */
+.variant-group .status-badge {
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.variant-group .status-badge.in-stock {
+  background: rgba(22, 163, 74, .1);
+  color: var(--pa-success);
+}
+
+.variant-group .status-badge.low-stock {
+  background: rgba(217, 119, 6, .1);
+  color: var(--pa-warning);
+}
+
+.variant-group .status-badge.out-of-stock {
+  background: rgba(220, 38, 38, .1);
+  color: var(--pa-danger);
+}
+
+/* Generate button */
+.variant-group .generate-btn {
+  background: var(--pa-primary) !important;
+  color: #fff !important;
+  border-radius: var(--pa-radius) !important;
+}
+
+.variant-group .generate-btn:hover {
+  background: var(--pa-primary-hover) !important;
+}
+
+/* --- Attribute Values Inline --- */
+.attribute-values-inline {
+  background: var(--pa-bg);
+  border-radius: var(--pa-radius-lg);
+  border: 1px solid var(--pa-border);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.attribute-values-inline table {
+  border: none;
+}
+
+.attribute-values-inline thead th {
+  background: var(--pa-surface);
+  color: var(--pa-muted);
+  border-bottom-color: var(--pa-border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.attribute-values-inline tbody td {
+  border-bottom-color: var(--pa-border);
+  background: var(--pa-bg);
+  color: var(--pa-fg);
+}
+
+.attribute-values-inline tbody tr:hover td {
+  background: var(--pa-hover);
+}
+
+.attribute-values-inline .field-value select {
+  background: var(--pa-bg);
+  border-color: var(--pa-border);
+  color: var(--pa-fg);
+  border-radius: 6px;
+}
+
+.attribute-values-inline .field-value select:focus {
+  border-color: var(--pa-primary);
+  box-shadow: 0 0 0 3px var(--pa-primary-light);
+}
+
+.attribute-values-inline .attribute-badge {
+  background: var(--pa-primary-light);
+  border-color: rgba(24, 119, 242, .2);
+  color: var(--pa-primary);
+}
+
+.attribute-values-inline .attribute-badge .attr-name {
+  color: var(--pa-primary);
+  font-weight: 600;
+}
+
+.attribute-values-inline .attribute-badge .attr-value {
+  color: var(--pa-fg);
+}
+
+.attribute-values-inline .attribute-filter-notice {
+  background: rgba(217, 119, 6, .08);
+  border-color: rgba(217, 119, 6, .3);
+  color: var(--pa-warning);
+}
+
+.attribute-values-inline .attribute-empty-state {
+  color: var(--pa-muted);
+}
+
+.attribute-values-inline .add-attribute-row {
+  background: var(--pa-surface);
+  border-top-color: var(--pa-border);
+}
+
+.attribute-values-inline .add-attribute-link {
+  background: var(--pa-primary);
+  color: #fff !important;
+  border-radius: var(--pa-radius);
+}
+
+.attribute-values-inline .add-attribute-link:hover {
+  background: var(--pa-primary-hover);
+}
+
+/* =============================================================================
+   Form field theme overrides
+   ============================================================================= */
+
+/* Inputs inside product admin */
+.product-admin-content input[type="text"],
+.product-admin-content input[type="number"],
+.product-admin-content input[type="url"],
+.product-admin-content input[type="email"],
+.product-admin-content textarea,
+.product-admin-content select {
+  border-radius: 6px;
+}
+
+/* File inputs */
+.product-admin-content input[type="file"] {
+  font-size: 12px;
+  color: var(--pa-fg);
+}
+
+/* Error states */
+.product-admin-content td.errors {
+  background: rgba(220, 38, 38, .05);
+}
+
+.product-admin-content td.errors input,
+.product-admin-content td.errors select {
+  border-color: var(--pa-danger);
+}
+
+.product-admin-content td.errors .errorlist {
+  color: var(--pa-danger);
+}
+
+/* Row errors */
+.product-admin-content .row-errors td {
+  background: rgba(220, 38, 38, .08);
+  color: var(--pa-danger);
+}
+
+/* Delete checkbox */
+.product-admin-content .delete input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--pa-danger);
+}
+
+/* =============================================================================
+   Notifications (theme-aware)
+   ============================================================================= */
+
+.variant-notification {
+  background: var(--pa-fg);
+  color: var(--pa-bg);
+}
+
+.variant-notification.success {
+  background: var(--pa-success);
+  color: #fff;
+}
+
+.variant-notification.error {
+  background: var(--pa-danger);
+  color: #fff;
+}
+
+.variant-notification.info {
+  background: var(--pa-primary);
+  color: #fff;
+}
+
+/* =============================================================================
+   Sortable states (theme-aware)
+   ============================================================================= */
+
+.sortable-ghost {
+  opacity: 0.4;
+  background: var(--pa-primary-light) !important;
+}
+
+.sortable-drag,
+tr.sortable-drag {
+  background: var(--pa-bg) !important;
+  box-shadow: var(--pa-shadow-md) !important;
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+  .image-group .image-table .column-preview,
+  .image-group .image-table .field-preview {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .variant-group .variant-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .variant-group .variant-tools {
+    flex-wrap: wrap;
+  }
+
+  .variant-group .variant-table {
+    font-size: 12px;
+  }
+
+  .variant-group .variant-table .column-variant_preview,
+  .variant-group .variant-table .field-variant_preview {
+    display: none;
+  }
+}
+
+/* =============================================================================
+   Non-tab mode: ensure inlines look good without the tab wrapper
+   ============================================================================= */
+
+.product-admin-content:not(.tabs-mode) .image-group,
+.product-admin-content:not(.tabs-mode) .variant-group,
+.product-admin-content:not(.tabs-mode) .attribute-values-inline {
+  margin-top: 8px;
+}
+
+/* =============================================================================
+   Headerless inline variants (used in tab mode) - ensure consistent styling
+   ============================================================================= */
+
+.image-inline-headerless,
+.variant-inline-headerless {
+  /* Same styling as their header counterparts */
+  border: none;
+}
+
+.image-inline-headerless .image-table,
+.variant-inline-headerless .variant-table {
+  border: none;
+}

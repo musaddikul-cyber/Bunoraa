@@ -3,10 +3,12 @@
 
 {% block extrahead %}
 {{ block.super }}
-<!-- Enhanced Product Admin Styles -->
+<!-- Enhanced Product Admin Styles (theme-aware) -->
+<link rel="stylesheet" type="text/css" href="{% static 'css/admin/product_admin_theme.css' %}">
 <link rel="stylesheet" type="text/css" href="{% static 'css/admin/variant_manager.css' %}">
 <link rel="stylesheet" type="text/css" href="{% static 'css/admin/attribute_manager.css' %}">
 <link rel="stylesheet" type="text/css" href="{% static 'css/admin/image_manager.css' %}">
+<link rel="stylesheet" type="text/css" href="{% static 'css/admin/category_dropdown.css' %}">
 
 <!-- Sortable.js for Drag-Drop -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -14,11 +16,11 @@
 {% endblock %}
 
 {% block content %}
-<div id="content-main">
+<div id="content-main" class="product-admin-content{% if ADMIN_FIELDSETS_AS_TABS %} tabs-mode{% endif %}{% if ADMIN_INLINES_AS_TABS %} inlines-tabs-mode{% endif %}">
 
-  <!-- Help Box for Admins -->
+  <!-- Help Box for Admins (theme-friendly) -->
   {% if original and original.variants.count == 0 %}
-  <div class="variant-help-box">
+  <div class="product-help-box">
     <h4>🚀 Quick Start: Adding Product Variants</h4>
     <p>
       This product currently has no variants. Variants let you create different
@@ -36,22 +38,30 @@
   <!-- Tab Navigation - Images First -->
   <div class="product-admin-tabs" id="product-tabs">
     <button type="button" class="product-admin-tab active" data-tab="images">
-      🖼️ Images ({{ original.images.count|default:0 }})
+      <span class="tab-icon">🖼️</span>
+      <span class="tab-label">Images</span>
+      <span class="tab-count">{{ original.images.count|default:0 }}</span>
     </button>
     <button type="button" class="product-admin-tab" data-tab="basic">
-      📋 Basic Info
+      <span class="tab-icon">📋</span>
+      <span class="tab-label">Basic Info</span>
     </button>
     <button type="button" class="product-admin-tab" data-tab="variants">
-      📦 Variants ({{ original.variants.count|default:0 }})
+      <span class="tab-icon">📦</span>
+      <span class="tab-label">Variants</span>
+      <span class="tab-count">{{ original.variants.count|default:0 }}</span>
     </button>
     <button type="button" class="product-admin-tab" data-tab="attributes">
-      🏷️ Attributes
+      <span class="tab-icon">🏷️</span>
+      <span class="tab-label">Attributes</span>
     </button>
     <button type="button" class="product-admin-tab" data-tab="media">
-      🎬 Media
+      <span class="tab-icon">🎬</span>
+      <span class="tab-label">Media</span>
     </button>
     <button type="button" class="product-admin-tab" data-tab="seo">
-      🔍 SEO
+      <span class="tab-icon">🔍</span>
+      <span class="tab-label">SEO</span>
     </button>
   </div>
   {% endif %}

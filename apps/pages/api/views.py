@@ -317,7 +317,14 @@ class SiteSettingsViewSet(viewsets.ViewSet):
     def list(self, request):
         """Get public site settings."""
         settings = SiteSettings.get_settings()
-        serializer = SiteSettingsSerializer(settings)
+        # Ensure currency FK is loaded to prevent lazy query in serializer
+        if settings and not hasattr(settings, '_currency_cache'):
+            try:
+                # Force-load the currency relation if not already cached
+                _ = settings.currency
+            except Exception:
+                pass
+        serializer = SiteSettingsSerializer(settings, context={'request': request})
         return Response({
             'success': True,
             'message': 'Site settings retrieved successfully',

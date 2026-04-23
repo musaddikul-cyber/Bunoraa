@@ -1,14 +1,55 @@
 /**
  * Attribute Manager Styles
  * Enhanced attribute value selection and management
+ * Theme-aware using admin_interface CSS custom properties
  */
+
+/* ==========================================================================
+   CSS Custom Properties
+   ========================================================================== */
+
+:root {
+    --attr-bg: var(--darkened-bg, #f9fafb);
+    --attr-border: var(--border-color, #e5e7eb);
+    --attr-header-bg: var(--darkened-bg, #f3f4f6);
+    --attr-text: var(--body-fg, #4b5563);
+    --attr-text-strong: var(--body-fg, #374151);
+    --attr-muted-text: var(--body-quiet-color, #6b7280);
+    --attr-input-bg: var(--body-bg, #ffffff);
+    --attr-input-border: var(--border-color, #d1d5db);
+    --attr-primary: var(--link-fg, var(--primary, #6366f1));
+    --attr-primary-hover: var(--link-hover-color, #4f46e5);
+    --attr-badge-bg: var(--selected-bg, #e0e7ff);
+    --attr-badge-border: var(--border-color, #c7d2fe);
+    --attr-badge-text: var(--link-fg, #3730a3);
+    --attr-focus-ring: rgba(59, 130, 246, 0.1);
+}
+
+/* Dark mode overrides */
+html[data-theme="dark"],
+html.dark,
+body.dark,
+[data-admin-theme="dark"] {
+    --attr-bg: var(--darkened-bg, #242526);
+    --attr-border: var(--border-color, #3e4042);
+    --attr-header-bg: var(--darkened-bg, #242526);
+    --attr-text: var(--body-fg, #e4e6eb);
+    --attr-text-strong: var(--body-fg, #e4e6eb);
+    --attr-muted-text: var(--body-quiet-color, #b0b3b8);
+    --attr-input-bg: var(--body-bg, #18191a);
+    --attr-input-border: var(--border-color, #3e4042);
+    --attr-badge-bg: rgba(99, 102, 241, 0.15);
+    --attr-badge-border: rgba(99, 102, 241, 0.3);
+    --attr-badge-text: #a5b4fc;
+    --attr-focus-ring: rgba(99, 102, 241, 0.2);
+}
 
 /* ==========================================================================
    Attribute Values Inline
    ========================================================================== */
 
 .attribute-values-inline {
-    background: #f9fafb;
+    background: var(--attr-bg);
 }
 
 .attribute-values-inline table {
@@ -18,36 +59,38 @@
 }
 
 .attribute-values-inline thead th {
-    background: #f3f4f6;
+    background: var(--attr-header-bg);
     padding: 10px 12px;
     font-size: 12px;
     font-weight: 600;
-    color: #4b5563;
+    color: var(--attr-text);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--attr-border);
 }
 
 .attribute-values-inline tbody td {
     padding: 12px;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--attr-border);
     vertical-align: middle;
+    color: var(--attr-text);
 }
 
 /* Attribute Select Field */
 .attribute-values-inline .field-value select {
     min-width: 250px;
     padding: 8px 12px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--attr-input-border);
     border-radius: 6px;
     font-size: 13px;
-    background: white;
+    background: var(--attr-input-bg);
+    color: var(--attr-text);
 }
 
 .attribute-values-inline .field-value select:focus {
-    border-color: #3b82f6;
+    border-color: var(--attr-primary);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 3px var(--attr-focus-ring);
 }
 
 /* Attribute Badge Display */
@@ -56,19 +99,19 @@
     align-items: center;
     gap: 4px;
     padding: 6px 12px;
-    background: #e0e7ff;
-    border: 1px solid #c7d2fe;
+    background: var(--attr-badge-bg);
+    border: 1px solid var(--attr-badge-border);
     border-radius: 20px;
     font-size: 12px;
 }
 
 .attribute-badge .attr-name {
     font-weight: 600;
-    color: #3730a3;
+    color: var(--attr-badge-text);
 }
 
 .attribute-badge .attr-value {
-    color: #4338ca;
+    color: var(--attr-badge-text);
 }
 
 /* ==========================================================================
@@ -77,8 +120,8 @@
 
 .attribute-values-inline optgroup {
     font-weight: 600;
-    color: #374151;
-    background: #f9fafb;
+    color: var(--attr-text-strong);
+    background: var(--attr-bg);
 }
 
 .attribute-values-inline optgroup option {
@@ -87,7 +130,7 @@
 }
 
 .attribute-values-inline optgroup option:hover {
-    background: #eff6ff;
+    background: var(--attr-badge-bg);
 }
 
 /* ==========================================================================
@@ -108,6 +151,23 @@
     color: #c2410c;
 }
 
+/* Dark mode for notice */
+html[data-theme="dark"] .attribute-filter-notice,
+html.dark .attribute-filter-notice,
+body.dark .attribute-filter-notice,
+[data-admin-theme="dark"] .attribute-filter-notice {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #fde68a;
+}
+
+html[data-theme="dark"] .attribute-filter-notice strong,
+html.dark .attribute-filter-notice strong,
+body.dark .attribute-filter-notice strong,
+[data-admin-theme="dark"] .attribute-filter-notice strong {
+    color: #fbbf24;
+}
+
 /* ==========================================================================
    Empty State
    ========================================================================== */
@@ -115,7 +175,7 @@
 .attribute-empty-state {
     text-align: center;
     padding: 40px;
-    color: #6b7280;
+    color: var(--attr-muted-text);
 }
 
 .attribute-empty-state-icon {
@@ -125,7 +185,7 @@
 
 .attribute-empty-state h4 {
     margin: 0 0 8px 0;
-    color: #374151;
+    color: var(--attr-text-strong);
 }
 
 .attribute-empty-state p {
@@ -138,8 +198,8 @@
 
 .add-attribute-row {
     padding: 16px;
-    background: #f9fafb;
-    border-top: 1px solid #e5e7eb;
+    background: var(--attr-bg);
+    border-top: 1px solid var(--attr-border);
 }
 
 .add-attribute-link {
@@ -147,7 +207,7 @@
     align-items: center;
     gap: 6px;
     padding: 8px 16px;
-    background: #6366f1;
+    background: var(--attr-primary);
     color: white !important;
     text-decoration: none !important;
     border-radius: 6px;
@@ -157,7 +217,7 @@
 }
 
 .add-attribute-link:hover {
-    background: #4f46e5;
+    background: var(--attr-primary-hover);
 }
 
 /* ==========================================================================

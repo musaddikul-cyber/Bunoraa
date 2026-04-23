@@ -1,0 +1,126 @@
+{% load i18n admin_urls static admin_modify %}
+
+{# Headerless variant of tabular image inline — used by admin_interface tabbed change form #}
+{# This template is used when show_fieldsets_as_tabs or show_inlines_as_tabs is ON #}
+<div class="js-inline-admin-formset inline-group image-group"
+     id="{{ inline_admin_formset.formset.prefix }}-group"
+     data-inline-type="tabular"
+     data-inline-formset="{{ inline_admin_formset.inline_formset_data }}"
+     data-sortable="true"
+     data-sortable-field="ordering">
+
+  <div class="tabular inline-related image-inline-headerless">
+    {{ inline_admin_formset.formset.management_form }}
+    {{ inline_admin_formset.formset.non_form_errors }}
+
+    {# Drag-Drop Upload Zone #}
+    <div class="image-upload-zone" id="image-drop-zone-headerless">
+      <div class="image-upload-icon">📷</div>
+      <div class="image-upload-text">Drag and drop images here</div>
+      <div class="image-upload-hint">or click to browse (JPG, PNG, WebP up to 10MB)</div>
+      <input type="file" id="image-upload-input-headerless" multiple accept="image/*" style="display: none;">
+    </div>
+
+    <table class="image-table">
+      <thead>
+        <tr>
+          <th class="drag-col"></th>
+          <th class="column-thumb">Thumb</th>
+          <th class="column-preview">Preview</th>
+          <th class="column-image required">Image</th>
+          <th class="column-alt">Alt Text</th>
+          <th class="column-primary">Primary?</th>
+          <th class="column-delete">Delete?</th>
+        </tr>
+      </thead>
+
+      <tbody class="image-tbody sortable-tbody">
+        {% for inline_admin_form in inline_admin_formset %}
+          {% if inline_admin_form.form.non_field_errors %}
+            <tr class="row-errors">
+              <td colspan="7">{{ inline_admin_form.form.non_field_errors }}</td>
+            </tr>
+          {% endif %}
+
+          <tr class="form-row {% cycle "row1" "row2" %}{% if inline_admin_form.original or inline_admin_form.show_url %} has_original{% endif %}{% if forloop.last and inline_admin_formset.has_add_permission %} empty-form{% endif %}{% if inline_admin_form.form.is_primary.value %} is-primary-row{% endif %}"
+              id="{{ inline_admin_formset.formset.prefix }}-{% if not forloop.last %}{{ forloop.counter0 }}{% else %}empty{% endif %}">
+
+            {# Drag Handle #}
+            <td class="drag-handle-cell">
+              <span class="drag-handle" title="Drag to reorder">☰</span>
+              {% for field in inline_admin_form.hidden_fields %}
+                {{ field }}
+              {% endfor %}
+            </td>
+
+            {# Thumbnail #}
+            <td class="field-thumbnail">
+              {% if inline_admin_form.form.instance.image %}
+                <img src="{{ inline_admin_form.form.instance.image.url }}" class="inline-thumb" alt="Thumbnail" />
+              {% else %}
+                <span class="no-image">-</span>
+              {% endif %}
+            </td>
+
+            {# Large Preview #}
+            <td class="field-preview">
+              {% if inline_admin_form.form.instance.image %}
+                <a href="{{ inline_admin_form.form.instance.image.url }}" target="_blank" class="image-preview-link">
+                  <img src="{{ inline_admin_form.form.instance.image.url }}"
+                       class="inline-preview-large"
+                       alt="Preview" />
+                </a>
+              {% else %}
+                <span class="no-preview">No image</span>
+              {% endif %}
+            </td>
+
+            {# Image Upload #}
+            <td class="field-image {% if inline_admin_form.form.image.errors %}errors{% endif %}">
+              {{ inline_admin_form.form.image }}
+              {{ inline_admin_form.form.image.errors.as_ul }}
+            </td>
+
+            {# Alt Text #}
+            <td class="field-alt_text {% if inline_admin_form.form.alt_text.errors %}errors{% endif %}">
+              {{ inline_admin_form.form.alt_text }}
+              {{ inline_admin_form.form.alt_text.errors.as_ul }}
+            </td>
+
+            {# Primary Checkbox #}
+            <td class="field-is_primary {% if inline_admin_form.form.is_primary.errors %}errors{% endif %}">
+              <label class="primary-checkbox-label">
+                {{ inline_admin_form.form.is_primary }}
+                <span class="primary-badge">★ Primary</span>
+              </label>
+              {{ inline_admin_form.form.is_primary.errors.as_ul }}
+            </td>
+
+            {# Delete #}
+            <td class="delete">
+              {% if inline_admin_form.original %}
+                {{ inline_admin_form.deletion_field.field }}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {# Actions Bar #}
+    <div class="image-actions-bar">
+      <a href="#" class="add-image-link">
+        <span class="add-icon">📷</span>
+        Add another image
+      </a>
+      <div class="image-tools">
+        <button type="button" class="tool-btn auto-set-primary" title="Set first as primary">
+          ✨ Auto Primary
+        </button>
+        <button type="button" class="tool-btn clear-all-alt" title="Clear all alt texts">
+          📝 Clear Alt
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

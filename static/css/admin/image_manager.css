@@ -6,18 +6,18 @@
 :root {
     --image-bg: var(--body-bg, #ffffff);
     --image-border: var(--border-color, #e5e7eb);
-    --image-header-bg: var(--surface-muted, #f8fafc);
+    --image-header-bg: var(--darkened-bg, #f8fafc);
     --image-header-fg: var(--body-fg, #374151);
     --image-muted-fg: var(--body-quiet-color, #6b7280);
-    --image-row-hover: var(--surface-hover, #f3f4f6);
-    --image-primary-row-bg: var(--primary-bg, #eff6ff);
-    --image-primary-row-border: var(--primary, #3b82f6);
+    --image-row-hover: var(--darkened-bg, #f3f4f6);
+    --image-primary-row-bg: var(--selected-bg, #eff6ff);
+    --image-primary-row-border: var(--link-fg, var(--primary, #3b82f6));
     --image-card-border: var(--border-color, #d1d5db);
-    --image-action-bg: var(--surface-muted, #f8f9fa);
+    --image-action-bg: var(--darkened-bg, #f8f9fa);
     --image-action-border: var(--border-color, #e5e7eb);
     --image-button-bg: var(--body-bg, #ffffff);
     --image-button-border: var(--border-color, #d1d5db);
-    --image-button-hover-bg: var(--surface-hover, #f3f4f6);
+    --image-button-hover-bg: var(--darkened-bg, #f3f4f6);
 }
 
 /* Image Inline Table */
@@ -97,12 +97,12 @@
 
 /* Primary Image Row */
 .is-primary-row {
-    background-color: #f0f9ff !important;
-    border-left: 3px solid #3b82f6;
+    background-color: var(--image-primary-row-bg) !important;
+    border-left: 3px solid var(--image-primary-row-border);
 }
 
 .is-primary-row td {
-    background-color: #f0f9ff;
+    background-color: var(--image-primary-row-bg);
 }
 
 /* Primary Checkbox */
@@ -116,7 +116,7 @@
 .primary-badge {
     display: none;
     font-size: 11px;
-    color: #3b82f6;
+    color: var(--image-primary-row-border);
     font-weight: 600;
 }
 
@@ -135,8 +135,10 @@
     width: 100%;
     max-width: 200px;
     padding: 6px 8px;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
+    border: 1px solid var(--image-border);
+    border-radius: 6px;
+    background: var(--image-bg);
+    color: var(--image-header-fg);
 }
 
 /* Delete Checkbox Cell */
@@ -240,17 +242,18 @@
 
 .tool-btn {
     padding: 6px 12px;
-    background: white;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
+    background: var(--image-button-bg);
+    border: 1px solid var(--image-button-border);
+    border-radius: 6px;
     font-size: 12px;
     cursor: pointer;
     transition: all 0.2s;
+    color: var(--image-header-fg);
 }
 
 .tool-btn:hover {
-    background: #f3f4f6;
-    border-color: #9ca3af;
+    background: var(--image-button-hover-bg);
+    border-color: var(--image-muted-fg);
 }
 
 /* Fieldset Title */
@@ -323,65 +326,23 @@
     background: #dc2626;
 }
 
-/* Dark Mode */
+/* Dark Mode - auto-detected via admin_interface theme or prefers-color-scheme */
+html[data-theme="dark"],
+html.dark,
+body.dark,
 [data-admin-theme="dark"] {
-    --image-bg: #111827;
-    --image-border: #374151;
-    --image-header-bg: #1f2937;
-    --image-header-fg: #e5e7eb;
-    --image-muted-fg: #9ca3af;
-    --image-row-hover: #111827;
-    --image-primary-row-bg: #0f172a;
-    --image-primary-row-border: #60a5fa;
-    --image-card-border: #4b5563;
-    --image-action-bg: #111827;
-    --image-action-border: #374151;
-    --image-button-bg: #1f2937;
-    --image-button-border: #4b5563;
-    --image-button-hover-bg: #374151;
-}
-
-[data-admin-theme="dark"] .image-table th {
-    color: var(--image-header-fg);
-    border-bottom-color: var(--image-border);
-}
-
-[data-admin-theme="dark"] .image-table td {
-    border-bottom-color: var(--image-border);
-}
-
-[data-admin-theme="dark"] .is-primary-row {
-    background-color: var(--image-primary-row-bg) !important;
-}
-
-[data-admin-theme="dark"] .is-primary-row td {
-    background-color: var(--image-primary-row-bg);
-}
-
-[data-admin-theme="dark"] .drag-handle {
-    color: #9ca3af;
-}
-
-[data-admin-theme="dark"] .drag-handle:hover {
-    color: #d1d5db;
-}
-
-[data-admin-theme="dark"] .image-actions-bar {
-    background: var(--image-action-bg);
-    border-top-color: var(--image-action-border);
-}
-
-[data-admin-theme="dark"] .tool-btn {
-    background: var(--image-button-bg);
-    border-color: var(--image-button-border);
-    color: var(--image-header-fg);
-}
-
-[data-admin-theme="dark"] .tool-btn:hover {
-    background: var(--image-button-hover-bg);
-}
-
-[data-admin-theme="dark"] .no-image,
-[data-admin-theme="dark"] .no-preview {
-    color: var(--image-muted-fg);
+    --image-bg: var(--body-bg, #111827);
+    --image-border: var(--border-color, #374151);
+    --image-header-bg: var(--darkened-bg, #1f2937);
+    --image-header-fg: var(--body-fg, #e5e7eb);
+    --image-muted-fg: var(--body-quiet-color, #9ca3af);
+    --image-row-hover: var(--darkened-bg, #1f2937);
+    --image-primary-row-bg: var(--selected-bg, #0f172a);
+    --image-primary-row-border: var(--link-fg, #60a5fa);
+    --image-card-border: var(--border-color, #4b5563);
+    --image-action-bg: var(--darkened-bg, #111827);
+    --image-action-border: var(--border-color, #374151);
+    --image-button-bg: var(--body-bg, #1f2937);
+    --image-button-border: var(--border-color, #4b5563);
+    --image-button-hover-bg: var(--darkened-bg, #374151);
 }

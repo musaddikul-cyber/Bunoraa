@@ -172,7 +172,10 @@ class WishlistItemSerializer(serializers.ModelSerializer):
     
     def get_product_image(self, obj):
         try:
-            image = obj.product.images.filter(is_primary=True).first() or obj.product.images.first()
+            # Use prefetched images (from prefetch_related('product__images'))
+            # to avoid N+1 queries — iterate in Python rather than re-querying
+            images = list(obj.product.images.all())  # hits prefetch cache
+            image = next((img for img in images if img.is_primary), None) or (images[0] if images else None)
             if image:
                 request = self.context.get('request')
                 if request:
@@ -228,7 +231,13 @@ class WishlistSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'updated_at']
     
     def get_total_value(self, obj):
-        total = sum(item.product.current_price for item in obj.items.all())
+        # Use prefetched items if available to avoid re-querying
+        items = obj.items.all()  # hits prefetch cache if already loaded
+        total = sum(
+            getattr(item.product, 'current_price', 0)
+            for item in items
+            if item.product
+        )
         return str(total)
 
 

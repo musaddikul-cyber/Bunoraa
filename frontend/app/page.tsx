@@ -124,7 +124,8 @@ async function getHomepageData(headers: Record<string, string>) {
       spotlights: asArray<Spotlight>((payload as HomepageData).spotlights),
       show_by_categories: asArray<FeaturedCategory>((payload as HomepageData).show_by_categories),
     };
-  } catch {
+  } catch (error) {
+    console.error("Failed to fetch homepage data:", error instanceof Error ? error.message : error);
     return DEFAULT_HOMEPAGE_DATA;
   }
 }
@@ -136,7 +137,8 @@ async function getSiteSettings(headers: Record<string, string>) {
       next: { revalidate },
     });
     return response.data;
-  } catch {
+  } catch (error) {
+    console.error("Failed to fetch site settings:", error instanceof Error ? error.message : error);
     return null;
   }
 }
@@ -149,7 +151,8 @@ async function getBanners(headers: Record<string, string>, position?: string) {
       next: { revalidate },
     });
     return asArray<Banner>(response.data);
-  } catch {
+  } catch (error) {
+    console.error(`Failed to fetch banners for position ${position}:`, error instanceof Error ? error.message : error);
     return [] as Banner[];
   }
 }

@@ -926,7 +926,7 @@ STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
 # AWS S3 / S3-compatible (Cloudflare R2) Configuration (for media files in production)
-if os.environ.get('USE_S3', 'False').lower() in ('1', 'true', 'yes') or os.environ.get('AWS_ACCESS_KEY_ID'):
+if os.environ.get('USE_S3', 'True').lower() in ('1', 'true', 'yes') or os.environ.get('AWS_ACCESS_KEY_ID'):
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
 

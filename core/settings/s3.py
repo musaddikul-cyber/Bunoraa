@@ -127,9 +127,6 @@ if not os.environ.get('MEDIA_URL') and not globals().get('MEDIA_URL'):
             f"{os.environ['AWS_S3_ENDPOINT_URL'].rstrip('/')}/{os.environ['AWS_STORAGE_BUCKET_NAME'].strip()}"
         )
 
-# MEDIA_URL will be set by base.py S3 logic if still unset.
-# Do not set LOCAL_MEDIA_URL or MEDIA_ROOT here.
-
 # Optionally override ALLOWED_HOSTS for local testing
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 

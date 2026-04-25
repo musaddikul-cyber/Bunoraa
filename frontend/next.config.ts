@@ -29,8 +29,14 @@ const fallbackMediaPattern = {
   port: undefined,
   pathname: "/**",
 } as const;
+const localhostPattern = {
+  protocol: "http",
+  hostname: "localhost",
+  port: "8000",
+  pathname: "/**",
+} as const;
 
-const remotePatterns = [mediaPattern, apiPattern, fallbackMediaPattern].filter(
+const remotePatterns = [mediaPattern, apiPattern, fallbackMediaPattern, localhostPattern].filter(
   Boolean
 ) as RemotePattern[];
 

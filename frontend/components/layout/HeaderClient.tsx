@@ -4,7 +4,26 @@ import * as React from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { Handbag, Heart, UserRound } from "lucide-react";
+import {
+  Handbag,
+  Heart,
+  UserRound,
+  User,
+  Package,
+  Settings,
+  LogOut,
+  Shield,
+  ExternalLink,
+  UserPlus,
+  ArrowRightLeft,
+  Bell,
+  HelpCircle,
+  Mail,
+  ChevronRight,
+  CreditCard,
+  MapPin,
+  Gift,
+} from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useCart } from "@/components/cart/useCart";
 import { useAuthContext } from "@/components/providers/AuthProvider";
@@ -226,151 +245,263 @@ export function HeaderClient() {
         {menuOpen ? (
           mounted && hasToken ? (
             <div
-              className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-lg"
+              className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-72 max-w-[calc(100vw-2rem)] origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-border bg-card shadow-2xl"
               role="menu"
             >
-              <div className="border-b border-border px-3 py-2">
-                <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">
-                  Signed in
-                </p>
-                <p className="truncate text-sm font-semibold">
-                  {profileQuery.data?.full_name ||
-                    profileQuery.data?.first_name ||
-                    "Account"}
-                </p>
-                {profileQuery.data?.email ? (
-                  <p className="truncate text-xs text-foreground/60">
-                    {profileQuery.data.email}
-                  </p>
-                ) : null}
-              </div>
-              <Link
-                href="/account/profile/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                Profile
-              </Link>
-              <Link
-                href="/account/orders/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                Orders
-              </Link>
-              {otherAccounts.length ? (
-                <div className="mt-1 border-t border-border pt-1">
-                  <p className="px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-foreground/50">
-                    Switch Account
-                  </p>
-                  {otherAccounts.map((account) => (
-                    <button
-                      key={account.id}
-                      type="button"
-                      className="block w-full truncate rounded-lg px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                      onClick={() => {
-                        switchAccount(account.id);
-                        setMenuOpen(false);
-                      }}
-                    >
-                      {getAccountLabel(account)}
-                    </button>
-                  ))}
+              {/* ── User info header ── */}
+              <div className="flex items-center gap-3 rounded-t-2xl bg-muted/40 px-4 py-3.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15 text-sm font-bold text-primary ring-2 ring-primary/20">
+                  {hasProfileAvatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={profileQuery.data?.avatar || ""}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="uppercase">
+                      {profileQuery.data?.first_name?.[0] || "U"}
+                    </span>
+                  )}
                 </div>
-              ) : null}
-              {accounts.length < 5 ? (
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-foreground">
+                    {profileQuery.data?.full_name ||
+                      profileQuery.data?.first_name ||
+                      "Account"}
+                  </p>
+                  {profileQuery.data?.email ? (
+                    <p className="truncate text-xs text-foreground/50">
+                      {profileQuery.data.email}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="p-1.5">
+                {/* ── Primary navigation ── */}
+                <div className="space-y-0.5">
+                  <Link
+                    href="/account/profile/"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <User className="h-4 w-4 shrink-0 opacity-60" />
+                    <span className="flex-1">Profile</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground/20" />
+                  </Link>
+                  <Link
+                    href="/account/orders/"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <Package className="h-4 w-4 shrink-0 opacity-60" />
+                    <span className="flex-1">Orders</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground/20" />
+                  </Link>
+                  <Link
+                    href="/account/addresses/"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <MapPin className="h-4 w-4 shrink-0 opacity-60" />
+                    <span className="flex-1">Addresses</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground/20" />
+                  </Link>
+                  <Link
+                    href="/account/payments/"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <CreditCard className="h-4 w-4 shrink-0 opacity-60" />
+                    <span className="flex-1">Payments</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground/20" />
+                  </Link>
+                  <Link
+                    href="/wishlist/"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:hidden"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <Heart className="h-4 w-4 shrink-0 opacity-60" />
+                    <span className="flex-1">Wishlist</span>
+                    {wishlistCount > 0 ? (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                        {wishlistCount}
+                      </span>
+                    ) : null}
+                  </Link>
+                  <Link
+                    href="/account/referrals/"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <Gift className="h-4 w-4 shrink-0 opacity-60" />
+                    <span className="flex-1">Referrals</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-foreground/20" />
+                  </Link>
+                </div>
+
+                {/* ── Notifications (mobile) ── */}
                 <Link
-                  href={addAccountHref}
-                  className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  href="/notifications/"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:hidden"
                   role="menuitem"
                   onClick={() => setMenuOpen(false)}
                 >
-                  Add account
+                  <Bell className="h-4 w-4 shrink-0 opacity-60" />
+                  <span className="flex-1">Notifications</span>
+                  {unreadCount > 0 ? (
+                    <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent">
+                      {unreadCount}
+                    </span>
+                  ) : null}
                 </Link>
-              ) : (
-                <p className="px-3 py-2 text-xs text-foreground/60">Account limit reached (5)</p>
-              )}
-              <Link
-                href="/notifications/"
-                className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:hidden"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                <span className="truncate">Notifications</span>
-                {unreadCount > 0 ? (
-                  <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80">
-                    {unreadCount}
-                  </span>
+
+                <div className="my-1.5 border-t border-border" role="separator" />
+
+                {/* ── Settings & preferences ── */}
+                <Link
+                  href="/account/preferences/"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Settings className="h-4 w-4 shrink-0 opacity-60" />
+                  <span className="flex-1">Preferences</span>
+                </Link>
+
+                {/* ── Account switching ── */}
+                {otherAccounts.length > 0 ? (
+                  <div className="mt-1.5 border-t border-border pt-1.5">
+                    <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground/40">
+                      Switch account
+                    </p>
+                    {otherAccounts.map((account) => (
+                      <button
+                        key={account.id}
+                        type="button"
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-foreground/70 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                        onClick={() => {
+                          switchAccount(account.id);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        <ArrowRightLeft className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                        <span className="truncate">{getAccountLabel(account)}</span>
+                      </button>
+                    ))}
+                  </div>
                 ) : null}
-              </Link>
-              {profileQuery.data?.is_superuser || profileQuery.data?.is_staff ? (
-                <Link
-                  href={adminPanelHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+
+                {accounts.length < 5 ? (
+                  <Link
+                    href={addAccountHref}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <UserPlus className="h-4 w-4 shrink-0 opacity-60" />
+                    <span className="flex-1">Add account</span>
+                  </Link>
+                ) : null}
+
+                {/* ── Admin panel ── */}
+                {profileQuery.data?.is_superuser || profileQuery.data?.is_staff ? (
+                  <>
+                    <div className="my-1.5 border-t border-border" role="separator" />
+                    <Link
+                      href={adminPanelHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      role="menuitem"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <Shield className="h-4 w-4 shrink-0 opacity-60" />
+                      <span className="flex-1">Admin panel</span>
+                      <ExternalLink className="h-3 w-3 shrink-0 text-foreground/30" />
+                    </Link>
+                  </>
+                ) : null}
+
+                {/* ── Logout ── */}
+                <div className="my-1.5 border-t border-border" role="separator" />
+                <button
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-red-600/80 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 dark:text-red-400/80 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    logout();
+                  }}
                   role="menuitem"
-                  onClick={() => setMenuOpen(false)}
+                  type="button"
                 >
-                  Admin panel
-                </Link>
-              ) : null}
-              <button
-                className="mt-1 w-full truncate rounded-lg px-3 py-2 text-left text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                onClick={() => {
-                  setMenuOpen(false);
-                  logout();
-                }}
-                role="menuitem"
-                type="button"
-              >
-                Logout
-              </button>
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  <span>Sign out</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div
-              className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-lg"
+              className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-64 max-w-[calc(100vw-2rem)] origin-top-right animate-in fade-in zoom-in-95 rounded-2xl border border-border bg-card shadow-2xl"
               role="menu"
             >
-              <div className="border-b border-border px-3 py-2">
-                <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Account</p>
-                <p className="text-sm font-semibold">Welcome</p>
+              {/* ── Welcome header ── */}
+              <div className="flex items-center gap-3 rounded-t-2xl bg-muted/40 px-4 py-3.5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-foreground/5">
+                  <UserRound className="h-5 w-5 text-foreground/40" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Welcome</p>
+                  <p className="text-xs text-foreground/50">Sign in for personalized experience</p>
+                </div>
               </div>
-              <Link
-                href="/account/login/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                Sign in
-              </Link>
-              <Link
-                href="/account/register/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                Create account
-              </Link>
-              <div className="my-1 border-t border-border" role="separator" />
-              <Link
-                href="/faq/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                FAQ
-              </Link>
-              <Link
-                href="/contact/"
-                className="block truncate rounded-lg px-3 py-2 text-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-              >
-                Contact support
-              </Link>
+
+              <div className="p-1.5">
+                <Link
+                  href="/account/login/"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/account/register/"
+                  className="mt-1 flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm font-medium text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Create account
+                </Link>
+
+                <div className="my-2 border-t border-border" role="separator" />
+
+                <Link
+                  href="/faq/"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <HelpCircle className="h-4 w-4 shrink-0 opacity-60" />
+                  FAQ
+                </Link>
+                <Link
+                  href="/contact/"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground/80 transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Mail className="h-4 w-4 shrink-0 opacity-60" />
+                  Contact support
+                </Link>
+              </div>
             </div>
           )
         ) : null}

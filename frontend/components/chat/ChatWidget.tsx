@@ -194,7 +194,7 @@ export function ChatWidget() {
     if (autoGreetingSentRef.current) return;
 
     autoGreetingSentRef.current = true;
-    createConversation.mutate("Hello! How can we help you today?");
+    createConversation.mutate("");
   }, [
     activeConversation.isLoading,
     conversationId,
@@ -301,8 +301,7 @@ export function ChatWidget() {
 
       if (!targetConversationId) {
         autoGreetingSentRef.current = true;
-        const bootstrapText = text || "Hello! How can we help you today?";
-        const createdConversation = await createConversation.mutateAsync(bootstrapText);
+        const createdConversation = await createConversation.mutateAsync(text);
         targetConversationId = createdConversation.id;
 
         if (files.length === 0) return;

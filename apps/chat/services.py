@@ -62,26 +62,32 @@ class ChatService:
             status=ConversationStatus.OPEN
         )
         
+        # Always send a welcome message from the support team
+        welcome_text = (
+            chat_settings.welcome_message
+            if chat_settings.welcome_message
+            else "Hello! How can we help you today?"
+        )
+        Message.objects.create(
+            conversation=conversation,
+            sender=None,
+            is_from_customer=False,
+            is_from_bot=True,
+            content=welcome_text,
+        )
+        conversation.last_message_at = timezone.now()
+        conversation.save(update_fields=['last_message_at'])
+
         # Create initial customer message if provided
         if initial_message:
             Message.objects.create(
                 conversation=conversation,
                 sender=customer,
                 is_from_customer=True,
-                content=initial_message
+                content=initial_message,
             )
             conversation.last_message_at = timezone.now()
             conversation.save(update_fields=['last_message_at'])
-        
-        # Send welcome message from bot
-        if chat_settings.ai_enabled:
-            Message.objects.create(
-                conversation=conversation,
-                sender=None,
-                is_from_customer=False,
-                is_from_bot=True,
-                content=chat_settings.welcome_message
-            )
         
         # Notify agents if configured
         if chat_settings.notify_on_new_chat:

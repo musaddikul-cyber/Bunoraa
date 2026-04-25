@@ -314,3 +314,42 @@
     --color-text-inverse: 0 0% 0%;
   }
 }
+
+/* ── Accessibility: Reduce Motion ── */
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ── Accessibility: High Contrast ── */
+html[data-high-contrast="true"] {
+  --foreground: 0 0% 0%;
+  --secondary: 0 0% 15%;
+  --border: 0 0% 30%;
+  --muted: 0 0% 92%;
+  filter: contrast(1.25);
+}
+
+html[data-high-contrast="true"] img,
+html[data-high-contrast="true"] video,
+html[data-high-contrast="true"] picture {
+  filter: contrast(0.8);
+}
+
+html[data-high-contrast="true"] :focus-visible {
+  outline-width: 3px;
+  outline-color: hsl(var(--primary));
+}
+
+/* ── Accessibility: Large Text ── */
+html[data-large-text="true"] {
+  font-size: 120%;
+}
+
+html[data-large-text="true"] body {
+  line-height: 1.7;
+}

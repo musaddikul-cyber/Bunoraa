@@ -260,7 +260,7 @@ export async function Footer() {
       siteSettings?.tagline,
       siteSettings?.site_tagline
     ) ||
-    "Discover handcrafted fashion, home, and lifestyle essentials curated by Bunoraa artisans.";
+    "Curated fashion, home essentials & artisan goods — ethically sourced and delivered across Bangladesh.";
 
   const emailItems = [
     {

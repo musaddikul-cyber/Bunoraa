@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { LocaleProvider } from "@/components/providers/LocaleProvider";
 import { WebSocketProvider } from "@/components/providers/WebSocketProvider";
+import { AccessibilityProvider } from "@/components/providers/AccessibilityProvider";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { initPerformanceMonitoring } from "@/lib/performance";
 
@@ -63,13 +64,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ToastProvider>
         <QueryProvider>
           <AuthProvider>
-            <LocaleProvider>
-              <WebSocketProvider>
-                <PerformanceMonitoring />
-                <ServiceWorkerRegistration />
-                {children}
-              </WebSocketProvider>
-            </LocaleProvider>
+            <AccessibilityProvider>
+              <LocaleProvider>
+                <WebSocketProvider>
+                  <PerformanceMonitoring />
+                  <ServiceWorkerRegistration />
+                  {children}
+                </WebSocketProvider>
+              </LocaleProvider>
+            </AccessibilityProvider>
           </AuthProvider>
         </QueryProvider>
       </ToastProvider>

@@ -264,7 +264,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                           </p>
                           <div className="mt-1 flex items-center gap-2">
                             <p className="text-sm font-semibold">{getProductPrice(item)} {item.currency}</p>
-                            {hasRating && (
+                            {hasRating && item.average_rating && (
                               <div className="flex items-center gap-1">
                                 <span className="text-xs font-medium text-foreground/70">
                                   ★ {item.average_rating.toFixed(1)}

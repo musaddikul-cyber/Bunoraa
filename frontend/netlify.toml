@@ -1,5 +1,4 @@
 # Netlify configuration for Bunoraa frontend
-# This file configures the build and deployment settings
 
 [build]
   # Build directory relative to the root of your repository
@@ -8,14 +7,6 @@
   command = "npm run build"
   # Directory that contains the built site files to be deployed
   publish = ".next"
-
-[build.environment]
-  # Node version
-  NODE_VERSION = "20"
-  # Next.js build settings
-  NEXT_DISABLE_PRERENDER = "true"
-  NEXT_DISABLE_BUILD_PRERENDER = "true"
-  NEXT_IMAGE_UNOPTIMIZED = "false"
 
 # Configure secrets scanning to ignore specific environment variables
 # These are intentionally public or configured via Netlify environment variables

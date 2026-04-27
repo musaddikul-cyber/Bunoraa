@@ -13,9 +13,9 @@ This guide explains how to deploy the Bunoraa frontend application to Netlify, c
 
 ## Environment Variables
 
-### For Netlify Production Deployment
+### Required Environment Variables for Netlify
 
-Set these environment variables in your Netlify Site Settings → Environment:
+Set only these **required** environment variables in Netlify Site Settings → Environment:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=https://bunoraa-api.hf.space/api/v1
@@ -23,23 +23,32 @@ NEXT_INTERNAL_API_BASE_URL=https://bunoraa-api.hf.space/api/v1
 NEXT_PUBLIC_MEDIA_BASE_URL=https://bunoraa-api.hf.space/media
 NEXT_PUBLIC_SITE_URL=https://bunoraa.netlify.app
 NEXT_PUBLIC_WS_BASE_URL=wss://bunoraa-api.hf.space
-NEXT_PUBLIC_WS_ENABLED=true
-NEXT_DISABLE_PRERENDER=true
-NEXT_DISABLE_BUILD_PRERENDER=true
-NEXT_IMAGE_UNOPTIMIZED=false
-NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN=99cd4569fd314a31bb530d46e16f26c9
-NEXT_PUBLIC_VAPID_PUBLIC_KEY=BFbhEXdK2Jp5YZijD8PwFvRrtgK87GbOQps12XCGyXhkE_4r-VTXdrH8VkxjV7gnrzQ6kYyezfJ-sOa5OIj-_Gc
-NEXT_FRONTEND_ORIGIN=https://bunoraa.netlify.app
-NEXT_API_PROXY_TARGET=https://bunoraa-api.hf.space
 NODE_VERSION=20
 ```
 
+### Optional Environment Variables (only if using these services)
+
+```bash
+NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN=99cd4569fd314a31bb530d46e16f26c9
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=BFbhEXdK2Jp5YZijD8PwFvRrtgK87GbOQps12XCGyXhkE_4r-VTXdrH8VkxjV7gnrzQ6kYyezfJ-sOa5OIj-_Gc
+```
+
+### Build Settings (Hardcoded)
+
+These are automatically configured and don't need environment variables:
+
+- Image optimization: Disabled in development, enabled in production
+- Prerendering: Disabled
+- Trailing slashes: Enabled
+- Compression: Enabled
+
 ### Important Notes on Environment Variables
 
-- **NEXT_PUBLIC_*** variables: Exposed to browser, safe to include production URLs
-- **NEXT_INTERNAL_API_BASE_URL**: Used during build, should point to backend API
-- **NEXT_FRONTEND_ORIGIN**: Used for CORS and redirects
-- Never hardcode sensitive keys in source code (they're now removed in favor of environment variables)
+- **NEXT_PUBLIC_*** variables: Exposed to browser (safe for production URLs)
+- **NEXT_INTERNAL_API_BASE_URL**: Used during build, must point to your backend API
+- **NEXT_PUBLIC_SITE_URL**: Used for canonical URLs and CORS, must match your domain
+- Only set variables that actually change per environment
+- Build settings are hardcoded to reduce configuration overhead
 
 ## Deployment Steps
 
@@ -138,8 +147,8 @@ Set these in `.env.local` when running Django backend on localhost:8000:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 NEXT_INTERNAL_API_BASE_URL=http://localhost:8000/api/v1
 NEXT_PUBLIC_MEDIA_BASE_URL=http://localhost:8000/media
-NEXT_FRONTEND_ORIGIN=http://localhost:3000
-NEXT_API_PROXY_TARGET=http://localhost:8000
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_WS_BASE_URL=ws://localhost:8000
 ```
 
 ## Backend Integration

@@ -36,7 +36,7 @@ Set these values:
 
 Go to: **Site Settings → Environment variables**
 
-Add these variables (update URLs according to your HuggingFace backend):
+Add **only these required variables** (update URLs according to your HuggingFace backend):
 
 ```
 NEXT_PUBLIC_API_BASE_URL = https://your-backend-space.hf.space/api/v1
@@ -44,18 +44,17 @@ NEXT_INTERNAL_API_BASE_URL = https://your-backend-space.hf.space/api/v1
 NEXT_PUBLIC_MEDIA_BASE_URL = https://your-backend-space.hf.space/media
 NEXT_PUBLIC_SITE_URL = https://bunoraa.netlify.app
 NEXT_PUBLIC_WS_BASE_URL = wss://your-backend-space.hf.space
-NEXT_PUBLIC_WS_ENABLED = true
-NEXT_DISABLE_PRERENDER = true
-NEXT_DISABLE_BUILD_PRERENDER = true
-NEXT_IMAGE_UNOPTIMIZED = false
-NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN = 99cd4569fd314a31bb530d46e16f26c9
-NEXT_PUBLIC_VAPID_PUBLIC_KEY = BFbhEXdK2Jp5YZijD8PwFvRrtgK87GbOQps12XCGyXhkE_4r-VTXdrH8VkxjV7gnrzQ6kYyezfJ-sOa5OIj-_Gc
-NEXT_FRONTEND_ORIGIN = https://bunoraa.netlify.app
-NEXT_API_PROXY_TARGET = https://your-backend-space.hf.space
 NODE_VERSION = 20
 ```
 
-**IMPORTANT**: Set these BEFORE deploying to avoid secrets scanning failures
+**Optional** (only if using these services):
+
+```
+NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN = 99cd4569fd314a31bb530d46e16f26c9
+NEXT_PUBLIC_VAPID_PUBLIC_KEY = BFbhEXdK2Jp5YZijD8PwFvRrtgK87GbOQps12XCGyXhkE_4r-VTXdrH8VkxjV7gnrzQ6kYyezfJ-sOa5OIj-_Gc
+```
+
+**IMPORTANT**: Set these BEFORE deploying to avoid build failures
 
 ### 4. Trigger First Deployment
 

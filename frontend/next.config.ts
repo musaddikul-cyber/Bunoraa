@@ -44,21 +44,15 @@ function toOrigin(urlString?: string): string | null {
 }
 
 const apiProxyOrigin =
-  toOrigin(process.env.NEXT_API_PROXY_TARGET) ||
   toOrigin(process.env.NEXT_INTERNAL_API_BASE_URL) ||
   null;
-const shouldUseApiProxy =
-  (process.env.NEXT_PUBLIC_API_USE_PROXY || "").trim().toLowerCase() === "true" ||
-  (process.env.NEXT_PUBLIC_API_USE_PROXY || "").trim().toLowerCase() === "1";
+const shouldUseApiProxy = false;
 const shouldProxyMedia =
   !process.env.NEXT_PUBLIC_MEDIA_BASE_URL ||
   process.env.NEXT_PUBLIC_MEDIA_BASE_URL.startsWith("/");
 
-const disableImageOptimization =
-  process.env.NEXT_IMAGE_UNOPTIMIZED === "true" ||
-  process.env.NEXT_IMAGE_UNOPTIMIZED === "1";
 const shouldDisableImageOptimization =
-  disableImageOptimization && process.env.NODE_ENV !== "production";
+  process.env.NODE_ENV !== "production";
 
 const nextConfig: NextConfig = {
   trailingSlash: true,

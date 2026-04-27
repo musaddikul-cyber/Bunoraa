@@ -3,12 +3,12 @@
 [build]
   base = "frontend"
   command = "npm run build"
-  publish = ".next"
+  publish = "frontend/.next"
 
 [dev]
   command = "npm run dev"
   port = 3000
-  publish = ".next"
+  publish = "frontend/.next"
 
 # Headers for security and optimization
 [[headers]]

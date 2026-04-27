@@ -3,11 +3,24 @@
 [build]
   base = "frontend"
   command = "npm run build"
-  publish = "frontend/.next"
+  publish = ".next"
 
-[dev]
-  command = "npm run dev"
-  port = 3000
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+
   publish = "frontend/.next"
 
 # Headers for security and optimization

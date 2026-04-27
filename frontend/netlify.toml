@@ -5,6 +5,10 @@
   command = "npm run build"
   publish = ".next"
 
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN,NEXT_PUBLIC_VAPID_PUBLIC_KEY"
+  SECRETS_SCAN_OMIT_PATHS = ".env*"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

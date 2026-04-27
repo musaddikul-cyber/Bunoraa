@@ -3,23 +3,20 @@
 [build]
   base = "frontend"
   command = "npm run build"
-  publish = ".next"
+  publish = ".next/static"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 [[redirects]]
   from = "/*"
-  to = "/index.html"
-  status = 200
+  to = "/404"
+  status = 404
 
 [[headers]]
   for = "/_next/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "SAMEORIGIN"
 
   publish = "frontend/.next"
 

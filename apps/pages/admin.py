@@ -6,8 +6,9 @@ from django.contrib import admin
 from django.db import models
 from django.forms import URLInput
 from django.utils.html import format_html
+from django.utils.translation import gettext_lazy as _
 from apps.i18n.models import Currency as I18nCurrency
-from .models import Page, FAQ, ContactMessage, SiteSettings, Subscriber, SocialLink
+from .models import Page, FAQ, ContactMessage, SiteSettings, Subscriber, SocialLink, Banner
 from core.admin_mixins import ImportExportEnhancedModelAdmin
 
 
@@ -159,3 +160,91 @@ class SubscriberAdmin(ImportExportEnhancedModelAdmin):
 
 # Attach SocialLinkInline to SiteSettingsAdmin (so social links are managed inside SiteSettings)
 SiteSettingsAdmin.inlines = getattr(SiteSettingsAdmin, 'inlines', ()) + (SocialLinkInline,)
+
+
+@admin.register(Banner)
+class BannerAdmin(ImportExportEnhancedModelAdmin):
+    """Admin for managing website banners with comprehensive styling options."""
+    list_display = ['title', 'is_active', 'animation_type', 'sort_order', 'view_count', 'click_count', 'created_at']
+    list_filter = ['is_active', 'animation_type', 'show_on_mobile', 'show_on_desktop', 'created_at']
+    search_fields = ['title', 'subtitle', 'slug']
+    readonly_fields = ['view_count', 'click_count', 'created_at', 'updated_at', 'background_preview']
+    prepopulated_fields = {'slug': ('title',)}
+    list_editable = ['is_active', 'sort_order']
+    
+    fieldsets = (
+        (_('Basic Information'), {
+            'fields': ('title', 'slug', 'subtitle', 'description')
+        }),
+        (_('Content & Links'), {
+            'fields': ('button_text', 'button_url', 'button_target')
+        }),
+        (_('Background & Media'), {
+            'fields': ('background_image', 'background_preview', 'background_color')
+        }),
+        (_('Sizing & Layout'), {
+            'fields': ('banner_width', 'banner_height', 'banner_height_mobile', 'opacity', 'border_radius')
+        }),
+        (_('Title Styling'), {
+            'fields': (
+                'title_color', 'title_font_size', 'title_font_family', 'title_font_weight'
+            ),
+            'classes': ('collapse',)
+        }),
+        (_('Subtitle Styling'), {
+            'fields': (
+                'subtitle_color', 'subtitle_font_size', 'subtitle_font_family', 'subtitle_font_weight'
+            ),
+            'classes': ('collapse',)
+        }),
+        (_('Button Styling'), {
+            'fields': (
+                'button_bg_color', 'button_bg_hover_color', 'button_text_color',
+                'button_border_radius', 'button_padding'
+            ),
+            'classes': ('collapse',)
+        }),
+        (_('Animations & Transitions'), {
+            'fields': (
+                'animation_type', 'animation_duration', 'animation_delay', 'transition_duration'
+            ),
+            'classes': ('collapse',)
+        }),
+        (_('Display Settings'), {
+            'fields': (
+                'display_duration', 'auto_hide', 'display_on_pages',
+                'show_on_mobile', 'show_on_desktop'
+            )
+        }),
+        (_('Scheduling'), {
+            'fields': ('scheduled_start', 'scheduled_end'),
+            'classes': ('collapse',)
+        }),
+        (_('Status & Ordering'), {
+            'fields': ('is_active', 'sort_order')
+        }),
+        (_('Analytics'), {
+            'fields': ('view_count', 'click_count'),
+            'classes': ('collapse',)
+        }),
+        (_('Timestamps'), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def background_preview(self, obj):
+        """Display a preview of the banner background."""
+        if obj.background_image:
+            return format_html(
+                '<div style="width: 200px; height: 120px; background: {} url(\'{}\') center/cover no-repeat; border-radius: 6px; border: 1px solid #ddd;"></div>',
+                obj.background_color,
+                obj.background_image.url
+            )
+        elif obj.background_color:
+            return format_html(
+                '<div style="width: 200px; height: 120px; background: {}; border-radius: 6px; border: 1px solid #ddd;"></div>',
+                obj.background_color
+            )
+        return format_html('<div style="color: #999;">No background image or color</div>')
+    background_preview.short_description = _('Preview')

@@ -905,6 +905,14 @@ class ProductVariant(models.Model):
     def current_price(self):
         return self.price if self.price is not None else self.product.current_price
 
+    @property
+    def name(self):
+        """Generate variant name from option values (e.g., 'Red, Large')."""
+        option_values = self.option_values.all().order_by('option__name')
+        if not option_values.exists():
+            return self.sku or f"Variant {self.id}"
+        return ", ".join([ov.value for ov in option_values])
+
 
 class VariantOptionValue(models.Model):
     """Through model linking Variant <-> OptionValue; enforces option uniqueness per variant."""

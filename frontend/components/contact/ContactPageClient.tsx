@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { JsonLd } from "@/components/seo/JsonLd";
 
 export function ContactPageClient() {
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://bunoraa.com").replace(
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(
     /\/$/,
     ""
   );

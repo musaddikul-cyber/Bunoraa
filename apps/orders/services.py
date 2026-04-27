@@ -5,12 +5,24 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
+from django.db.models import Prefetch
 
 from .models import Order, OrderItem, OrderStatusHistory
 
 
 class OrderService:
     """Service for order operations."""
+    
+    @staticmethod
+    def _get_variant_name(variant):
+        """Safely get variant name with error handling."""
+        if not variant:
+            return ''
+        try:
+            return variant.name
+        except Exception:
+            # Fallback if property access fails
+            return variant.sku or f"Variant {variant.id}"
     
     @staticmethod
     @transaction.atomic
@@ -41,7 +53,9 @@ class OrderService:
         item_image_map = {}
 
         cart_currency_code = getattr(cart, 'currency', None)
-        for cart_item in cart.items.select_related('product', 'variant').all():
+        for cart_item in cart.items.select_related('product', 'variant').prefetch_related(
+            Prefetch('variant__option_values__option')
+        ).all():
             unit_price_source = Decimal(str(cart_item.price_at_add))
 
             converted = unit_price_source
@@ -180,7 +194,7 @@ class OrderService:
                 variant=cart_item.variant,
                 product_name=cart_item.product.name if cart_item.product else 'Unknown Product',
                 product_sku=cart_item.variant.sku if cart_item.variant else (cart_item.product.sku if cart_item.product else ''),
-                variant_name=cart_item.variant.name if cart_item.variant else '',
+                variant_name=OrderService._get_variant_name(cart_item.variant),
                 product_image=img,
                 unit_price=converted_unit_price.quantize(Decimal('0.01')) if isinstance(converted_unit_price, Decimal) else Decimal(str(converted_unit_price)).quantize(Decimal('0.01')),
                 quantity=cart_item.quantity,

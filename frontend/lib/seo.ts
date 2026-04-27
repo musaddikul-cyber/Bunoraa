@@ -4,7 +4,7 @@ import { buildProductPath } from "@/lib/productPaths";
 
 type UrlLike = string | null | undefined;
 
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://bunoraa.com").replace(
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(
   /\/$/,
   ""
 );

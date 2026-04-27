@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import { useAuthContext } from "@/components/providers/AuthProvider";
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import type { UserPreferences } from "@/lib/types";
 
 /**
@@ -13,19 +12,13 @@ import type { UserPreferences } from "@/lib/types";
  * - data-reduce-motion="true"  → disables animations/transitions
  * - data-high-contrast="true"  → increases contrast ratios
  * - data-large-text="true"     → increases base font size
+ *
+ * This provider reads from the React Query cache instead of fetching,
+ * avoiding duplicate API calls when usePreferences is already fetching.
  */
 export function AccessibilityProvider({ children }: { children: React.ReactNode }) {
   const { hasToken } = useAuthContext();
-
-  const { data: prefs } = useQuery({
-    queryKey: ["account", "preferences"],
-    queryFn: async () => {
-      const res = await apiFetch<UserPreferences>("/accounts/preferences/");
-      return res.data;
-    },
-    enabled: hasToken,
-    staleTime: 5 * 60 * 1000,
-  });
+  const queryClient = useQueryClient();
 
   React.useEffect(() => {
     const root = document.documentElement;
@@ -40,13 +33,19 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
       }
     })();
 
+    // Read from React Query cache (shared with usePreferences)
+    const prefs = queryClient.getQueryData<UserPreferences>(
+      ["account", "preferences"]
+    );
+
     const reduceMotion = prefs?.reduce_motion ?? cached?.reduce_motion ?? false;
     const highContrast = prefs?.high_contrast ?? cached?.high_contrast ?? false;
     const largeText = prefs?.large_text ?? cached?.large_text ?? false;
 
-    root.setAttribute("data-reduce-motion", String(reduceMotion));
-    root.setAttribute("data-high-contrast", String(highContrast));
-    root.setAttribute("data-large-text", String(largeText));
+    // Set data attributes as boolean strings ("true" or "false")
+    root.setAttribute("data-reduce-motion", reduceMotion ? "true" : "false");
+    root.setAttribute("data-high-contrast", highContrast ? "true" : "false");
+    root.setAttribute("data-large-text", largeText ? "true" : "false");
 
     // Persist to localStorage for next page load
     if (prefs) {
@@ -69,7 +68,7 @@ export function AccessibilityProvider({ children }: { children: React.ReactNode 
       root.removeAttribute("data-high-contrast");
       root.removeAttribute("data-large-text");
     };
-  }, [prefs]);
+  }, [hasToken, queryClient]);
 
   return <>{children}</>;
 }

@@ -15,6 +15,9 @@ export function usePreferences() {
   const preferencesQuery = useQuery({
     queryKey: preferencesKey,
     queryFn: fetchPreferences,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: false,
   });
 
   const updatePreferences = useMutation({
@@ -25,8 +28,9 @@ export function usePreferences() {
       });
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: preferencesKey });
+    onSuccess: (data) => {
+      // Immediately update cache with server response
+      queryClient.setQueryData(preferencesKey, data);
     },
   });
 

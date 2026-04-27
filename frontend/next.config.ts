@@ -23,12 +23,6 @@ function toRemotePattern(urlString?: string): RemotePattern | null {
 
 const mediaPattern = toRemotePattern(process.env.NEXT_PUBLIC_MEDIA_BASE_URL);
 const apiPattern = toRemotePattern(process.env.NEXT_PUBLIC_API_BASE_URL);
-const fallbackMediaPattern = {
-  protocol: "https",
-  hostname: "media.bunoraa.com",
-  port: undefined,
-  pathname: "/**",
-} as const;
 const localhostPattern = {
   protocol: "http",
   hostname: "localhost",
@@ -36,7 +30,7 @@ const localhostPattern = {
   pathname: "/**",
 } as const;
 
-const remotePatterns = [mediaPattern, apiPattern, fallbackMediaPattern, localhostPattern].filter(
+const remotePatterns = [mediaPattern, apiPattern, localhostPattern].filter(
   Boolean
 ) as RemotePattern[];
 

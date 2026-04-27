@@ -16,6 +16,7 @@ from apps.pages.models import (
     BlogTag,
     FAQ,
     Page,
+    Banner,
 )
 from apps.i18n.models import Currency
 
@@ -417,3 +418,114 @@ register_seed(
         dependencies=["pages.site_settings"],
     )
 )
+
+
+class DefaultBannerSeedSpec(SeedSpec):
+    """Create default banners with sample configurations."""
+    name = "pages.default_banners"
+    app_label = "pages"
+    kind = "prod"
+    description = "Seed default banners with comprehensive styling"
+    
+    DEFAULT_BANNERS = [
+        {
+            'title': 'Welcome Banner',
+            'slug': 'welcome-banner',
+            'subtitle': 'Discover our premium collection',
+            'description': 'Welcome to our store! Explore our latest products and offers.',
+            'button_text': 'Shop Now',
+            'button_url': '/catalog/',
+            'button_target': '_self',
+            'banner_width': '100%',
+            'banner_height': '280px',
+            'banner_height_mobile': '180px',
+            'opacity': 1.0,
+            'border_radius': '12px',
+            'background_color': '#FFFFFF',
+            'title_color': '#000000',
+            'title_font_size': '36px',
+            'title_font_family': 'Arial, sans-serif',
+            'title_font_weight': '700',
+            'subtitle_color': '#666666',
+            'subtitle_font_size': '18px',
+            'subtitle_font_family': 'Arial, sans-serif',
+            'subtitle_font_weight': '400',
+            'button_bg_color': '#0066CC',
+            'button_bg_hover_color': '#0052A3',
+            'button_text_color': '#FFFFFF',
+            'button_border_radius': '6px',
+            'button_padding': '12px 24px',
+            'animation_type': 'fade-in',
+            'animation_duration': '0.6s',
+            'animation_delay': '0s',
+            'transition_duration': '0.3s',
+            'display_duration': 5,
+            'auto_hide': False,
+            'is_active': True,
+            'show_on_mobile': True,
+            'show_on_desktop': True,
+            'sort_order': 1,
+        },
+        {
+            'title': 'Seasonal Offer Banner',
+            'slug': 'seasonal-offer-banner',
+            'subtitle': 'Limited time offer',
+            'description': 'Get up to 50% off on selected items. Offer valid for a limited time only.',
+            'button_text': 'View Offers',
+            'button_url': '/catalog/?sale=true',
+            'button_target': '_self',
+            'banner_width': '100%',
+            'banner_height': '260px',
+            'banner_height_mobile': '160px',
+            'opacity': 0.95,
+            'border_radius': '8px',
+            'background_color': '#FFA500',
+            'title_color': '#FFFFFF',
+            'title_font_size': '40px',
+            'title_font_family': 'Arial, sans-serif',
+            'title_font_weight': '800',
+            'subtitle_color': '#F5F5F5',
+            'subtitle_font_size': '20px',
+            'subtitle_font_family': 'Arial, sans-serif',
+            'subtitle_font_weight': '600',
+            'button_bg_color': '#FFFFFF',
+            'button_bg_hover_color': '#F0F0F0',
+            'button_text_color': '#FFA500',
+            'button_border_radius': '8px',
+            'button_padding': '14px 28px',
+            'animation_type': 'slide-up',
+            'animation_duration': '0.8s',
+            'animation_delay': '0s',
+            'transition_duration': '0.4s',
+            'display_duration': 7,
+            'auto_hide': False,
+            'is_active': True,
+            'show_on_mobile': True,
+            'show_on_desktop': True,
+            'sort_order': 2,
+        },
+    ]
+    
+    def apply(self, ctx: SeedContext) -> SeedResult:
+        result = SeedResult()
+        
+        for banner_data in self.DEFAULT_BANNERS:
+            slug = banner_data['slug']
+            
+            if ctx.dry_run:
+                if not Banner.objects.filter(slug=slug).exists():
+                    result.created += 1
+            else:
+                obj, created = Banner.objects.update_or_create(
+                    slug=slug,
+                    defaults=banner_data
+                )
+                if created:
+                    result.created += 1
+                else:
+                    result.updated += 1
+        
+        return result
+
+
+register_seed(DefaultBannerSeedSpec())

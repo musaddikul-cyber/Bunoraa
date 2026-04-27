@@ -154,7 +154,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
   }, [showSuggestions]);
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-md">
+    <div ref={containerRef} className="relative w-full max-w-3xl">
       <form onSubmit={onSubmit} className="relative">
         <label htmlFor={inputId} className="sr-only">
           Search products and categories
@@ -212,11 +212,11 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
       {showSuggestions ? (
         <div
           id={listboxId}
-          className="absolute left-0 right-0 top-full z-50 mt-2 rounded-xl border border-border bg-card p-3 shadow-lg"
+          className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[600px] w-full overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-lg"
           role="listbox"
           aria-label="Search suggestions"
         >
-          <div className="mb-3 flex items-center justify-between text-xs text-foreground/60">
+          <div className="mb-4 flex items-center justify-between text-xs text-foreground/60">
             <p className="uppercase tracking-[0.18em]">Live results</p>
             <p>
               {productSuggestions.length} products • {categorySuggestions.length} categories
@@ -230,9 +230,10 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
           {productSuggestions.length > 0 ? (
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">Products</p>
-              <ul className="mt-2 space-y-1.5">
+              <ul className="mt-2 space-y-2">
                 {productSuggestions.slice(0, 6).map((item, index) => {
                   const image = getProductImage(item);
+                  const hasRating = item.average_rating && item.average_rating > 0;
                   return (
                     <li key={item.id}>
                       <button
@@ -240,15 +241,15 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                         type="button"
                         role="option"
                         aria-selected={activeIndex === index}
-                        className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition ${
+                        className={`flex w-full gap-3 rounded-lg px-3 py-3 text-left text-sm transition ${
                           activeIndex === index
                             ? "bg-muted text-foreground"
-                            : "text-foreground/80 hover:bg-muted hover:text-foreground"
+                            : "text-foreground/80 hover:bg-muted/60 hover:text-foreground"
                         }`}
                         onClick={() => handleSelection(buildProductPath(item), true)}
                         onMouseEnter={() => setActiveIndex(index)}
                       >
-                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
                           {image ? (
                             <img
                               {...getLazyImageProps(image, item.name)}
@@ -259,11 +260,25 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                         <div className="min-w-0 flex-1">
                           <p className="line-clamp-1 font-medium">{item.name}</p>
                           <p className="line-clamp-1 text-xs text-foreground/60">
-                            {item.primary_category_name || "Product"} • {getProductPrice(item)}{" "}
-                            {item.currency}
+                            {item.primary_category_name || "Product"}
                           </p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <p className="text-sm font-semibold">{getProductPrice(item)} {item.currency}</p>
+                            {hasRating && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs font-medium text-foreground/70">
+                                  ★ {item.average_rating.toFixed(1)}
+                                </span>
+                                {item.reviews_count && (
+                                  <span className="text-xs text-foreground/60">
+                                    ({item.reviews_count})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-foreground/60" />
+                        <ArrowUpRight className="h-4 w-4 shrink-0 text-foreground/60" />
                       </button>
                     </li>
                   );
@@ -273,7 +288,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
           ) : null}
 
           {categorySuggestions.length > 0 ? (
-            <div className="mt-3">
+            <div className="mt-4">
               <p className="text-xs uppercase tracking-[0.2em] text-foreground/60">Categories</p>
               <ul className="mt-2 space-y-1">
                 {categorySuggestions.slice(0, 5).map((item, index) => {
@@ -285,16 +300,18 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                         type="button"
                         role="option"
                         aria-selected={activeIndex === optionIndex}
-                        className={`w-full rounded-lg px-2 py-2 text-left text-sm transition ${
+                        className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${
                           activeIndex === optionIndex
                             ? "bg-muted text-foreground"
-                            : "text-foreground/80 hover:bg-muted hover:text-foreground"
+                            : "text-foreground/80 hover:bg-muted/60 hover:text-foreground"
                         }`}
                         onClick={() => handleSelection(buildCategoryPath(item.slug))}
                         onMouseEnter={() => setActiveIndex(optionIndex)}
                       >
                         <p className="font-medium">{item.name}</p>
-                        <p className="text-xs text-foreground/60">Category</p>
+                        <p className="text-xs text-foreground/60">
+                          {item.product_count || 0} products
+                        </p>
                       </button>
                     </li>
                   );
@@ -309,10 +326,10 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
             </p>
           ) : null}
 
-          <div className="mt-3 border-t border-border pt-2">
+          <div className="mt-3 border-t border-border pt-3">
             <button
               type="button"
-              className="w-full rounded-lg px-2 py-2 text-left text-sm font-medium text-primary transition hover:bg-primary/10"
+              className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-primary transition hover:bg-primary/10"
               onClick={handleSearchResults}
             >
               View all results for "{trimmedQuery}"

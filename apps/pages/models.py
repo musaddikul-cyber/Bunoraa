@@ -620,6 +620,143 @@ class SocialLink(models.Model):
             cache.delete('site_settings_context')
 
 
+class Banner(models.Model):
+    """
+    Comprehensive banner management system with full styling and animation controls.
+    Allows complete customization via Django admin panel.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Basic info
+    title = models.CharField(_('title'), max_length=255)
+    slug = models.SlugField(_('slug'), max_length=255, unique=True)
+    subtitle = models.CharField(_('subtitle'), max_length=500, blank=True)
+    description = models.TextField(_('description'), blank=True)
+    
+    # Image/Background
+    background_image = models.ImageField(_('background image'), upload_to='banners/', blank=True, null=True)
+    background_color = models.CharField(_('background color'), max_length=7, default='#FFFFFF', help_text='HEX color code')
+    
+    # Button
+    button_text = models.CharField(_('button text'), max_length=100, blank=True)
+    button_url = models.URLField(_('button URL'), blank=True)
+    button_target = models.CharField(_('button target'), max_length=10, choices=[('_self', 'Same tab'), ('_blank', 'New tab')], default='_self')
+    
+    # Sizing & Spacing
+    banner_width = models.CharField(_('width'), max_length=50, default='100%', help_text='CSS value: px, %, vw, etc.')
+    banner_height = models.CharField(_('height'), max_length=50, default='300px', help_text='Default height, reduced for mobile')
+    banner_height_mobile = models.CharField(_('mobile height'), max_length=50, default='200px')
+    
+    # Styling
+    opacity = models.DecimalField(_('opacity'), max_digits=3, decimal_places=2, default=1.0, help_text='0.0 to 1.0')
+    border_radius = models.CharField(_('border radius'), max_length=50, default='12px')
+    
+    # Colors - Title
+    title_color = models.CharField(_('title color'), max_length=7, default='#000000', help_text='HEX color code')
+    title_font_size = models.CharField(_('title font size'), max_length=50, default='32px')
+    title_font_family = models.CharField(_('title font'), max_length=100, default='Arial, sans-serif')
+    title_font_weight = models.CharField(_('title font weight'), max_length=10, choices=[('300', 'Light'), ('400', 'Normal'), ('600', 'Semibold'), ('700', 'Bold'), ('800', 'Extra Bold')], default='700')
+    
+    # Colors - Subtitle
+    subtitle_color = models.CharField(_('subtitle color'), max_length=7, default='#666666', help_text='HEX color code')
+    subtitle_font_size = models.CharField(_('subtitle font size'), max_length=50, default='18px')
+    subtitle_font_family = models.CharField(_('subtitle font'), max_length=100, default='Arial, sans-serif')
+    subtitle_font_weight = models.CharField(_('subtitle font weight'), max_length=10, choices=[('300', 'Light'), ('400', 'Normal'), ('600', 'Semibold'), ('700', 'Bold'), ('800', 'Extra Bold')], default='400')
+    
+    # Button Colors
+    button_bg_color = models.CharField(_('button background'), max_length=7, default='#0066CC', help_text='HEX color code')
+    button_bg_hover_color = models.CharField(_('button background (hover)'), max_length=7, default='#0052A3', help_text='HEX color code')
+    button_text_color = models.CharField(_('button text'), max_length=7, default='#FFFFFF', help_text='HEX color code')
+    button_border_radius = models.CharField(_('button border radius'), max_length=50, default='6px')
+    button_padding = models.CharField(_('button padding'), max_length=50, default='12px 24px')
+    
+    # Animations
+    ANIMATION_CHOICES = [
+        ('none', 'None'),
+        ('fade-in', 'Fade In'),
+        ('slide-left', 'Slide from Left'),
+        ('slide-right', 'Slide from Right'),
+        ('slide-up', 'Slide from Bottom'),
+        ('zoom-in', 'Zoom In'),
+        ('bounce', 'Bounce'),
+    ]
+    animation_type = models.CharField(_('animation type'), max_length=20, choices=ANIMATION_CHOICES, default='fade-in')
+    animation_duration = models.CharField(_('animation duration'), max_length=20, default='0.6s', help_text='CSS duration value')
+    animation_delay = models.CharField(_('animation delay'), max_length=20, default='0s', help_text='CSS delay value')
+    
+    # Transition/Hover
+    transition_duration = models.CharField(_('transition duration'), max_length=20, default='0.3s', help_text='For button hover, etc.')
+    
+    # Display Time
+    display_duration = models.PositiveIntegerField(_('display duration (seconds)'), default=5, help_text='How long banner is visible if auto-hide is enabled')
+    auto_hide = models.BooleanField(_('auto-hide'), default=False, help_text='Automatically hide banner after display duration')
+    
+    # Status & Scheduling
+    is_active = models.BooleanField(_('active'), default=True, db_index=True)
+    display_on_pages = models.CharField(_('display on pages'), max_length=500, blank=True, help_text='Comma-separated page paths (leave empty for all pages)')
+    scheduled_start = models.DateTimeField(_('scheduled start'), null=True, blank=True)
+    scheduled_end = models.DateTimeField(_('scheduled end'), null=True, blank=True)
+    
+    # Display preferences
+    show_on_mobile = models.BooleanField(_('show on mobile'), default=True)
+    show_on_desktop = models.BooleanField(_('show on desktop'), default=True)
+    
+    # Tracking
+    view_count = models.PositiveIntegerField(_('view count'), default=0)
+    click_count = models.PositiveIntegerField(_('click count'), default=0)
+    
+    # Ordering
+    sort_order = models.PositiveIntegerField(_('order'), default=0, help_text='Display order when multiple banners are shown')
+    
+    # Timestamps
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('updated at'), auto_now=True)
+    
+    class Meta:
+        verbose_name = _('banner')
+        verbose_name_plural = _('banners')
+        ordering = ['sort_order', '-created_at']
+        indexes = [
+            models.Index(fields=['is_active', '-created_at']),
+            models.Index(fields=['slug']),
+        ]
+    
+    def __str__(self):
+        return self.title
+    
+    def is_scheduled_active(self):
+        """Check if banner is within scheduled time window."""
+        from django.utils import timezone
+        now = timezone.now()
+        
+        if self.scheduled_start and now < self.scheduled_start:
+            return False
+        if self.scheduled_end and now > self.scheduled_end:
+            return False
+        return True
+    
+    def should_display(self):
+        """Check if banner should be displayed based on all conditions."""
+        if not self.is_active:
+            return False
+        if not self.is_scheduled_active():
+            return False
+        return True
+    
+    def get_style_dict(self):
+        """Return CSS style properties as a dictionary."""
+        return {
+            'width': self.banner_width,
+            'height': self.banner_height,
+            'opacity': self.opacity,
+            'borderRadius': self.border_radius,
+            'backgroundColor': self.background_color if not self.background_image else 'transparent',
+            'backgroundImage': f"url('{self.background_image.url}')" if self.background_image else 'none',
+            'backgroundSize': 'cover',
+            'backgroundPosition': 'center',
+        }
+
+
 class Subscriber(models.Model):
     """
     Newsletter subscriber.

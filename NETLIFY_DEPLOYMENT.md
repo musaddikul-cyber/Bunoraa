@@ -20,6 +20,7 @@ Set only these **required** environment variables in Netlify Site Settings → E
 ```bash
 NEXT_PUBLIC_API_BASE_URL=https://bunoraa-api.hf.space/api/v1
 NEXT_INTERNAL_API_BASE_URL=https://bunoraa-api.hf.space/api/v1
+NEXT_PUBLIC_API_USE_PROXY=true
 NEXT_PUBLIC_MEDIA_BASE_URL=https://bunoraa-api.hf.space/media
 NEXT_PUBLIC_SITE_URL=https://bunoraa.netlify.app
 NEXT_PUBLIC_WS_BASE_URL=wss://bunoraa-api.hf.space
@@ -30,6 +31,7 @@ NODE_VERSION=20
 
 ```bash
 NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN=99cd4569fd314a31bb530d46e16f26c9
+NEXT_PUBLIC_CLOUDFLARE_BEACON_ENABLED=true
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=BFbhEXdK2Jp5YZijD8PwFvRrtgK87GbOQps12XCGyXhkE_4r-VTXdrH8VkxjV7gnrzQ6kYyezfJ-sOa5OIj-_Gc
 ```
 
@@ -46,6 +48,7 @@ These are automatically configured and don't need environment variables:
 
 - **NEXT_PUBLIC_*** variables: Exposed to browser (safe for production URLs)
 - **NEXT_INTERNAL_API_BASE_URL**: Used during build, must point to your backend API
+- **NEXT_PUBLIC_API_USE_PROXY**: Recommended for Netlify + HuggingFace so browser requests stay same-origin and cookies are not treated as third-party
 - **NEXT_PUBLIC_SITE_URL**: Used for canonical URLs and CORS, must match your domain
 - Only set variables that actually change per environment
 - Build settings are hardcoded to reduce configuration overhead
@@ -95,6 +98,7 @@ This occurs when hardcoded production URLs are detected in the code:
 
 ### CORS Errors in Production
 
+- Verify `NEXT_PUBLIC_API_USE_PROXY=true` is set when the backend lives on a different origin such as HuggingFace
 - Verify `NEXT_FRONTEND_ORIGIN` matches your deployed domain
 - Ensure Django backend has this domain in `ALLOWED_ORIGINS`
 - Check that backend's `NEXT_FRONTEND_ORIGIN` setting includes the Netlify domain

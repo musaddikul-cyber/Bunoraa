@@ -41,6 +41,7 @@ Add **only these required variables** (update URLs according to your HuggingFace
 ```
 NEXT_PUBLIC_API_BASE_URL = https://your-backend-space.hf.space/api/v1
 NEXT_INTERNAL_API_BASE_URL = https://your-backend-space.hf.space/api/v1
+NEXT_PUBLIC_API_USE_PROXY = true
 NEXT_PUBLIC_MEDIA_BASE_URL = https://your-backend-space.hf.space/media
 NEXT_PUBLIC_SITE_URL = https://bunoraa.netlify.app
 NEXT_PUBLIC_WS_BASE_URL = wss://your-backend-space.hf.space
@@ -51,6 +52,7 @@ NODE_VERSION = 20
 
 ```
 NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN = 99cd4569fd314a31bb530d46e16f26c9
+NEXT_PUBLIC_CLOUDFLARE_BEACON_ENABLED = true
 NEXT_PUBLIC_VAPID_PUBLIC_KEY = BFbhEXdK2Jp5YZijD8PwFvRrtgK87GbOQps12XCGyXhkE_4r-VTXdrH8VkxjV7gnrzQ6kYyezfJ-sOa5OIj-_Gc
 ```
 
@@ -112,6 +114,7 @@ NEXT_FRONTEND_ORIGIN = "https://bunoraa.netlify.app"
    - Clear cache and retry
 
 3. **"API requests failing"**
+   - Verify `NEXT_PUBLIC_API_USE_PROXY=true` when the frontend is on Netlify and the backend is on HuggingFace
    - Verify `NEXT_INTERNAL_API_BASE_URL` points to correct backend
    - Check backend CORS configuration
    - Test backend URL directly in browser

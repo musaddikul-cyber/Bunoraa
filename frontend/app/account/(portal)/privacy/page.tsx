@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getBrowserApiBaseUrl } from "@/lib/api";
 import { useExports } from "@/components/account/useExports";
 import type { AccountDeletionStatus } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
@@ -18,7 +18,7 @@ async function fetchDeletionStatus() {
 export default function PrivacyPage() {
   const queryClient = useQueryClient();
   const { exportsQuery, requestExport } = useExports();
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = getBrowserApiBaseUrl().replace(/\/$/, "");
   const deletionQuery = useQuery({
     queryKey: ["account", "deletion"],
     queryFn: fetchDeletionStatus,

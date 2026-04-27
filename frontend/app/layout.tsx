@@ -101,8 +101,13 @@ const disablePrerender =
 const cloudflareBeaconToken = (
   process.env.NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN || ""
 ).trim();
+const cloudflareBeaconEnabled =
+  process.env.NEXT_PUBLIC_CLOUDFLARE_BEACON_ENABLED === "true" ||
+  process.env.NEXT_PUBLIC_CLOUDFLARE_BEACON_ENABLED === "1";
 const shouldLoadCloudflareBeacon =
-  process.env.NODE_ENV === "production" && Boolean(cloudflareBeaconToken);
+  process.env.NODE_ENV === "production" &&
+  cloudflareBeaconEnabled &&
+  Boolean(cloudflareBeaconToken);
 
 const themeBootstrapScript = `
 (() => {

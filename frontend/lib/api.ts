@@ -20,9 +20,6 @@ type ApiFetchOptions = {
 
 const PUBLIC_API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
 const INTERNAL_API_BASE_URL = (process.env.NEXT_INTERNAL_API_BASE_URL || "").replace(/\/$/, "");
-const PUBLIC_API_USE_PROXY = (process.env.NEXT_PUBLIC_API_USE_PROXY || "").trim().toLowerCase();
-const SHOULD_USE_API_PROXY =
-  PUBLIC_API_USE_PROXY === "true" || PUBLIC_API_USE_PROXY === "1";
 const FALLBACK_SITE_URL =
   (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || "http://localhost:3000";
 const DISABLE_BUILD_PRERENDER =
@@ -47,32 +44,71 @@ function toPathBase(urlString: string) {
   }
 }
 
+function parseProxyMode(value: string): boolean | null {
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return null;
+}
+
+function shouldProxyPublicApi(currentOrigin?: string) {
+  if (!PUBLIC_API_BASE_URL || PUBLIC_API_BASE_URL.startsWith("/")) return false;
+
+  const proxyMode = parseProxyMode(process.env.NEXT_PUBLIC_API_USE_PROXY || "");
+  if (proxyMode !== null) {
+    return proxyMode;
+  }
+
+  if (!currentOrigin) return false;
+
+  try {
+    return new URL(PUBLIC_API_BASE_URL).origin !== currentOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function getClientApiBaseUrl(currentOrigin?: string) {
+  if (!PUBLIC_API_BASE_URL) return "";
+  if (PUBLIC_API_BASE_URL.startsWith("/")) return PUBLIC_API_BASE_URL;
+  if (shouldProxyPublicApi(currentOrigin)) {
+    return toPathBase(PUBLIC_API_BASE_URL);
+  }
+  return PUBLIC_API_BASE_URL;
+}
+
 function getApiBaseUrl() {
   if (typeof window === "undefined") {
     return INTERNAL_API_BASE_URL || PUBLIC_API_BASE_URL;
   }
-  if (!PUBLIC_API_BASE_URL) return "";
-  if (PUBLIC_API_BASE_URL.startsWith("/")) return PUBLIC_API_BASE_URL;
+  return getClientApiBaseUrl(window.location.origin);
+}
 
-  const proxyMode = (process.env.NEXT_PUBLIC_API_USE_PROXY || "").trim().toLowerCase();
-  if (proxyMode === "true" || proxyMode === "1") {
-    return toPathBase(PUBLIC_API_BASE_URL);
-  }
-  if (proxyMode === "false" || proxyMode === "0") {
+export function getBrowserApiBaseUrl() {
+  if (typeof window === "undefined") {
     return PUBLIC_API_BASE_URL;
+  }
+  return getClientApiBaseUrl(window.location.origin);
+}
+
+export function getBrowserApiOrigin() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  if (!PUBLIC_API_BASE_URL || PUBLIC_API_BASE_URL.startsWith("/")) {
+    return window.location.origin;
+  }
+
+  if (shouldProxyPublicApi(window.location.origin)) {
+    return window.location.origin;
   }
 
   try {
-    const apiOrigin = new URL(PUBLIC_API_BASE_URL).origin;
-    if (apiOrigin !== window.location.origin && SHOULD_USE_API_PROXY) {
-      // Prefer the Next.js same-origin API rewrite only when proxying is explicitly enabled.
-      return toPathBase(PUBLIC_API_BASE_URL);
-    }
+    return new URL(PUBLIC_API_BASE_URL).origin;
   } catch {
-    // Fall back to the configured public base.
+    return window.location.origin;
   }
-
-  return PUBLIC_API_BASE_URL;
 }
 
 function buildUrl(path: string, params?: ApiFetchOptions["params"]) {

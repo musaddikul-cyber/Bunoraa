@@ -13,6 +13,7 @@ import { FooterPreferencesDialog } from "@/components/layout/FooterPreferencesDi
 import { asArray } from "@/lib/array";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { hasPublishedBundles } from "@/lib/bundles";
+import { getSiteSettings } from "@/lib/siteSettings";
 
 const FOOTER_CATEGORY_LIMIT = 5;
 
@@ -35,17 +36,6 @@ async function getPublishedPages() {
     return asArray<MenuPage>(response.data);
   } catch {
     return [];
-  }
-}
-
-async function getSiteSettings() {
-  try {
-    const response = await apiFetch<SiteSettings>("/pages/settings/", {
-      next: { revalidate: 600 },
-    });
-    return response.data;
-  } catch {
-    return null;
   }
 }
 
@@ -809,4 +799,3 @@ export async function Footer() {
     </footer>
   );
 }
-

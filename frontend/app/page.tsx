@@ -6,14 +6,13 @@ import { apiFetch } from "@/lib/api";
 import type {
   Collection,
   ProductListItem,
-  SiteSettings,
 } from "@/lib/types";
-import { getServerLocaleHeaders } from "@/lib/serverLocale";
 import { asArray } from "@/lib/array";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { absoluteUrl, buildItemList, buildPageMetadata, cleanObject } from "@/lib/seo";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { buildProductPath } from "@/lib/productPaths";
+import { getSiteSettings } from "@/lib/siteSettings";
 
 const ProductGrid = dynamic(
   () => import("@/components/products/ProductGrid").then((mod) => mod.ProductGrid)
@@ -100,10 +99,9 @@ const getImage = (product: ProductListItem | null | undefined) => {
 };
 
 
-async function getHomepageData(headers: Record<string, string>) {
+async function getHomepageData() {
   try {
     const response = await apiFetch<HomepageData>("/catalog/homepage/", {
-      headers,
       next: { revalidate },
     });
     const payload =
@@ -130,23 +128,9 @@ async function getHomepageData(headers: Record<string, string>) {
   }
 }
 
-async function getSiteSettings(headers: Record<string, string>) {
-  try {
-    const response = await apiFetch<SiteSettings>("/pages/settings/", {
-      headers,
-      next: { revalidate },
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Failed to fetch site settings:", error instanceof Error ? error.message : error);
-    return null;
-  }
-}
-
-async function getBanners(headers: Record<string, string>, position?: string) {
+async function getBanners(position?: string) {
   try {
     const response = await apiFetch<Banner[]>("/promotions/banners/", {
-      headers,
       params: position ? { position } : undefined,
       next: { revalidate },
     });
@@ -157,12 +141,11 @@ async function getBanners(headers: Record<string, string>, position?: string) {
   }
 }
 
-async function getCategoryProducts(headers: Record<string, string>, slug: string) {
+async function getCategoryProducts(slug: string) {
   try {
     const response = await apiFetch<
       ProductListItem[] | { results?: ProductListItem[] }
     >("/catalog/products/by-category/", {
-      headers,
       params: {
         category: slug,
         page_size: 8,
@@ -180,15 +163,14 @@ async function getCategoryProducts(headers: Record<string, string>, slug: string
 }
 
 export default async function Home() {
-  const localeHeaders = await getServerLocaleHeaders();
   const [
     homepageData,
     heroBanners,
     siteSettings,
   ] = await Promise.all([
-    getHomepageData(localeHeaders),
-    getBanners(localeHeaders, "home_hero"),
-    getSiteSettings(localeHeaders),
+    getHomepageData(),
+    getBanners("home_hero"),
+    getSiteSettings(),
   ]);
 
   const featuredProducts = asArray<ProductListItem>(homepageData.featured_products);
@@ -231,7 +213,7 @@ export default async function Home() {
   );
   const homepageCategories = featuredCategories.slice(0, 3);
   const categoryProducts = await Promise.all(
-    homepageCategories.map((category) => getCategoryProducts(localeHeaders, category.slug))
+    homepageCategories.map((category) => getCategoryProducts(category.slug))
   );
   const categoryBands = homepageCategories.map((category, index) => ({
     category,
@@ -304,7 +286,7 @@ export default async function Home() {
       <section>
         <div className={`${sectionWrapperClass} pb-6`}>
           {heroBanners.length ? (
-            <HeroBannerSlider banners={heroBanners} className="mx-auto" />
+            <HeroBannerSlider banners={heroBanners} className="mx-auto" autoAdvance={false} />
           ) : (
             <div className="aspect-[16/7] w-full bg-muted" />
           )}

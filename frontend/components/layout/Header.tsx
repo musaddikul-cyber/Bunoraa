@@ -9,6 +9,7 @@ import { MobileHeaderVisibility } from "@/components/layout/MobileHeaderVisibili
 import { asArray } from "@/lib/array";
 import { buildCategoryPath } from "@/lib/categoryPaths";
 import { hasPublishedBundles } from "@/lib/bundles";
+import { getSiteSettings } from "@/lib/siteSettings";
 
 type Category = { id: string; name: string; slug: string };
 
@@ -36,10 +37,12 @@ async function getTopCategories() {
 }
 
 export async function Header() {
-  const [menuResult, categoryResult, bundleAvailabilityResult] = await Promise.allSettled([
+  const [menuResult, categoryResult, bundleAvailabilityResult, siteSettingsResult] =
+    await Promise.allSettled([
     getMenuPages(),
     getTopCategories(),
     hasPublishedBundles(),
+    getSiteSettings(),
   ]);
   const menuPages = menuResult.status === "fulfilled" ? menuResult.value : [];
   const categories = categoryResult.status === "fulfilled" ? categoryResult.value : [];
@@ -47,6 +50,9 @@ export async function Header() {
     bundleAvailabilityResult.status === "fulfilled"
       ? bundleAvailabilityResult.value
       : false;
+  const siteSettings = siteSettingsResult.status === "fulfilled" ? siteSettingsResult.value : null;
+  const brandName = siteSettings?.site_name?.trim() || "Bunoraa";
+  const faviconUrl = siteSettings?.favicon?.trim() || "/icon.png";
 
   return (
     <MobileHeaderVisibility>
@@ -59,8 +65,8 @@ export async function Header() {
               hasBundles={hasBundles}
             />
             <HeaderBrand
-              defaultBrandName="Bunoraa"
-              defaultFaviconUrl="/icon.png"
+              defaultBrandName={brandName}
+              defaultFaviconUrl={faviconUrl}
               fallbackStaticFaviconUrl="/favicon.ico"
             />
             <nav className="hidden items-center gap-4 text-sm lg:flex">

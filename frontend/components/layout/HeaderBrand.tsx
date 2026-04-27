@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { apiFetch } from "@/lib/api";
-import type { SiteSettings } from "@/lib/types";
 
 const SCROLL_SWAP_OFFSET = 24;
 const DESKTOP_BREAKPOINT_QUERY = "(min-width: 1024px)";
@@ -28,59 +26,18 @@ export function HeaderBrand({
   defaultFaviconUrl,
   fallbackStaticFaviconUrl,
 }: HeaderBrandProps) {
-  const staticBrandName = pickText(defaultBrandName);
+  const brandName = pickText(defaultBrandName) || "Bunoraa";
   const staticFaviconUrl = pickText(defaultFaviconUrl);
   const staticFallbackFaviconUrl = pickText(fallbackStaticFaviconUrl);
-  const hasStaticBrandName = Boolean(staticBrandName);
-  const hasAnyStaticFavicon = Boolean(staticFaviconUrl || staticFallbackFaviconUrl);
 
   const [isDesktop, setIsDesktop] = React.useState(false);
   const [isScrolled, setIsScrolled] = React.useState(false);
-  const [brandName, setBrandName] = React.useState(staticBrandName || "Bunoraa");
   const [faviconUrl, setFaviconUrl] = React.useState(
     staticFaviconUrl || staticFallbackFaviconUrl
   );
-  const [settingsFaviconUrl, setSettingsFaviconUrl] = React.useState("");
-  const [usingSettingsFavicon, setUsingSettingsFavicon] = React.useState(!hasAnyStaticFavicon);
-  const [triedStaticFallback, setTriedStaticFallback] = React.useState(
-    !staticFaviconUrl || !staticFallbackFaviconUrl
+  const [isUsingFallback, setIsUsingFallback] = React.useState(
+    !staticFaviconUrl && Boolean(staticFallbackFaviconUrl)
   );
-  const [staticFaviconFailed, setStaticFaviconFailed] = React.useState(false);
-
-  React.useEffect(() => {
-    let active = true;
-
-    const loadSiteSettings = async () => {
-      try {
-        const response = await apiFetch<SiteSettings>("/pages/settings/");
-        if (!active || !response?.data) return;
-
-        const nextBrandName = pickText(response.data.site_name);
-        const nextFavicon = pickText(response.data.favicon);
-
-        if (!hasStaticBrandName && nextBrandName) {
-          setBrandName(nextBrandName);
-        }
-
-        if (nextFavicon) {
-          setSettingsFaviconUrl(nextFavicon);
-        }
-
-        if (nextFavicon && (!hasAnyStaticFavicon || staticFaviconFailed)) {
-          setFaviconUrl(nextFavicon);
-          setUsingSettingsFavicon(true);
-        }
-      } catch {
-        // Keep static defaults on API failure.
-      }
-    };
-
-    void loadSiteSettings();
-
-    return () => {
-      active = false;
-    };
-  }, [hasAnyStaticFavicon, hasStaticBrandName, staticFaviconFailed]);
 
   React.useEffect(() => {
     const media = window.matchMedia(DESKTOP_BREAKPOINT_QUERY);
@@ -108,19 +65,10 @@ export function HeaderBrand({
   const showFavicon = isDesktop && isScrolled && Boolean(faviconUrl);
 
   const handleFaviconError = () => {
-    if (!usingSettingsFavicon) {
-      if (!triedStaticFallback && staticFallbackFaviconUrl) {
-        setTriedStaticFallback(true);
-        setFaviconUrl(staticFallbackFaviconUrl);
-        return;
-      }
-
-      setStaticFaviconFailed(true);
-      if (settingsFaviconUrl) {
-        setFaviconUrl(settingsFaviconUrl);
-        setUsingSettingsFavicon(true);
-        return;
-      }
+    if (!isUsingFallback && staticFallbackFaviconUrl) {
+      setFaviconUrl(staticFallbackFaviconUrl);
+      setIsUsingFallback(true);
+      return;
     }
     setFaviconUrl("");
   };

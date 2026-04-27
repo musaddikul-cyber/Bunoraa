@@ -58,10 +58,12 @@ export function HeroBannerSlider({
   banners,
   className,
   intervalMs = 6000,
+  autoAdvance = false,
 }: {
   banners: HeroBanner[];
   className?: string;
   intervalMs?: number;
+  autoAdvance?: boolean;
 }) {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [loadedSlides, setLoadedSlides] = React.useState<Set<number>>(
@@ -71,12 +73,12 @@ export function HeroBannerSlider({
   const defaultHeight = "calc(100dvh - var(--header-offset, 5.5rem))";
 
   React.useEffect(() => {
-    if (total <= 1) return;
+    if (!autoAdvance || total <= 1) return;
     const timer = window.setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % total);
     }, intervalMs);
     return () => window.clearInterval(timer);
-  }, [intervalMs, total]);
+  }, [autoAdvance, intervalMs, total]);
 
   React.useEffect(() => {
     if (activeIndex >= total) {
@@ -184,8 +186,9 @@ export function HeroBannerSlider({
                   alt={banner.title}
                   fill
                   sizes="100vw"
-                  quality={72}
+                  quality={index === 0 ? 60 : 64}
                   priority={index === 0}
+                  fetchPriority={index === 0 ? "high" : "low"}
                   loading={index === 0 ? "eager" : "lazy"}
                   decoding={index === 0 ? "sync" : "async"}
                   className="object-cover"

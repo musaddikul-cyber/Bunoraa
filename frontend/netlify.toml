@@ -1,21 +1,10 @@
 # Netlify configuration for Bunoraa frontend
 
 [build]
-  # Build directory relative to the root of your repository
   base = "frontend"
-  # Build command
   command = "npm run build"
-  # Directory that contains the built site files to be deployed
   publish = ".next"
 
-# Configure secrets scanning to ignore specific environment variables
-# These are intentionally public or configured via Netlify environment variables
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-# API proxy configuration for local development
 [dev]
   command = "npm run dev"
   port = 3000

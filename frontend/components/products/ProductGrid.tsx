@@ -20,6 +20,8 @@ export function ProductGrid({
   view = "grid",
   cardVariant,
   cardStyle = "default",
+  allowQuickView = true,
+  showWishlist = true,
   isLoading = false,
   emptyMessage = "We could not find any products matching your current filters.",
 }: {
@@ -27,11 +29,12 @@ export function ProductGrid({
   view?: "grid" | "list";
   cardVariant?: ProductCardVariantName;
   cardStyle?: "default" | "minimal";
+  allowQuickView?: boolean;
+  showWishlist?: boolean;
   isLoading?: boolean;
   emptyMessage?: string;
 }) {
   const [quickViewSlug, setQuickViewSlug] = React.useState<string | null>(null);
-  const allowQuickView = true;
   const showQuickViewButton = cardStyle !== "minimal";
 
   if (isLoading) {
@@ -81,6 +84,7 @@ export function ProductGrid({
               key={product.id}
               product={product}
               variant={cardStyle === "minimal" ? "minimal" : view === "list" ? "list" : "grid"}
+              showWishlist={showWishlist}
               showQuickView={showQuickViewButton}
               onQuickView={allowQuickView ? setQuickViewSlug : undefined}
             />

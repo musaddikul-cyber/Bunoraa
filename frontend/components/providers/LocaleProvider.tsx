@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/lib/api";
 import { getStoredLocale, setStoredLocale, type LocaleState } from "@/lib/locale";
+import { AUTH_EVENT_NAME, getAccessToken } from "@/lib/auth";
 
 type LocaleApiPayload = Record<string, unknown>;
 
@@ -98,7 +99,24 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [, startTransition] = React.useTransition();
   const [locale, setLocaleState] = React.useState<LocaleState>({});
+  const [hasAuthToken, setHasAuthToken] = React.useState(false);
   const [shouldFetchPreferences, setShouldFetchPreferences] = React.useState(false);
+
+  React.useEffect(() => {
+    const syncAuthState = () => {
+      setHasAuthToken(Boolean(getAccessToken()));
+    };
+
+    syncAuthState();
+    if (typeof window === "undefined") return;
+
+    window.addEventListener(AUTH_EVENT_NAME, syncAuthState);
+    window.addEventListener("storage", syncAuthState);
+    return () => {
+      window.removeEventListener(AUTH_EVENT_NAME, syncAuthState);
+      window.removeEventListener("storage", syncAuthState);
+    };
+  }, []);
 
   React.useEffect(() => {
     const stored = getStoredLocale();
@@ -111,6 +129,10 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   React.useEffect(() => {
+    if (!hasAuthToken) {
+      setShouldFetchPreferences(false);
+      return;
+    }
     if (typeof window === "undefined") return;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let idleId: number | null = null;
@@ -135,12 +157,12 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(timeoutId);
       }
     };
-  }, []);
+  }, [hasAuthToken]);
 
   const prefsQuery = useQuery({
     queryKey: ["locale", "preferences"],
     queryFn: fetchPreferences,
-    enabled: shouldFetchPreferences,
+    enabled: hasAuthToken && shouldFetchPreferences,
     staleTime: 12 * 60 * 60 * 1000,
     gcTime: 12 * 60 * 60 * 1000,
     refetchOnWindowFocus: false,

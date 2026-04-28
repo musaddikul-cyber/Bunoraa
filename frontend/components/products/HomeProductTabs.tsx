@@ -8,9 +8,13 @@ import { cn } from "@/lib/utils";
 export function HomeProductTabs({
   newDrops,
   trending,
+  allowQuickView = true,
+  showWishlist = true,
 }: {
   newDrops: ProductListItem[];
   trending: ProductListItem[];
+  allowQuickView?: boolean;
+  showWishlist?: boolean;
 }) {
   const [active, setActive] = React.useState<"new" | "trending">("new");
   const hasNew = newDrops.length > 0;
@@ -60,8 +64,22 @@ export function HomeProductTabs({
           </button>
         ) : null}
       </div>
-      {showNew ? <ProductGrid products={newDrops} cardStyle="minimal" /> : null}
-      {showTrending ? <ProductGrid products={trending} cardStyle="minimal" /> : null}
+      {showNew ? (
+        <ProductGrid
+          products={newDrops}
+          cardStyle="minimal"
+          allowQuickView={allowQuickView}
+          showWishlist={showWishlist}
+        />
+      ) : null}
+      {showTrending ? (
+        <ProductGrid
+          products={trending}
+          cardStyle="minimal"
+          allowQuickView={allowQuickView}
+          showWishlist={showWishlist}
+        />
+      ) : null}
     </div>
   );
 }

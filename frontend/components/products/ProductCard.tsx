@@ -31,14 +31,106 @@ function parseAspectRatio(value?: string | null) {
   return width / height;
 }
 
-export function ProductCard({
+function MinimalProductCard({
+  product,
+  showWishlist = true,
+  showQuickView,
+  onQuickView,
+}: {
+  product: ProductListItem;
+  showWishlist?: boolean;
+  showQuickView?: boolean;
+  onQuickView?: (slug: string) => void;
+}) {
+  const image =
+    typeof product.primary_image === "string"
+      ? product.primary_image
+      : (product.primary_image as unknown as { image?: string | null })?.image || null;
+  const productHref = buildProductPath(product);
+
+  const canQuickView = typeof onQuickView === "function";
+  const aspectRatioValue = parseAspectRatio(product.aspect_ratio);
+  const gridImageSizes =
+    "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw";
+  return (
+    <div className="group">
+      <div
+        className="relative overflow-hidden bg-muted"
+        style={{ aspectRatio: aspectRatioValue }}
+      >
+        {showWishlist ? (
+          <WishlistIconButton
+            productId={product.id}
+            variant="ghost"
+            size="lg"
+            color="fixed-black"
+            className="absolute right-0 top-0 z-40 opacity-100 scale-75 transition sm:scale-100 sm:right-2 sm:top-2"
+          />
+        ) : null}
+        {canQuickView ? (
+          <button
+            type="button"
+            className="absolute inset-0 z-10"
+            onClick={() => onQuickView?.(product.slug)}
+            aria-label={`Quick view ${product.name}`}
+          >
+            <span className="sr-only">Quick view</span>
+          </button>
+        ) : (
+          <Link
+            href={productHref}
+            prefetch={false}
+            className="absolute inset-0 z-10"
+            aria-label={`View ${product.name}`}
+          />
+        )}
+        {image ? (
+          <Image
+            src={image}
+            alt={product.name}
+            fill
+            sizes={gridImageSizes}
+            quality={72}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+          />
+        ) : null}
+      </div>
+      <div className="mt-3 space-y-1">
+        {!product.is_in_stock ? (
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/70">
+            Sold Out
+          </p>
+        ) : null}
+        <Link
+          href={productHref}
+          prefetch={false}
+          className="block text-sm font-normal leading-snug text-foreground"
+        >
+          {product.name}
+        </Link>
+        <ProductPrice
+          price={product.price}
+          salePrice={product.sale_price}
+          currentPrice={product.current_price}
+          currency={product.currency}
+          className="text-foreground"
+          priceClassName="text-[14px] font-medium sm:text-[16px]"
+        />
+      </div>
+    </div>
+  );
+}
+
+function InteractiveProductCard({
   product,
   variant = "grid",
   showQuickView,
   onQuickView,
 }: {
   product: ProductListItem;
-  variant?: "grid" | "list" | "minimal";
+  variant?: "grid" | "list";
   showQuickView?: boolean;
   onQuickView?: (slug: string) => void;
 }) {
@@ -54,76 +146,6 @@ export function ProductCard({
   const gridImageSizes =
     "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw";
   const listImageSizes = "(max-width: 640px) 100vw, 224px";
-
-  if (variant === "minimal") {
-    return (
-      <div className="group">
-        <div
-          className="relative overflow-hidden bg-muted"
-          style={{ aspectRatio: aspectRatioValue }}
-        >
-          <WishlistIconButton
-            productId={product.id}
-            variant="ghost"
-            size="lg"
-            color="fixed-black"
-            className="absolute right-0 top-0 z-40 opacity-100 scale-75 transition sm:scale-100 sm:right-2 sm:top-2"
-          />
-          {canQuickView ? (
-            <button
-              type="button"
-              className="absolute inset-0 z-10"
-              onClick={() => onQuickView?.(product.slug)}
-              aria-label={`Quick view ${product.name}`}
-            >
-              <span className="sr-only">Quick view</span>
-            </button>
-          ) : (
-            <Link
-              href={productHref}
-              prefetch={false}
-              className="absolute inset-0 z-10"
-              aria-label={`View ${product.name}`}
-            />
-          )}
-          {image ? (
-            <Image
-              src={image}
-              alt={product.name}
-              fill
-              sizes={gridImageSizes}
-              quality={72}
-              loading="lazy"
-              decoding="async"
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-            />
-          ) : null}
-        </div>
-        <div className="mt-3 space-y-1">
-          {!product.is_in_stock ? (
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground/70">
-              Sold Out
-            </p>
-          ) : null}
-          <Link
-            href={productHref}
-            prefetch={false}
-            className="block text-sm font-normal leading-snug text-foreground"
-          >
-            {product.name}
-          </Link>
-          <ProductPrice
-            price={product.price}
-            salePrice={product.sale_price}
-            currentPrice={product.current_price}
-            currency={product.currency}
-            className="text-foreground"
-            priceClassName="text-[14px] font-medium sm:text-[16px]"
-          />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <Card
@@ -238,5 +260,39 @@ export function ProductCard({
         </div>
       </div>
     </Card>
+  );
+}
+
+export function ProductCard({
+  product,
+  variant = "grid",
+  showWishlist = true,
+  showQuickView,
+  onQuickView,
+}: {
+  product: ProductListItem;
+  variant?: "grid" | "list" | "minimal";
+  showWishlist?: boolean;
+  showQuickView?: boolean;
+  onQuickView?: (slug: string) => void;
+}) {
+  if (variant === "minimal") {
+    return (
+      <MinimalProductCard
+        product={product}
+        showWishlist={showWishlist}
+        showQuickView={showQuickView}
+        onQuickView={onQuickView}
+      />
+    );
+  }
+
+  return (
+    <InteractiveProductCard
+      product={product}
+      variant={variant}
+      showQuickView={showQuickView}
+      onQuickView={onQuickView}
+    />
   );
 }

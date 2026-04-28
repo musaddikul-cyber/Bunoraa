@@ -377,7 +377,12 @@ export default async function Home() {
             </Link>
           </div>
           <div className="mt-4">
-            <ProductGrid products={band.products} cardStyle="minimal" />
+            <ProductGrid
+              products={band.products}
+              cardStyle="minimal"
+              allowQuickView={false}
+              showWishlist={false}
+            />
           </div>
         </section>
       ))}
@@ -388,13 +393,23 @@ export default async function Home() {
             Seasonal Favs
           </h2>
           <div className="mt-4">
-            <ProductGrid products={seasonalFavs} cardStyle="minimal" />
+            <ProductGrid
+              products={seasonalFavs}
+              cardStyle="minimal"
+              allowQuickView={false}
+              showWishlist={false}
+            />
           </div>
         </section>
       ) : null}
 
       <section className={`${sectionWrapperClass} py-8`}>
-        <HomeProductTabs newDrops={filteredNewArrivals} trending={filteredBestsellers} />
+        <HomeProductTabs
+          newDrops={filteredNewArrivals}
+          trending={filteredBestsellers}
+          allowQuickView={false}
+          showWishlist={false}
+        />
       </section>
 
       <section className={`${sectionWrapperClass} py-8`}>

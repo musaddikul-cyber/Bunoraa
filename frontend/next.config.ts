@@ -83,7 +83,7 @@ const nextConfig: NextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     // Cache optimized images for longer period
     minimumCacheTTL: 60,
-    qualities: [72, 75],
+    qualities: [60, 64, 72, 75],
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },

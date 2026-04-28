@@ -2,7 +2,7 @@
 Pages app tests
 """
 import uuid
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -76,6 +76,20 @@ class SiteSettingsModelTest(TestCase):
         """Test settings are created with defaults."""
         settings = SiteSettings.get_settings()
         self.assertIsNotNone(settings.site_name)
+
+    @override_settings(CHECKOUT_GUEST_CHECKOUT_ENABLED=True)
+    def test_guest_checkout_uses_core_setting_by_default(self):
+        settings = SiteSettings.get_settings()
+        self.assertTrue(settings.guest_checkout_enabled)
+
+    @override_settings(CHECKOUT_GUEST_CHECKOUT_ENABLED=True)
+    def test_guest_checkout_override_takes_precedence(self):
+        settings = SiteSettings.get_settings()
+        settings.guest_checkout_enabled_override = False
+        settings.save(update_fields=['guest_checkout_enabled_override'])
+
+        refreshed = SiteSettings.get_settings()
+        self.assertFalse(refreshed.guest_checkout_enabled)
 
 
 class ContactMessageModelTest(TestCase):

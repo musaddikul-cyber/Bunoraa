@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { useAuthContext } from "@/components/providers/AuthProvider";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -11,16 +12,22 @@ import { apiFetch } from "@/lib/api";
 import { formatAddressLine } from "@/lib/address";
 import type { OrderDetail } from "@/lib/types";
 
-async function fetchOrder(orderId: string) {
-  const response = await apiFetch<OrderDetail>(`/orders/${orderId}/`);
+async function fetchOrder(orderId: string, accessToken?: string | null) {
+  const response = await apiFetch<OrderDetail>(`/orders/${orderId}/`, {
+    allowGuest: Boolean(accessToken),
+    params: accessToken ? { access_token: accessToken } : undefined,
+  });
   return response.data;
 }
 
 export default function CheckoutSuccessPage() {
+  const { hasToken } = useAuthContext();
   const searchParams = useSearchParams();
   const { push } = useToast();
   const orderId = searchParams.get("order_id");
   const orderNumber = searchParams.get("order_number");
+  const accessToken = searchParams.get("access_token");
+  const allowGuest = Boolean(accessToken);
 
   const handleCopyOrderNumber = React.useCallback(
     async (value?: string | null) => {
@@ -36,13 +43,13 @@ export default function CheckoutSuccessPage() {
   );
 
   const orderQuery = useQuery({
-    queryKey: ["orders", orderId],
-    queryFn: () => fetchOrder(orderId as string),
-    enabled: Boolean(orderId),
+    queryKey: ["orders", orderId, accessToken || ""],
+    queryFn: () => fetchOrder(orderId as string, accessToken),
+    enabled: Boolean(orderId && (hasToken || accessToken)),
   });
 
   return (
-    <AuthGate nextHref="/checkout">
+    <AuthGate nextHref="/checkout" allowGuest={allowGuest}>
       <div className="min-h-screen bg-background text-foreground">
         <div className="mx-auto w-full max-w-4xl px-3 sm:px-5 py-16">
           <Card variant="bordered" className="space-y-6">
@@ -131,9 +138,19 @@ export default function CheckoutSuccessPage() {
             )}
 
             <div className="flex flex-wrap gap-3">
-              <Button asChild>
-                <Link href="/orders/">View orders</Link>
-              </Button>
+              {orderId ? (
+                <Button asChild>
+                  <Link
+                    href={
+                      accessToken
+                        ? `/orders/${orderId}/?access_token=${encodeURIComponent(accessToken)}`
+                        : "/orders/"
+                    }
+                  >
+                    {accessToken ? "View order details" : "View orders"}
+                  </Link>
+                </Button>
+              ) : null}
               <Button asChild variant="secondary">
                 <Link href="/">Continue shopping</Link>
               </Button>

@@ -212,14 +212,14 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
       {showSuggestions ? (
         <div
           id={listboxId}
-          className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[600px] w-full overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-lg"
+          className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[600px] overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-lg sm:left-1/2 sm:right-auto sm:w-[min(100vw-2rem,56rem)] sm:-translate-x-1/2 xl:w-[min(100vw-3rem,72rem)]"
           role="listbox"
           aria-label="Search suggestions"
         >
           <div className="mb-4 flex items-center justify-between text-xs text-foreground/60">
             <p className="uppercase tracking-[0.18em]">Live results</p>
             <p>
-              {productSuggestions.length} products • {categorySuggestions.length} categories
+              {productSuggestions.length} products | {categorySuggestions.length} categories
             </p>
           </div>
 
@@ -267,7 +267,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
                             {hasRating && item.average_rating && (
                               <div className="flex items-center gap-1">
                                 <span className="text-xs font-medium text-foreground/70">
-                                  ★ {item.average_rating.toFixed(1)}
+                                  * {item.average_rating.toFixed(1)}
                                 </span>
                                 {item.reviews_count && (
                                   <span className="text-xs text-foreground/60">

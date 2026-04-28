@@ -98,7 +98,7 @@ class SiteSettingsAdmin(ImportExportEnhancedModelAdmin):
         }),
         ('E-commerce', {
             'fields': (
-                'currency', 'tax_rate'
+                'currency', 'tax_rate', 'guest_checkout_enabled_override'
             )
         }),
         ('Footer', {

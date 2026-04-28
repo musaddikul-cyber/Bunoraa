@@ -342,6 +342,13 @@ DEFAULT_PHONE_REGION = 'BD'
 # Address limits
 MAX_ADDRESSES_PER_USER = int(os.environ.get('MAX_ADDRESSES_PER_USER', 4))
 
+# Checkout defaults
+CHECKOUT_GUEST_CHECKOUT_ENABLED = _env_bool('CHECKOUT_GUEST_CHECKOUT_ENABLED', True)
+GUEST_ORDER_ACCESS_TOKEN_MAX_AGE_SECONDS = _env_int(
+    'GUEST_ORDER_ACCESS_TOKEN_MAX_AGE_SECONDS',
+    60 * 60 * 24 * 30,
+)
+
 # Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -519,6 +526,9 @@ REST_FRAMEWORK = {
         'notifications_deliveries': '120/hour',
         'notifications_templates': '120/hour',
         'notifications_health': '60/hour',
+        'orders': '240/hour',
+        'admin-orders': '240/hour',
+        'guest-order-access': '60/hour',
         'reviews': '240/hour',
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema', # Added for drf-spectacular

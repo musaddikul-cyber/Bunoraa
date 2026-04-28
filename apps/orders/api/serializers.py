@@ -134,3 +134,10 @@ class AddTrackingSerializer(serializers.Serializer):
     """Serializer for adding tracking information."""
     tracking_number = serializers.CharField(max_length=100)
     tracking_url = serializers.URLField(required=False, allow_blank=True)
+
+
+class GuestOrderLookupSerializer(serializers.Serializer):
+    """Serializer for guest order lookup."""
+
+    order_number = serializers.CharField(max_length=50)
+    email = serializers.EmailField()

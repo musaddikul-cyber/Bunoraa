@@ -124,6 +124,7 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
     currency = serializers.CharField(source='currency_id', read_only=True)
     currency_symbol = serializers.SerializerMethodField()
     social_links = serializers.SerializerMethodField()
+    guest_checkout_enabled = serializers.BooleanField(read_only=True)
     
     class Meta:
         model = SiteSettings
@@ -143,6 +144,7 @@ class SiteSettingsSerializer(serializers.ModelSerializer):
             'address',
             'currency',
             'currency_symbol',
+            'guest_checkout_enabled',
             'facebook_url',
             'instagram_url',
             'twitter_url',

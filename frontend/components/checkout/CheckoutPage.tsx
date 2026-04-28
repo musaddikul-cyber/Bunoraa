@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AuthGate } from "@/components/auth/AuthGate";
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ApiError } from "@/lib/api";
+import { fetchSiteSettings } from "@/lib/siteSettings";
 import type { CheckoutValidation, ShippingMethodOption } from "@/lib/types";
 
 const stepOrder = ["information", "shipping", "payment", "review"] as const;
@@ -34,6 +36,14 @@ export function CheckoutPage() {
   const { push } = useToast();
   const auth = useAuthContext();
   const { profileQuery, hasToken } = auth;
+  const guestSettingsQuery = useQuery({
+    queryKey: ["site-settings", "checkout"],
+    queryFn: fetchSiteSettings,
+    enabled: !hasToken,
+    staleTime: 60_000,
+  });
+  const guestCheckoutEnabled = Boolean(guestSettingsQuery.data?.guest_checkout_enabled);
+  const allowGuestCheckout = hasToken || guestCheckoutEnabled;
   const { addressesQuery } = useAddresses({ enabled: hasToken });
 
   const {
@@ -53,7 +63,10 @@ export function CheckoutPage() {
     updateGiftOptions,
     applyCoupon,
     removeCoupon,
-  } = useCheckoutData({ enabled: hasToken });
+  } = useCheckoutData({
+    enabled: allowGuestCheckout,
+    enablePaymentMethods: hasToken,
+  });
 
   const checkoutSession = checkoutQuery.data;
   const cart = cartQuery.data;
@@ -102,6 +115,8 @@ export function CheckoutPage() {
     completeCheckout.isPending || completeCheckout.isSuccess || isRedirectingAfterOrder;
   const isLoading =
     checkoutQuery.isLoading || cartQuery.isLoading || cartSummaryQuery.isLoading;
+  const guestPolicyPending = !hasToken && guestSettingsQuery.isLoading;
+  const guestPolicyError = !hasToken && guestSettingsQuery.isError;
 
   const infoComplete = Boolean(
     checkoutSession?.email &&
@@ -506,9 +521,37 @@ export function CheckoutPage() {
     }
   };
 
+  if (guestPolicyPending) {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-3 sm:px-5 py-16">
+        <Card variant="bordered" className="space-y-4">
+          <div className="h-6 w-48 rounded bg-muted animate-pulse" />
+          <div className="h-4 w-full rounded bg-muted animate-pulse" />
+          <div className="h-10 w-full rounded bg-muted animate-pulse" />
+        </Card>
+      </div>
+    );
+  }
+
+  if (guestPolicyError) {
+    return (
+      <div className="mx-auto w-full max-w-5xl px-3 sm:px-5 py-16">
+        <Card variant="bordered" className="space-y-3 text-center">
+          <h1 className="text-2xl font-semibold">Checkout unavailable</h1>
+          <p className="text-sm text-foreground/60">
+            We couldn&apos;t verify checkout access right now. Please try again.
+          </p>
+          <Button asChild>
+            <Link href="/cart/">Back to bag</Link>
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   if (isOrderTransitioning) {
     return (
-      <AuthGate nextHref="/checkout">
+      <AuthGate nextHref="/checkout" allowGuest={guestCheckoutEnabled}>
         <div className="mx-auto w-full max-w-5xl px-3 sm:px-5 py-16">
           <Card variant="bordered" className="space-y-3 text-center">
             <h1 className="text-2xl font-semibold">Processing your order</h1>
@@ -523,7 +566,7 @@ export function CheckoutPage() {
 
   if (isLoading) {
     return (
-      <AuthGate nextHref="/checkout">
+      <AuthGate nextHref="/checkout" allowGuest={guestCheckoutEnabled}>
         <div className="mx-auto w-full max-w-6xl px-3 sm:px-5 py-16">
           <Card variant="bordered" className="space-y-4">
             <div className="h-6 w-48 rounded bg-muted animate-pulse" />
@@ -539,7 +582,7 @@ export function CheckoutPage() {
     const error = checkoutQuery.error;
     if (error instanceof ApiError && error.status === 400) {
       return (
-        <AuthGate nextHref="/checkout">
+        <AuthGate nextHref="/checkout" allowGuest={guestCheckoutEnabled}>
           <div className="mx-auto w-full max-w-5xl px-3 sm:px-5 py-16">
             <Card variant="bordered" className="space-y-3 text-center">
               <h1 className="text-2xl font-semibold">Your bag is empty</h1>
@@ -555,7 +598,7 @@ export function CheckoutPage() {
       );
     }
     return (
-      <AuthGate nextHref="/checkout">
+      <AuthGate nextHref="/checkout" allowGuest={guestCheckoutEnabled}>
         <div className="mx-auto w-full max-w-5xl px-3 sm:px-5 py-16">
           <Card variant="bordered" className="space-y-3 text-center">
             <h1 className="text-2xl font-semibold">Checkout unavailable</h1>
@@ -573,7 +616,7 @@ export function CheckoutPage() {
 
   if (cartEmpty) {
     return (
-      <AuthGate nextHref="/checkout">
+      <AuthGate nextHref="/checkout" allowGuest={guestCheckoutEnabled}>
         <div className="mx-auto w-full max-w-5xl px-3 sm:px-5 py-16">
           <Card variant="bordered" className="space-y-3 text-center">
             <h1 className="text-2xl font-semibold">Your bag is empty</h1>
@@ -592,6 +635,7 @@ export function CheckoutPage() {
   return (
     <AuthGate
       nextHref="/checkout"
+      allowGuest={guestCheckoutEnabled}
       title="Sign in to checkout"
       description="Please sign in to continue with checkout."
     >

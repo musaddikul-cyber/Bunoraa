@@ -258,3 +258,35 @@ class GuestWishlistApiTests(APITestCase):
 
         self.assertFalse(Cart.objects.filter(session_key=session_key, user__isnull=True).exists())
         self.assertFalse(SessionWishlist.objects.filter(session_key=session_key).exists())
+
+
+@override_settings(DEBUG=False, SECURE_SSL_REDIRECT=False, MIDDLEWARE=TEST_MIDDLEWARE)
+class GuestCheckoutApiTests(APITestCase):
+    def setUp(self):
+        self.product = create_product("Guest Checkout Product")
+
+    def _seed_guest_cart(self):
+        response = self.client.post(
+            "/api/v1/commerce/cart/add/",
+            {"product_id": str(self.product.id), "quantity": 1},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_guest_can_open_checkout_when_enabled(self):
+        self._seed_guest_cart()
+
+        response = self.client.get("/api/v1/commerce/checkout/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response_data(response)
+        self.assertIn("id", payload)
+
+    @override_settings(CHECKOUT_GUEST_CHECKOUT_ENABLED=False)
+    def test_guest_checkout_is_blocked_when_disabled(self):
+        self._seed_guest_cart()
+
+        response = self.client.get("/api/v1/commerce/checkout/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Guest checkout is currently disabled", str(response.json()))

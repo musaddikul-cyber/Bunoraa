@@ -11,11 +11,13 @@ export function AuthGate({
   title = "Authentication required",
   description = "Please sign in to continue.",
   nextHref,
+  allowGuest = false,
 }: {
   children: React.ReactNode;
   title?: string;
   description?: string;
   nextHref?: string;
+  allowGuest?: boolean;
 }) {
   const { hasToken } = useAuth();
   const [mounted, setMounted] = React.useState(false);
@@ -41,7 +43,7 @@ export function AuthGate({
     );
   }
 
-  if (!hasToken) {
+  if (!hasToken && !allowGuest) {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <div className="mx-auto w-full max-w-3xl px-3 sm:px-5 py-20">

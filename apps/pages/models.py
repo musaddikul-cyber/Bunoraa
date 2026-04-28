@@ -2,6 +2,7 @@
 Pages models
 """
 import uuid
+from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils.text import slugify
@@ -472,6 +473,14 @@ class SiteSettings(models.Model):
         default='BDT',
     )
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=10)
+    guest_checkout_enabled_override = models.BooleanField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            'Override guest checkout availability. Leave blank to use the core settings default.'
+        ),
+    )
     
 
     
@@ -494,6 +503,12 @@ class SiteSettings(models.Model):
     
     def __str__(self):
         return 'Site Settings'
+
+    @property
+    def guest_checkout_enabled(self) -> bool:
+        if self.guest_checkout_enabled_override is None:
+            return bool(getattr(settings, 'CHECKOUT_GUEST_CHECKOUT_ENABLED', False))
+        return bool(self.guest_checkout_enabled_override)
     
     CACHE_KEY = 'site_settings_singleton'
     CACHE_TIMEOUT = 300  # 5 minutes

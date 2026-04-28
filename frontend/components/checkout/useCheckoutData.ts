@@ -66,6 +66,7 @@ function mergeSummaryWithCart(previous: CartSummary | undefined, cart: Cart): Ca
 
 async function fetchCheckoutSession() {
   const response = await apiFetch<CheckoutSession>("/commerce/checkout/", {
+    allowGuest: true,
     suppressErrorStatus: [400],
   });
   return response.data;
@@ -198,6 +199,7 @@ export function useCheckoutData(options?: {
       return apiFetch("/commerce/checkout/shipping_info/", {
         method: "POST",
         body: payload,
+        allowGuest: true,
       });
     },
     onSuccess: () => {
@@ -212,6 +214,7 @@ export function useCheckoutData(options?: {
       return apiFetch("/commerce/checkout/shipping_method/", {
         method: "POST",
         body: payload,
+        allowGuest: true,
       });
     },
     onSuccess: () => {
@@ -225,6 +228,7 @@ export function useCheckoutData(options?: {
       return apiFetch("/commerce/checkout/payment_method/", {
         method: "POST",
         body: payload,
+        allowGuest: true,
       });
     },
     onSuccess: () => {
@@ -238,6 +242,7 @@ export function useCheckoutData(options?: {
       return apiFetch("/commerce/checkout/complete/", {
         method: "POST",
         body: payload,
+        allowGuest: true,
       });
     },
     onSuccess: () => {

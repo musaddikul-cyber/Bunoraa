@@ -2,12 +2,71 @@
 Orders services
 """
 from decimal import Decimal
+from urllib.parse import quote
 from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
+from django.core import signing
 from django.db.models import Prefetch
 
 from .models import Order, OrderItem, OrderStatusHistory
+
+
+class OrderAccessService:
+    """Helpers for secure guest order access."""
+
+    TOKEN_SALT = "orders.guest-access"
+
+    @classmethod
+    def build_guest_access_token(cls, order: Order) -> str:
+        if getattr(order, "user_id", None):
+            raise ValueError("Guest access tokens are only available for guest orders.")
+        payload = {
+            "order_id": str(order.id),
+            "email": (order.email or "").strip().lower(),
+            "kind": "guest-order-access",
+        }
+        return signing.dumps(payload, salt=cls.TOKEN_SALT, compress=True)
+
+    @classmethod
+    def verify_guest_access_token(cls, order: Order, token: str) -> bool:
+        if not order or not token:
+            return False
+
+        try:
+            payload = signing.loads(
+                token,
+                salt=cls.TOKEN_SALT,
+                max_age=getattr(settings, "GUEST_ORDER_ACCESS_TOKEN_MAX_AGE_SECONDS", 0),
+            )
+        except signing.SignatureExpired:
+            return False
+        except signing.BadSignature:
+            return False
+
+        if not isinstance(payload, dict):
+            return False
+
+        return (
+            payload.get("kind") == "guest-order-access"
+            and str(payload.get("order_id") or "") == str(order.id)
+            and str(payload.get("email") or "").strip().lower()
+            == str(order.email or "").strip().lower()
+        )
+
+    @classmethod
+    def build_guest_order_url(cls, order: Order, path: str = "detail") -> str:
+        token = cls.build_guest_access_token(order)
+        encoded_token = quote(token, safe="")
+        base_url = getattr(settings, "SITE_URL", "").rstrip("/")
+        order_path = f"/orders/{order.id}/"
+        if path == "track":
+            order_path = f"/orders/{order.id}/track/"
+        separator = "&" if "?" in order_path else "?"
+        url = f"{order_path}{separator}access_token={encoded_token}"
+        if base_url:
+            return f"{base_url}{url}"
+        return url
 
 
 class OrderService:
@@ -236,7 +295,10 @@ class OrderService:
                 currency.format_amount(order.total) if currency else str(order.total)
             )
 
-            order_url = f"{getattr(settings, 'SITE_URL', '').rstrip('/')}/orders/{order.id}/"
+            if order.user_id:
+                order_url = f"{getattr(settings, 'SITE_URL', '').rstrip('/')}/orders/{order.id}/"
+            else:
+                order_url = OrderAccessService.build_guest_order_url(order)
 
             subject = f"Order Confirmation - {order.order_number}"
             message = "\n".join(

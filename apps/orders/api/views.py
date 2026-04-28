@@ -3,13 +3,15 @@ Orders API views
 """
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle, ScopedRateThrottle
+from django.http import Http404
 from django.db.models import Q
+from urllib.parse import quote
 
 from ..models import Order
-from ..services import OrderService
+from ..services import OrderAccessService, OrderService
 from .serializers import (
     OrderSerializer,
     OrderDetailSerializer,
@@ -17,6 +19,7 @@ from .serializers import (
     CancelOrderSerializer,
     UpdateOrderStatusSerializer,
     AddTrackingSerializer,
+    GuestOrderLookupSerializer,
 )
 
 
@@ -30,15 +33,35 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     - POST /api/v1/orders/{id}/cancel/ - Cancel order
     - GET /api/v1/orders/{id}/track/ - Get tracking info
     """
-    throttle_classes = [UserRateThrottle]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle, ScopedRateThrottle]
     throttle_scope = 'orders'
     permission_classes = [IsAuthenticated]
+
+    def _guest_access_token(self, request) -> str:
+        return (request.query_params.get('access_token') or '').strip()
+
+    def _is_guest_access_request(self, request) -> bool:
+        return bool(
+            self.action in {'retrieve', 'track'} and self._guest_access_token(request)
+        )
+
+    def get_permissions(self):
+        if self.action == 'lookup' or self._is_guest_access_request(self.request):
+            return [AllowAny()]
+        return [permission() for permission in self.permission_classes]
+
+    def get_throttles(self):
+        if self.action == 'lookup' or self._is_guest_access_request(self.request):
+            self.throttle_scope = 'guest-order-access'
+        else:
+            self.throttle_scope = 'orders'
+        return super().get_throttles()
     
     def get_queryset(self):
-        return Order.objects.filter(
-            user=self.request.user,
-            is_deleted=False
-        ).prefetch_related('items', 'status_history')
+        base_queryset = Order.objects.filter(is_deleted=False).prefetch_related('items', 'status_history')
+        if self._is_guest_access_request(self.request):
+            return base_queryset
+        return base_queryset.filter(user=self.request.user)
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -110,7 +133,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     
     def retrieve(self, request, pk=None):
         """Get order detail."""
-        order = self.get_object()
+        order = self._get_order_for_read_access()
         serializer = self.get_serializer(order)
         
         return Response({
@@ -157,7 +180,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'], url_path='track')
     def track(self, request, pk=None):
         """Get tracking information."""
-        order = self.get_object()
+        order = self._get_order_for_read_access()
         
         return Response({
             'success': True,
@@ -172,6 +195,71 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 'delivered_at': order.delivered_at,
             }
         })
+
+    @action(detail=False, methods=['post'], url_path='lookup')
+    def lookup(self, request):
+        """Lookup a guest order by order number and email."""
+        serializer = GuestOrderLookupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        order_number = serializer.validated_data['order_number'].strip()
+        email = serializer.validated_data['email'].strip().lower()
+
+        order = (
+            Order.objects.filter(
+                order_number__iexact=order_number,
+                email__iexact=email,
+                is_deleted=False,
+                user__isnull=True,
+            )
+            .prefetch_related('items', 'status_history')
+            .first()
+        )
+
+        if not order:
+            return Response(
+                {
+                    'success': False,
+                    'message': "We couldn't find an order matching those details.",
+                    'data': None,
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        access_token = OrderAccessService.build_guest_access_token(order)
+        encoded_access_token = quote(access_token, safe="")
+        detail_url = f"/orders/{order.id}/?access_token={encoded_access_token}"
+        track_url = f"/orders/{order.id}/track/?access_token={encoded_access_token}"
+
+        return Response(
+            {
+                'success': True,
+                'message': 'Order retrieved',
+                'data': {
+                    'order_id': str(order.id),
+                    'order_number': order.order_number,
+                    'access_token': access_token,
+                    'status': order.status,
+                    'status_display': order.get_status_display(),
+                    'tracking_number': order.tracking_number,
+                    'tracking_url': order.tracking_url,
+                    'detail_url': detail_url,
+                    'track_url': track_url,
+                },
+            }
+        )
+
+    def _get_order_for_read_access(self):
+        order = self.get_object()
+        request = self.request
+        if request.user.is_authenticated and order.user_id == request.user.id:
+            return order
+
+        token = self._guest_access_token(request)
+        if order.user_id is None and token and OrderAccessService.verify_guest_access_token(order, token):
+            return order
+
+        raise Http404("Order not found")
 
 
 class OrderAdminViewSet(viewsets.ModelViewSet):

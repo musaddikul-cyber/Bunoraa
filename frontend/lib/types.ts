@@ -368,6 +368,7 @@ export type SiteSettings = {
   contact_address?: string | null;
   support_reply_time_note?: string | null;
   address?: string | null;
+  guest_checkout_enabled?: boolean;
   facebook_url?: string | null;
   instagram_url?: string | null;
   twitter_url?: string | null;

@@ -11,7 +11,7 @@ from apps.catalog.models import Product, Category
 from apps.commerce.models import Cart, CartItem, CheckoutSession
 from apps.commerce.services import CartService, CheckoutService
 from .models import Order, OrderItem, OrderStatusHistory
-from .services import OrderService
+from .services import OrderAccessService, OrderService
 
 
 User = get_user_model()
@@ -410,3 +410,87 @@ class OrderAPITest(APITestCase):
         response = self.client.get('/api/v1/orders/')
         
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class GuestOrderAccessAPITest(APITestCase):
+    def setUp(self):
+        self.guest_order = Order.objects.create(
+            email='guest@example.com',
+            shipping_first_name='Guest',
+            shipping_last_name='Buyer',
+            shipping_address_line_1='123 Main St',
+            shipping_city='Dhaka',
+            shipping_postal_code='1205',
+            shipping_country='Bangladesh',
+            billing_first_name='Guest',
+            billing_last_name='Buyer',
+            billing_address_line_1='123 Main St',
+            billing_city='Dhaka',
+            billing_postal_code='1205',
+            billing_country='Bangladesh',
+            subtotal=Decimal('100.00'),
+            total=Decimal('100.00'),
+        )
+        self.account_user = User.objects.create_user(
+            email='member@example.com',
+            password='testpass123',
+        )
+        self.account_order = Order.objects.create(
+            user=self.account_user,
+            email='member@example.com',
+            shipping_first_name='Member',
+            shipping_last_name='Buyer',
+            shipping_address_line_1='456 Main St',
+            shipping_city='Dhaka',
+            shipping_postal_code='1207',
+            shipping_country='Bangladesh',
+            billing_first_name='Member',
+            billing_last_name='Buyer',
+            billing_address_line_1='456 Main St',
+            billing_city='Dhaka',
+            billing_postal_code='1207',
+            billing_country='Bangladesh',
+            subtotal=Decimal('150.00'),
+            total=Decimal('150.00'),
+        )
+
+    def test_guest_lookup_returns_access_token_for_guest_order(self):
+        response = self.client.post(
+            '/api/v1/orders/lookup/',
+            {
+                'order_number': self.guest_order.order_number,
+                'email': self.guest_order.email,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+        self.assertIn('access_token', response.data['data'])
+        self.assertIn(str(self.guest_order.id), response.data['data']['detail_url'])
+
+    def test_guest_can_retrieve_order_detail_with_access_token(self):
+        token = OrderAccessService.build_guest_access_token(self.guest_order)
+
+        response = self.client.get(
+            f'/api/v1/orders/{self.guest_order.id}/',
+            {'access_token': token},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data['data']['order_number'],
+            self.guest_order.order_number,
+        )
+
+    def test_lookup_does_not_expose_account_order(self):
+        response = self.client.post(
+            '/api/v1/orders/lookup/',
+            {
+                'order_number': self.account_order.order_number,
+                'email': self.account_order.email,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

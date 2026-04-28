@@ -3,6 +3,7 @@ Commerce API Views
 """
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
@@ -11,7 +12,7 @@ from django.urls import reverse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 from decimal import Decimal
 from core.pagination import StandardResultsSetPagination
 from ..models import (
@@ -25,6 +26,7 @@ from ..services import (
     EnhancedCartService,
     EnhancedWishlistService,
     CartException,
+    CheckoutException,
     InsufficientStockException,
 )
 from .serializers import (
@@ -777,6 +779,13 @@ class CheckoutViewSet(viewsets.ViewSet):
     
     permission_classes = [permissions.AllowAny]
 
+    def _ensure_guest_checkout_allowed(self, request):
+        if request.user.is_authenticated:
+            return
+        if CheckoutService.is_guest_checkout_enabled():
+            return
+        raise PermissionDenied("Guest checkout is currently disabled. Please sign in to continue.")
+
     def _track_cart_event(self, request, event_type, product=None, quantity=1, cart_value=0):
         """Best-effort analytics tracking for checkout funnel events."""
         try:
@@ -797,6 +806,8 @@ class CheckoutViewSet(viewsets.ViewSet):
         """Get or create checkout session."""
         from apps.analytics.models import CartEvent
 
+        self._ensure_guest_checkout_allowed(request)
+
         user = request.user if request.user.is_authenticated else None
         session_key = request.session.session_key
         
@@ -810,12 +821,15 @@ class CheckoutViewSet(viewsets.ViewSet):
             return None
         existing_session = CheckoutService.get_active_session(cart, user=user, session_key=session_key)
 
-        checkout_session = CheckoutService.get_or_create_session(
-            cart=cart,
-            user=user,
-            session_key=session_key,
-            request=request
-        )
+        try:
+            checkout_session = CheckoutService.get_or_create_session(
+                cart=cart,
+                user=user,
+                session_key=session_key,
+                request=request
+            )
+        except CheckoutException as exc:
+            raise PermissionDenied(str(exc)) from exc
 
         if existing_session is None:
             self._track_cart_event(
@@ -1128,6 +1142,7 @@ class CheckoutViewSet(viewsets.ViewSet):
     def complete(self, request):
         """Complete checkout and place order."""
         from apps.analytics.models import CartEvent
+        from apps.orders.services import OrderAccessService
 
         checkout_session = self._get_checkout_session(request)
         
@@ -1165,6 +1180,11 @@ class CheckoutViewSet(viewsets.ViewSet):
 
             payment_redirect_url = None
             payment_instructions = None
+            guest_access_token = (
+                OrderAccessService.build_guest_access_token(order)
+                if not order.user_id
+                else None
+            )
 
             try:
                 from apps.payments.models import PaymentGateway
@@ -1195,6 +1215,11 @@ class CheckoutViewSet(viewsets.ViewSet):
                     success_url = f"{base_url}/checkout/success?order_id={order.id}&order_number={order.order_number}"
                     fail_url = f"{base_url}/checkout?payment=failed&order_id={order.id}&order_number={order.order_number}"
                     cancel_url = f"{base_url}/checkout?payment=cancelled&order_id={order.id}&order_number={order.order_number}"
+                    if guest_access_token:
+                        encoded_guest_access_token = quote(guest_access_token, safe="")
+                        success_url = f"{success_url}&access_token={encoded_guest_access_token}"
+                        fail_url = f"{fail_url}&access_token={encoded_guest_access_token}"
+                        cancel_url = f"{cancel_url}&access_token={encoded_guest_access_token}"
                     ipn_url = request.build_absolute_uri(reverse('payments:gateway-ipn'))
 
                     if gateway.code == 'sslcommerz' or gateway.ssl_store_id:
@@ -1237,6 +1262,17 @@ class CheckoutViewSet(viewsets.ViewSet):
                 'payment_status': order.payment_status,
                 'payment_redirect_url': payment_redirect_url,
                 'payment_instructions': payment_instructions,
+                'guest_access_token': guest_access_token,
+                'order_detail_url': (
+                    f"/orders/{order.id}/?access_token={quote(guest_access_token, safe='')}"
+                    if guest_access_token
+                    else f"/orders/{order.id}/"
+                ),
+                'order_tracking_url': (
+                    f"/orders/{order.id}/track/?access_token={quote(guest_access_token, safe='')}"
+                    if guest_access_token
+                    else f"/orders/{order.id}/track/"
+                ),
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:

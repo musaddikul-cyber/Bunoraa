@@ -1126,10 +1126,30 @@ class CheckoutService:
             pass
 
         return code
+
+    @classmethod
+    def is_guest_checkout_enabled(cls) -> bool:
+        try:
+            from apps.pages.models import SiteSettings
+
+            return bool(SiteSettings.get_settings().guest_checkout_enabled)
+        except Exception:
+            return bool(getattr(settings, 'CHECKOUT_GUEST_CHECKOUT_ENABLED', False))
+
+    @classmethod
+    def assert_guest_checkout_allowed(cls, user=None) -> None:
+        if user and getattr(user, 'is_authenticated', False):
+            return
+        if not cls.is_guest_checkout_enabled():
+            raise CheckoutException(
+                "Guest checkout is currently disabled. Please sign in to continue."
+            )
     
     @classmethod
     def get_or_create_session(cls, cart: Cart, user=None, session_key=None, request=None) -> CheckoutSession:
         """Get or create checkout session for cart."""
+        cls.assert_guest_checkout_allowed(user=user)
+
         active_steps = [
             CheckoutSession.STEP_CART,
             CheckoutSession.STEP_INFORMATION,
@@ -1283,12 +1303,38 @@ class CheckoutService:
         
         if data.get('email'):
             checkout_session.email = data['email']
+            checkout_session.shipping_email = data['email']
         
         checkout_session.current_step = CheckoutSession.STEP_SHIPPING
         checkout_session.save()
         
         cls.log_event(checkout_session, CheckoutEvent.EVENT_INFO_SUBMITTED)
         
+        return checkout_session
+
+    @classmethod
+    def update_shipping_address(cls, checkout_session: CheckoutSession, data: dict) -> CheckoutSession:
+        """Backward-compatible wrapper for legacy callers."""
+        payload = {
+            'email': data.get('email') or data.get('shipping_email') or '',
+            'shipping_first_name': data.get('shipping_first_name') or data.get('first_name') or '',
+            'shipping_last_name': data.get('shipping_last_name') or data.get('last_name') or '',
+            'shipping_company': data.get('shipping_company') or data.get('company') or '',
+            'shipping_phone': data.get('shipping_phone') or data.get('phone') or '',
+            'shipping_address_line_1': data.get('shipping_address_line_1') or data.get('address_line_1') or '',
+            'shipping_address_line_2': data.get('shipping_address_line_2') or data.get('address_line_2') or '',
+            'shipping_city': data.get('shipping_city') or data.get('city') or '',
+            'shipping_state': data.get('shipping_state') or data.get('state') or '',
+            'shipping_postal_code': data.get('shipping_postal_code') or data.get('postal_code') or '',
+            'shipping_country': data.get('shipping_country') or data.get('country') or '',
+        }
+        checkout_session = cls.update_shipping_info(checkout_session, payload)
+
+        billing_same_as_shipping = data.get('billing_same_as_shipping')
+        if billing_same_as_shipping is not None:
+            checkout_session.billing_same_as_shipping = bool(billing_same_as_shipping)
+            checkout_session.save(update_fields=['billing_same_as_shipping'])
+
         return checkout_session
     
     @classmethod
@@ -1341,6 +1387,8 @@ class CheckoutService:
     def complete_checkout(cls, checkout_session: CheckoutSession):
         """Complete checkout and create order using orders app."""
         from apps.orders.services import OrderService
+
+        cls.assert_guest_checkout_allowed(user=checkout_session.user)
         
         if checkout_session.current_step == CheckoutSession.STEP_COMPLETED:
             raise CheckoutException("Checkout already completed")

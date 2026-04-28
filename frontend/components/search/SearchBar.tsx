@@ -154,7 +154,7 @@ export function SearchBar({ hideSubmitButtonOnDesktop = false }: SearchBarProps)
   }, [showSuggestions]);
 
   return (
-    <div ref={containerRef} className="relative w-full max-w-3xl">
+    <div ref={containerRef} className="relative w-full max-w-5xl">
       <form onSubmit={onSubmit} className="relative">
         <label htmlFor={inputId} className="sr-only">
           Search products and categories

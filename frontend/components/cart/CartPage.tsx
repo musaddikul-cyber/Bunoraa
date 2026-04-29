@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { CartItem, ProductListItem } from "@/lib/types";
 import { useCart } from "@/components/cart/useCart";
@@ -15,6 +14,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { cn } from "@/lib/utils";
 import { buildProductPath } from "@/lib/productPaths";
 import { getLazyImageProps } from "@/lib/lazyImage";
+import { ShareModal } from "@/components/cart/ShareModal";
 
 type ValidationIssue = {
   type?: string;
@@ -461,13 +461,12 @@ export function CartPage() {
     password: "",
   });
   const [shareResult, setShareResult] = React.useState<ShareResult | null>(null);
-  const [isShareSectionOpen, setIsShareSectionOpen] = React.useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = React.useState(false);
   const [updatingItemId, setUpdatingItemId] = React.useState<string | null>(null);
   const [removingItemId, setRemovingItemId] = React.useState<string | null>(null);
   const [resetCounter, setResetCounter] = React.useState(0);
   const [resetItemId, setResetItemId] = React.useState<string | null>(null);
   const giftSaveTimerRef = React.useRef<number | null>(null);
-  const shareSectionRef = React.useRef<HTMLDivElement | null>(null);
   const lastSubmittedGiftStateRef = React.useRef<GiftState>(DEFAULT_GIFT_STATE);
   const updateGiftMutateRef = React.useRef(updateGiftOptions.mutateAsync);
   const pushRef = React.useRef(push);
@@ -763,7 +762,6 @@ export function CartPage() {
 
   const handleShareCart = async () => {
     try {
-      setIsShareSectionOpen(true);
       const response = await shareCart.mutateAsync({
         name: shareState.name || undefined,
         permission: shareState.permission || undefined,
@@ -811,13 +809,7 @@ export function CartPage() {
   };
 
   const handleOpenShareSection = React.useCallback(() => {
-    setIsShareSectionOpen(true);
-    window.requestAnimationFrame(() => {
-      shareSectionRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    });
+    setIsShareModalOpen(true);
   }, []);
 
   if (cartQuery.isLoading) {
@@ -1050,7 +1042,7 @@ export function CartPage() {
             <Card variant="bordered" className="space-y-4">
               <h3 className="text-base font-semibold">Promo code</h3>
               {appliedCouponCode ? (
-                <div className="flex flex-col gap-3 rounded-xl border border-success-500/30 bg-success-500/5 p-3">
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-success-500/30 bg-success-500/5 p-3">
                   <p className="text-sm text-foreground/80">
                     Applied coupon:{" "}
                     <span className="font-semibold text-success-600">
@@ -1061,7 +1053,7 @@ export function CartPage() {
                     type="button"
                     size="sm"
                     variant="secondary"
-                    className="w-full sm:w-auto sm:self-start"
+                    className="w-full sm:w-auto shrink-0"
                     onClick={handleRemoveCoupon}
                   >
                     Remove
@@ -1148,138 +1140,6 @@ export function CartPage() {
               ) : null}
             </Card>
 
-            <div ref={shareSectionRef}>
-              <Card variant="bordered" className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold">Share bag</h3>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="px-3"
-                    onClick={() => setIsShareSectionOpen((prev) => !prev)}
-                  >
-                    {isShareSectionOpen ? "Hide" : "Open"}
-                  </Button>
-                </div>
-                {isShareSectionOpen || shareResult?.share_url ? (
-                  <div className="grid gap-2">
-                    <input
-                      type="text"
-                      placeholder="Name (optional)"
-                      value={shareState.name}
-                      onChange={(event) =>
-                        setShareState((prev) => ({ ...prev, name: event.target.value }))
-                      }
-                      className="h-10 rounded-xl border border-border bg-transparent px-3 text-sm"
-                    />
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <select
-                        value={shareState.permission}
-                        onChange={(event) =>
-                          setShareState((prev) => ({
-                            ...prev,
-                            permission: event.target.value,
-                          }))
-                        }
-                        className="h-10 rounded-xl border border-border bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                      >
-                        <option value="view">View only</option>
-                        <option value="edit">Can edit items</option>
-                        <option value="purchase">Can purchase</option>
-                      </select>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={1}
-                          max={365}
-                          value={shareState.expires_days}
-                          onChange={(event) =>
-                            setShareState((prev) => ({
-                              ...prev,
-                              expires_days: Number(event.target.value || 7),
-                            }))
-                          }
-                          className="no-spin h-10 w-full rounded-xl border border-border bg-card px-3 pr-10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                          placeholder="Expires in days"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                        />
-                        <div className="absolute right-1 top-1 flex h-8 w-8 flex-col overflow-hidden rounded-lg border border-border bg-muted/40">
-                          <button
-                            type="button"
-                            className="flex h-4 items-center justify-center border-b border-border/70 text-foreground/70 hover:bg-muted"
-                            aria-label="Increase days"
-                            onClick={() =>
-                              setShareState((prev) => ({
-                                ...prev,
-                                expires_days: Math.min(365, (prev.expires_days || 7) + 1),
-                              }))
-                            }
-                          >
-                            <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
-                          </button>
-                          <button
-                            type="button"
-                            className="flex h-4 items-center justify-center text-foreground/70 hover:bg-muted"
-                            aria-label="Decrease days"
-                            onClick={() =>
-                              setShareState((prev) => ({
-                                ...prev,
-                                expires_days: Math.max(1, (prev.expires_days || 7) - 1),
-                              }))
-                            }
-                          >
-                            <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <input
-                      type="password"
-                      placeholder="Password (optional)"
-                      value={shareState.password}
-                      onChange={(event) =>
-                        setShareState((prev) => ({
-                          ...prev,
-                          password: event.target.value,
-                        }))
-                      }
-                      className="h-10 rounded-xl border border-border bg-transparent px-3 text-sm"
-                    />
-                    <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="w-full sm:w-auto"
-                        onClick={handleShareCart}
-                      >
-                        Create link
-                      </Button>
-                      {shareResult?.share_url ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="w-full sm:w-auto"
-                          onClick={handleCopyShare}
-                        >
-                          Copy link
-                        </Button>
-                      ) : null}
-                    </div>
-                    {shareResult?.share_url ? (
-                      <p className="break-all text-xs text-foreground/60">
-                        {shareResult.share_url}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="text-sm text-foreground/70">
-                    Share your current bag with family, team members, or your personal shopper.
-                  </p>
-                )}
-              </Card>
-            </div>
-
           </div>
         </div>
 
@@ -1336,6 +1196,16 @@ export function CartPage() {
           </div>
         ) : null}
       </div>
+
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        shareState={shareState}
+        onShareStateChange={setShareState}
+        shareResult={shareResult}
+        onShare={handleShareCart}
+        onCopyLink={handleCopyShare}
+      />
     </div>
   );
 }

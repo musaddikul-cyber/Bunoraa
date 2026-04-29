@@ -96,16 +96,6 @@ export const viewport: Viewport = {
 const disablePrerender =
   process.env.NEXT_DISABLE_PRERENDER === "true" ||
   process.env.NEXT_DISABLE_PRERENDER === "1";
-const cloudflareBeaconToken = (
-  process.env.NEXT_PUBLIC_CLOUDFLARE_BEACON_TOKEN || ""
-).trim();
-const cloudflareBeaconEnabled =
-  process.env.NEXT_PUBLIC_CLOUDFLARE_BEACON_ENABLED === "true" ||
-  process.env.NEXT_PUBLIC_CLOUDFLARE_BEACON_ENABLED === "1";
-const shouldLoadCloudflareBeacon =
-  process.env.NODE_ENV === "production" &&
-  cloudflareBeaconEnabled &&
-  Boolean(cloudflareBeaconToken);
 
 const themeBootstrapScript = `
 (() => {
@@ -187,13 +177,6 @@ export default function RootLayout({
           <DeferredClientEnhancements />
         </Providers>
         <JsonLd data={[organizationSchema, websiteSchema]} />
-        {shouldLoadCloudflareBeacon ? (
-          <Script
-            src="https://static.cloudflareinsights.com/beacon.min.js"
-            strategy="afterInteractive"
-            data-cf-beacon={`{"token":"${cloudflareBeaconToken}"}`}
-          />
-        ) : null}
       </body>
     </html>
   );

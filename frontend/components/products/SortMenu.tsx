@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { updateParamValue } from "@/lib/productFilters";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +30,7 @@ export function SortMenu({
   variant?: "default" | "minimal";
 } = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const options = variant === "minimal" ? minimalOrderingOptions : orderingOptions;
   const fallbackOrdering = variant === "minimal" ? "" : "-created_at";
@@ -48,7 +49,7 @@ export function SortMenu({
         value={currentOrdering}
         onChange={(event) => {
           const params = updateParamValue(searchParams, "ordering", event.target.value);
-          router.push(`?${params.toString()}`);
+          router.push(`${pathname}?${params.toString()}`);
         }}
         className={selectClass}
       >

@@ -605,7 +605,7 @@ function ShippingEstimator({
   );
 }
 
-function ProductReviews({ product }: { product: ProductDetail }) {
+function ProductReviews({ product, reviewStatsQuery: sharedReviewStatsQuery }: { product: ProductDetail; reviewStatsQuery: ReturnType<typeof useQuery<ReviewStatistics | undefined, Error>> }) {
   const { hasToken } = useAuthContext();
   const { push } = useToast();
   const pathname = usePathname();
@@ -629,16 +629,6 @@ function ProductReviews({ product }: { product: ProductDetail }) {
     },
   });
 
-  const reviewStatsQuery = useQuery({
-    queryKey: ["product", product.id, "review-stats"],
-    queryFn: async () => {
-      const response = await apiFetch<ReviewStatistics>(
-        `/reviews/product/${product.id}/statistics/`
-      );
-      return response.data;
-    },
-  });
-
   const addReview = useMutation({
     mutationFn: async () => {
       return apiFetch(`/reviews/`, {
@@ -650,7 +640,7 @@ function ProductReviews({ product }: { product: ProductDetail }) {
       push("Review submitted. Pending approval.", "success");
       setTitle("");
       setBody("");
-      reviewStatsQuery.refetch();
+      sharedReviewStatsQuery.refetch();
       reviewsQuery.refetch();
     },
     onError: (error) => {
@@ -662,7 +652,7 @@ function ProductReviews({ product }: { product: ProductDetail }) {
     },
   });
 
-  const summary = reviewStatsQuery.data;
+  const summary = sharedReviewStatsQuery.data;
   const canReview = summary?.can_review;
   const canReviewReason = summary?.can_review_reason;
   const totalPages = Math.max(1, reviewsQuery.data?.pagination?.total_pages || 1);
@@ -728,7 +718,7 @@ function ProductReviews({ product }: { product: ProductDetail }) {
         </div>
       ) : (
         <p className="text-sm text-foreground/60">
-          {reviewsQuery.isFetching || reviewStatsQuery.isFetching ? "Loading reviews..." : "No reviews yet."}
+          {reviewsQuery.isFetching || sharedReviewStatsQuery.isFetching ? "Loading reviews..." : "No reviews yet."}
         </p>
       )}
 
@@ -828,6 +818,8 @@ export function ProductDetailClient({
   product: ProductDetail;
   relatedProducts?: ProductListItem[];
 }) {
+  const { hasToken } = useAuthContext();
+
   const variants = React.useMemo<Variant[]>(
     () => product.variants ?? [],
     [product.variants]
@@ -845,6 +837,17 @@ export function ProductDetailClient({
   const [sizeChartExpanded, setSizeChartExpanded] = React.useState(false);
   const [moreInfoExpanded, setMoreInfoExpanded] = React.useState(false);
   const [returnsExpanded, setReturnsExpanded] = React.useState(false);
+
+  // Review stats query - fetched at top level to use in multiple places
+  const reviewStatsQuery = useQuery({
+    queryKey: ["product", product.id, "review-stats"],
+    queryFn: async () => {
+      const response = await apiFetch<ReviewStatistics>(
+        `/reviews/product/${product.id}/statistics/`
+      );
+      return response.data;
+    },
+  });
 
   const variantOptionMapById = React.useMemo(() => {
     const map = new Map<string, VariantOptionMap>();
@@ -1099,7 +1102,9 @@ export function ProductDetailClient({
     ...categoryBreadcrumbs,
     { label: product.name, href: buildProductPath(product) },
   ];
-  const reviewCount = typeof product.reviews_count === "number" ? product.reviews_count : 0;
+  const reviewStats = reviewStatsQuery.data;
+  const reviewCount = reviewStats?.total_count || 0;
+  const canReview = reviewStats?.can_review ?? false;
 
   return (
     <div className="space-y-10 pb-16">
@@ -1128,10 +1133,15 @@ export function ProductDetailClient({
             {product.name}
           </h1>
           <div className="text-xs uppercase tracking-[0.2em] text-foreground/60">
-            {reviewCount} {reviewCount === 1 ? "Review" : "Reviews"}{" "}
-            <a href="#reviews" className="ml-2 underline-offset-2 hover:underline">
-              Add Review
-            </a>
+            {reviewCount} {reviewCount === 1 ? "Review" : "Reviews"}
+            {hasToken && canReview ? (
+              <>
+                {" "}
+                <a href="#reviews" className="ml-2 underline-offset-2 hover:underline">
+                  Add Review
+                </a>
+              </>
+            ) : null}
           </div>
           <ProductPrice
             price={product.price}
@@ -1464,7 +1474,7 @@ export function ProductDetailClient({
       ) : null}
 
       <section id="reviews" className="space-y-2">
-        <ProductReviews product={product} />
+        <ProductReviews product={product} reviewStatsQuery={reviewStatsQuery} />
       </section>
     </div>
   );

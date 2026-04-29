@@ -380,8 +380,8 @@ export default async function Home() {
             <ProductGrid
               products={band.products}
               cardStyle="minimal"
-              allowQuickView={false}
-              showWishlist={false}
+              allowQuickView={true}
+              showWishlist={true}
             />
           </div>
         </section>
@@ -396,8 +396,8 @@ export default async function Home() {
             <ProductGrid
               products={seasonalFavs}
               cardStyle="minimal"
-              allowQuickView={false}
-              showWishlist={false}
+              allowQuickView={true}
+              showWishlist={true}
             />
           </div>
         </section>
@@ -407,8 +407,8 @@ export default async function Home() {
         <HomeProductTabs
           newDrops={filteredNewArrivals}
           trending={filteredBestsellers}
-          allowQuickView={false}
-          showWishlist={false}
+          allowQuickView={true}
+          showWishlist={true}
         />
       </section>
 

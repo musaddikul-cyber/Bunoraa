@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { updateParamValue } from "@/lib/productFilters";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
 export function ViewToggle({ className }: { className?: string } = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const view = (searchParams.get("view") as "grid" | "list") || "grid";
 
@@ -24,7 +25,7 @@ export function ViewToggle({ className }: { className?: string } = {}) {
         className="w-full"
         onClick={() => {
           const params = updateParamValue(searchParams, "view", "grid");
-          router.push(`?${params.toString()}`);
+          router.push(`${pathname}?${params.toString()}`);
         }}
       >
         Grid
@@ -35,7 +36,7 @@ export function ViewToggle({ className }: { className?: string } = {}) {
         className="w-full"
         onClick={() => {
           const params = updateParamValue(searchParams, "view", "list");
-          router.push(`?${params.toString()}`);
+          router.push(`${pathname}?${params.toString()}`);
         }}
       >
         List

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import type { ProductFilterResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
@@ -63,6 +63,7 @@ export function FilterPanel({
   variant?: "default" | "minimal";
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [activeFilters, setActiveFilters] = React.useState<ProductFilterResponse | null>(filters);
   const [preferredCurrency, setPreferredCurrency] = React.useState<string | undefined>();
@@ -145,7 +146,7 @@ export function FilterPanel({
     const safeMax = clampValue(Number(rawMax.toFixed(2)), minRange, sliderMax);
     let params = updateParamValue(searchParams, "price_min", String(safeMin));
     params = updateParamValue(params, "price_max", String(safeMax));
-    router.push(`?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}`);
   };
   const minPercent = minPercentValue;
   const maxPercent = maxPercentValue;
@@ -294,7 +295,7 @@ export function FilterPanel({
                         `attr_${sizeGroup[1].slug}`,
                         value
                       );
-                      router.push(`?${params.toString()}`);
+                      router.push(`${pathname}?${params.toString()}`);
                     }}
                   >
                     {value}
@@ -330,7 +331,7 @@ export function FilterPanel({
                         `attr_${pantGroup[1].slug}`,
                         value
                       );
-                      router.push(`?${params.toString()}`);
+                      router.push(`${pathname}?${params.toString()}`);
                     }}
                   >
                     {value}
@@ -369,7 +370,7 @@ export function FilterPanel({
                         "price_max",
                         bucket.max === null ? null : String(bucket.max)
                       );
-                      router.push(`?${params.toString()}`);
+                      router.push(`${pathname}?${params.toString()}`);
                     }}
                   >
                     {bucket.label}
@@ -396,7 +397,7 @@ export function FilterPanel({
             className="px-2.5 text-xs sm:text-sm"
             onClick={() => {
               const params = clearAllFilters(searchParams);
-              router.push(`?${params.toString()}`);
+              router.push(`${pathname}?${params.toString()}`);
             }}
           >
             Clear all
@@ -491,7 +492,7 @@ export function FilterPanel({
                 "in_stock",
                 event.target.checked ? "true" : null
               );
-              router.push(`?${params.toString()}`);
+              router.push(`${pathname}?${params.toString()}`);
             }}
           />
           In stock only
@@ -508,7 +509,7 @@ export function FilterPanel({
                   "on_sale",
                   event.target.checked ? "true" : null
                 );
-                router.push(`?${params.toString()}`);
+                router.push(`${pathname}?${params.toString()}`);
               }}
             />
             On sale
@@ -525,7 +526,7 @@ export function FilterPanel({
                 "new_arrivals",
                 event.target.checked ? "true" : null
               );
-              router.push(`?${params.toString()}`);
+              router.push(`${pathname}?${params.toString()}`);
             }}
           />
           New arrivals
@@ -542,7 +543,7 @@ export function FilterPanel({
               checked={current.minRating === String(rating)}
               onChange={() => {
                 const params = updateParamValue(searchParams, "min_rating", String(rating));
-                router.push(`?${params.toString()}`);
+                router.push(`${pathname}?${params.toString()}`);
               }}
             />
             {rating}+ stars
@@ -554,7 +555,7 @@ export function FilterPanel({
             variant="ghost"
             onClick={() => {
               const params = updateParamValue(searchParams, "min_rating", null);
-              router.push(`?${params.toString()}`);
+              router.push(`${pathname}?${params.toString()}`);
             }}
           >
             Clear rating
@@ -579,7 +580,7 @@ export function FilterPanel({
                   )}
                   onClick={() => {
                     const params = toggleMultiValue(searchParams, "tags", tag.name);
-                    router.push(`?${params.toString()}`);
+                    router.push(`${pathname}?${params.toString()}`);
                   }}
                 >
                   {tag.name}
@@ -612,7 +613,7 @@ export function FilterPanel({
                       `attr_${group.slug}`,
                       item.value
                     );
-                    router.push(`?${params.toString()}`);
+                    router.push(`${pathname}?${params.toString()}`);
                   }}
                 >
                   {item.value}

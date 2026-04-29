@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { getAppliedFilters, parseFilters, removeAppliedFilter, clearAllFilters } from "@/lib/productFilters";
 
 export function AppliedFilters({ variant = "default" }: { variant?: "default" | "minimal" } = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const filters = parseFilters(searchParams);
   const applied = getAppliedFilters(filters);
@@ -26,7 +27,7 @@ export function AppliedFilters({ variant = "default" }: { variant?: "default" | 
           className="px-2.5 text-xs sm:text-sm"
           onClick={() => {
             const params = clearAllFilters(searchParams);
-            router.push(`?${params.toString()}`);
+            router.push(`${pathname}?${params.toString()}`);
           }}
         >
           Clear all
@@ -39,7 +40,7 @@ export function AppliedFilters({ variant = "default" }: { variant?: "default" | 
             type="button"
             onClick={() => {
               const params = removeAppliedFilter(searchParams, filter);
-              router.push(`?${params.toString()}`);
+              router.push(`${pathname}?${params.toString()}`);
             }}
             className="inline-flex min-h-10 items-center rounded-full border border-border bg-card px-3.5 py-1.5 text-sm text-foreground/80"
           >
